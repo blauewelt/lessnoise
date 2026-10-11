@@ -10,6 +10,7 @@ services:
       DB_PATH: /data/stadtlaerm.sqlite
       MAP_DIR: /data/map
       TRUST_PROXY: "1"  # behind Caddy: take the client IP from X-Forwarded-For
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}  # shown by /healthz; set by scripts/deploy.sh
     volumes:
       - data:/data
     expose:

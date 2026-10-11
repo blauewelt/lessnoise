@@ -23,6 +23,7 @@ retention job (which also deletes devices that sent nothing for 60 days). Caddy 
 | `stadtlaerm_server/synthetic.py` | Invented test data (a port of the app's chart test fixtures) |
 | `scripts/make_fixture.py` | Generates `example_cells.json` / `example_cell.json` through the real publisher |
 | `scripts/backup.sh` | Nightly encrypted SQLite backup |
+| `scripts/deploy.sh`, `scripts/install-autodeploy.sh` | Automatic pull-based deployment (5-minute timer) |
 | `example_cells.json` | A `cells.json` for 25 Zürich hectares, invented data, exact server format |
 | `example_cell.json` | The matching `cells/h26828_12455.json` (Seestrasse, two devices) |
 
@@ -83,7 +84,7 @@ delete and after retention).
 | `DELETE /v1/devices/{id}` | Bearer | `204` after every row is gone |
 | `GET /v1/map/cells.json`, `/v1/map/cells/{cell}.json`, `/v1/map/nights/{date}.json` | – | static JSON |
 | `GET /v1/map/stats.json` | – | static JSON: project-wide usage counts (below) |
-| `GET /healthz` | – | `{ok: true}` |
+| `GET /healthz` | – | `{ok: true, commit}` (the deployed git commit) |
 
 Bodies may be plain JSON or gzip (`Content-Encoding: gzip`), at most 2 MB on the wire.
 Errors are `{"detail": …}`; validation errors list `{field, reason}` for each problem.
@@ -124,7 +125,7 @@ access, and the `stadtlaerm.ch` DNS zone (it is at Infomaniak already).
    ```sh
    sudo docker compose up -d --build
    sudo docker compose logs -f                      # Caddy logs "certificate obtained"
-   curl https://api.stadtlaerm.ch/healthz           # {"ok":true}
+   curl https://api.stadtlaerm.ch/healthz           # {"ok":true,"commit":"unknown"}
    curl -I https://api.stadtlaerm.ch/v1/map/cells.json
    ```
    The SQLite file and the map files live in the Docker volume `server_data`
@@ -153,8 +154,35 @@ access, and the `stadtlaerm.ch` DNS zone (it is at Infomaniak already).
    sudo docker compose cp stadtlaerm.sqlite app:/data/stadtlaerm.sqlite
    sudo docker compose start app
    ```
-7. **Updates.** `cd /opt/stadtlaerm && sudo git pull && cd server && sudo docker compose up -d --build`.
+7. **Updates.** Automatic, see «Automatic deployment» below. By hand:
+   `cd /opt/stadtlaerm && sudo git pull && cd server && sudo docker compose up -d --build`.
    Schema migrations run automatically at startup (table `schema_version`).
+
+### Automatic deployment
+
+The server pulls; nothing is pushed to it. A systemd timer runs `scripts/deploy.sh` every
+5 minutes. It fetches the configured branch from GitHub (the public repository, read-only, no
+key), and if the branch moved it checks out the new commit, rebuilds and restarts the
+containers (Caddy too if the `Caddyfile` changed) and waits until `/healthz` — called through
+Caddy on this machine — answers with the new commit. If it does not, the script goes back to
+the previous commit and does not try that commit again; the next push is tried normally. A
+branch without `server/compose.yaml` is never deployed.
+
+Set up once (default branch `main`; run again to change the branch):
+
+```sh
+sudo /opt/stadtlaerm/server/scripts/install-autodeploy.sh main
+```
+
+- Log: `journalctl -u stadtlaerm-deploy` (one line per deployment, rollback or refusal).
+- Deploy now instead of waiting: `sudo systemctl start stadtlaerm-deploy`.
+- Which commit runs: `curl https://api.stadtlaerm.ch/healthz` → `{"ok":true,"commit":"…"}`
+  (`unknown` when started by hand without `GIT_COMMIT`).
+- Switch off: `sudo systemctl disable --now stadtlaerm-deploy.timer`.
+
+Consequence: whoever can push to the deployed branch decides what runs here within about
+5 minutes. Keep the branch protected accordingly. Local edits to tracked files on the server
+make the checkout fail (the log says so); keep server-only settings in the untracked `.env`.
 
 **Operator tasks.** Usage numbers (the same as `https://api.stadtlaerm.ch/v1/map/stats.json`):
 `sudo docker compose exec app python -m stadtlaerm_server stats`.

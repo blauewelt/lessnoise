@@ -246,3 +246,10 @@ def test_schema_version_and_wal(client, settings):
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell"} <= idx
+
+
+def test_healthz_names_the_deployed_commit(make_client, monkeypatch):
+    monkeypatch.delenv("GIT_COMMIT", raising=False)
+    assert make_client().get("/healthz").json() == {"ok": True, "commit": "unknown"}
+    monkeypatch.setenv("GIT_COMMIT", "0123456789ab")
+    assert make_client().get("/healthz").json() == {"ok": True, "commit": "0123456789ab"}

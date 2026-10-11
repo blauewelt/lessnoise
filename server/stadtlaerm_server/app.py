@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import uuid
@@ -207,7 +208,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/healthz")
     def healthz(conn: Conn) -> dict:
         conn.execute("SELECT 1").fetchone()
-        return {"ok": True}
+        # The deployed git commit (set by scripts/deploy.sh): anyone can see which public code runs.
+        return {"ok": True, "commit": os.environ.get("GIT_COMMIT") or "unknown"}
 
     @app.post("/v1/devices", status_code=201, response_model=DeviceOut)
     async def register(request: Request, conn: Conn) -> DeviceOut:
