@@ -222,7 +222,7 @@ so a better model can be swapped in without touching the measurement code.
 | `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» only | no | yes, for «Messwerte teilen» only |
 | `BuildConfig.UPLOAD_AVAILABLE` | false | true | false | true |
 | Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
-| Published as | `stadtlaerm.apk` (GitHub Release; also `docs/download/` for old links) | `stadtlaerm-karte.apk` (GitHub Release) | never | never (not on the website, in a release or on `test-builds`) |
+| Published as | `docs/download/stadtlaerm.apk` on stadtlaerm.ch | `docs/download/stadtlaerm-karte.apk` on stadtlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
 
 Offline and Karten-Version share the app id and the release key, so installing one over the other
 switches the edition and keeps all measurements. **Einstellungen → App-Version** shows which edition
@@ -235,11 +235,11 @@ the Offline-Version too (shared `src/main`), but every entry point returns on
 
 ## Install (sideload)
 
-From v0.5.0 the signed release APKs are attached to a
-[GitHub Release](https://github.com/blauewelt/stadtlaerm/releases) per version, under fixed names:
-`stadtlaerm.apk` (Offline-Version) and `stadtlaerm-karte.apk` (Karten-Version);
+The signed release APKs are on the website under fixed names:
+`stadtlaerm.ch/download/stadtlaerm.apk` (Offline-Version) and
+`stadtlaerm.ch/download/stadtlaerm-karte.apk` (Karten-Version);
 [stadtlaerm.ch](https://stadtlaerm.ch) links both and shows the current version and each file's
-SHA-256. `stadtlaerm.ch/download/stadtlaerm.apk` keeps serving the Offline-Version for old links.
+SHA-256.
 A German step-by-step guide is on the website.
 
 > **Upgrading from an earlier test build (v0.1.x)?** Those were debug builds signed with a
@@ -787,7 +787,7 @@ forcing every user to uninstall and reinstall, so keep the keystore and its pass
 
 ### Release checklist
 
-Two published APKs per version, one GitHub Release per version (tag `vX.Y.Z`). Never a Labor APK.
+Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
 
 1. Bump `versionName` and `versionCode` in `app/build.gradle.kts` (shared by both published
    editions); add a `CHANGELOG.md` entry.
@@ -800,18 +800,15 @@ Two published APKs per version, one GitHub Release per version (tag `vX.Y.Z`). N
 3. Name the files: `app-offline-release.apk` → **`stadtlaerm.apk`** (Offline-Version),
    `app-public-release.apk` → **`stadtlaerm-karte.apk`** (Karten-Version). Note size (bytes) and
    SHA-256 of each.
-4. Create the GitHub Release `vX.Y.Z` and attach both files under exactly these names (the
-   website links `https://github.com/blauewelt/stadtlaerm/releases/download/vX.Y.Z/<name>`;
-   GitHub counts the downloads per file, `../scripts/download_stats.py` reads them).
-5. Copy the Offline-Version to `../docs/download/stadtlaerm.apk` (fallback for old links). Never a
-   Karten-Version or a Labor APK there; **never** copy a Labor APK anywhere into `../docs/` or into
-   a release.
-6. Update `../docs/index.html`: the release tag in all download URLs (hero buttons and
-   «Installation»), version (button note, facts, «Stand des Projekts»), and for **each** APK the
+4. Copy them to `../docs/download/stadtlaerm.apk` and `../docs/download/stadtlaerm-karte.apk`
+   (GitHub Pages serves them; downloads are not counted). **Never** copy a Labor APK anywhere into
+   `../docs/`. Optionally also attach both to a GitHub Release `vX.Y.Z` (a Claude session cannot
+   create releases); `../scripts/download_stats.py` reads that release's download counts.
+5. Optionally tag the commit `vX.Y.Z`.
+6. Update `../docs/index.html`: version (button note, facts, «Stand des Projekts»), and for **each** APK the
    size in MB with a German decimal comma (decimal MB, e.g. «18,7 MB») and the SHA-256 (in 0.5.0
-   the placeholders `SIZE_OFFLINE`, `SHA256_OFFLINE`, `SIZE_KARTE`, `SHA256_KARTE`).
-7. Update `../docs/update.html`: `data-version` and `data-code` on `<main>`, the release tag in
-   `data-offline` / `data-karte` and in the two static links, and the static «Aktuelle Version: …»
+   0.5.0 the placeholders were `SIZE_OFFLINE`, `SHA256_OFFLINE`, `SIZE_KARTE`, `SHA256_KARTE`).
+7. Update `../docs/update.html`: `data-version` and `data-code` on `<main>`, and the static «Aktuelle Version: …»
    heading (shown before the script runs).
 8. If the inline script of `update.html` changed, recompute its CSP hash:
    `python3 tools/csp_hash.py --write ../docs/update.html` (without `--write` it only checks).

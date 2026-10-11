@@ -14,7 +14,7 @@ neither published edition contains any of its code. See [Labor-Build](#labor-bui
 
 | | Offline-Version | Karten-Version |
 |---|---|---|
-| File (GitHub Release `vX.Y.Z`) | `stadtlaerm.apk` — the default download | `stadtlaerm-karte.apk` |
+| File (on the website, `docs/download/`) | `stadtlaerm.apk` — the default download | `stadtlaerm-karte.apk` |
 | Gradle flavour | `offline` | `public` |
 | App id, signing key | `ch.stadtlaerm.app`, release key | the same |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only for «Messwerte teilen» |
@@ -140,7 +140,7 @@ v0.5.0 three of them (`offline`, `public`, `labor`), plus the internal `laborKar
 | | `offline` and `public` (the two published editions) | `labor` |
 |---|---|---|
 | App id / name | `ch.stadtlaerm.app`, «Stadtlärm» | `ch.stadtlaerm.labor`, «Stadtlärm Labor» (red icon) |
-| Published | yes: GitHub Releases (`stadtlaerm.apk`, `stadtlaerm-karte.apk`), linked from stadtlaerm.ch; the offline APK also in `docs/download/` for old links | **never**: not in `docs/`, not in a release, not linked from the website |
+| Published | yes: `stadtlaerm.apk` and `stadtlaerm-karte.apk` in `docs/download/` on stadtlaerm.ch | **never**: not in `docs/`, not in a release, not linked from the website |
 | Can record audio | no — the code does not exist in these apps | yes, only after switching it on, see below |
 
 The Labor build exists to debug the event detector and the sound-source classifier with real
@@ -258,12 +258,11 @@ technical reasons, see the
 [GitHub General Privacy Statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement).
 The German privacy page is [docs/datenschutz.html](docs/datenschutz.html).
 
-**Downloads.** From v0.5.0 the APKs are attached to a GitHub Release per version
-(`github.com/blauewelt/stadtlaerm/releases/download/vX.Y.Z/stadtlaerm.apk` and
-`…/stadtlaerm-karte.apk`), and the website's download links point there. GitHub serves the file
-and, as for the website, sees the requesting IP address; the project sees only GitHub's public
-per-file `download_count`. `docs/download/stadtlaerm.apk` (the Offline-Version) stays on
-stadtlaerm.ch for old links; downloads of it are not counted by anyone.
+**Downloads.** Both APKs are served from the website itself (`docs/download/stadtlaerm.apk` =
+Offline-Version, `docs/download/stadtlaerm-karte.apk` = Karten-Version), i.e. by GitHub Pages like
+every page of the site. GitHub sees the requesting IP address as for any page view; the project
+counts nothing. (`scripts/download_stats.py` reads GitHub Release download counts and only has
+something to report if a version is ever also attached to a GitHub Release.)
 
 **The map page is the one exception.** `docs/karte.html` (the shared noise map, see
 [server/DESIGN.md](server/DESIGN.md) §7) loads map tiles from swisstopo
@@ -278,12 +277,12 @@ parties.
 ## Usage numbers
 
 The project wants to know whether the app is used, without learning anything about anyone. It
-counts in exactly two places, both public, both totals over the whole project:
+counts in one place, public, totals over the whole project. Downloads are not counted: the APKs
+are served from the website (`docs/download/`), and GitHub Pages reports nothing to the project.
+(`scripts/download_stats.py` would read GitHub Release download counts if a version is ever also
+attached to a GitHub Release.)
 
-1. **Downloads**, counted by GitHub: `download_count` per release asset
-   (`scripts/download_stats.py` reads them from GitHub's release API). Downloads, not people; no
-   IP addresses, times or places reach the project.
-2. **Sharing**, from the server's own data: `https://api.stadtlaerm.ch/v1/map/stats.json`
+1. **Sharing**, from the server's own data: `https://api.stadtlaerm.ch/v1/map/stats.json`
    ([server/DESIGN.md](server/DESIGN.md) §6.4), rebuilt with the map — how many devices are
    registered, have set a hectare, ever shared, were active in the last 7/30 days, deleted their
    data (one counter), were deleted by the server after 60 days without uploads (one counter), how many hectares are on the map, how many device-nights were shared, how
@@ -292,7 +291,7 @@ counts in exactly two places, both public, both totals over the whole project:
    neither Caddy nor the app server keeps an access log). Nothing new is collected for it; the only
    numbers kept just for it are the two deletion counters, one integer each.
 
-**Not counted:** anything about the Offline-Version beyond its downloads — it has no internet
+**Not counted:** downloads, and anything about the Offline-Version — it has no internet
 permission and cannot report anything, by design; the Karten-Version with sharing switched off;
 app starts, measurements, crashes or versions of apps that do not share; downloads of
 `docs/download/stadtlaerm.apk`. `scripts/usage_report.py` combines both sources into one short

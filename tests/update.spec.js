@@ -5,7 +5,7 @@
 "use strict";
 const { test, expect } = require("@playwright/test");
 
-const RELEASES = "https://github.com/blauewelt/stadtlaerm/releases/download/";
+const RELEASES = "download/";
 let foreign;
 let consoleErrors;
 
@@ -40,7 +40,7 @@ async function pageData(page) {
 test("without a hash: the Offline-Version, and a link to the Karten-Version", async ({ page }) => {
   await page.goto("/update.html");
   const d = await pageData(page);
-  expect(d.offline).toMatch(new RegExp("^" + RELEASES + "v[0-9.]+/stadtlaerm\\.apk$"));
+  expect(d.offline).toMatch(new RegExp("^" + RELEASES + "stadtlaerm\\.apk$"));
   expect(d.karte).toBe(d.offline.replace(/stadtlaerm\.apk$/, "stadtlaerm-karte.apk"));
   await expect(page.locator("#status")).toHaveText("Aktuelle Version: " + d.version);
   await expect(page.locator("#download-link")).toHaveAttribute("href", d.offline);

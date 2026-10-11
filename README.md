@@ -40,10 +40,9 @@ deletable on the server from the app at any time, and deleted by the server auto
 
 What the project counts, and who counts it — totals over the whole project, all public:
 
-- **Downloads:** GitHub counts how often each release file (`stadtlaerm.apk`,
-  `stadtlaerm-karte.apk`) was downloaded; `python3 scripts/download_stats.py` prints the counts per
-  release and per edition (via `gh api` or plain HTTPS, no token needed). Downloads, not people. The
-  project never sees who downloaded; downloads of the fallback copy on stadtlaerm.ch are not counted.
+- **Downloads:** not counted. The APKs are served from the website (`docs/download/`, GitHub
+  Pages), which reports nothing. `python3 scripts/download_stats.py` reads GitHub Release download
+  counts, should a version ever also be attached to a GitHub Release.
 - **Sharing:** the server publishes [`stats.json`](https://api.stadtlaerm.ch/v1/map/stats.json)
   with the map files ([server/DESIGN.md](server/DESIGN.md) §6.4): devices registered, with a
   hectare, ever shared, active in 7/30 days, deleted, deleted by the server after 60 days without
@@ -80,7 +79,7 @@ What the project counts, and who counts it — totals over the whole project, al
   **Karten-Version**: v0.4.0 plus the opt-in «Messwerte teilen», which sends levels and events
   (without wind events) with a 100 m hectare (never audio, never coordinates) to the shared noise
   map; it is off until switched on, and that is the only use of the internet permission it adds.
-  Both are downloaded from GitHub Releases.
+  Both are downloaded from the website (`docs/download/`).
 - **Noise map and server:** the contribution server ([server/](server/)) runs at
   `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is part of v0.5.0 and not
   yet on the website.
