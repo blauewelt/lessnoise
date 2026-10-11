@@ -81,6 +81,7 @@ to a 100 m × 100 m hectare square; «Meine Daten auf dem Server löschen» dele
 
 - No functional change: no network permission (its manifest removes `INTERNET` and
   `ACCESS_NETWORK_STATE`), «Messwerte teilen» is not offered.
+- New internal flavour `laborKarte` («Labor-Version mit Karte», same app id, `0.5.0-labor-karte`, never published): the Labor build plus the opt-in «Messwerte teilen» (`INTERNET`, same upload code, audio never sent — `UploadSourceIsolationTest`); the plain Labor build installed over it switches sharing off and cancels the upload jobs.
 
 ## 0.4.0 — 2026-10-09 (detector v2; both flavours, versionCode 9; public app published on stadtlaerm.ch)
 

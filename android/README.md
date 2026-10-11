@@ -213,21 +213,21 @@ so a better model can be swapped in without touching the measurement code.
 
 ## Editions (from v0.5.0)
 
-| | Offline-Version | Karten-Version | Labor |
-|---|---|---|---|
-| Gradle flavour | `offline` (default variant) | `public` | `labor` |
-| `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` |
-| App id | `ch.stadtlaerm.app` | `ch.stadtlaerm.app` | `ch.stadtlaerm.labor` |
-| Version name | `0.5.0` | `0.5.0` | `0.5.0-labor` |
-| `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» only | no |
-| `BuildConfig.UPLOAD_AVAILABLE` | false | true | false |
-| Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` |
-| Published as | `stadtlaerm.apk` (GitHub Release; also `docs/download/` for old links) | `stadtlaerm-karte.apk` (GitHub Release) | never |
+| | Offline-Version | Karten-Version | Labor | Labor-Version mit Karte (internal) |
+|---|---|---|---|---|
+| Gradle flavour | `offline` (default variant) | `public` | `labor` | `laborKarte` |
+| `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` | `"labor-karte"` |
+| App id | `ch.stadtlaerm.app` | `ch.stadtlaerm.app` | `ch.stadtlaerm.labor` | `ch.stadtlaerm.labor` |
+| Version name | `0.5.0` | `0.5.0` | `0.5.0-labor` | `0.5.0-labor-karte` |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» only | no | yes, for «Messwerte teilen» only |
+| `BuildConfig.UPLOAD_AVAILABLE` | false | true | false | true |
+| Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
+| Published as | `stadtlaerm.apk` (GitHub Release; also `docs/download/` for old links) | `stadtlaerm-karte.apk` (GitHub Release) | never | never (not on the website, in a release or on `test-builds`) |
 
 Offline and Karten-Version share the app id and the release key, so installing one over the other
 switches the edition and keeps all measurements. **Einstellungen → App-Version** shows which edition
 is installed and how to switch; «Nach Update suchen» sends the edition to the update page
-(`&e=offline` / `&e=karte`). When the Offline-Version starts on a phone where the Karten-Version had
+(`&e=offline` / `&e=karte`; the Labor builds send no `e`). When the Offline-Version starts on a phone where the Karten-Version had
 «Messwerte teilen» on, it switches sharing off and cancels the upload jobs (device id and token are
 kept, so the Karten-Version can still delete the server data). The upload classes are compiled into
 the Offline-Version too (shared `src/main`), but every entry point returns on
@@ -272,7 +272,7 @@ Instead:
 - **Einstellungen → App-Version** shows «Stadtlärm 0.3.2 (Build vom 7.10.2026)» and a button
   **Nach Update suchen**. It opens
   `https://stadtlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>` in the browser
-  (`e` since v0.5.0, `BuildConfig.EDITION`). The page
+  (`e` since v0.5.0, `BuildConfig.EDITION` of the two published editions; the Labor builds send none). The page
   ([docs/update.html](../docs/update.html)) carries the published version as
   `data-version`/`data-code` and a small inline script compares the versionCode from the URL
   fragment with it (the version strings if `c` is missing). It offers the download of the same
@@ -609,6 +609,22 @@ from the website. The public app contains none of its code (how to check: PRIVAC
 # APK: app/build/outputs/apk/labor/release/app-labor-release.apk (keep it in android/dist/, git-ignored)
 ```
 
+**Labor-Version mit Karte** (flavour `laborKarte`, internal, for the maintainer's own test phone,
+never published): the Labor build plus the opt-in «Messwerte teilen» (`INTERNET`,
+`ACCESS_NETWORK_STATE`, the Karten-Version's upload code; audio is never sent, checked by
+`UploadSourceIsolationTest`, see PRIVACY.md → «Labor-Build»). It compiles `src/labor/kotlin` and
+`src/labor/res` but not `src/labor/AndroidManifest.xml`; its own manifest is
+`src/laborKarte/AndroidManifest.xml`. Same app id as Labor, so it installs over a Labor install and
+keeps measurements and recordings; installing the plain Labor build over it switches sharing off.
+Banner «LABOR-VERSION mit Karte – kann Audio aufzeichnen». Use the plain Labor build for any phone
+that measures in someone else's home.
+
+```sh
+./gradlew testLaborKarteDebugUnitTest assembleLaborKarteDebug
+./gradlew assembleLaborKarteRelease -Pstadtlaerm.keystoreProperties=…   # signed
+# APK: app/build/outputs/apk/laborKarte/release/app-laborKarte-release.apk (android/dist/, git-ignored)
+```
+
 **Settings → Labor.** «Audio während der Messung aufzeichnen» (off by default; switching it on
 asks once), and below it:
 
@@ -715,13 +731,15 @@ export ANDROID_HOME=/path/to/android-sdk   # platform 35, build-tools 35.0.0
 # APKs: app/build/outputs/apk/offline/debug/app-offline-debug.apk  (Offline-Version)
 #       app/build/outputs/apk/public/debug/app-public-debug.apk    (Karten-Version)
 #       app/build/outputs/apk/labor/debug/app-labor-debug.apk      (Labor build, see below)
+#       app/build/outputs/apk/laborKarte/debug/app-laborKarte-debug.apk (Labor-Version mit Karte, internal)
 ```
 
-The app module has three product flavours (dimension `edition`, see [Editions](#editions-from-v050)):
-**`offline`** and **`public`**, the two published editions (Offline-Version and Karten-Version), and
-**`labor`**, the unpublished diagnostics build. Tasks are named per variant, e.g.
-`assembleOfflineDebug`, `assemblePublicDebug`, `testOfflineDebugUnitTest`, `testLaborDebugUnitTest`;
-`assembleDebug` / `test` run all three.
+The app module has four product flavours (dimension `edition`, see [Editions](#editions-from-v050)):
+**`offline`** and **`public`**, the two published editions (Offline-Version and Karten-Version),
+**`labor`**, the unpublished diagnostics build, and **`laborKarte`**, the internal Labor build with
+«Messwerte teilen». Tasks are named per variant, e.g. `assembleOfflineDebug`, `assemblePublicDebug`,
+`assembleLaborKarteDebug`, `testOfflineDebugUnitTest`, `testLaborDebugUnitTest`,
+`testLaborKarteDebugUnitTest`; `assembleDebug` / `test` run all four.
 
 `./gradlew assembleOfflineRelease assemblePublicRelease` without a key produces **unsigned** release
 APKs (`app-offline-release-unsigned.apk`, `app-public-release-unsigned.apk`), which Android will not
@@ -833,7 +851,9 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
   src/offline/  AndroidManifest.xml only: removes INTERNET and ACCESS_NETWORK_STATE (Offline-Version)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
-  src/testLabor/ JVM tests of the Labor recorder and clip-player parts
+                (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
+  src/laborKarte/ AndroidManifest.xml only: INTERNET + ACCESS_NETWORK_STATE for «Messwerte teilen»
+  src/testLabor/ JVM tests of the Labor recorder and clip-player parts (run for `labor` and `laborKarte`)
 tools/verify_yamnet.py    model I/O + Kotlin-vs-Python preprocessing check
 tools/csp_hash.py         CSP script hashes for the website's inline script (docs/update.html)
 ```

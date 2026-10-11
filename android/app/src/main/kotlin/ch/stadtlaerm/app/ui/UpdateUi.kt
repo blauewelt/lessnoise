@@ -39,7 +39,7 @@ val LocalSnackbarHost = staticCompositionLocalOf { SnackbarHostState() }
  * Returns false if no app can open the link.
  */
 fun openUpdatePage(context: Context): Boolean {
-    val url = UpdateCheck.updateUrl(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.EDITION)
+    val url = UpdateCheck.updateUrl(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, EditionInfo.updateEdition(BuildConfig.EDITION))
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
     // No resolveActivity() pre-check: on Android 11+ it needs a <queries> manifest entry and
     // returns null without one. Starting the activity and catching the failure is equivalent.

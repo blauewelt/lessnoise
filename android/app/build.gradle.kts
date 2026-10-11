@@ -54,8 +54,9 @@ android {
         buildConfigField("String", "STADTLAERM_API", "\"$stadtlaermApi\"")
         // Whether this edition offers «Messwerte teilen» at all (public: yes; offline, labor: no).
         buildConfigField("boolean", "UPLOAD_AVAILABLE", "true")
-        // Which edition this is: "offline" | "karte" | "labor" (set per flavour below). Shown in
-        // Einstellungen → App-Version and sent to update.html as #…&e=<edition>.
+        // Which edition this is: "offline" | "karte" | "labor" | "labor-karte" (set per flavour
+        // below). Shown in Einstellungen → App-Version; the two published editions send it to
+        // update.html as #…&e=<edition> (EditionInfo.updateEdition).
         buildConfigField("String", "EDITION", "\"karte\"")
     }
 
@@ -72,7 +73,7 @@ android {
         }
     }
 
-    // Three editions (see PRIVACY.md → «Editions» and «Labor-Build»):
+    // Four editions (see PRIVACY.md → «Editions» and «Labor-Build»):
     // - offline: the default download on stadtlaerm.ch («Offline-Version»). The public app WITHOUT
     //            internet: its manifest removes INTERNET and ACCESS_NETWORK_STATE, «Messwerte teilen»
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
@@ -83,7 +84,14 @@ android {
     //            installing one over the other switches the edition and keeps the data.
     // - labor:   a diagnostics build that can record audio (event clips, continuous AAC) for
     //            debugging the event detector and the classifier. All recording code lives in
-    //            src/labor/ only. Never published on the website.
+    //            src/labor/ only. Never published on the website. No network access.
+    // - laborKarte: internal only (the owner's own test phone), never published anywhere: the
+    //            Labor build (all of src/labor/ except its manifest, see sourceSets below) PLUS the
+    //            opt-in «Messwerte teilen» with INTERNET / ACCESS_NETWORK_STATE
+    //            (src/laborKarte/AndroidManifest.xml). Same app id as labor, so it installs over a
+    //            Labor install and keeps its measurements and recordings. Audio is never uploaded:
+    //            the upload code is the Karten-Version's (src/main/.../upload/), which reads only the
+    //            Room tables; UploadSourceIsolationTest fails if it touches files or the Labor code.
     flavorDimensions += "edition"
     productFlavors {
         create("offline") {
@@ -107,6 +115,13 @@ android {
             buildConfigField("boolean", "UPLOAD_AVAILABLE", "false")
             buildConfigField("String", "EDITION", "\"labor\"")
         }
+        create("laborKarte") {
+            dimension = "edition"
+            applicationId = "ch.stadtlaerm.labor"
+            versionNameSuffix = "-labor-karte"
+            // UPLOAD_AVAILABLE stays true (defaultConfig): «Messwerte teilen», off until switched on.
+            buildConfigField("String", "EDITION", "\"labor-karte\"")
+        }
     }
 
     sourceSets {
@@ -115,6 +130,17 @@ android {
         // belongs to the map edition only. Its own manifest is src/offline/AndroidManifest.xml.
         named("offline") {
             kotlin.srcDir("src/public/kotlin")
+        }
+        // laborKarte compiles the Labor edition's Kotlin and resources (recorder, clip player, red
+        // icon, «Stadtlärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
+        // Its own manifest is src/laborKarte/AndroidManifest.xml. The Labor JVM tests run too.
+        // src/labor/ has no other folders (no assets, java, resources); add them here if it gets any.
+        named("laborKarte") {
+            kotlin.srcDir("src/labor/kotlin")
+            res.srcDir("src/labor/res")
+        }
+        named("testLaborKarte") {
+            kotlin.srcDir("src/testLabor/kotlin")
         }
     }
 

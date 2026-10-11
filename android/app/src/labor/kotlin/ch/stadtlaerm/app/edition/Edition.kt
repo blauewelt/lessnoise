@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ch.stadtlaerm.app.BuildConfig
 import ch.stadtlaerm.app.audio.AudioTap
 import ch.stadtlaerm.app.audio.NoAudioTap
 import ch.stadtlaerm.app.container
@@ -80,6 +81,8 @@ import java.time.format.DateTimeFormatter
 
 // The LABOR edition (app/src/labor/): can record audio for debugging the event detector and the
 // classifier. Never published on the website. See PRIVACY.md → «Labor-Build».
+// Compiled into two flavours: `labor` (no internet) and `laborKarte` (internal: the same plus the
+// opt-in «Messwerte teilen», BuildConfig.UPLOAD_AVAILABLE = true). The texts below branch on that.
 
 private val LaborRed = Color(0xFFB3261E)
 
@@ -126,11 +129,21 @@ object EditionClips {
 object EditionUi {
     /**
      * First bullet of «Über Stadtlärm & Datenschutz»: what this edition does with audio. The public
-     * text («Audio verlässt nie den Arbeitsspeicher …») would be false here.
+     * text («Audio verlässt nie den Arbeitsspeicher …») would be false here. The internet bullet
+     * that follows it comes from the shared about card (BuildConfig.UPLOAD_AVAILABLE).
      */
-    const val ABOUT_AUDIO =
+    val ABOUT_AUDIO: String =
         "• Labor-Version: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
-            "gespeichert werden, dazu ein Protokoll der Erkennung. Nichts davon wird gesendet: diese Version hat keine Internet-Berechtigung."
+            "gespeichert werden, dazu ein Protokoll der Erkennung. " +
+            if (BuildConfig.UPLOAD_AVAILABLE)
+                "Nichts davon wird gesendet: «Messwerte teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
+            else
+                "Nichts davon wird gesendet: diese Version hat keine Internet-Berechtigung."
+
+    /** Text of the red banner: the Labor-Version mit Karte says that it can share. */
+    val BANNER_TEXT: String =
+        if (BuildConfig.UPLOAD_AVAILABLE) "LABOR-VERSION mit Karte – kann Audio aufzeichnen"
+        else "LABOR-VERSION – kann Audio aufzeichnen"
 
     /**
      * Hosted once at the app root: the clip player sheet. It is closed (and its MediaPlayer
@@ -165,7 +178,7 @@ object EditionUi {
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         ) {
             Text(
-                "LABOR-VERSION – kann Audio aufzeichnen", color = Color.White,
+                BANNER_TEXT, color = Color.White,
                 style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
             )
             if (st.recording && live.running) {

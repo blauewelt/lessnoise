@@ -134,7 +134,8 @@ shows the app's traffic, which stays at zero while sharing is off.
 ## Labor-Build
 
 Since v0.3.3 the Android app has product flavours in the Gradle dimension `edition`; since
-v0.5.0 three of them (`offline`, `public`, `labor`):
+v0.5.0 three of them (`offline`, `public`, `labor`), plus the internal `laborKarte` described
+[below](#internal-variant-laborkarte-labor-version-mit-karte):
 
 | | `offline` and `public` (the two published editions) | `labor` |
 |---|---|---|
@@ -151,7 +152,8 @@ from `app/src/main/` plus the source set of its flavour. All code that writes au
 assembler, the WAV and AAC writers, the manifest, the Labor UI — lives exclusively in
 `app/src/labor/` (`ch.stadtlaerm.app.labor.*` and the Labor `ch.stadtlaerm.app.edition.*`), so it
 is not compiled into either published APK at all (the `offline` flavour adds only
-`app/src/public/kotlin` to its sources, not `app/src/labor/`). The shared code only contains:
+`app/src/public/kotlin` to its sources, not `app/src/labor/`; only the unpublished `laborKarte`
+adds `app/src/labor/kotlin` and `app/src/labor/res`, to itself). The shared code only contains:
 
 - `app/src/main/kotlin/ch/stadtlaerm/app/audio/AudioTap.kt`: an interface through which a build
   *could* see the capture blocks and the event lifecycle, and `NoAudioTap`, which does nothing;
@@ -166,7 +168,8 @@ is not compiled into either published APK at all (the `offline` flavour adds onl
 
 The Labor build has no network access: its manifest (`app/src/labor/AndroidManifest.xml`) removes
 `INTERNET` and `ACCESS_NETWORK_STATE`, and «Messwerte teilen» does not exist in it
-(`BuildConfig.UPLOAD_AVAILABLE = false`). No storage permission in either build.
+(`BuildConfig.UPLOAD_AVAILABLE = false`). No storage permission in either build. This is the build
+for a phone that measures in someone else's home: it cannot send anything.
 
 **How to verify** (on **both** published APKs: `app/build/outputs/apk/offline/release/app-offline-release.apk`
 = `stadtlaerm.apk` and `app/build/outputs/apk/public/release/app-public-release.apk` = `stadtlaerm-karte.apk`;
@@ -192,7 +195,8 @@ the commands below use the second name, run them on each):
    `manifest.jsonl` or the `labor` package. As a control, the same commands on the Labor APK find
    828 `ch.stadtlaerm.app.labor` entries and 98 matching strings.
 3. `aapt2 dump permissions` lists the permissions of «How to verify» above for each published APK;
-   for the Labor APK the Offline-Version's set (no `INTERNET`, no `ACCESS_NETWORK_STATE`).
+   for the Labor APK the Offline-Version's set (no `INTERNET`, no `ACCESS_NETWORK_STATE`); for the
+   internal `laborKarte` APK the Karten-Version's set (with both), package `ch.stadtlaerm.labor`.
 
 **What the Labor build records** (only after «Einstellungen → Labor → Audio während der Messung
 aufzeichnen» is switched on and confirmed; off by default): event clips (WAV, 16 kHz, 5 s before to
@@ -202,9 +206,44 @@ each clip, and `classifier/*.jsonl` with every classifier run (label names and s
 `Android/data/ch.stadtlaerm.labor/files/audio/` until deleted in the app («Alle Aufnahmen löschen»)
 or by uninstalling it; they leave the phone only if the user shares them («Als ZIP teilen») or
 copies them over USB. A red banner on every screen says «LABOR-VERSION – kann Audio aufzeichnen»
-(and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` permission either.
+(and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` permission either (the
+internal `laborKarte` variant above has it, for «Messwerte teilen» only).
 Recordings can contain voices of people nearby; use the Labor build only where everyone recorded
 knows about it.
+
+### Internal variant `laborKarte` («Labor-Version mit Karte»)
+
+Since v0.5.0 the repository can also build the Labor app **with** «Messwerte teilen», for the
+maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarteRelease`):
+
+- **Never published**: not on the website, not in a GitHub Release, not on the `test-builds`
+  branch, not in `docs/`. Same app id as the Labor build (`ch.stadtlaerm.labor`, version name
+  `0.5.0-labor-karte`), so it installs over a Labor install and keeps its measurements and
+  recordings; installing the plain Labor build over it switches «Messwerte teilen» off and cancels
+  the upload jobs (as the Offline-Version does after the Karten-Version), and from then on the
+  phone has no internet permission again.
+- **Internet only for the opt-in upload**: its manifest (`app/src/laborKarte/AndroidManifest.xml`)
+  declares `INTERNET` and `ACCESS_NETWORK_STATE`, exactly like the Karten-Version; it does not use
+  `app/src/labor/AndroidManifest.xml`. «Messwerte teilen» is off until switched on. As in the
+  Karten-Version, the very first switch-on also sends the measurement values of the last 7 days,
+  here including any the Labor build measured before on that phone (values only, never audio).
+- **Same upload code as the Karten-Version**: `app/src/main/kotlin/ch/stadtlaerm/app/upload/`, one
+  host (api.stadtlaerm.ch), the same measurement values (§2 of server/DESIGN.md). No flavour has
+  its own upload classes.
+- **Audio is never sent.** The upload reads only the Room tables (minutes, events, the active
+  calibration) and the site settings; it has no code that opens a file, and the Labor recordings
+  are files (`Android/data/ch.stadtlaerm.labor/files/audio/`). The unit test
+  `app/src/test/kotlin/ch/stadtlaerm/app/upload/UploadSourceIsolationTest.kt` (runs in every
+  flavour) fails if the upload package uses a file API (`java.io.File`, file streams, `filesDir`,
+  cache dirs, `ContentResolver`, assets, `MediaStore` …), an audio class, the Labor package
+  `ch.stadtlaerm.app.labor` or a recording folder name, if it imports a project class that is not
+  on its allow-list, if a flavour adds upload classes, if the Labor code touches the upload or the
+  network, or if network code appears anywhere but `upload/UploadClient.kt`. Recordings still
+  leave the phone only when the user shares them («Als ZIP teilen») or copies them over USB, as in
+  the Labor build.
+- The banner says «LABOR-VERSION mit Karte – kann Audio aufzeichnen»; Einstellungen → App-Version
+  shows «Labor-Version mit Karte». The server counts its `app_version` `0.5.0-labor-karte` under
+  «andere» in `stats.json` (it does not match the server's version pattern).
 
 ## The website
 
@@ -212,7 +251,7 @@ knows about it.
 cookies, runs no analytics and loads nothing from third parties (except the map page, below): no
 web fonts, no CDNs, no external images. The only inline script is on `update.html` (allowed by its hash in the
 Content-Security-Policy): the app opens `update.html#v=<version>&c=<versionCode>&e=<edition>`
-(`e` since v0.5.0: `offline` or `karte`), the browser does not send the part after `#` to the
+(`e` since v0.5.0: `offline` or `karte`; the Labor builds send no `e`), the browser does not send the part after `#` to the
 server, and the script compares it with the published version locally and offers the download of
 the same edition. It is hosted on GitHub Pages; GitHub may log visitors' IP addresses for
 technical reasons, see the

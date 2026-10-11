@@ -147,7 +147,9 @@ class UploadModule(
     }
 
     /**
-     * The Offline-Version (BuildConfig.EDITION = "offline", no «Messwerte teilen», no INTERNET).
+     * The editions without «Messwerte teilen» (UPLOAD_AVAILABLE = false, no INTERNET): the
+     * Offline-Version, and the Labor build installed over the «Labor-Version mit Karte» (same app
+     * id ch.stadtlaerm.labor). Shown here for the Offline-Version; the Labor case is the same.
      * Someone who switches from the Karten-Version by installing the Offline-Version over it keeps
      * the sharing state and WorkManager's scheduled upload jobs. If sharing was on, it is switched
      * off here and the jobs are cancelled: the jobs would do nothing in this edition (UploadWorker
