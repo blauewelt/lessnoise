@@ -1,6 +1,13 @@
 package ch.stadtlaerm.app.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,12 +46,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ch.stadtlaerm.app.BuildConfig
 import ch.stadtlaerm.app.container
+import ch.stadtlaerm.app.location.LocationFetcher
+import ch.stadtlaerm.app.location.LocationPolicy
 import ch.stadtlaerm.app.upload.CellInput
 import ch.stadtlaerm.app.upload.SiteSettings
 import ch.stadtlaerm.app.upload.UploadSnapshot
 import ch.stadtlaerm.app.upload.Uploader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -58,6 +69,17 @@ fun placementLabel(p: String): String = when (p) {
     SiteSettings.PLACEMENT_BEHIND_GLASS -> "Hinter Glas"
     else -> "Anderes"
 }
+
+/**
+ * The bullet about location in «Was nie gesendet wird» (v0.5.1). Shown only where «Messwerte
+ * teilen» exists (Karten-Version, Labor-Version mit Karte), which are the editions with the
+ * location permission.
+ */
+const val LOCATION_NEVER_SENT =
+    "Dein genauer Standort. Die App fragt nach der Standort-Berechtigung, liest den Standort aber nur, wenn du unten bei " +
+        "«Aufstellung» auf «Standort bestimmen» tippst, und dann ein einziges Mal – nie im Hintergrund. Daraus berechnet das " +
+        "Telefon selbst die Hektare; nur diese wird gespeichert und gesendet, die Koordinaten weder gespeichert noch gesendet. " +
+        "Die Offline-Version hat keine Standort-Berechtigung."
 
 /** One line for the settings overview. */
 fun shareSummary(s: UploadSnapshot): String = when {
@@ -121,7 +143,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         SectionCard("Was nie gesendet wird") {
             Bullets(
                 "Audio. Die App speichert gar keines.",
-                "Dein genauer Standort. Die App liest kein GPS und hat keine Standort-Berechtigung. Aus deiner Eingabe berechnet das Telefon selbst die Hektare; nur diese wird gesendet.",
+                LOCATION_NEVER_SENT,
                 "Name, Telefonnummer, E-Mail oder ein Konto – es gibt keine Anmeldung.",
                 "Die einzelnen Klassen des Klassifikators (etwa «Speech» oder «Motorcycle»), nur die Kategorie.",
             )
@@ -278,14 +300,20 @@ private fun Bullets(vararg lines: String) {
 }
 
 /**
- * The placement step. There is no map yet (see WORKLOG.md: map picker is an open question):
- * the contributor pastes coordinates from a map app or map.geo.admin.ch, the phone turns them into
- * the hectare at once and shows only that; the typed text is not stored.
+ * The placement step. Since v0.5.1 the phone determines the place itself: «Standort bestimmen» asks
+ * for the location permission (Karten-Version and Labor-Version mit Karte only), gets ONE fix and
+ * turns it into the hectare at once ([LocationFetcher], [LocationPolicy]); only the hectare and the
+ * accuracy are shown, only the hectare is stored (with «Aufstellung speichern») and sent. Pasting
+ * coordinates stays as a secondary way («Oder Koordinaten einfügen», collapsed); the typed text is not
+ * stored either.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var coords by rememberSaveable { mutableStateOf("") }
+    var showPaste by rememberSaveable { mutableStateOf(false) }
     var placement by rememberSaveable(current) { mutableStateOf(current?.placement ?: SiteSettings.PLACEMENT_OPEN_WINDOW) }
     var floorText by rememberSaveable(current) { mutableStateOf(current?.floor?.toString() ?: "") }
     // 0 = Strassenseite, 1 = Hofseite, 2 = keine Angabe
@@ -294,25 +322,100 @@ private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit
     }
     var note by rememberSaveable(current) { mutableStateOf(current?.note ?: "") }
     var saved by remember { mutableStateOf(false) }
+    // «Standort bestimmen»: the running request and its outcome (hectare + accuracy, never coordinates).
+    var locateJob by remember { mutableStateOf<Job?>(null) }
+    var outcome by remember { mutableStateOf<LocationPolicy.Outcome?>(null) }
+
+    fun startLocate() {
+        locateJob?.cancel()
+        outcome = null
+        saved = false
+        locateJob = scope.launch {
+            val o = LocationFetcher.locate(context)
+            outcome = o
+            if (o is LocationPolicy.Outcome.Hectare) coords = "" // the newest choice wins
+            locateJob = null
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        when (LocationFetcher.permission(context)) {
+            LocationPolicy.Permission.PRECISE -> startLocate()
+            LocationPolicy.Permission.APPROXIMATE_ONLY -> outcome = LocationPolicy.Outcome.ApproximateOnly
+            LocationPolicy.Permission.DENIED -> outcome = LocationPolicy.Outcome.PermissionDenied
+        }
+    }
 
     val parsed = if (coords.isBlank()) null else CellInput.parse(coords)
-    val cell = (parsed as? CellInput.Parsed.Ok)?.cell ?: current?.cell
+    val pastedCell = (parsed as? CellInput.Parsed.Ok)?.cell
+    val located = outcome as? LocationPolicy.Outcome.Hectare
+    val cell = pastedCell ?: located?.cell ?: current?.cell
     val floor = floorText.trim().toIntOrNull()
     val floorOk = floorText.isBlank() || (floor != null && floor in -3..100)
 
     SectionCard("Aufstellung") {
         Text(
-            "Wo steht das Telefon? Füge die Koordinaten ein, z. B. aus einer Karten-App (Punkt lange drücken, Koordinaten kopieren) " +
-                "oder von map.geo.admin.ch. Die App rechnet daraus die Hektare (100 × 100 m); nur diese wird gespeichert und gesendet.",
+            "Wo steht das Telefon? Geh mit dem Telefon an den Messort, etwa ans Fenster, und tippe auf «Standort bestimmen». " +
+                "Das Telefon rechnet daraus die Hektare (100 × 100 m); nur diese wird gespeichert und gesendet.",
             style = MaterialTheme.typography.bodySmall,
         )
-        OutlinedTextField(
-            value = coords, onValueChange = { coords = it; saved = false },
-            label = { Text("Koordinaten (z. B. 47.3769, 8.5417 oder 2'683'304, 1'247'925)") },
-            singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
+        if (BuildConfig.UPLOAD_AVAILABLE) {
+            Button(
+                enabled = locateJob == null,
+                onClick = {
+                    if (LocationFetcher.hasPreciseLocation(context)) startLocate()
+                    else permissionLauncher.launch(LocationFetcher.PERMISSIONS)
+                },
+            ) { Text("Standort bestimmen") }
+            if (!LocationFetcher.hasPreciseLocation(context)) {
+                Text(LocationPolicy.RATIONALE_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+            }
+            if (locateJob != null) {
+                Text(LocationPolicy.PROGRESS_TEXT, style = MaterialTheme.typography.bodySmall)
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                TextButton(onClick = { locateJob?.cancel(); locateJob = null }) { Text("Abbrechen") }
+            }
+            outcome?.let { o ->
+                when (o) {
+                    is LocationPolicy.Outcome.Hectare -> if (pastedCell == null) {
+                        Text(LocationPolicy.message(o), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    }
+                    else -> {
+                        Text(LocationPolicy.message(o), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            when (o) {
+                                LocationPolicy.Outcome.ApproximateOnly, LocationPolicy.Outcome.PermissionDenied ->
+                                    OutlinedButton(onClick = { openAppSettings(context) }) { Text("App-Einstellungen") }
+                                LocationPolicy.Outcome.LocationOff ->
+                                    OutlinedButton(onClick = { openLocationSettings(context) }) { Text("Standort-Einstellungen") }
+                                else -> OutlinedButton(onClick = { startLocate() }, enabled = locateJob == null) { Text("Nochmals versuchen") }
+                            }
+                            if (!showPaste) TextButton(onClick = { showPaste = true }) { Text("Koordinaten einfügen") }
+                        }
+                    }
+                }
+            }
+        }
+
+        TextButton(onClick = { showPaste = !showPaste }) {
+            Text(if (showPaste) "Oder Koordinaten einfügen ▾" else "Oder Koordinaten einfügen ▸")
+        }
+        if (showPaste) {
+            Text(
+                "Füge die Koordinaten ein, z. B. aus einer Karten-App (Punkt lange drücken, Koordinaten kopieren) " +
+                    "oder von map.geo.admin.ch. Die App rechnet daraus die Hektare; nur diese wird gespeichert und gesendet.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = coords, onValueChange = { coords = it; saved = false },
+                label = { Text("Koordinaten (z. B. 47.3769, 8.5417 oder 2'683'304, 1'247'925)") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+        }
         when {
             parsed is CellInput.Parsed.Error -> Text(parsed.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            pastedCell == null && located != null ->
+                Text("Mit «Aufstellung speichern» übernehmen.", style = MaterialTheme.typography.bodySmall)
             cell != null -> Text("Hektare: $cell – dieses Hektar wird gezeigt", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             else -> Text("Hektare: noch keine", style = MaterialTheme.typography.bodySmall)
         }
@@ -360,9 +463,25 @@ private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit
                     )
                 )
                 coords = ""
+                outcome = null
                 saved = true
             },
         ) { Text("Aufstellung speichern") }
         if (saved) Text("Gespeichert.", style = MaterialTheme.typography.bodySmall)
     }
+}
+
+private fun openAppSettings(context: Context) {
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    } catch (_: ActivityNotFoundException) {}
+}
+
+private fun openLocationSettings(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {}
 }

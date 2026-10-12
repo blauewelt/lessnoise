@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.5.1 — unreleased (test build, versionCode 12, not published)
+
+The Karten-Version determines the hectare itself. Nobody pastes coordinates by hand, so the
+placement step now has a button that asks the phone for its location once.
+
+- **«Standort bestimmen»** in «Messwerte teilen → Aufstellung» (only where
+  `BuildConfig.UPLOAD_AVAILABLE`: Karten-Version and the internal Labor-Version mit Karte). On tap the
+  app asks for the location permission (Activity Result API, «Genau» or «Ungefähr» on Android 12+),
+  then gets **one** fix from the platform `LocationManager` — no Google Play Services: GPS and
+  network provider, whichever are on, at the same time; `getCurrentLocation` on Android 11+, a single
+  `requestLocationUpdates` on Android 8–10; at most 30 s with «Abbrechen»; a last-known location
+  only if younger than 2 min and accurate to ≤ 50 m. The fix becomes the 100 m hectare on the phone
+  (`CellInput.fromLatLon` → `Lv95.cellId`, the map's formulas); the screen shows only «Hektare
+  h26833_12479 · Genauigkeit ± 12 m», and «Aufstellung speichern» keeps the hectare. The
+  coordinates are never stored (not in settings, Room or logs) and never sent.
+- **Not set silently:** with only «Ungefähr» allowed, or a fix worse than ± 75 m, the hectare is not
+  taken; the screen explains that a hectare needs «Genauer Standort» and offers the app settings,
+  another try, or pasting coordinates. Location services off → a link to the system location
+  settings.
+- **Pasting coordinates** stays as the second way, collapsed under «Oder Koordinaten einfügen».
+  Placement, floor, street side and note are unchanged.
+- **Permissions:** `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the Karten-Version
+  (`src/public/AndroidManifest.xml`) and in `laborKarte`; the **Offline-Version and the Labor build
+  have no location permission** (removed in their manifests). `ACCESS_BACKGROUND_LOCATION` is removed
+  for every edition: location is read only on the button, while the screen is open. Location hardware
+  is declared optional (`uses-feature … required="false"`).
+- **Texts:** the explanation «Was nie gesendet wird» no longer says the app has no location
+  permission; it says when location is read and that only the hectare is kept. About card and
+  Einstellungen → App-Version: the Offline-Version is «ohne Internet- und ohne Standort-Berechtigung».
+  PRIVACY.md, README.md, server/DESIGN.md §2.2, datenschutz.html and index.html («Welche Version?»)
+  describe the location permission.
+- **Code and tests:** new package `ch.stadtlaerm.app.location` (`LocationPolicy.kt`, pure rules;
+  `LocationFetcher.kt`, the only file using `android.location`). `LocationPolicyTest` (lat/lon →
+  hectare for Zürich points, accuracy/«Ungefähr»/last-known rules, texts) and
+  `LocationIsolationTest` (manifests per flavour; no logging, storage or network in the location
+  code; the upload never sees a location).
+- Version 0.5.1 / code 12 for all editions (`0.5.1-labor`, `0.5.1-labor-karte`). Not on the website
+  yet: `docs/download/` and `docs/update.html` still offer 0.5.0.
+
 ## 0.5.0 — unreleased (test build, versionCode 11, not published)
 
 0.5.0 = 0.4.0 (detector v2, below) + the opt-in «Messwerte teilen» for the shared noise map. The

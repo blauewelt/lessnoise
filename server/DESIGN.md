@@ -22,11 +22,16 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
    surface for no gain.
-2. **No precise location.** The contributor places the sensor on a map **once**, in the
-   app. The app snaps that point to a **Swiss hectare cell** (the 100 m × 100 m grid of the
-   national LV95 coordinate system, the same grid the Federal Statistical Office publishes
-   population on) *before* anything is sent. The server never sees coordinates, only cell
-   ids. GPS is never read; the app does not request a location permission.
+2. **No precise location.** The contributor places the sensor **once**, in the app: from
+   app v0.5.1 by tapping «Standort bestimmen» (one location fix from Android's own location
+   service while the screen is open; the Karten-Version asks for the location permission for
+   this button only), or by pasting coordinates. The app snaps that point to a **Swiss hectare
+   cell** (the 100 m × 100 m grid of the national LV95 coordinate system, the same grid the
+   Federal Statistical Office publishes population on) *before* anything is sent and keeps
+   only the cell id; the coordinates are neither stored nor sent. The server never sees
+   coordinates, only cell ids. Location is never read in the background (no
+   `ACCESS_BACKGROUND_LOCATION`, no request outside that button); the Offline-Version has no
+   location permission.
 3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»),
    off until the contributor switches it on in a screen that lists exactly what leaves the
    phone, what never does, and where it goes. Switching it off stops uploads at once.

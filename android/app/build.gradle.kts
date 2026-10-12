@@ -45,8 +45,8 @@ android {
         applicationId = "ch.stadtlaerm.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.5.0"
+        versionCode = 12
+        versionName = "0.5.1"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/stadtlaerm/app/upload/UploadClient.kt opens connections, and only

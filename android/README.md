@@ -218,8 +218,10 @@ so a better model can be swapped in without touching the measurement code.
 | Gradle flavour | `offline` (default variant) | `public` | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` | `"labor-karte"` |
 | App id | `ch.stadtlaerm.app` | `ch.stadtlaerm.app` | `ch.stadtlaerm.labor` | `ch.stadtlaerm.labor` |
-| Version name | `0.5.0` | `0.5.0` | `0.5.0-labor` | `0.5.0-labor-karte` |
+| Version name | `0.5.1` | `0.5.1` | `0.5.1-labor` | `0.5.1-labor-karte` |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» only | no | yes, for «Messwerte teilen» only |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` (v0.5.1) | no (removed) | yes, for «Standort bestimmen» only | no (removed) | yes, for «Standort bestimmen» only |
+| `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
 | `BuildConfig.UPLOAD_AVAILABLE` | false | true | false | true |
 | Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
 | Published as | `docs/download/stadtlaerm.apk` on stadtlaerm.ch | `docs/download/stadtlaerm-karte.apk` on stadtlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
@@ -450,7 +452,22 @@ request bodies, §9 the app changes). **Einstellungen → Messwerte teilen**:
    category; the hectare and the placement answers; phone model, audio source, calibration; a random
    id), what is never sent (audio, the precise location, name or account, the raw classifier labels),
    where it goes (`api.stadtlaerm.ch`, Switzerland; only per-hectare values are public), how to delete.
-2. **Placement** («Aufstellung»): paste coordinates — WGS84 decimal degrees from a map app
+2. **Placement** («Aufstellung»): from v0.5.1 the button **«Standort bestimmen»** (only where
+   `BuildConfig.UPLOAD_AVAILABLE`). On tap it requests `ACCESS_FINE_LOCATION` +
+   `ACCESS_COARSE_LOCATION` (Activity Result API; one line of rationale under the button), then gets
+   **one** fix from the platform `LocationManager` (`location/LocationFetcher.kt`; no Google Play
+   Services): GPS and network provider, whichever are enabled, asked at the same time —
+   `getCurrentLocation` on API 30+, `requestLocationUpdates` removed after the first update on API
+   26–29; the first fix ≤ 25 m ends the wait, otherwise the best one after both answered or after
+   30 s («Standort wird bestimmt …», «Abbrechen»). A last-known location is used only if younger
+   than 2 min and accurate to ≤ 50 m. The fix goes straight through `CellInput.fromLatLon` →
+   `Lv95.cellId`; the screen shows only «Hektare h26833_12479 · Genauigkeit ± 12 m», and the
+   hectare is kept with «Aufstellung speichern». The rules are in `location/LocationPolicy.kt` (pure
+   Kotlin): the hectare is set only with «Genauer Standort» and accuracy ≤ 75 m; «Ungefähr» (Android
+   12+) → explanation + «App-Einstellungen»; worse accuracy or no fix → «Nochmals versuchen»;
+   location services off → «Standort-Einstellungen»; each also offers pasting. The coordinates live
+   only in local variables (never in settings, Room, logs or the upload).
+   Secondary, collapsed («Oder Koordinaten einfügen»): paste coordinates — WGS84 decimal degrees from a map app
    (`47.3769, 8.5417`), LV95 from map.geo.admin.ch (`2'683'304, 1'247'925`), LV03, or a hectare id —
    and the phone shows «Hektare: h26833_12479 – dieses Hektar wird gezeigt» at once; only that id is
    stored and sent (`upload/CellInput.kt`, `dsp/.../geo/Lv95.kt`, the same formulas as the map's
@@ -480,7 +497,8 @@ later. Errors back off exponentially from 10 minutes; a refused token (401) stop
 `BuildConfig.STADTLAERM_API`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, `rejected`, delete; pure JVM), `UploadState.kt` (settings, id,
 markers; the token encrypted with an Android Keystore key), `UploadWorker.kt` (WorkManager
-scheduling). The UI is `ui/ShareScreen.kt`. For a local test server build with
+scheduling). The UI is `ui/ShareScreen.kt`; «Standort bestimmen» is `location/` (outside `upload/`,
+which never sees a location). For a local test server build with
 `-Pstadtlaerm.api=https://…`. The Labor build has none of it enabled and no network permission
 (`BuildConfig.UPLOAD_AVAILABLE = false`, `src/labor/AndroidManifest.xml`).
 
@@ -488,7 +506,11 @@ scheduling). The UI is `ui/ShareScreen.kt`. For a local test server build with
 on 127.0.0.1 (`FakeServer.kt`, the server's semantics): register, site, exact bodies (no labels, no
 originals, no coordinates), batch limits, duplicates, resume after a failed batch, `rejected`,
 refused token and «Neue Kennung», synchronous delete, failed delete, off by default, the 7-day
-window, rate limit / 4xx / no network, coordinate entry. `dsp/src/test/.../geo/Lv95Test.kt` checks
+window, rate limit / 4xx / no network, coordinate entry. `app/src/test/.../location/LocationPolicyTest.kt`
+checks lat/lon → hectare (Zürich points from `lv95.js`), the accuracy/«Ungefähr»/last-known rules and
+the texts; `LocationIsolationTest.kt` checks the manifests (location only in `public`/`laborKarte`,
+removed in `offline`/`labor`, no background location) and that the location code logs, stores and
+sends nothing. `dsp/src/test/.../geo/Lv95Test.kt` checks
 the conversion against the five reference points of DESIGN.md §3 and against values computed with
 the website's `lv95.js`.
 
@@ -592,7 +614,7 @@ and the update check have not been tried on a phone yet.
 
 ## Labor build
 
-«Stadtlärm Labor» (`ch.stadtlaerm.labor`, version name `0.5.0-labor`) is a separate app built
+«Stadtlärm Labor» (`ch.stadtlaerm.labor`, version name `0.5.1-labor`) is a separate app built
 from the same code that can **record audio**, to debug the event detector and the sound-source
 classifier with real sound — e.g. why highway passes of cars and motorbikes (3–10 s, ≈ 13 dB above
 a quiet background) are not recognised: each clip comes with the classifier's per-second results
@@ -611,7 +633,8 @@ from the website. The public app contains none of its code (how to check: PRIVAC
 
 **Labor-Version mit Karte** (flavour `laborKarte`, internal, for the maintainer's own test phone,
 never published): the Labor build plus the opt-in «Messwerte teilen» (`INTERNET`,
-`ACCESS_NETWORK_STATE`, the Karten-Version's upload code; audio is never sent, checked by
+`ACCESS_NETWORK_STATE`, from v0.5.1 `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` for «Standort
+bestimmen», the Karten-Version's upload code; audio is never sent, checked by
 `UploadSourceIsolationTest`, see PRIVACY.md → «Labor-Build»). It compiles `src/labor/kotlin` and
 `src/labor/res` but not `src/labor/AndroidManifest.xml`; its own manifest is
 `src/laborKarte/AndroidManifest.xml`. Same app id as Labor, so it installs over a Labor install and
@@ -776,7 +799,7 @@ for A in app/build/outputs/apk/offline/release/app-offline-release.apk \
          app/build/outputs/apk/public/release/app-public-release.apk; do
   apksigner verify --verbose --print-certs $A   # v2 + v3, signer DN
   aapt2 dump badging $A | head -1               # package ch.stadtlaerm.app, versionCode, versionName
-  aapt2 dump permissions $A                     # offline: no INTERNET / ACCESS_NETWORK_STATE; public: both
+  aapt2 dump permissions $A                     # offline: no INTERNET / ACCESS_NETWORK_STATE / location; public: all four
   apkanalyzer dex packages $A | grep -c ch.stadtlaerm.app.labor   # 0: no Labor code (PRIVACY.md)
   sha256sum $A; stat -c %s $A
 done
@@ -795,8 +818,9 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `./gradlew test assembleOfflineRelease assemblePublicRelease -Pstadtlaerm.keystoreProperties=…`.
    Check for each APK (commands above): the signer certificate SHA-256; `aapt2 dump badging` →
    `ch.stadtlaerm.app` and the new version; `aapt2 dump permissions` = exactly the list in
-   PRIVACY.md → «How to verify» (offline **without** `INTERNET` and `ACCESS_NETWORK_STATE`, public
-   with both); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).
+   PRIVACY.md → «How to verify» (offline **without** `INTERNET`, `ACCESS_NETWORK_STATE`,
+   `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, public with all four; neither with
+   `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).
 3. Name the files: `app-offline-release.apk` → **`stadtlaerm.apk`** (Offline-Version),
    `app-public-release.apk` → **`stadtlaerm-karte.apk`** (Karten-Version). Note size (bytes) and
    SHA-256 of each.

@@ -65,7 +65,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.stadtlaerm.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.5.0-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.5.1-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -84,7 +84,7 @@ class EditionTextTest {
         assertEquals("Labor-Version mit Karte", EditionInfo.label(EditionInfo.LABOR_KARTE))
         assertTrue(EditionInfo.summary(EditionInfo.LABOR_KARTE).contains("Audio wird nie gesendet"))
         assertNotNull(EditionInfo.switchHint(EditionInfo.LABOR_KARTE))
-        assertEquals("Offline-Version: ohne Internet-Berechtigung.", EditionInfo.summary(EditionInfo.OFFLINE))
+        assertEquals("Offline-Version: ohne Internet- und ohne Standort-Berechtigung.", EditionInfo.summary(EditionInfo.OFFLINE))
         assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Karten-Version: mit «Messwerte teilen»"))
         // Switching: install the other APK from stadtlaerm.ch over this one, measurements are kept.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {

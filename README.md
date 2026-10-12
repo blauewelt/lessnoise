@@ -9,7 +9,11 @@ Ab v0.5.0 (noch nicht veröffentlicht) gibt es die App in zwei Ausführungen: Di
 (Standard) hat, wie alle Versionen bis v0.4.0, gar keine Internet-Berechtigung. Die Karten-Version
 sendet nur dann etwas ins Internet, wenn man «Messwerte teilen» selbst einschaltet:
 dann Pegel und Ereignisse, aber nie Audio und nie den genauen Standort, an den
-Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte pro Hektare. Ein fest
+Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte pro Hektare. Ab v0.5.1 bestimmt
+die Karten-Version die Hektare selbst: Sie fragt nach der Standort-Berechtigung, liest den Standort
+nur, wenn man «Standort bestimmen» tippt, einmal und nie im Hintergrund, und rechnet ihn auf dem
+Telefon in die Hektare um; die Koordinaten werden weder gespeichert noch gesendet. Die
+Offline-Version hat keine Standort-Berechtigung. Ein fest
 montierter Fenstersensor ist in Entwicklung. Download und Anleitung: [wenigerlaerm.ch](https://wenigerlaerm.ch).
 
 Stadtlärm is an open road-noise measurement network run by residents for residents, starting in
@@ -33,7 +37,11 @@ numbers plus a 100 m hectare (never coordinates, never the raw classifier labels
 (`api.stadtlaerm.ch`, in Switzerland), through one network class
 (`android/app/src/main/kotlin/ch/stadtlaerm/app/upload/UploadClient.kt`), with no third-party SDK;
 deletable on the server from the app at any time, and deleted by the server automatically after
-60 days without uploads.
+60 days without uploads. From v0.5.1 the Karten-Version also has the location permission
+(`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`), used only when you tap «Standort bestimmen» in
+the placement step: one fix from Android's own location service, turned into the hectare on the
+phone; the coordinates are neither stored nor sent, and location is never read in the background
+(no `ACCESS_BACKGROUND_LOCATION`). The Offline-Version has no location permission.
 [PRIVACY.md](PRIVACY.md) explains how the code keeps these promises and how to check them.
 
 ## Usage numbers
@@ -80,6 +88,10 @@ What the project counts, and who counts it — totals over the whole project, al
   (without wind events) with a 100 m hectare (never audio, never coordinates) to the shared noise
   map; it is off until switched on, and that is the only use of the internet permission it adds.
   Both are downloaded from the website (`docs/download/`).
+- **Phone app v0.5.1 (test build, not yet published):** the Karten-Version determines the hectare
+  itself with «Standort bestimmen» (location permission, one fix on tap, coordinates neither stored
+  nor sent); pasting coordinates remains as a second way. The Offline-Version is unchanged and has
+  no location permission.
 - **Noise map and server:** the contribution server ([server/](server/)) runs at
   `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is part of v0.5.0 and not
   yet on the website.

@@ -5,10 +5,10 @@ package ch.stadtlaerm.app.edition
  * every flavour compiles the same texts and the JVM tests check them. Which edition a build is
  * comes from the Gradle flavour (app/build.gradle.kts):
  *
- * - [OFFLINE] «Offline-Version» (flavour `offline`, ch.stadtlaerm.app): no internet permission;
+ * - [OFFLINE] «Offline-Version» (flavour `offline`, ch.stadtlaerm.app): no internet and (v0.5.1) no location permission;
  *   the default download, GitHub release asset stadtlaerm.apk.
  * - [KARTE] «Karten-Version» (flavour `public`, ch.stadtlaerm.app): internet only for the opt-in
- *   «Messwerte teilen»; GitHub release asset stadtlaerm-karte.apk.
+ *   «Messwerte teilen», location (v0.5.1) only for its «Standort bestimmen»; file stadtlaerm-karte.apk.
  * - [LABOR] «Labor-Version» (flavour `labor`, ch.stadtlaerm.labor): never published, no internet.
  * - [LABOR_KARTE] «Labor-Version mit Karte» (flavour `laborKarte`, ch.stadtlaerm.labor): the Labor
  *   build plus the opt-in «Messwerte teilen» (audio is never sent); internal, never published.
@@ -33,7 +33,7 @@ object EditionInfo {
 
     /** Line in Einstellungen → App-Version: which edition is installed. */
     fun summary(edition: String): String = when (edition) {
-        OFFLINE -> "Offline-Version: ohne Internet-Berechtigung."
+        OFFLINE -> "Offline-Version: ohne Internet- und ohne Standort-Berechtigung."
         KARTE -> "Karten-Version: mit «Messwerte teilen» für die Lärmkarte (aus, bis du es einschaltest)."
         LABOR -> "Labor-Version: kann Audio aufzeichnen, wird nicht veröffentlicht."
         LABOR_KARTE ->

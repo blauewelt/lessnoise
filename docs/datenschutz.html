@@ -38,8 +38,9 @@
   <ul class="features">
     <li>Der Ton vom Mikrofon wird nur im Arbeitsspeicher ausgewertet, in kleinen Zwischenspeichern von höchstens etwa einer Sekunde, die laufend überschrieben werden. Es wird nie Audio gespeichert.</li>
     <li>Gespeichert werden nur Pegel und Statistiken: Lärmpegel pro Minute, laute Ereignisse (Zeit, Dauer, Spitzenpegel, wahrscheinliche Quelle) und Kalibrierungen. Diese Daten liegen nur auf Ihrem Telefon.</li>
-    <li>Die App gibt es seit Version 0.5.0 in zwei Ausführungen. Die <strong>Offline-Version</strong> hat, wie alle Versionen bis 0.4.0, gar keine Internet-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik.</li>
+    <li>Die App gibt es seit Version 0.5.0 in zwei Ausführungen. Die <strong>Offline-Version</strong> hat, wie alle Versionen bis 0.4.0, gar keine Internet-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. Sie hat auch keine Standort-Berechtigung.</li>
     <li>Die <strong>Karten-Version</strong> nutzt das Internet für genau eine Sache: das freiwillige «Messwerte teilen» für die Lärmkarte. Es ist ausgeschaltet, bis Sie es unter «Einstellungen → Messwerte teilen» einschalten. Eingeschaltet sendet die App nur die Minutenpegel und die lauten Ereignisse zusammen mit der Hektare (100&nbsp;×&nbsp;100&nbsp;m), in der der Sensor steht – nie Audio, nie den genauen Standort, nie die Rohbezeichnungen des Klassifikators – und nur an den Server des Projekts in der Schweiz (api.stadtlaerm.ch). Das Gerät erhält dafür eine zufällige Kennung ohne Bezug zu Ihrer Person. Mit «Meine Daten auf dem Server löschen» werden alle Daten des Geräts sofort gelöscht; übrig bleibt nur, dass ein Zähler der gelöschten Geräte um eins steigt. Wenn 60 Tage lang keine Messwerte mehr ankommen – etwa weil Sie zur Offline-Version gewechselt, die App deinstalliert oder das Teilen ausgeschaltet haben –, löscht der Server alle Daten des Telefons ebenso vollständig von selbst; auch dann steigt nur ein Zähler um eins. Es gibt keine Statistikdienste, keine Absturzberichte und keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
+    <li>Ab Version 0.5.1 hat die <strong>Karten-Version</strong> eine Standort-Berechtigung, damit sie die Hektare selbst bestimmen kann. Die App fragt danach erst, wenn Sie unter «Messwerte teilen» auf «Standort bestimmen» tippen, und liest den Standort nur auf diesen Knopfdruck, einmalig, während die Seite offen ist – nie im Hintergrund. Die Hektare wird auf dem Telefon berechnet; die Koordinaten werden weder gespeichert noch gesendet, gespeichert und gesendet wird nur die Hektare. Der Standort wird über die Standortdienste von Android bestimmt (GPS und Netzwerk), ohne Dienste von Google oder anderen Anbietern in der App. Statt des Knopfs können Sie auch Koordinaten einfügen. Die Offline-Version hat keine Standort-Berechtigung.</li>
     <li>Die Erkennung der Lärmquelle läuft auf dem Telefon. Sie hält fest, welche Art von Geräusch vorkam (etwa «Stimmen»), nicht was gesagt wurde.</li>
     <li>Sonst – und in der Offline-Version überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst exportieren (als CSV-Datei) und weitergeben. Bedenken Sie dabei: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
     <li>Löschen können Sie die Daten in der App unter «Daten» oder indem Sie die App deinstallieren.</li>
@@ -59,7 +60,7 @@
 <section id="kontakt">
   <h2>Verantwortlich</h2>
   <p>Verein Weniger Lärm, Zürich, vertreten durch den Präsidenten Christian Frank. Fragen und Hinweise bitte als <a href="https://github.com/blauewelt/stadtlaerm/issues">Issue auf GitHub</a>.</p>
-  <p class="small">Stand: 10. Oktober 2026</p>
+  <p class="small">Stand: 12. Oktober 2026</p>
 </section>
 
 </main>

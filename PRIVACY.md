@@ -5,8 +5,8 @@ project, and this page explains how the code keeps it, so anyone can check.
 
 Everything on this page is about the **public app** (`ch.stadtlaerm.app`, the APKs linked from
 wenigerlaerm.ch). Since v0.5.0 it is published in two editions, the **Offline-Version** (no
-internet permission at all) and the **Karten-Version** (internet only for the opt-in «Messwerte
-teilen»), see [Editions](#editions-from-v050). Since v0.3.3 the repository can also build a
+internet and no location permission at all) and the **Karten-Version** (internet only for the
+opt-in «Messwerte teilen»; from v0.5.1 location only for its button «Standort bestimmen»), see [Editions](#editions-from-v050). Since v0.3.3 the repository can also build a
 separate diagnostics app that *can* record audio; it is a different app, is never published, and
 neither published edition contains any of its code. See [Labor-Build](#labor-build) below.
 
@@ -18,6 +18,8 @@ neither published edition contains any of its code. See [Labor-Build](#labor-bui
 | Gradle flavour | `offline` | `public` |
 | App id, signing key | `ch.stadtlaerm.app`, release key | the same |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only for «Messwerte teilen» |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` (from v0.5.1) | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only for «Standort bestimmen» in «Messwerte teilen»: one fix when you tap it, turned into the hectare on the phone; coordinates neither stored nor sent |
+| `ACCESS_BACKGROUND_LOCATION` | no | **no** — location is never read in the background |
 | «Messwerte teilen» | does not exist (`BuildConfig.UPLOAD_AVAILABLE = false`) | off until you switch it on |
 | Data leaves the phone | only when *you* export it (CSV; calibrations as JSON) and share it | the same, plus the opt-in upload |
 | Can report anything (usage, crashes, versions) | **no** — it has no way to | only what «Messwerte teilen» sends, below |
@@ -28,7 +30,11 @@ other switches the edition and keeps the measurements. Every version up to v0.4.
 the Offline-Version (no `INTERNET`), so for those users the Offline-Version is an ordinary update
 without a new permission. The Offline-Version still contains the compiled upload classes (shared
 code), but they can never run: every entry point returns when `UPLOAD_AVAILABLE` is false, the
-settings card does not exist, and without `INTERNET` Android would refuse the socket anyway. When
+settings card does not exist, and without `INTERNET` Android would refuse the socket anyway. The
+same holds for the location classes of «Standort bestimmen» (`app/src/main/.../location/`, from
+v0.5.1): their only caller is the placement step of «Messwerte teilen», which does not exist in the
+Offline-Version, and without `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` in its manifest Android
+would deny the permission without asking. When
 the Offline-Version is installed over a Karten-Version that had sharing on, it switches sharing
 off and cancels the scheduled upload jobs at its first start (`UploadModule.stopForOfflineEdition`);
 it keeps the device id and token so that the Karten-Version can still delete the data on the
@@ -93,10 +99,12 @@ accordingly before you share them.
   - **`stadtlaerm.apk`** (Offline-Version, and every version up to v0.4.0): `RECORD_AUDIO`,
     `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`, `WAKE_LOCK`
     (plus AndroidX's internal `ch.stadtlaerm.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`).
-    No `INTERNET`, no `ACCESS_NETWORK_STATE`.
+    No `INTERNET`, no `ACCESS_NETWORK_STATE`, no `ACCESS_FINE_LOCATION`, no `ACCESS_COARSE_LOCATION`.
   - **`stadtlaerm-karte.apk`** (Karten-Version, from v0.5.0): the same plus `INTERNET` and
-    `ACCESS_NETWORK_STATE`, both only for «Messwerte teilen» (below).
-  - Neither has a location, Wi-Fi-state, boot or storage permission. `aapt2 dump badging` shows
+    `ACCESS_NETWORK_STATE`, both only for «Messwerte teilen» (below), and from v0.5.1
+    `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, only for «Standort bestimmen» (below).
+  - Neither has `ACCESS_BACKGROUND_LOCATION` (removed in `app/src/main/AndroidManifest.xml`) or a
+    Wi-Fi-state, boot or storage permission. `aapt2 dump badging` shows
     `package: name='ch.stadtlaerm.app'` for both.
 - Search the source of the public app: `grep -rn "FileOutputStream\|openFileOutput\|Socket\|HttpURLConnection\|openConnection\|URL(" android/app/src/main android/app/src/public android/dsp/src/main`
   finds network code in exactly one file, `android/app/src/main/kotlin/ch/stadtlaerm/app/upload/UploadClient.kt`
@@ -113,7 +121,8 @@ the code keeps them:
 |---|---|
 | **Off by default**, one explicit opt-in | `UploadSnapshot.enabled = false`; the switch is enabled only after the explanation screen was read and a hectare was chosen (`Uploader.enable()`, `ui/ShareScreen.kt`). Switching off cancels every scheduled job at once (`UploadModule.applySchedule()`); a running upload stops before its next request. |
 | **What is sent** | The minute records (levels, percentiles, valid time, event count, category shares, calibration id/offset, audio source, clock corrections) and event records (start, duration, LAFmax, SEL, background, threshold, floor, category and its score, calibration) of `upload/Payloads.kt`, plus the placement of §4.2 (hectare, placement, floor, street side, phone model, audio source, calibration, optional note). Exactly the bodies of DESIGN.md §4. Events flagged as wind on the microphone are not sent (the app leaves them out of its own counts too), and a minute's event count is the count without wind. |
-| **What is never sent** | Audio (none exists). The top-3 raw AudioSet labels of events (`topLabelsJson` is not read by `Payloads`). The `orig_*`/re-evaluation columns. The detector-v2 features of events and minutes (local floor, excess, rise/decay, LF share and flutter, shape, wind flag, wind event count). Coordinates: the placement step turns what you type into an LV95 hectare id on the phone (`upload/CellInput.kt`, `dsp/.../geo/Lv95.kt`); the typed text is neither stored nor sent. GPS is never read; there is no location permission. No name, account, phone number, advertising id or Android id. |
+| **What is never sent** | Audio (none exists). The top-3 raw AudioSet labels of events (`topLabelsJson` is not read by `Payloads`). The `orig_*`/re-evaluation columns. The detector-v2 features of events and minutes (local floor, excess, rise/decay, LF share and flutter, shape, wind flag, wind event count). Coordinates: the placement step turns the location fix of «Standort bestimmen» (from v0.5.1) or the coordinates you paste into an LV95 hectare id on the phone (`upload/CellInput.kt`, `dsp/.../geo/Lv95.kt`); the coordinates and the typed text are neither stored nor sent (see «Location» below). No name, account, phone number, advertising id or Android id. |
+| **Location** (from v0.5.1) | Only the Karten-Version (and the internal `laborKarte`) has `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`; it asks for them only when you tap «Standort bestimmen» in the placement step. Then it gets **one** fix from Android's own `LocationManager` (no Google Play Services; GPS and network provider, whichever are on; `getCurrentLocation`, on Android 8–10 one update; at most 30 s, cancellable; a last-known location only if younger than 2 min and accurate to ≤ 50 m) while the screen is open, converts it to the hectare at once (`location/LocationPolicy.kt` → `CellInput.fromLatLon` → `Lv95.cellId`) and shows only «Hektare h… · Genauigkeit ± n m». The coordinates live only in local variables of `location/LocationFetcher.kt` and `LocationPolicy.decide`: not in the settings, not in the database, not in a log, not in the upload. The hectare is set only with «Genauer Standort» and an accuracy of ≤ 75 m; with «Ungefähr» or a worse fix the screen explains why and offers the app settings, another try or pasting coordinates. Never in the background: no `ACCESS_BACKGROUND_LOCATION`, no location request outside that button. The Offline-Version and the Labor build have no location permission (removed in their manifests). |
 | **Where it goes** | One host, `BuildConfig.STADTLAERM_API` = `https://api.stadtlaerm.ch` (the project's server in Switzerland, DESIGN.md §8). HTTPS only (`UploadClient` refuses any other base URL except a loopback test server), redirects are not followed, no cookies, and the User-Agent is just `Stadtlaerm` (no phone model or Android build). |
 | **When** | After every full hour and shortly after a measurement stops (WorkManager), only over Wi-Fi/unmetered networks unless «nur über WLAN» is switched off. At the first opt-in the last 7 days are included (the screen says so); afterwards nothing measured while sharing was off is ever sent. |
 | **Identity** | At the first upload the server issues a random device id and a secret token (DESIGN.md §4.1). The token is stored encrypted with a key held in the Android Keystore; the id is never shown on the public map. «Neue Kennung» deletes the server data and starts a fresh id. |
@@ -127,7 +136,12 @@ manifest.
 
 **How to verify:** the grep above (one network file); `android/app/src/test/.../upload/UploadTest.kt`
 checks the exact request bodies against a local fake server (no labels, no originals, no
-coordinates, gzip, bearer token, the fixed User-Agent, nothing sent while off); and on a phone,
+coordinates, gzip, bearer token, the fixed User-Agent, nothing sent while off);
+`android/app/src/test/.../location/LocationIsolationTest.kt` checks that only `public` and
+`laborKarte` declare the location permissions (`offline` and `labor` remove them, background location
+is removed everywhere) and that the location code logs, stores and sends nothing, with
+`android.location` used in exactly one file; `LocationPolicyTest.kt` checks the lat/lon → hectare
+path and when a fix is accepted; and on a phone,
 Android's per-app data usage (on a Pixel: *Settings → Apps → Stadtlärm → Mobile data & Wi-Fi*)
 shows the app's traffic, which stays at zero while sharing is off.
 
@@ -195,8 +209,9 @@ the commands below use the second name, run them on each):
    `manifest.jsonl` or the `labor` package. As a control, the same commands on the Labor APK find
    828 `ch.stadtlaerm.app.labor` entries and 98 matching strings.
 3. `aapt2 dump permissions` lists the permissions of «How to verify» above for each published APK;
-   for the Labor APK the Offline-Version's set (no `INTERNET`, no `ACCESS_NETWORK_STATE`); for the
-   internal `laborKarte` APK the Karten-Version's set (with both), package `ch.stadtlaerm.labor`.
+   for the Labor APK the Offline-Version's set (no `INTERNET`, no `ACCESS_NETWORK_STATE`, no
+   location); for the internal `laborKarte` APK the Karten-Version's set (with `INTERNET`,
+   `ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`), package `ch.stadtlaerm.labor`.
 
 **What the Labor build records** (only after «Einstellungen → Labor → Audio während der Messung
 aufzeichnen» is switched on and confirmed; off by default): event clips (WAV, 16 kHz, 5 s before to
@@ -206,8 +221,8 @@ each clip, and `classifier/*.jsonl` with every classifier run (label names and s
 `Android/data/ch.stadtlaerm.labor/files/audio/` until deleted in the app («Alle Aufnahmen löschen»)
 or by uninstalling it; they leave the phone only if the user shares them («Als ZIP teilen») or
 copies them over USB. A red banner on every screen says «LABOR-VERSION – kann Audio aufzeichnen»
-(and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` permission either (the
-internal `laborKarte` variant above has it, for «Messwerte teilen» only).
+(and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` and no location permission
+either (the internal `laborKarte` variant above has them, for «Messwerte teilen» only).
 Recordings can contain voices of people nearby; use the Labor build only where everyone recorded
 knows about it.
 
@@ -218,12 +233,13 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
 
 - **Never published**: not on the website, not in a GitHub Release, not on the `test-builds`
   branch, not in `docs/`. Same app id as the Labor build (`ch.stadtlaerm.labor`, version name
-  `0.5.0-labor-karte`), so it installs over a Labor install and keeps its measurements and
+  `<version>-labor-karte`, e.g. `0.5.1-labor-karte`), so it installs over a Labor install and keeps its measurements and
   recordings; installing the plain Labor build over it switches «Messwerte teilen» off and cancels
   the upload jobs (as the Offline-Version does after the Karten-Version), and from then on the
   phone has no internet permission again.
 - **Internet only for the opt-in upload**: its manifest (`app/src/laborKarte/AndroidManifest.xml`)
-  declares `INTERNET` and `ACCESS_NETWORK_STATE`, exactly like the Karten-Version; it does not use
+  declares `INTERNET` and `ACCESS_NETWORK_STATE`, and from v0.5.1 `ACCESS_FINE_LOCATION` and
+  `ACCESS_COARSE_LOCATION` for «Standort bestimmen», exactly like the Karten-Version; it does not use
   `app/src/labor/AndroidManifest.xml`. «Messwerte teilen» is off until switched on. As in the
   Karten-Version, the very first switch-on also sends the measurement values of the last 7 days,
   here including any the Labor build measured before on that phone (values only, never audio).
@@ -242,7 +258,7 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   leave the phone only when the user shares them («Als ZIP teilen») or copies them over USB, as in
   the Labor build.
 - The banner says «LABOR-VERSION mit Karte – kann Audio aufzeichnen»; Einstellungen → App-Version
-  shows «Labor-Version mit Karte». The server counts its `app_version` `0.5.0-labor-karte` under
+  shows «Labor-Version mit Karte». The server counts its `app_version` (e.g. `0.5.1-labor-karte`) under
   «andere» in `stats.json` (it does not match the server's version pattern).
 
 ## The website

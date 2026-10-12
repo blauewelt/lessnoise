@@ -13,6 +13,9 @@ import ch.stadtlaerm.dsp.geo.Lv95
  *   older LV03 form `683'304, 247'925`
  *
  * Nothing typed here is stored or sent: only the resulting hectare id is kept.
+ *
+ * Since v0.5.1 the main way is «Standort bestimmen» (ch.stadtlaerm.app.location): one location fix
+ * goes through [fromLatLon], the same WGS84 → LV95 path as a pasted «47.3769, 8.5417».
  */
 object CellInput {
 
@@ -40,11 +43,23 @@ object CellInput {
             // LV03 y, x: add the LV95 false origin
             a in 400_000.0..900_000.0 && b in 0.0..400_000.0 -> check(Lv95.lv95ToCell(a + 2_000_000, b + 1_000_000), "LV03")
             // WGS84: Switzerland is at 45.8–47.9° N, 5.9–10.5° E
-            a in 45.0..48.5 && b in 5.0..11.0 -> check(Lv95.cellId(a, b), "WGS84")
-            b in 45.0..48.5 && a in 5.0..11.0 -> check(Lv95.cellId(b, a), "WGS84")
+            isWgs84Switzerland(a, b) -> fromLatLon(a, b)
+            isWgs84Switzerland(b, a) -> fromLatLon(b, a)
             else -> Parsed.Error("Diese Koordinaten liegen nicht in der Schweiz.")
         }
     }
+
+    /**
+     * WGS84 latitude/longitude in decimal degrees → the hectare that contains the point, computed on
+     * the phone (Lv95.cellId, the map's formulas). Used for pasted WGS84 coordinates and for the fix
+     * of «Standort bestimmen». The caller keeps the coordinates in local variables only; this
+     * function stores nothing.
+     */
+    fun fromLatLon(lat: Double, lon: Double, how: String = "WGS84"): Parsed =
+        if (isWgs84Switzerland(lat, lon)) check(Lv95.cellId(lat, lon), how)
+        else Parsed.Error("Dieser Standort liegt nicht in der Schweiz.")
+
+    private fun isWgs84Switzerland(lat: Double, lon: Double): Boolean = lat in 45.0..48.5 && lon in 5.0..11.0
 
     private fun check(cell: String, how: String): Parsed =
         if (Lv95.isInServerRange(cell)) Parsed.Ok(cell, how) else Parsed.Error("Diese Hektare liegt nicht in der Schweiz.")

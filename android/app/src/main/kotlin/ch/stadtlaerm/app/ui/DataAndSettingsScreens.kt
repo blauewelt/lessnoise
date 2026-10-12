@@ -344,9 +344,11 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     "• Gespeichert werden nur Kennwerte: Pegel, Statistik, Kategorie-Anteile, Ereignisse.\n" +
                     (if (BuildConfig.UPLOAD_AVAILABLE)
                         "• Internet nutzt die App nur für «Messwerte teilen» (aus, bis du es einschaltest): Kennwerte und die Hektare an api.stadtlaerm.ch, sonst an keinen Server.\n" +
+                            "• Den Standort liest die App nur, wenn du bei «Messwerte teilen» auf «Standort bestimmen» tippst, einmal und nie im Hintergrund; " +
+                            "das Telefon berechnet daraus die Hektare, die Koordinaten werden weder gespeichert noch gesendet.\n" +
                             "• Sonst verlassen Daten das Telefon nur, wenn du sie selbst exportierst und teilst.\n"
                     else
-                        "• Diese Version hat keine Internet-Berechtigung. Daten verlassen das Telefon nur, wenn du sie selbst exportierst und teilst.\n") +
+                        "• Diese Version hat keine Internet- und keine Standort-Berechtigung. Daten verlassen das Telefon nur, wenn du sie selbst exportierst und teilst.\n") +
                     "• Pegel sind ohne Kalibrierung nur Richtwerte (Toleranz typ. ±5 dB oder mehr).\n" +
                     "• Erkennung: YAMNet (Google, Apache-2.0), AudioSet-Klassen. Es gibt keine eigene Tram-Klasse.",
                 style = MaterialTheme.typography.bodySmall,
