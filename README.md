@@ -5,7 +5,7 @@ Anwohnern für Anwohnerinnen und Anwohner, beginnend in Zürich. Eine Android-Ap
 Schallpegel durchgehend, auch nachts, hält laute Einzelereignisse (z. B. Töffs, Poser) mit Zeit,
 Spitzenpegel und wahrscheinlicher Quelle fest, fasst jede Nacht von 22 bis 6 Uhr zusammen, zeigt
 den Verlauf als Grafik und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
-Ab v0.5.0 (noch nicht veröffentlicht) gibt es die App in zwei Ausführungen: Die Offline-Version
+Ab v0.5.0 gibt es die App in zwei Ausführungen: Die Offline-Version
 (Standard) hat, wie alle Versionen bis v0.4.0, gar keine Internet-Berechtigung. Die Karten-Version
 sendet nur dann etwas ins Internet, wenn man «Messwerte teilen» selbst einschaltet:
 dann Pegel und Ereignisse, aber nie Audio und nie den genauen Standort, an den
@@ -21,7 +21,7 @@ Zürich ([wenigerlaerm.ch](https://wenigerlaerm.ch)). An Android app measures A-
 continuously, including at night, records loud single events (motorbikes, revving cars, …) with
 time, peak level and likely source, summarises each night (22:00–06:00) and exports CSV. The
 data stays on the phone of the person who measured it, unless they use the map edition
-(«Karten-Version», from v0.5.0, not yet published) and switch on the opt-in «Messwerte teilen» to
+(«Karten-Version», from v0.5.0) and switch on the opt-in «Messwerte teilen» to
 contribute their levels and events to a shared per-hectare noise map. The default download, the
 «Offline-Version», has no internet permission at all.
 
@@ -29,7 +29,7 @@ contribute their levels and events to a shared per-hectare noise map. The defaul
 
 No audio is ever stored or transmitted; sound source classification runs on the phone and only
 levels and statistics are kept. Up to v0.4.0 (the version published on wenigerlaerm.ch) the app has no
-internet permission at all, and from v0.5.0 (not yet published) neither has the default
+internet permission at all, and from v0.5.0 neither has the default
 **Offline-Version** (`stadtlaerm.apk`). The **Karten-Version** (`stadtlaerm-karte.apk`, same app id,
 installs over the other and keeps the data) uses the internet for exactly one thing, the opt-in upload «Messwerte teilen» described
 in [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until switched on, minute and event
@@ -82,19 +82,18 @@ What the project counts, and who counts it — totals over the whole project, al
   wind on the microphone flagged and left out of the counts), an event floor that follows the
   calibration, re-evaluation of old measurements with a new calibration, and an update check that
   runs in the browser (the app itself has no internet permission).
-- **Phone app v0.5.0 (test build, not yet published), in two editions:** the **Offline-Version**
+- **Phone app v0.5.0 (published 2026-10-11), in two editions:** the **Offline-Version**
   (default download, no internet permission, the normal update for 0.4.0) and the
   **Karten-Version**: v0.4.0 plus the opt-in «Messwerte teilen», which sends levels and events
   (without wind events) with a 100 m hectare (never audio, never coordinates) to the shared noise
   map; it is off until switched on, and that is the only use of the internet permission it adds.
   Both are downloaded from the website (`docs/download/`).
-- **Phone app v0.5.1 (test build, not yet published):** the Karten-Version determines the hectare
+- **Phone app v0.5.1 (published 2026-10-12, the current version):** the Karten-Version determines the hectare
   itself with «Standort bestimmen» (location permission, one fix on tap, coordinates neither stored
   nor sent); pasting coordinates remains as a second way. The Offline-Version is unchanged and has
   no location permission.
 - **Noise map and server:** the contribution server ([server/](server/)) runs at
-  `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is part of v0.5.0 and not
-  yet on the website.
+  `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is on the website and covers all of Switzerland.
 - The app passes its JVM unit tests and JVM renders but is not yet validated on many devices. Download at
   [wenigerlaerm.ch](https://wenigerlaerm.ch); changes in [android/CHANGELOG.md](android/CHANGELOG.md).
 - **Windowsill sensor:** planned, see [firmware/README.md](firmware/README.md).

@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.5.1 — unreleased (test build, versionCode 12, not published)
+## 0.5.1 — 2026-10-12 (versionCode 12; published on wenigerlaerm.ch)
+
+Also on the website with this release: the noise map covers all of Switzerland (zoom out to the
+whole country; sharp tiles on phones).
 
 The Karten-Version determines the hectare itself. Nobody pastes coordinates by hand, so the
 placement step now has a button that asks the phone for its location once.
@@ -39,7 +42,7 @@ placement step now has a button that asks the phone for its location once.
 - Version 0.5.1 / code 12 for all editions (`0.5.1-labor`, `0.5.1-labor-karte`). Not on the website
   yet: `docs/download/` and `docs/update.html` still offer 0.5.0.
 
-## 0.5.0 — unreleased (test build, versionCode 11, not published)
+## 0.5.0 — 2026-10-11 (versionCode 11; published on stadtlaerm.ch)
 
 0.5.0 = 0.4.0 (detector v2, below) + the opt-in «Messwerte teilen» for the shared noise map. The
 sharing feature was developed on the `map-design` branch as an unpublished "0.4.0" (code 10); it
