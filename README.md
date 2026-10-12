@@ -8,9 +8,10 @@ wahrscheinlicher Quelle fest, zeigt jede Messung als Grafik (ihr Zeitraum und de
 und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
 Es gibt die App in zwei Ausführungen: «Weniger Lärm» (Standard) hat gar keine Internet- und keine
 Standort-Berechtigung. «Weniger Lärm · Karte» sendet nur dann etwas ins Internet, wenn man
-«Messwerte teilen» selbst einschaltet: dann Pegel und Lärmspitzen jeder geteilten Messung mit der
-100-m-Zelle, in der sie gestartet wurde (das Telefon bestimmt den Standort beim Start einmal und
-behält nur die Zelle), und Meldungen mit «Laut! Melden» (Zeit, genauer Standort dieser Meldung,
+«Messwerte teilen» selbst einschaltet: dann Pegel und Lärmspitzen jeder geteilten Messung mit dem
+Ort, an dem sie gestartet wurde – zufällig verschoben, standardmässig um etwa 50 m (in der App
+einstellbar); das Telefon bestimmt den Standort beim Start einmal und behält und sendet nur den
+verschobenen Punkt –, und Meldungen mit «Laut! Melden» (Zeit, genauer Standort dieser Meldung,
 Kategorie; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte. Der Standort wird nie im
 Hintergrund gelesen. Ein fest montierter Fenstersensor ist in Entwicklung. Download und Anleitung:
@@ -23,7 +24,8 @@ possibly over several days), records loud single events (motorbikes, revving car
 peak level and likely source, shows each measurement as a chart (its own time span and a 24-hour
 profile) and exports CSV. The data stays on the phone of the person who measured it, unless they use
 the map edition («Weniger Lärm · Karte») and switch on the opt-in «Messwerte teilen» to contribute
-the levels and events of their measurements, each at the 100 m cell where it was started, and
+the levels and events of their measurements, each at the place where it was started, moved at
+random on the phone by about 50 m by default (adjustable), and
 reports made with «Laut! Melden», to a shared noise map. The default download, «Weniger Lärm», has
 no internet and no location permission at all.
 
@@ -35,19 +37,22 @@ has the default edition **«Weniger Lärm»** (`stadtlaerm.apk`; app id `ch.less
 0.6.0). **«Weniger Lärm · Karte»** (`stadtlaerm-karte.apk`, same app id, installs over the other
 and keeps the data) uses the internet only for the opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until switched on; minute and event numbers of
-shared measurements, each with the 100 m cell of its measurement (never the coordinates of that
-fix, never the raw classifier labels), and «Laut! Melden» reports with the exact place of the
+shared measurements, each with the point of its measurement moved at random on the phone by a
+Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offset every time for
+the same place, so averaging does not remove it; never the coordinates of the fix, never the raw
+classifier labels), and «Laut! Melden» reports with the exact place of the
 report (deleted from the phone once sent); to one host (`api.lessnoise.ch`, in Switzerland),
 through one network class (`android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`),
 with no third-party SDK; deletable on the server from the app at any time («Daten auf dem Server
 löschen», reports included), and deleted by the server automatically after 60 days without
 uploads. Its location permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) is used only
-while the app is open: one fix at «Start» of a shared measurement (turned into the cell on the
-phone) and one per report; location is never read in the background (no
-`ACCESS_BACKGROUND_LOCATION`). On the server (schema v3) a minute or event may carry its own hectare instead of the site's,
+while the app is open: one fix at «Start» of a shared measurement (moved by the location noise on
+the phone) and one per report; location is never read in the background (no
+`ACCESS_BACKGROUND_LOCATION`). On the server (schema v4) a minute or event carries the shifted point it was sent with and is
+shown in the 100 m field that contains it (the field is a display grid, not the protection);
 and manual reports of a loud vehicle are stored with their point and published on the
 map at that point, with the time rounded down to the full hour and no device id
-([PRIVACY.md](PRIVACY.md), «On the server»). The map shows per-hectare figures per calendar day
+([PRIVACY.md](PRIVACY.md), «On the server»). The map shows figures per 100 m field and calendar day
 (all hours), not per night.
 [PRIVACY.md](PRIVACY.md) explains how the code keeps these promises
 and how to check them.
@@ -104,7 +109,8 @@ What the project counts, and who counts it — totals over the whole project, al
   `ch.lessnoise.app`, Labor `ch.lessnoise.labor`; a new app id, so it does not install over 0.5.x).
   Nothing about nights is special any more: the unit is a measurement from Start to Stop, listed
   under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared
-  measurement gets its own 100 m cell from one location fix at Start, and «Laut! Melden» reports a
+  measurement gets its own place from one location fix at Start, moved at random on the phone
+(Gaussian location noise, σ 50 m by default, setting «Standort verschieben»), and «Laut! Melden» reports a
   loud moment with its exact place. Server host `api.lessnoise.ch`.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the

@@ -138,6 +138,22 @@ object MigrationSql {
                 "INSERT INTO `measurements` (`start_ms`, `end_ms`, `cell`) VALUES (${s.startMs}, ${s.endMs}, NULL)"
             }
 
+    /**
+     * v6 → v7 (app 0.6.0, location noise): the shifted point of a shared measurement and its σ.
+     * Existing rows keep everything and get NULL points; a row of a 0.6.0 test build that has a
+     * cell but no point is therefore no longer sent (the app never sends the true hectare again).
+     */
+    val MIGRATE_6_7: List<String> = listOf(
+        "ALTER TABLE `measurements` ADD COLUMN `point_e` INTEGER",
+        "ALTER TABLE `measurements` ADD COLUMN `point_n` INTEGER",
+        "ALTER TABLE `measurements` ADD COLUMN `sigma_m` INTEGER",
+    )
+
+    /** v7 `measurements` table, exactly as Room generates it (verified by a unit test). */
+    const val CREATE_MEASUREMENTS_V7 =
+        "CREATE TABLE IF NOT EXISTS `measurements` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, " +
+            "`end_ms` INTEGER, `cell` TEXT, `point_e` INTEGER, `point_n` INTEGER, `sigma_m` INTEGER)"
+
     /** v5 `events` table, exactly as Room generates it (verified by a unit test). */
     const val CREATE_EVENTS_V5 = CREATE_EVENTS_V4_PREFIX +
         ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
@@ -183,5 +199,11 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
             while (c.moveToNext()) minutes += c.getLong(0) to c.getDouble(1)
         }
         MigrationSql.migrate5to6(minutes).forEach { db.execSQL(it) }
+    }
+}
+
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        MigrationSql.MIGRATE_6_7.forEach { db.execSQL(it) }
     }
 }

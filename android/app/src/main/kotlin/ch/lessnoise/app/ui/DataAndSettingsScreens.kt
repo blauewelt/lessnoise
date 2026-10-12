@@ -343,7 +343,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     "• Gespeichert werden nur Kennwerte: Pegel, Statistik, Kategorie-Anteile, Ereignisse.\n" +
                     (if (BuildConfig.UPLOAD_AVAILABLE)
                         "• Internet nutzt die App nur für «Messwerte teilen» und «Laut! Melden» (aus, bis du es einschaltest), an ${BuildConfig.API_BASE.removePrefix("https://")}.\n" +
-                            "• Den Standort liest die App nur beim Start einer geteilten Messung (behalten wird die 100-m-Zelle) und bei einer Meldung, nie im Hintergrund.\n" +
+                            "• Den Standort liest die App nur beim Start einer geteilten Messung (behalten und gesendet wird nur ein zufällig verschobener Punkt, «Standort verschieben») und bei einer Meldung, nie im Hintergrund.\n" +
                             "• Sonst verlassen Daten das Telefon nur, wenn du sie selbst exportierst und teilst.\n"
                     else
                         "• Diese Version hat keine Internet- und keine Standort-Berechtigung. Daten verlassen das Telefon nur, wenn du sie selbst exportierst und teilst.\n") +

@@ -1,12 +1,16 @@
 package ch.lessnoise.app.data
 
 import ch.lessnoise.dsp.MeasurementSpan
+import ch.lessnoise.dsp.geo.LocationNoise
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** «Messungen» (app 0.6.0): the migration 5 → 6 keeps every record, and rows become measurements. */
+/**
+ * «Messungen» (app 0.6.0): the migrations 5 → 6 and 6 → 7 keep every record, and rows become
+ * measurements (shared = with a shifted point).
+ */
 class MeasurementsDbTest {
     private val min = 60_000L
 
@@ -62,15 +66,59 @@ class MeasurementsDbTest {
     }
 
     @Test
+    fun migration6to7AddsThePointAndKeepsEveryRow() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { c ->
+            c.createStatement().use { st ->
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_V6)
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_INDEX_V6)
+                st.execute("INSERT INTO measurements (start_ms, end_ms, cell) VALUES (0, 1000, NULL), (2000, NULL, 'h26833_12479')")
+                MigrationSql.MIGRATE_6_7.forEach { st.execute(it) }
+                val rows = ArrayList<List<Any?>>()
+                st.executeQuery("SELECT id, start_ms, cell, point_e, point_n, sigma_m FROM measurements ORDER BY id").use { rs ->
+                    while (rs.next()) rows += listOf(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getObject(4), rs.getObject(5), rs.getObject(6))
+                }
+                assertEquals(listOf(listOf<Any?>(1L, 0L, null, null, null, null), listOf<Any?>(2L, 2000L, "h26833_12479", null, null, null)), rows)
+                // Same columns as a freshly created v7 table (what Room checks when it opens the database).
+                fun columns(table: String): List<String> {
+                    val out = ArrayList<String>()
+                    st.executeQuery("PRAGMA table_info(`$table`)").use { rs ->
+                        while (rs.next()) out += "${rs.getString("name")}|${rs.getString("type")}|${rs.getInt("notnull")}|${rs.getInt("pk")}|${rs.getString("dflt_value")}"
+                    }
+                    return out
+                }
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_V7.replace("`measurements`", "`fresh`"))
+                assertEquals(columns("fresh"), columns("measurements"))
+                st.execute("INSERT INTO measurements (start_ms, cell, point_e, point_n, sigma_m) VALUES (3000, 'h26824_12473', 2682437, 1247391, 50)")
+                st.executeQuery("SELECT COUNT(*) FROM measurements WHERE point_e IS NOT NULL").use { rs -> rs.next(); assertEquals(1, rs.getInt(1)) }
+            }
+        }
+    }
+
+    @Test
+    fun onlyRowsWithAPointAreShared() {
+        val p = LocationNoise.Point(2682437, 1247391, 50)
+        assertEquals(p, MeasurementEntity(id = 1, startMs = 0, cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = 50).sharedPoint())
+        // A row of a 0.6.0 test build before v7: a cell, no point → not shared any more.
+        assertEquals(null, MeasurementEntity(id = 2, startMs = 0, cell = "h26833_12479").sharedPoint())
+        assertEquals(null, MeasurementEntity(id = 3, startMs = 0, pointE = 1, pointN = null, sigmaM = 50).sharedPoint())
+    }
+
+    private val p1 = LocationNoise.Point(2682437, 1247391, 50)
+    private val p4 = LocationNoise.Point(2683310, 1247980, 100)
+
+    private fun shared(id: Long, startMs: Long, endMs: Long?, p: LocationNoise.Point) =
+        MeasurementEntity(id = id, startMs = startMs, endMs = endMs, cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = p.sigmaM)
+
+    @Test
     fun rowsBecomeMeasurementsWithRunningAndKilledOnes() {
         val rows = listOf(
-            MeasurementEntity(id = 1, startMs = 0, endMs = 20 * min, cell = "h1_1"),
+            shared(1, 0, 20 * min, p1),
             // Killed before «Stop»: its end is the end of its last minute.
             MeasurementEntity(id = 2, startMs = 60 * min, endMs = null, cell = null),
             // Started and stopped without a single minute: left out.
             MeasurementEntity(id = 3, startMs = 90 * min, endMs = 90 * min + 5_000, cell = null),
             // Running now.
-            MeasurementEntity(id = 4, startMs = 100 * min, endMs = null, cell = "h4_4"),
+            shared(4, 100 * min, null, p4),
         )
         val minutes = (0 until 20).map { it * min to (it + 1) * min } +
             (60 until 75).map { it * min to (it + 1) * min } +
@@ -79,12 +127,13 @@ class MeasurementsDbTest {
         val list = MeasurementList.resolve(rows.shuffled(), minutes.shuffled(), now, running = true)
         assertEquals(
             listOf(
-                Measurement(1, MeasurementSpan(0, 20 * min), "h1_1", running = false),
+                Measurement(1, MeasurementSpan(0, 20 * min), p1, running = false),
                 Measurement(2, MeasurementSpan(60 * min, 75 * min), null, running = false),
-                Measurement(4, MeasurementSpan(100 * min, now), "h4_4", running = true),
+                Measurement(4, MeasurementSpan(100 * min, now), p4, running = true),
             ),
             list,
         )
+        assertEquals(listOf("h26824_12473", null, "h26833_12479"), list.map { it.cell })
         // Not running (the app restarted after a kill): the open newest row ends at its last minute.
         assertEquals(MeasurementSpan(100 * min, 101 * min), MeasurementList.resolve(rows, minutes, now, running = false).last().span)
         // A running measurement shows even before its first minute is stored.

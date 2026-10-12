@@ -62,7 +62,7 @@ class RealServerTest {
             override suspend fun siteExtras() = SiteExtras("Pixel 8", "UNPROCESSED", calibrated = false, calibrationOffsetDb = 112.35)
             // One shared measurement covering everything (also the too-old minute).
             override suspend fun measurements() =
-                listOf(ch.lessnoise.app.data.MeasurementEntity(id = 1, startMs = tooOld.startEpochMs, endMs = null, cell = "h26833_12479"))
+                listOf(ch.lessnoise.app.data.MeasurementEntity(id = 1, startMs = tooOld.startEpochMs, endMs = null, cell = "h26833_12479", pointE = 2683351, pointN = 1247988, sigmaM = 50))
         }
         val store = MemoryUploadStore(
             UploadSnapshot(explanationSeen = true, site = SiteSettings("balcony", floor = 0, streetFacing = false, note = "Test"))

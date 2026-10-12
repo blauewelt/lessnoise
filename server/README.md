@@ -251,9 +251,13 @@ These are choices the design left open; the website builds against them (see the
 - **Cells without data today** stay on the map while they have any data in the last 30 days;
   their `day` is `null`; `devices` / `calibrated` of the entry are the distinct devices / all
   calibrated over the 30 days; each block has its own `devices` and `calibrated`.
-- **Where a record counts.** A minute or event with its own `cell` counts there. One without
-  counts for the device's *current* site cell: if a contributor changes the placement to
-  another hectare, the history of its cell-less records moves with it.
+- **Where a record counts.** A minute or event with a `point` (app 0.6.0, schema v4: the point
+  the app already moved by the location noise, DESIGN.md §2 rule 2) counts in its display cell,
+  the hectare that contains the point; the server stores that cell with the row at upload, so
+  aggregation never reads the point, and the point and σ are never published. One with its own
+  `cell` counts there. One with neither counts for the device's *current* site cell: if a
+  contributor changes the placement to another hectare, the history of its cell-less records
+  moves with it.
 - **Day L90 / L10** are the medians over the valid minutes of the minute L90 / L10 (the
   "typical" quiet and loud level of a minute). With several devices, the energy mean.
 - **`events_per_h_by_category`** always lists all eight app categories (zeros included).

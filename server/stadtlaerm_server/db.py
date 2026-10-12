@@ -141,6 +141,21 @@ MIGRATIONS: list[str] = [
     ) WITHOUT ROWID;
     CREATE INDEX reports_time ON reports(time_utc);
     """,
+    # 4: location noise (DESIGN.md §2 rule 2, §4.3). Minutes, events and sites may carry the
+    # shifted LV95 point the app sent (whole metres) and its σ; `cell` then holds the display cell,
+    # the hectare that contains that point, so aggregation and the published files are unchanged.
+    # Existing rows keep NULL points and their cell (or NULL = the site cell), as before.
+    """
+    ALTER TABLE minutes ADD COLUMN point_e INTEGER;
+    ALTER TABLE minutes ADD COLUMN point_n INTEGER;
+    ALTER TABLE minutes ADD COLUMN sigma_m INTEGER;
+    ALTER TABLE events ADD COLUMN point_e INTEGER;
+    ALTER TABLE events ADD COLUMN point_n INTEGER;
+    ALTER TABLE events ADD COLUMN sigma_m INTEGER;
+    ALTER TABLE sites ADD COLUMN point_e INTEGER;
+    ALTER TABLE sites ADD COLUMN point_n INTEGER;
+    ALTER TABLE sites ADD COLUMN sigma_m INTEGER;
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -148,11 +163,12 @@ MINUTE_COLUMNS = (
     "laeq_db", "lafmax_db", "lafmin_db", "l1_db", "l10_db", "l50_db", "l90_db",
     "event_count", "dominant_category", "category_shares", "calibration_id",
     "calibration_offset_db", "calibrated", "audio_source", "clock_corrections", "received_at", "cell",
+    "point_e", "point_n", "sigma_m",
 )  # fmt: skip
 EVENT_COLUMNS = (
     "device_id", "start_utc", "start_iso", "duration_s", "lafmax_db", "sel_db",
     "background_db", "threshold_db", "min_level_db", "category", "category_score",
-    "calibration_id", "calibrated", "received_at", "cell",
+    "calibration_id", "calibrated", "received_at", "cell", "point_e", "point_n", "sigma_m",
 )  # fmt: skip
 REPORT_COLUMNS = ("device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at")
 # Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
@@ -288,9 +304,22 @@ def load_events(
     return [agg.Event(r[0], r[1], r[2], r[3] or default_cell) for r in rows]
 
 
+def _place(d: dict, rec: MinuteIn | EventIn) -> None:
+    """`point` → the columns point_e, point_n, sigma_m, and `cell` = the display cell (§4.3)."""
+    del d["point"]
+    p = rec.point
+    d.update(
+        cell=rec.display_cell,
+        point_e=p.e if p else None,
+        point_n=p.n if p else None,
+        sigma_m=p.sigma_m if p else None,
+    )
+
+
 def minute_row(device_id: str, m: MinuteIn, received_at: str) -> dict:
     d = m.model_dump()
     del d["start"]
+    _place(d, m)
     d.update(
         device_id=device_id, start_utc=m.start_ms, start_iso=m.start, received_at=received_at,
         category_shares=json.dumps(m.category_shares, separators=(",", ":")), calibrated=int(m.calibrated),
@@ -301,6 +330,7 @@ def minute_row(device_id: str, m: MinuteIn, received_at: str) -> dict:
 def event_row(device_id: str, e: EventIn, received_at: str) -> dict:
     d = e.model_dump()
     del d["start"]
+    _place(d, e)
     d.update(
         device_id=device_id,
         start_utc=e.start_ms,

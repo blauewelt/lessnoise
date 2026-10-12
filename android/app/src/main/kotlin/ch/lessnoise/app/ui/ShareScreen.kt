@@ -44,13 +44,15 @@ import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.SiteSettings
 import ch.lessnoise.app.upload.UploadSnapshot
 import ch.lessnoise.app.upload.Uploader
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // «Einstellungen → Messwerte teilen» (server/DESIGN.md §2, §9). Off by default; switching on needs
-// the explanation (once; or the short consent of «Laut! Melden»). The cell comes from the location
-// fix at the start of each measurement. Everything network goes through upload/UploadClient.kt.
+// the explanation (once; or the short consent of «Laut! Melden»). The place comes from the location
+// fix at the start of each measurement, moved on the phone by the location noise («Standort
+// verschieben», ShareTexts.kt). Everything network goes through upload/UploadClient.kt.
 
 /** Short German labels of the placement values (server/DESIGN.md §4.2). */
 fun placementLabel(p: String): String = when (p) {
@@ -59,28 +61,6 @@ fun placementLabel(p: String): String = when (p) {
     SiteSettings.PLACEMENT_BEHIND_GLASS -> "Hinter Glas"
     else -> "Anderes"
 }
-
-/**
- * The bullet about location in «Was nie gesendet wird». Shown only where «Messwerte teilen» exists
- * (the Karten editions), which are the editions with the location permission.
- */
-const val LOCATION_NEVER_SENT =
-    "Dein genauer Standort, ausser bei einer Meldung; die App liest ihn nie im Hintergrund."
-
-/** «Was gesendet wird» (app 0.6.0). */
-val SHARE_SENT_BULLETS: List<String> = listOf(
-    "Die Minutenwerte und Lärmspitzen deiner geteilten Messungen, jeweils mit der 100-m-Zelle, in der du die Messung gestartet hast.",
-    "Laute Momente einer geteilten Messung erscheinen so auf der Karte.",
-    "Meldungen («Laut! Melden»): Zeit, genauer Standort und Kategorie.",
-    "Telefonmodell, Audioquelle, Kalibrierung und deine Angaben zur Aufstellung.",
-    "Eine zufällige Kennung dieses Telefons, nie öffentlich.",
-)
-
-/** «Standort» (app 0.6.0). */
-val SHARE_LOCATION_BULLETS: List<String> = listOf(
-    "Beim Start einer Messung bestimmt das Telefon einmal den Standort; behalten und gesendet wird nur die 100-m-Zelle.",
-    "Bei einer Meldung wird der genaue Standort gesendet und danach auf dem Telefon gelöscht.",
-)
 
 /** One line for the settings overview. */
 fun shareSummary(s: UploadSnapshot): String = when {
@@ -132,7 +112,8 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
 
         // 1. What is sent, what never, where, how to delete.
         SectionCard("Was gesendet wird") { Bullets(*SHARE_SENT_BULLETS.toTypedArray()) }
-        SectionCard("Standort") { Bullets(*SHARE_LOCATION_BULLETS.toTypedArray()) }
+        SectionCard("Standort") { Bullets(*shareLocationBullets(s.sigmaM).toTypedArray()) }
+        SigmaCard(s.sigmaM) { v -> module.store.update { it.copy(sigmaM = v) } }
         SectionCard("Was nie gesendet wird") {
             Bullets(
                 "Audio. Die App speichert gar keines.",
@@ -143,7 +124,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         SectionCard("Wohin") {
             Bullets(
                 "An ${module.client.host}, den Server des Projekts in der Schweiz, an keinen anderen.",
-                "Öffentlich sind nur Werte pro Zelle auf der Lärmkarte (wenigerlaerm.ch/karte.html), nie die Kennung oder deine Notiz.",
+                "Öffentlich sind nur Werte pro 100-m-Feld auf der Lärmkarte (wenigerlaerm.ch/karte.html), nie die Kennung, der gesendete Punkt oder deine Notiz.",
                 "Was du misst, während das Teilen aus ist, wird nie gesendet.",
             )
         }
@@ -290,7 +271,7 @@ private fun Bullets(vararg lines: String) {
 
 /**
  * «Aufstellung»: optional details about how the phone stands, remembered for the next measurements.
- * The place itself is the cell determined at the start of each measurement (LocationFlows.kt).
+ * The place itself is the shifted point determined at the start of each measurement (LocationFlows.kt).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -352,6 +333,29 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
             },
         ) { Text("Aufstellung speichern") }
         if (saved) Text("Gespeichert.", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/**
+ * «Standort verschieben»: σ of the location noise (server/DESIGN.md §2 rule 2), 25 / 50 (default) /
+ * 100 / 200 m. No «exact» choice: an exact place is sent only with «Laut! Melden».
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SigmaCard(current: Int, onChange: (Int) -> Unit) {
+    SectionCard("Standort verschieben") {
+        Text(sigmaLabel(current), style = MaterialTheme.typography.bodyMedium)
+        val choices = LocationNoise.SIGMAS_M
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            choices.forEachIndexed { i, v ->
+                SegmentedButton(
+                    selected = current == v, onClick = { onChange(v) },
+                    shape = SegmentedButtonDefaults.itemShape(i, choices.size),
+                ) { Text("$v m", style = MaterialTheme.typography.labelSmall) }
+            }
+        }
+        Text(SIGMA_EXPLANATION, style = MaterialTheme.typography.bodySmall)
+        Text(SIGMA_APPLIES, style = MaterialTheme.typography.bodySmall)
     }
 }
 

@@ -10,8 +10,8 @@
      tables (UploadSourceIsolationTest). ACCESS_NETWORK_STATE: needed by Android for background jobs
      that wait for a network («nur über WLAN»).
      Location (0.6.0) exactly as in «Weniger Lärm · Karte»: ACCESS_FINE_LOCATION +
-     ACCESS_COARSE_LOCATION only for one fix at «Start» of a shared measurement (turned into the
-     100 m cell on the phone) and for «Laut! Melden» (exact place sent with the report, then deleted
+     ACCESS_COARSE_LOCATION only for one fix at «Start» of a shared measurement (turned into a point
+     moved at random on the phone; only that point is sent) and for «Laut! Melden» (exact place sent with the report, then deleted
      from the phone); only while the app is open, never in the
      background). The plain Labor build has neither (src/labor/AndroidManifest.xml). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">

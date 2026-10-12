@@ -20,7 +20,7 @@ breaking changes below need no transition.
   `https://wenigerlaerm.ch/update.html`. User-Agent `LessNoise`.
 - **Measurements instead of nights.** The unit is a measurement: one run from «Start» to «Stopp», at
   any time of day, possibly over several days. New Room table `measurements` (database v5 → v6):
-  «Start» stores a row (and, if shared, its 100 m cell), «Stopp» its end; minutes and events belong
+  «Start» stores a row (and, if shared, its shifted point, below), «Stopp» its end; minutes and events belong
   to the measurement that started last before them. The migration keeps every minute and event and
   derives measurements for older data from the stored minutes (a gap of more than 10 minutes
   starts a new one). A measurement the system killed before «Stopp» ends with its last minute.
@@ -33,14 +33,25 @@ breaking changes below need no transition.
   speak of nights; Labor clip list «Diese Nacht» → «Letzte 24 h». Shorter texts in the sharing
   screen, the location messages and the edition descriptions.
 - **Location per measurement** (Karte editions, with «Messwerte teilen» on): «Messung starten»
-  takes one precise location fix (the 0.5.1 `LocationFetcher`/`LocationPolicy`) and stores the 100 m
-  cell with the measurement; the coordinates are neither stored nor sent. If the fix fails, one
+  takes one precise location fix (the 0.5.1 `LocationFetcher`/`LocationPolicy`) and stores the
+  point moved by the location noise (next item) with the measurement; the coordinates are neither
+  stored nor sent. If the fix fails, one
   dialog: «Nochmals», «Koordinaten einfügen», «Ohne Teilen starten». The fixed hectare of
   «Aufstellung» and the button «Standort bestimmen» are gone; placement, floor, street side and
   note stay as optional, remembered fields.
-- **Upload contract:** every minute and event record carries `"cell"` of its measurement; records of
-  a measurement without a cell are never sent. The site call sends the placement details with the
-  cell of the newest shared measurement. Loud moments of a shared measurement thus appear on the
+- **Location noise instead of hectare snapping** (Karte editions): the place of a shared measurement
+  is no longer snapped to the 100 m hectare. The app moves the true LV95 point at «Start» by a
+  Gaussian offset (independent N(0, σ²) east and north) and sends only the shifted point. σ is the
+  new setting **«Standort verschieben»** on «Messwerte teilen»: 25, 50 (default), 100 or 200 m. The
+  offset is fixed per place — HMAC-SHA256 of the true hectare and σ under a 32-byte secret made on
+  the phone (`dsp/geo/LocationNoise.kt`, `upload/NoiseSecret.kt`) — so averaging many measurements
+  does not remove it; «Neue Kennung» and «Daten auf dem Server löschen» make a new secret. Room v6 →
+  v7 adds `point_e`, `point_n`, `sigma_m` to `measurements`; rows of earlier 0.6.0 test builds keep
+  their cell but are no longer sent. «Laut! Melden» is unchanged (exact place).
+- **Upload contract:** every minute and event record carries `"point": {"e", "n", "sigma_m"}` (the
+  shifted point of its measurement, server schema v4); records of a measurement without a point are
+  never sent, and the true hectare is never sent. The site call sends the placement details with the
+  point of the newest shared measurement. Loud moments of a shared measurement thus appear on the
   map (one sentence in the sharing explanation says so). Wind events stay excluded.
 - **«Laut! Melden»** (Karte editions, on «Messen» while no measurement runs): «Was war laut?» (Töff,
   Auto, Lastwagen, Poser, anderes) → one precise fix (≤ 50 m, else «Nochmals») → «Meldung: …,
@@ -53,9 +64,10 @@ breaking changes below need no transition.
   without the reports call (404) keeps them for later; other refusals drop the batch.
 - **Unchanged:** the offline and Labor editions have no location, no reports and no internet
   (checked with `aapt2`); the detector, calibration, re-evaluation and CSV columns are unchanged.
-- **Tests:** migration 5 → 6 on SQLite, measurement rows → list, measurement splitting, cell per
-  record and unshared measurements in the upload, report body/queue/deletion of coordinates,
-  category ids, the report accuracy rule, the Room v6 schema.
+- **Tests:** migrations 5 → 6 and 6 → 7 on SQLite, measurement rows → list, measurement splitting,
+  the shifted point per record and unshared measurements in the upload, the location noise
+  (reference values, determinism per place, σ, sample spread, edge bytes, server box), report
+  body/queue/deletion of coordinates, category ids, the report accuracy rule, the Room v7 schema.
 
 ## 0.5.1 — 2026-10-12 (versionCode 12; published on wenigerlaerm.ch)
 

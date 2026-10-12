@@ -10,9 +10,9 @@ import math
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationInfo, field_validator, model_validator
 
-from .lv95 import cell_in_switzerland, point_in_switzerland
+from .lv95 import cell_in_switzerland, lv95_cell, lv95_point_in_switzerland, point_in_switzerland
 
 DB_MIN, DB_MAX = 0.0, 140.0
 CELL_PATTERN = r"^h\d{5}_\d{5}$"
@@ -20,6 +20,8 @@ CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 # Categories of a manual report (§4.7), as the app offers them.
 REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
 MAX_REPORT_ACCURACY_M = 200.0
+# The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
+POINT_SIGMAS_M = (25, 50, 100, 200)
 
 Level = Annotated[float, Field(ge=DB_MIN, le=DB_MAX, allow_inf_nan=False)]
 Share = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
@@ -39,6 +41,43 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class PointIn(Strict):
+    """The shifted LV95 point of a shared measurement (§4.3, schema v4), whole metres.
+
+    The app moved the true point by a Gaussian offset with standard deviation `sigma_m` before
+    sending (§2 rule 2). The server keeps it with the record and shows the record in the hectare
+    that contains it (`cell`, the display cell); it never publishes the point or σ.
+    """
+
+    e: StrictInt
+    n: StrictInt
+    sigma_m: StrictInt
+
+    @field_validator("sigma_m")
+    @classmethod
+    def _sigma(cls, v: int) -> int:
+        if v not in POINT_SIGMAS_M:
+            raise ValueError(f"sigma_m must be one of {', '.join(map(str, POINT_SIGMAS_M))}")
+        return v
+
+    @model_validator(mode="after")
+    def _in_switzerland(self) -> PointIn:
+        if not lv95_point_in_switzerland(self.e, self.n):
+            raise ValueError("point is not in the LV95 box of Switzerland")
+        return self
+
+    @property
+    def cell(self) -> str:
+        """The display cell: the hectare that contains the shifted point."""
+        return lv95_cell(self.e, self.n)
+
+
+def _one_place(v: PointIn | None, info: ValidationInfo) -> PointIn | None:
+    if v is not None and info.data.get("cell") is not None:
+        raise ValueError("send either cell or point, not both")
+    return v
+
+
 class DeviceIn(Strict):
     app_version: Annotated[str, Field(min_length=1, max_length=32)]
     app_build: Annotated[int, Field(ge=0, le=10_000_000)]
@@ -50,7 +89,10 @@ class DeviceOut(BaseModel):
 
 
 class SiteIn(Strict):
-    cell: Cell
+    # Exactly one of the two: `cell` (apps up to 0.5.1: the hectare the contributor picked) or
+    # `point` (app 0.6.0: the shifted point of the newest shared measurement, §4.2).
+    cell: Cell | None = None
+    point: PointIn | None = None
     placement: Literal["open_window", "balcony", "behind_glass", "other"]
     floor: Annotated[int, Field(ge=-3, le=100)] | None = None
     street_facing: bool | None = None
@@ -61,6 +103,17 @@ class SiteIn(Strict):
     note: Annotated[str, Field(max_length=200)] | None = None
 
     _in_switzerland = field_validator("cell")(_check_cell)
+    _one_place = field_validator("point")(_one_place)
+
+    @model_validator(mode="after")
+    def _has_place(self) -> SiteIn:
+        if self.cell is None and self.point is None:
+            raise ValueError("site needs a cell or a point")
+        return self
+
+    @property
+    def display_cell(self) -> str:
+        return self.point.cell if self.point is not None else self.cell  # type: ignore[return-value]
 
 
 def parse_start(v: str, name: str = "start") -> datetime:
@@ -76,10 +129,19 @@ def parse_start(v: str, name: str = "start") -> datetime:
 
 class _Timed(Strict):
     start: Annotated[str, Field(max_length=40)]
-    # The hectare the record was measured in (§4.3, §4.4). Absent (older apps): the device's
-    # current site cell is used when the map is built.
+    # Where the record was measured (§4.3, §4.4), at most one of the two: `point` (schema v4, app
+    # 0.6.0: the shifted LV95 point; shown in the hectare that contains it) or `cell` (schema v3:
+    # a hectare id). Neither (apps up to 0.5.1): the device's current site cell is used when the
+    # map is built.
     cell: Cell | None = None
+    point: PointIn | None = None
     _in_switzerland = field_validator("cell")(_check_cell)
+    _one_place = field_validator("point")(_one_place)
+
+    @property
+    def display_cell(self) -> str | None:
+        """The hectare the record is shown in: the one of its point, else its own cell, else None."""
+        return self.point.cell if self.point is not None else self.cell
 
     @field_validator("start")
     @classmethod

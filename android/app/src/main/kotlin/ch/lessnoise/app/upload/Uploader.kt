@@ -3,7 +3,9 @@ package ch.lessnoise.app.upload
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.app.data.sharedPoint
 import ch.lessnoise.dsp.MeasurementSplitter
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -18,7 +20,7 @@ interface UploadSource {
     /** Events with `startEpochMs > afterMs`, oldest first, at most [limit]. */
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
-    /** All measurements (start, end, cell), to find the cell of a record. */
+    /** All measurements (start, end, shifted point), to find the point of a record. */
     suspend fun measurements(): List<MeasurementEntity>
 
     /** Phone model, audio source and calibration for the site call. */
@@ -26,24 +28,27 @@ interface UploadSource {
 }
 
 /**
- * The cell of a record: the cell of the measurement it belongs to (the one that started last before
- * it, MeasurementSplitter.ownerIndex), null if that measurement is not shared or the record lies
- * after its end. Records without a cell are never sent.
+ * The place of a record: the shifted point of the measurement it belongs to (the one that started
+ * last before it, MeasurementSplitter.ownerIndex), null if that measurement is not shared or the
+ * record lies after its end. Records without a point are never sent. A measurement row with a
+ * cell but no point (0.6.0 test builds before the location noise) counts as not shared: the
+ * app never sends a true hectare again.
  */
-class CellIndex(measurements: List<MeasurementEntity>) {
+class PlaceIndex(measurements: List<MeasurementEntity>) {
     private val sorted = measurements.sortedWith(compareBy({ it.startMs }, { it.id }))
     private val starts = LongArray(sorted.size) { sorted[it].startMs }
+    private val points = Array(sorted.size) { sorted[it].sharedPoint() }
 
-    fun cellAt(t: Long): String? {
+    fun pointAt(t: Long): LocationNoise.Point? {
         val i = MeasurementSplitter.ownerIndex(starts, t)
         if (i < 0) return null
         val m = sorted[i]
         if (m.endMs != null && t >= m.endMs) return null
-        return m.cell
+        return points[i]
     }
 
-    /** The cell of the newest shared measurement (sent with the placement details). */
-    val latest: String? = sorted.lastOrNull { it.cell != null }?.cell
+    /** The point of the newest shared measurement (sent with the placement details). */
+    val latest: LocationNoise.Point? = points.lastOrNull { it != null }
 }
 
 /**
@@ -51,8 +56,8 @@ class CellIndex(measurements: List<MeasurementEntity>) {
  * register once, send the site when it changed, the waiting «Laut! Melden» reports (≤ 50 per
  * request; their coordinates are deleted from the phone once the server answered), then every
  * minute and event newer than the last acknowledged `start`, in batches of ≤ 1440 / ≤ 2000. Since
- * 0.6.0 each record carries the cell of its measurement; records of a measurement without a cell
- * (not shared) are skipped and never sent. The local database stays the source of
+ * 0.6.0 each record carries the shifted point of its measurement; records of a measurement without
+ * a point (not shared) are skipped and never sent. The local database stays the source of
  * truth; the markers only move forward after the server acknowledged a batch, so an interrupted
  * upload resumes where it stopped and a repeated batch is harmless (the server is idempotent on
  * `(device_id, start)`).
@@ -168,11 +173,11 @@ class Uploader(
             val id = s.deviceId!!
             val token = s.token!!
 
-            val cells = CellIndex(source.measurements())
-            // The placement details go with the newest shared measurement's cell; none yet: no site call.
-            val latestCell = cells.latest
-            if (latestCell != null) {
-                val siteJson = Payloads.site(latestCell, s.site, source.siteExtras())
+            val places = PlaceIndex(source.measurements())
+            // The placement details go with the newest shared measurement's point; none yet: no site call.
+            val latestPoint = places.latest
+            if (latestPoint != null) {
+                val siteJson = Payloads.site(latestPoint, s.site, source.siteExtras())
                 val siteText = siteJson.toString()
                 if (siteText != s.lastSiteJson) {
                     if (stopRequested()) return Outcome.Disabled
@@ -212,8 +217,8 @@ class Uploader(
                 marker = { it.minutesSentUpToMs },
                 fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
                 // Only minutes of shared measurements; the marker still moves past the others.
-                include = { cells.cellAt(it.startEpochMs) != null },
-                post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, cells.cellAt(it.startEpochMs)!!) })) },
+                include = { places.pointAt(it.startEpochMs) != null },
+                post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, places.pointAt(it.startEpochMs)!!) })) },
                 advance = { snap, t -> snap.copy(minutesSentUpToMs = maxOf(snap.minutesSentUpToMs, t)) },
             ) ?: return Outcome.Disabled
             requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
@@ -223,10 +228,10 @@ class Uploader(
                     marker = { it.eventsSentUpToMs },
                     fetch = { after, n -> source.eventsAfter(after, n) }, start = { it.startEpochMs },
                     // Wind-flagged events (detector v2) are not shared, as they are left out of the app's
-                    // own counts, nor events of measurements without a cell; the marker still moves
+                    // own counts, nor events of measurements without a point; the marker still moves
                     // past them (server/DESIGN.md §4.4).
-                    include = { Payloads.isShared(it) && cells.cellAt(it.startEpochMs) != null },
-                    post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, cells.cellAt(it.startEpochMs)!!) })) },
+                    include = { Payloads.isShared(it) && places.pointAt(it.startEpochMs) != null },
+                    post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, places.pointAt(it.startEpochMs)!!) })) },
                     advance = { snap, t -> snap.copy(eventsSentUpToMs = maxOf(snap.eventsSentUpToMs, t)) },
                 ) ?: return Outcome.Disabled
                 requests += events.requests; sentEvents = events.sent; refused += events.refused; more = events.more
@@ -363,11 +368,15 @@ class Uploader(
         }
     }
 
-    /** Forget the device: nothing sent before now is sent again under a new id. */
+    /**
+     * Forget the device: nothing sent before now is sent again under a new id. The location-noise
+     * secret goes too, so the next shared measurement gets a new offset everywhere (a new one is
+     * made at the next «Start», [NoiseSecret]).
+     */
     private fun forget(s: UploadSnapshot) = s.copy(
         deviceId = null, token = null, lastSiteJson = null, authFailed = false,
         minutesSentUpToMs = 0, eventsSentUpToMs = 0, sendFloorMs = clock(),
-        lastSuccessAtMs = null, lastError = null, refused = emptyList(),
+        lastSuccessAtMs = null, lastError = null, refused = emptyList(), noiseSecret = null,
     )
 
     companion object {

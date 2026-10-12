@@ -138,7 +138,8 @@ two are not interchangeable. One night, one window, one phone: treat all of it a
 ## Measurements and chart
 
 **What a measurement is (since v0.6.0).** Every «Messung starten» stores a row in the Room table
-`measurements` (start, stop, and in the Karte editions the 100 m cell if the measurement is shared);
+`measurements` (start, stop, and in the Karte editions the shifted point if the measurement is
+shared, see «Location per measurement»);
 «Stopp» sets its end. Minutes and events have no measurement id: a record belongs to the
 measurement that started last before it (5 s tolerance, `MeasurementSplitter.ownerIndex` in
 `dsp/.../Measurements.kt`). If Android killed the service before «Stopp», the row stays open and the
@@ -318,7 +319,7 @@ Instead:
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
 3. **Messen → Messung starten.** In «Weniger Lärm · Karte» with «Messwerte teilen» on, the phone
-   first takes one location fix for the measurement's 100 m cell (if that fails: «Nochmals»,
+   first takes one location fix for the measurement's place, moved at random on the phone (if that fails: «Nochmals»,
    «Koordinaten einfügen» or «Ohne Teilen starten»). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with the current LAeq and a «Stopp» button is shown (its icon
    stays in the status bar); you can turn the screen off.
@@ -476,11 +477,14 @@ privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! M
 teilen**:
 
 1. **Explanation** (shown until confirmed once): what is sent (the minute values and bursts of
-   shared measurements, each with the 100 m cell where the measurement was started — so loud
-   moments of a shared measurement appear on the map; reports with time, exact place and category;
+   shared measurements, each with the place where the measurement was started, moved at random
+   on the phone by the location noise — so loud moments of a shared measurement appear on the map; reports with time, exact place and category;
    phone model, audio source, calibration and the placement answers; a random id), what is never
    sent (audio, the exact location except with a report, name or account), where it goes
-   (`api.lessnoise.ch`, Switzerland; only values per cell are public), how to delete.
+   (`api.lessnoise.ch`, Switzerland; only values per 100 m field are public), how to delete.
+   Below the «Standort» card: **«Standort verschieben»** — σ of the location noise, 25 / 50
+   (default) / 100 / 200 m, with the line «Der gesendete Punkt wird zufällig um etwa diese Strecke
+   verschoben, …»; it applies from the next «Start». There is no «exact» choice.
 2. **Placement** («Aufstellung (freiwillig)»): placement (offenes Fenster / Balkon / hinter Glas /
    anderes), floor, street or courtyard side, an optional note (≤ 200 characters, never
    published); all optional, remembered for the next measurements. The fixed hectare of v0.5.x is
@@ -501,14 +505,23 @@ enabled, at the same time — `getCurrentLocation` on API 30+, `requestLocationU
 the first update on API 26–29; the first fix ≤ 25 m ends the wait, otherwise the best one after
 both answered or after 30 s («Standort wird bestimmt …», «Abbrechen»). A last-known location is
 used only if younger than 2 min and accurate to ≤ 50 m. The fix goes straight through
-`CellInput.fromLatLon` → `Lv95.cellId` (the same formulas as the map's `docs/map/lv95.js`); the
-cell is accepted only with «Genauer Standort» and accuracy ≤ 75 m (`location/LocationPolicy.kt`,
-pure Kotlin). If it fails, one dialog says why in one sentence and offers «Nochmals», the app or
+`CellInput.fromLatLon` (WGS84 → LV95, the same formulas as the map's `docs/map/lv95.js`) and
+`LocationNoise.shift` (`dsp/geo/LocationNoise.kt`): the true LV95 point plus a Gaussian offset,
+independent N(0, σ²) east and north, σ = «Standort verschieben», rounded to whole metres and kept
+inside the server's box. The offset is fixed per place: its two normal draws come (Box–Muller)
+from HMAC-SHA256(device noise secret, "<true hectare>|<σ>"), so every «Start» in the same hectare
+gives the same offset and averaging many measurements cannot remove it (server/DESIGN.md §2
+rule 2). The secret is 32 random bytes made at the first shared «Start» (`upload/NoiseSecret.kt`,
+stored encrypted next to the upload token, never sent) and dropped by «Neue Kennung» and «Daten
+auf dem Server löschen». The point is accepted only with «Genauer Standort» and accuracy ≤ 75 m
+(`location/LocationPolicy.kt`, pure Kotlin). If it fails, one dialog says why in one sentence and offers «Nochmals», the app or
 location settings where they help, «Koordinaten einfügen» (WGS84 decimal degrees `47.3769, 8.5417`,
-LV95 `2'683'304, 1'247'925`, LV03 or a cell id, `upload/CellInput.kt`), «Ohne Teilen starten» and
-«Abbrechen». The cell is stored with the measurement (`MeasurementEntity.cell`) and passed to the
-service; the coordinates live only in local variables. With sharing off no location is read and
-the measurement has no cell; a measurement without a cell is never sent.
+LV95 `2'683'304, 1'247'925`, LV03 or a cell id — its centre —, `upload/CellInput.kt`; moved the same
+way), «Ohne Teilen starten» and «Abbrechen». The shifted point, its σ and its display cell are
+stored with the measurement (`MeasurementEntity.pointE/pointN/sigmaM/cell`, Room v7) and passed to
+the service; the coordinates and the offset live only in local variables. With sharing off no
+location is read and the measurement has no point; a measurement without a point is never sent
+(also not a row of a 0.6.0 test build that still has only a cell).
 
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
 Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes → ids `motorrad`, `auto`,
@@ -928,6 +941,7 @@ dsp/   pure Kotlin/JVM, no Android dependencies — shared with the planned ESP3
 chart/ Android library: the history chart (drawing model, Compose Canvas) and the app theme;
        JVM tests and Paparazzi renders
 dsp/geo/Lv95.kt          WGS84 ↔ LV95 and 100 m cell ids (same formulas as the map's docs/map/lv95.js)
+dsp/geo/LocationNoise.kt the location noise of shared measurements (deterministic Gaussian offset per place)
 app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Compose UI
   src/main/     shared code (AudioTap.kt: the no-op hook the Labor recorder plugs into;
                 upload/: the opt-in «Messwerte teilen» and the «Laut! Melden» queue, the app's only network code;

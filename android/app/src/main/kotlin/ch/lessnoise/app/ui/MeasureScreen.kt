@@ -54,7 +54,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
     // Karten editions with «Messwerte teilen» on: one location fix at «Start» (LocationFlows.kt).
-    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { cell -> MeasurementService.start(context, cell) } else null
+    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { point -> MeasurementService.start(context, point) } else null
     fun startMeasurement() {
         val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
         if (sharing && sharedStart != null) sharedStart() else MeasurementService.start(context)
@@ -193,7 +193,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
                         Text("Effekte: " + live.effects.joinToString(", "), style = MaterialTheme.typography.bodySmall)
                     }
                     Text("Läuft seit ${Fmt.time(live.startedAtMs)} – auch bei ausgeschaltetem Bildschirm.", style = MaterialTheme.typography.bodySmall)
-                    live.cell?.let { Text("Wird für die Karte geteilt (Zelle $it).", style = MaterialTheme.typography.bodySmall) }
+                    live.sharedPoint?.let { Text(sharedMeasurementLine(it.sigmaM), style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }

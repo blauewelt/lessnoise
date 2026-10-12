@@ -338,7 +338,7 @@
     });
     var note = {
       laeq: "Die Farben sind bewusst neutral: Die Karte zeigt Messwerte, keine rechtliche Beurteilung. " +
-        "Die Werte der Lärmschutz-Verordnung stehen im Tagesverlauf jeder Hektare (antippen).",
+        "Die Werte der Lärmschutz-Verordnung stehen im Tagesverlauf jedes Felds (antippen).",
       l90: "Der Hintergrund ist der Pegel ohne die einzelnen lauten Momente.",
       dynamics: "Wenige dB: gleichmässiger Verkehr. Viele dB: ruhige Strasse mit einzelnen lauten Fahrzeugen.",
       events: "Gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
@@ -532,7 +532,7 @@
       if (state.selected !== cellId) return;
       clear(sec);
       sec.appendChild(el("h3", { text: "Tagesverlauf" }));
-      sec.appendChild(el("p", { class: "card-note", text: e.notFound ? "Für diese Hektare gibt es keinen Verlauf." : "Der Verlauf konnte nicht geladen werden." }));
+      sec.appendChild(el("p", { class: "card-note", text: e.notFound ? "Für dieses Feld gibt es keinen Verlauf." : "Der Verlauf konnte nicht geladen werden." }));
     });
   }
 
@@ -545,7 +545,7 @@
     clear(body);
     var title = document.getElementById("card-title");
     clear(title);
-    title.appendChild(document.createTextNode("Hektare " + id + " "));
+    title.appendChild(document.createTextNode("Feld " + id + " "));
     if (entry && !entry.calibrated) title.appendChild(el("span", { class: "badge", id: "badge-uncal", text: "unkalibriert" }));
 
     var sw = Lv95.parseCell(id);
@@ -553,7 +553,7 @@
       (entry ? " · " + entry.devices + (entry.devices === 1 ? " Gerät" : " Geräte") : "") }));
 
     if (!entry) {
-      body.appendChild(el("p", { class: "card-note", text: "In den 30 Tagen bis " + M.dayLabel(state.day) + " ist diese Hektare nicht auf der Karte." }));
+      body.appendChild(el("p", { class: "card-note", text: "In den 30 Tagen bis " + M.dayLabel(state.day) + " ist dieses Feld nicht auf der Karte." }));
     } else {
       var n = period().days;
       var when = M.spanLabel(state.day, n);

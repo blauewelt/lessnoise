@@ -7,8 +7,9 @@
      network («nur über WLAN»); it shows whether a connection is up and metered, nothing else.
      Location (0.6.0): ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION (Android 12+ needs both in
      one request so that the person can choose «Genau» or «Ungefähr»), used only while the app is
-     open and only for (1) one fix at «Start» of a shared measurement, turned into the 100 m cell on
-     the phone (the coordinates are neither stored nor sent), and (2) one fix for «Laut! Melden»,
+     open and only for (1) one fix at «Start» of a shared measurement, turned into a point that is
+     moved at random by the location noise on the phone (only the shifted point is stored and sent,
+     never the coordinates of the fix), and (2) one fix for «Laut! Melden»,
      whose exact coordinates are sent with that report and deleted from the phone once the server
      has it (location/LocationFetcher.kt, upload/Reports.kt). Never in the background:
      ACCESS_BACKGROUND_LOCATION is removed in src/main. The location

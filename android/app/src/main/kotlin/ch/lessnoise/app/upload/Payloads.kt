@@ -2,6 +2,7 @@ package ch.lessnoise.app.upload
 
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -25,8 +26,10 @@ data class SiteExtras(
 
 /**
  * The exact request bodies of server/DESIGN.md §4.2–4.4 and the reports call, built from the app's
- * stored records. Since 0.6.0 every minute and event carries the `cell` of its measurement (the 100 m
- * cell determined at «Start»); records of a measurement without a cell are not sent at all.
+ * stored records. Since 0.6.0 every minute and event carries the `point` of its measurement: the
+ * LV95 point determined at «Start», already moved on the phone by the location noise
+ * (dsp geo/LocationNoise.kt, DESIGN.md §2 rule 2), with its σ. The true place is never sent.
+ * Records of a measurement without a point are not sent at all.
  *
  * Left out on purpose: the `orig_*` / `recalibrated_*` columns (§4.3), the events' top-3 raw
  * AudioSet labels (`topLabelsJson`, §2.1: fingerprinting surface for no gain), classifier frame
@@ -42,9 +45,16 @@ object Payloads {
     /** Category id the server stores for an event that has none (classifier was off). */
     const val NO_CATEGORY = "unclassified"
 
-    /** The placement details, with the cell of the newest shared measurement ([cell]). */
-    fun site(cell: String, site: SiteSettings, extras: SiteExtras): JsonObject = buildJsonObject {
-        put("cell", cell)
+    /** `{"e": …, "n": …, "sigma_m": …}`: a shifted point (DESIGN.md §4.3). */
+    fun pointJson(p: LocationNoise.Point): JsonObject = buildJsonObject {
+        put("e", p.e)
+        put("n", p.n)
+        put("sigma_m", p.sigmaM)
+    }
+
+    /** The placement details, with the shifted point of the newest shared measurement ([point]). */
+    fun site(point: LocationNoise.Point, site: SiteSettings, extras: SiteExtras): JsonObject = buildJsonObject {
+        put("point", pointJson(point))
         put("placement", site.placement)
         put("floor", site.floor?.let { JsonPrimitive(it) } ?: JsonNull)
         put("street_facing", site.streetFacing?.let { JsonPrimitive(it) } ?: JsonNull)
@@ -61,9 +71,9 @@ object Payloads {
      */
     fun isShared(e: EventEntity): Boolean = !e.wind
 
-    fun minute(m: MinuteEntity, cell: String): JsonObject = buildJsonObject {
+    fun minute(m: MinuteEntity, point: LocationNoise.Point): JsonObject = buildJsonObject {
         put("start", m.startIso)
-        put("cell", cell)
+        put("point", pointJson(point))
         put("duration_s", num(m.durationSeconds, 3))
         put("valid_s", num(m.validSeconds, 3))
         put("coverage", num(m.coverage, 3))
@@ -85,9 +95,9 @@ object Payloads {
         put("clock_corrections", m.clockCorrections)
     }
 
-    fun event(e: EventEntity, cell: String): JsonObject = buildJsonObject {
+    fun event(e: EventEntity, point: LocationNoise.Point): JsonObject = buildJsonObject {
         put("start", e.startIso)
-        put("cell", cell)
+        put("point", pointJson(point))
         put("duration_s", num(e.durationSeconds, 3))
         put("lafmax_db", level(e.lafMaxDb))
         put("sel_db", level(e.selDb))
