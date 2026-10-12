@@ -4,7 +4,7 @@ Stadtlärm measures noise levels. It never records audio. This is the core promi
 project, and this page explains how the code keeps it, so anyone can check.
 
 Everything on this page is about the **public app** (`ch.stadtlaerm.app`, the APKs linked from
-stadtlaerm.ch). Since v0.5.0 it is published in two editions, the **Offline-Version** (no
+wenigerlaerm.ch). Since v0.5.0 it is published in two editions, the **Offline-Version** (no
 internet permission at all) and the **Karten-Version** (internet only for the opt-in «Messwerte
 teilen»), see [Editions](#editions-from-v050). Since v0.3.3 the repository can also build a
 separate diagnostics app that *can* record audio; it is a different app, is never published, and
@@ -140,7 +140,7 @@ v0.5.0 three of them (`offline`, `public`, `labor`), plus the internal `laborKar
 | | `offline` and `public` (the two published editions) | `labor` |
 |---|---|---|
 | App id / name | `ch.stadtlaerm.app`, «Stadtlärm» | `ch.stadtlaerm.labor`, «Stadtlärm Labor» (red icon) |
-| Published | yes: `stadtlaerm.apk` and `stadtlaerm-karte.apk` in `docs/download/` on stadtlaerm.ch | **never**: not in `docs/`, not in a release, not linked from the website |
+| Published | yes: `stadtlaerm.apk` and `stadtlaerm-karte.apk` in `docs/download/` on wenigerlaerm.ch | **never**: not in `docs/`, not in a release, not linked from the website |
 | Can record audio | no — the code does not exist in these apps | yes, only after switching it on, see below |
 
 The Labor build exists to debug the event detector and the sound-source classifier with real
@@ -247,7 +247,7 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
 
 ## The website
 
-[stadtlaerm.ch](https://stadtlaerm.ch) (source in `docs/`) is static HTML and CSS. It sets no
+[wenigerlaerm.ch](https://wenigerlaerm.ch) (source in `docs/`) is static HTML and CSS. It sets no
 cookies, runs no analytics and loads nothing from third parties (except the map page, below): no
 web fonts, no CDNs, no external images. The only inline script is on `update.html` (allowed by its hash in the
 Content-Security-Policy): the app opens `update.html#v=<version>&c=<versionCode>&e=<edition>`

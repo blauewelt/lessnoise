@@ -10,10 +10,10 @@ Ab v0.5.0 (noch nicht veröffentlicht) gibt es die App in zwei Ausführungen: Di
 sendet nur dann etwas ins Internet, wenn man «Messwerte teilen» selbst einschaltet:
 dann Pegel und Ereignisse, aber nie Audio und nie den genauen Standort, an den
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte pro Hektare. Ein fest
-montierter Fenstersensor ist in Entwicklung. Download und Anleitung: [stadtlaerm.ch](https://stadtlaerm.ch).
+montierter Fenstersensor ist in Entwicklung. Download und Anleitung: [wenigerlaerm.ch](https://wenigerlaerm.ch).
 
 Stadtlärm is an open road-noise measurement network run by residents for residents, starting in
-Zürich ([stadtlaerm.ch](https://stadtlaerm.ch)). An Android app measures A-weighted sound levels
+Zürich ([wenigerlaerm.ch](https://wenigerlaerm.ch)). An Android app measures A-weighted sound levels
 continuously, including at night, records loud single events (motorbikes, revving cars, …) with
 time, peak level and likely source, summarises each night (22:00–06:00) and exports CSV. The
 data stays on the phone of the person who measured it, unless they use the map edition
@@ -24,7 +24,7 @@ contribute their levels and events to a shared per-hectare noise map. The defaul
 ## Privacy
 
 No audio is ever stored or transmitted; sound source classification runs on the phone and only
-levels and statistics are kept. Up to v0.4.0 (the version published on stadtlaerm.ch) the app has no
+levels and statistics are kept. Up to v0.4.0 (the version published on wenigerlaerm.ch) the app has no
 internet permission at all, and from v0.5.0 (not yet published) neither has the default
 **Offline-Version** (`stadtlaerm.apk`). The **Karten-Version** (`stadtlaerm-karte.apk`, same app id,
 installs over the other and keeps the data) uses the internet for exactly one thing, the opt-in upload «Messwerte teilen» described
@@ -61,7 +61,7 @@ What the project counts, and who counts it — totals over the whole project, al
 | [`android/`](android/) | Android app (Kotlin): measurement service, on-device sound classifier, calibration, UI, plus the platform-independent `dsp` module. See [android/README.md](android/README.md) for install, calibration and build instructions |
 | [`firmware/`](firmware/) | Planned ESP32-S3 windowsill sensor (placeholder, no code yet) |
 | [`tools/weather/`](tools/weather/) | Command-line tool that joins MeteoSwiss station weather (wind, gusts, rain, temperature) with the app's CSV export, per minute, hour and night |
-| [`docs/`](docs/) | The website [stadtlaerm.ch](https://stadtlaerm.ch) (static HTML/CSS, one hash-pinned inline script on `update.html`, served by GitHub Pages), the noise map `karte.html` (vendored Leaflet, swisstopo tiles and the project's API as its only external hosts; see [docs/README.md](docs/README.md)) and, in `docs/download/`, the Offline-Version APK as a fallback for old links (new downloads come from GitHub Releases) |
+| [`docs/`](docs/) | The website [wenigerlaerm.ch](https://wenigerlaerm.ch) (static HTML/CSS, one hash-pinned inline script on `update.html`, served by GitHub Pages), the noise map `karte.html` (vendored Leaflet, swisstopo tiles and the project's API as its only external hosts; see [docs/README.md](docs/README.md)) and, in `docs/download/`, the Offline-Version APK as a fallback for old links (new downloads come from GitHub Releases) |
 | [`scripts/`](scripts/) | `stamp_assets.py` (cache stamps of the map page), `download_stats.py` and `usage_report.py` (usage numbers, see above), tests in `scripts/tests/` |
 | [`PRIVACY.md`](PRIVACY.md) | What the project does with sound, with references into the code |
 | [`server/`](server/) | The contribution server of the shared noise map (Python, FastAPI, SQLite); [server/DESIGN.md](server/DESIGN.md) is the contract between app, server and map |
@@ -69,7 +69,7 @@ What the project counts, and who counts it — totals over the whole project, al
 
 ## Status
 
-- **Phone app v0.4.0 (published on stadtlaerm.ch):** public test version with a night/day/week
+- **Phone app v0.4.0 (published on wenigerlaerm.ch):** public test version with a night/day/week
   chart of the measurements, event detector v2 (events measured against the local background,
   wind on the microphone flagged and left out of the counts), an event floor that follows the
   calibration, re-evaluation of old measurements with a new calibration, and an update check that
@@ -84,7 +84,7 @@ What the project counts, and who counts it — totals over the whole project, al
   `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is part of v0.5.0 and not
   yet on the website.
 - The app passes its JVM unit tests and JVM renders but is not yet validated on many devices. Download at
-  [stadtlaerm.ch](https://stadtlaerm.ch); changes in [android/CHANGELOG.md](android/CHANGELOG.md).
+  [wenigerlaerm.ch](https://wenigerlaerm.ch); changes in [android/CHANGELOG.md](android/CHANGELOG.md).
 - **Windowsill sensor:** planned, see [firmware/README.md](firmware/README.md).
 
 Bug reports and measurements from different phone models are welcome as

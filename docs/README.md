@@ -1,6 +1,6 @@
-# docs/ — the website stadtlaerm.ch
+# docs/ — the website wenigerlaerm.ch (formerly stadtlaerm.ch, which now redirects via blauewelt/stadtlaerm-weiterleitung)
 
-Static files served by GitHub Pages (`CNAME`: stadtlaerm.ch). No build step. German, Swiss
+Static files served by GitHub Pages (`CNAME`: wenigerlaerm.ch). No build step. German, Swiss
 spelling, system fonts, no third-party requests — except on the map page, which says so.
 
 | File | What |
