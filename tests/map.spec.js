@@ -73,7 +73,7 @@ test("renders: map, tiles from swisstopo, one shape per fixture cell, sentence a
   expect(seen.api).toContain("cells.json");
   // the zoom limits of the spec
   const z = await page.evaluate(() => ({ min: window.__karte.map.getMinZoom(), b: window.__karte.map.options.maxBounds }));
-  expect(z.min).toBe(11);
+  expect(z.min).toBe(7);  // all of Switzerland, not only Zürich
 });
 
 test("no horizontal scrolling at this width", async ({ page }) => {

@@ -16,8 +16,9 @@
   var L = window.L;
 
   var TILES = "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg";
-  var BOUNDS = [[47.30, 8.42], [47.45, 8.65]];   // Zürich region, [S, W], [N, E]
-  var MIN_ZOOM = 11;
+  var BOUNDS = [[45.80, 5.90], [47.85, 10.55]];  // Switzerland, [S, W], [N, E]
+  var START = [[47.30, 8.42], [47.45, 8.65]];    // first view without data: Zürich
+  var MIN_ZOOM = 7;          // the whole country on a phone
   var MAX_ZOOM = 18;
   var DOT_MAX_ZOOM = 13;     // up to this zoom a hectare is ≤ 8 px: also draw a dot
   var HISTORY_NIGHTS = 90;   // DESIGN §7: ‹ › through the last 90 nights
@@ -102,12 +103,14 @@
     keyboard: true,
     attributionControl: true,
   });
-  map.fitBounds(BOUNDS);
+  map.fitBounds(START);
 
   L.tileLayer(TILES, {
     attribution: "© swisstopo",
     minZoom: MIN_ZOOM,
     maxZoom: MAX_ZOOM,
+    maxNativeZoom: 18,
+    detectRetina: true,      // sharp tiles and normal-sized labels on phone screens
     bounds: BOUNDS,          // swisstopo answers 400 outside Switzerland; stay inside
     referrerPolicy: "no-referrer",
   }).addTo(map);
