@@ -20,13 +20,18 @@ class Settings:
     background_jobs: bool = True
     retention_days: int = 730
     inactive_delete_days: int = 60
-    cors_origin: str = "https://stadtlaerm.ch"
+    cors_origin: str = "https://wenigerlaerm.ch,https://stadtlaerm.ch"  # comma-separated
     trust_proxy: bool = False
     registrations_per_ip_per_day: int = 10
     requests_per_device_per_hour: int = 60
     max_body_bytes: int = 2_000_000
     max_record_age_days: int = 7
     clock_skew_s: float = 600.0
+
+    @property
+    def cors_origins(self) -> tuple[str, ...]:
+        """Website origins allowed to read the map files; the first is sent to other origins."""
+        return tuple(o.strip().rstrip("/") for o in self.cors_origin.split(",") if o.strip())
 
     @property
     def max_decompressed_bytes(self) -> int:

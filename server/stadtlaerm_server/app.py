@@ -280,19 +280,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ---- the public map files -------------------------------------------------------------
 
-    map_headers = {
-        "Cache-Control": "max-age=300",
-        "Access-Control-Allow-Origin": settings.cors_origin,
-        "Vary": "Origin",
-    }
+    def map_headers(request: Request) -> dict[str, str]:
+        # Several website origins may read the map (wenigerlaerm.ch, and stadtlaerm.ch while it
+        # redirects): answer with the requesting origin if it is allowed, else with the first one.
+        origin = request.headers.get("origin", "")
+        allowed = settings.cors_origins
+        return {
+            "Cache-Control": "max-age=300",
+            "Access-Control-Allow-Origin": origin if origin in allowed else allowed[0],
+            "Vary": "Origin",
+        }
 
     @app.get("/v1/map/{path:path}")
-    def map_file(path: str) -> Response:
+    def map_file(path: str, request: Request) -> Response:
         root = settings.map_dir.resolve()
         target = (root / path).resolve()
         if root not in target.parents or target.suffix != ".json" or not target.is_file():
-            return JSONResponse({"detail": "not found"}, status_code=404, headers=map_headers)
-        return FileResponse(target, media_type="application/json", headers=map_headers)
+            return JSONResponse({"detail": "not found"}, status_code=404, headers=map_headers(request))
+        return FileResponse(target, media_type="application/json", headers=map_headers(request))
 
     return app
 

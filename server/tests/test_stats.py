@@ -176,7 +176,7 @@ def test_api_delete_counts_and_stats_is_served(make_client, settings):
     r = client.get("/v1/map/stats.json")
     assert r.status_code == 200
     assert r.headers["cache-control"] == "max-age=300"
-    assert r.headers["access-control-allow-origin"] == settings.cors_origin
+    assert r.headers["access-control-allow-origin"] == settings.cors_origins[0]
     s = r.json()
     assert set(s) == KEYS
     assert s["devices_registered"] == 1 and s["devices_deleted_total"] == 1

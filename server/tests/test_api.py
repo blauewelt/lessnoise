@@ -241,6 +241,20 @@ def test_map_files_are_served_with_cache_and_cors(make_client, settings):
     assert client.get("/v1/map/%2e%2e/db.sqlite").status_code == 404
 
 
+def test_map_cors_allows_each_configured_origin(make_client, settings):
+    client = make_client(cors_origin="https://wenigerlaerm.ch, https://stadtlaerm.ch")
+    settings.map_dir.mkdir(parents=True, exist_ok=True)
+    (settings.map_dir / "cells.json").write_text('{"cells": []}')
+    for origin in ("https://wenigerlaerm.ch", "https://stadtlaerm.ch"):
+        r = client.get("/v1/map/cells.json", headers={"Origin": origin})
+        assert r.headers["access-control-allow-origin"] == origin
+        assert r.headers["vary"] == "Origin"
+    r = client.get("/v1/map/cells.json", headers={"Origin": "https://evil.example"})
+    assert r.headers["access-control-allow-origin"] == "https://wenigerlaerm.ch"
+    assert client.get("/v1/map/missing.json", headers={"Origin": "https://stadtlaerm.ch"}).headers[
+        "access-control-allow-origin"] == "https://stadtlaerm.ch"
+
+
 def test_schema_version_and_wal(client, settings):
     assert rows(settings, "SELECT version FROM schema_version") == [(2,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]

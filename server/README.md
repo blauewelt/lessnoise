@@ -206,7 +206,7 @@ Keep a misbehaving device out of the map without deleting its data:
 | `BACKGROUND_JOBS` | `1` | `1` runs the publish loop and the daily retention job inside the server process; `0` turns them off (tests, or if you run `publish`/`retention` from cron instead). |
 | `RETENTION_DAYS` | `730` | Raw minutes and events older than this are reduced to hourly figures and deleted (2 years per DESIGN §5). |
 | `INACTIVE_DELETE_DAYS` | `60` | A device with no authenticated request (upload, site) for this many days is deleted with all its data in the daily job, like a deletion by its owner (DESIGN §2.9, §5); counted in `devices_expired_total`. `0` disables it. |
-| `CORS_ORIGIN` | `https://stadtlaerm.ch` | The website origin allowed to read the map files from the browser (`Access-Control-Allow-Origin`). Use `http://localhost:8080` or similar for local website work. |
+| `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
 | `TRUST_PROXY` | `0` (compose: `1`) | `1` takes the client IP for the registration limit from the `X-Forwarded-For` header set by Caddy. Only turn on behind a proxy you control, otherwise clients could fake their IP. |
 | `REGISTRATIONS_PER_IP_PER_DAY` | `10` | How many new device ids one IP address may create per day. |
 | `REQUESTS_PER_DEVICE_PER_HOUR` | `60` | How many authenticated requests one device may make per hour (deleting is never limited). |
