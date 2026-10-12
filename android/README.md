@@ -217,7 +217,7 @@ so a better model can be swapped in without touching the measurement code.
 |---|---|---|---|---|
 | Gradle flavour | `offline` (default variant) | `public` | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` | `"labor-karte"` |
-| App id | `ch.stadtlaerm.app` | `ch.stadtlaerm.app` | `ch.stadtlaerm.labor` | `ch.stadtlaerm.labor` |
+| App id | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
 | Version name | `0.5.1` | `0.5.1` | `0.5.1-labor` | `0.5.1-labor-karte` |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» only | no | yes, for «Messwerte teilen» only |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` (v0.5.1) | no (removed) | yes, for «Standort bestimmen» only | no (removed) | yes, for «Standort bestimmen» only |
@@ -492,7 +492,7 @@ requests per run (the server allows 60 per device and hour); a longer backlog co
 later. Errors back off exponentially from 10 minutes; a refused token (401) stops uploads until
 «Neue Kennung». The local database stays the source of truth: nothing is deleted on the phone.
 
-**Code.** Everything network is in `app/src/main/kotlin/ch/stadtlaerm/app/upload/`:
+**Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
 `UploadClient.kt` (the only class that opens connections: `HttpURLConnection`, one host from
 `BuildConfig.STADTLAERM_API`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, `rejected`, delete; pure JVM), `UploadState.kt` (settings, id,
@@ -614,7 +614,7 @@ and the update check have not been tried on a phone yet.
 
 ## Labor build
 
-«Stadtlärm Labor» (`ch.stadtlaerm.labor`, version name `0.5.1-labor`) is a separate app built
+«Stadtlärm Labor» (`ch.lessnoise.labor`, version name `0.5.1-labor`) is a separate app built
 from the same code that can **record audio**, to debug the event detector and the sound-source
 classifier with real sound — e.g. why highway passes of cars and motorbikes (3–10 s, ≈ 13 dB above
 a quiet background) are not recognised: each clip comes with the classifier's per-second results
@@ -669,7 +669,7 @@ Settings apply from the next start of a measurement; switching recording off sto
 The section also shows the space used and the number of clips and hour files, and has
 «Ordner anzeigen», «Als ZIP teilen» and «Alle Aufnahmen löschen».
 
-**Where the files are:** `Android/data/ch.stadtlaerm.labor/files/audio/` on the phone's shared
+**Where the files are:** `Android/data/ch.lessnoise.labor/files/audio/` on the phone's shared
 storage (`getExternalFilesDir(null)/audio`):
 
 ```
@@ -739,7 +739,7 @@ file shows «Clip nicht gefunden».
 
 **Sending data for analysis:** «Als ZIP teilen» zips the clips, the manifest and the classifier
 logs (and the hour files only if they total < 500 MB) and opens the share menu; it shows the size
-first. Hour files are best copied over USB (`Android/data/ch.stadtlaerm.labor/files/audio/continuous/`).
+first. Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
 
 **Performance.** The capture thread only copies (ring buffer, one block copy into a bounded
 queue) and never waits; resampling, WAV writing, logging and AAC encoding run on two
@@ -798,9 +798,9 @@ Check the result (build-tools 35), for **each** of the two APKs:
 for A in app/build/outputs/apk/offline/release/app-offline-release.apk \
          app/build/outputs/apk/public/release/app-public-release.apk; do
   apksigner verify --verbose --print-certs $A   # v2 + v3, signer DN
-  aapt2 dump badging $A | head -1               # package ch.stadtlaerm.app, versionCode, versionName
+  aapt2 dump badging $A | head -1               # package ch.lessnoise.app, versionCode, versionName
   aapt2 dump permissions $A                     # offline: no INTERNET / ACCESS_NETWORK_STATE / location; public: all four
-  apkanalyzer dex packages $A | grep -c ch.stadtlaerm.app.labor   # 0: no Labor code (PRIVACY.md)
+  apkanalyzer dex packages $A | grep -c ch.lessnoise.app.labor   # 0: no Labor code (PRIVACY.md)
   sha256sum $A; stat -c %s $A
 done
 ```
@@ -817,7 +817,7 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
 2. Build both signed:
    `./gradlew test assembleOfflineRelease assemblePublicRelease -Pstadtlaerm.keystoreProperties=…`.
    Check for each APK (commands above): the signer certificate SHA-256; `aapt2 dump badging` →
-   `ch.stadtlaerm.app` and the new version; `aapt2 dump permissions` = exactly the list in
+   `ch.lessnoise.app` and the new version; `aapt2 dump permissions` = exactly the list in
    PRIVACY.md → «How to verify» (offline **without** `INTERNET`, `ACCESS_NETWORK_STATE`,
    `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, public with all four; neither with
    `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).

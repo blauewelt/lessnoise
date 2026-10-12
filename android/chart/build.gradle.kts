@@ -11,7 +11,7 @@ plugins {
 // $STADTLAERM_SCREENSHOT_DIR (default chart/build/screenshots). With STADTLAERM_REAL_DATA set to a
 // directory holding the app's CSV exports (minuten.csv, ereignisse.csv), real data is rendered too.
 android {
-    namespace = "ch.stadtlaerm.chart"
+    namespace = "ch.lessnoise.chart"
     compileSdk = 35
 
     defaultConfig {

@@ -34,7 +34,7 @@ placement step now has a button that asks the phone for its location once.
   Einstellungen → App-Version: the Offline-Version is «ohne Internet- und ohne Standort-Berechtigung».
   PRIVACY.md, README.md, server/DESIGN.md §2.2, datenschutz.html and index.html («Welche Version?»)
   describe the location permission.
-- **Code and tests:** new package `ch.stadtlaerm.app.location` (`LocationPolicy.kt`, pure rules;
+- **Code and tests:** new package `ch.lessnoise.app.location` (`LocationPolicy.kt`, pure rules;
   `LocationFetcher.kt`, the only file using `android.location`). `LocationPolicyTest` (lat/lon →
   hectare for Zürich points, accuracy/«Ungefähr»/last-known rules, texts) and
   `LocationIsolationTest` (manifests per flavour; no logging, storage or network in the location
@@ -57,7 +57,7 @@ never shipped under that number. The server runs at api.stadtlaerm.ch; the websi
   users get it as their normal update, with no new permission.
 - **Karten-Version** (flavour `public`, `stadtlaerm-karte.apk`): the public app as described below,
   with the opt-in «Messwerte teilen».
-- Both have app id `ch.stadtlaerm.app`, version 0.5.0 / code 11 and the same key: installing one over
+- Both have app id `ch.lessnoise.app`, version 0.5.0 / code 11 and the same key: installing one over
   the other switches the edition and keeps the data. `BuildConfig.EDITION` (`offline` | `karte` |
   `labor`) is shown in Einstellungen → App-Version with a sentence on how to switch, and «Nach Update
   suchen» adds `&e=<edition>` so update.html offers the same edition. The Offline-Version, started
@@ -92,7 +92,7 @@ never shipped under that number. The server runs at api.stadtlaerm.ch; the websi
   files on the phone when switched on and never sends anything (no internet permission). The
   public text is unchanged.
 
-### Public app, Karten-Version (`ch.stadtlaerm.app`, version 0.5.0, code 11; not yet published)
+### Public app, Karten-Version (`ch.lessnoise.app`, version 0.5.0, code 11; not yet published)
 
 In short: an opt-in «Messwerte teilen» sends the measured levels to the shared noise map — off by
 default; the `INTERNET` permission is added for exactly this. The location is placed on the phone
@@ -119,7 +119,7 @@ to a 100 m × 100 m hectare square; «Meine Daten auf dem Server löschen» dele
 - Nothing in the measurement path changed by the sharing feature. The database schema stays at v5
   (detector v2); the sharing feature only adds read-only queries.
 
-### «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.5.0-labor`, never published)
+### «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.5.0-labor`, never published)
 
 - No functional change: no network permission (its manifest removes `INTERNET` and
   `ACCESS_NETWORK_STATE`), «Messwerte teilen» is not offered.
@@ -197,14 +197,14 @@ and the constant highway hum was mixed into the event figures.
 
 ## 0.3.4 — 2026-10-08
 
-### Public app (`ch.stadtlaerm.app`, not published)
+### Public app (`ch.lessnoise.app`, not published)
 
 - **No functional change.** Version 0.3.4 (code 8) only so that both flavours share one version.
   The chart gained optional, flavour-agnostic hooks for event clips (a clip reference per event,
   an `onPlayClip` callback); the public app passes none, so it draws and behaves exactly as in
   0.3.3. This build is not published; stadtlaerm.ch stays on 0.3.3.
 
-### «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.3.4-labor`, never published): listen to clips
+### «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.3.4-labor`, never published): listen to clips
 
 - **Chart:** events that have a clip get a thin ring around their dot (the dot colour keeps its
   meaning); their tooltip has an «Abspielen» button. The clip of an event is found through the
@@ -233,7 +233,7 @@ and the constant highway hum was mixed into the event figures.
 
 ## 0.3.3 — 2026-10-07
 
-### Public app (`ch.stadtlaerm.app`, published)
+### Public app (`ch.lessnoise.app`, published)
 
 - **Notification while measuring:** title «Mikrofon aktiv – Messung läuft», text with the current
   LAeq as before, «Stopp» button. The notification channel now has importance *default*, so the
@@ -253,7 +253,7 @@ and the constant highway hum was mixed into the event figures.
   recording code; how to check is described in PRIVACY.md → «Labor-Build». APK paths now include
   the flavour (`app/build/outputs/apk/public/release/app-public-release.apk`).
 
-### New: «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.3.3-labor`, never published)
+### New: «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.3.3-labor`, never published)
 
 A diagnostics build that can record audio to debug the event detector and the sound-source
 classifier, only after «Einstellungen → Labor → Audio während der Messung aufzeichnen» is

@@ -109,7 +109,7 @@ def main():
 
     env = dict(os.environ, STADTLAERM_PREPROC_DIR=work)
     cmd = [os.path.join(ROOT, "gradlew"), "-q", ":dsp:test", "--tests",
-           "ch.stadtlaerm.dsp.ClassifierPipelineExportTest"]
+           "ch.lessnoise.dsp.ClassifierPipelineExportTest"]
     subprocess.run(cmd, cwd=ROOT, env=env, check=True)
     kraw = np.fromfile(os.path.join(work, "kotlin_window_raw.f32"), dtype="<f4")
     knorm = np.fromfile(os.path.join(work, "kotlin_window_norm.f32"), dtype="<f4")

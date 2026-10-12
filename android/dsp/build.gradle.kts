@@ -42,7 +42,7 @@ tasks.register<JavaExec>("replay") {
     description = "Replays WAV files through the measurement engine and prints events and minutes as CSV"
     dependsOn("testClasses")
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("ch.stadtlaerm.dsp.ReplayMain")
+    mainClass.set("ch.lessnoise.dsp.ReplayMain")
     workingDir = gradle.startParameter.currentDir
 }
 
@@ -53,7 +53,7 @@ tasks.register<JavaExec>("replayBatch") {
     description = "Replays all clips of a Labor manifest and writes the detector-v2 result per clip as CSV"
     dependsOn("testClasses")
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("ch.stadtlaerm.dsp.ReplayBatch")
+    mainClass.set("ch.lessnoise.dsp.ReplayBatch")
     workingDir = gradle.startParameter.currentDir
     maxHeapSize = "4g"
 }
@@ -65,7 +65,7 @@ tasks.register<JavaExec>("replayNight") {
     description = "Replays a Labor session's continuous recording through the engine and matches the events to the manifest's clips"
     dependsOn("testClasses")
     classpath = sourceSets["test"].runtimeClasspath
-    mainClass.set("ch.stadtlaerm.dsp.ReplayNight")
+    mainClass.set("ch.lessnoise.dsp.ReplayNight")
     workingDir = gradle.startParameter.currentDir
     maxHeapSize = "3g"
 }

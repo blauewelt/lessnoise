@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- LABOR-KARTE edition only (flavour laborKarte, ch.stadtlaerm.labor, internal, never published):
+<!-- LABOR-KARTE edition only (flavour laborKarte, ch.lessnoise.labor, internal, never published):
      the Labor build plus the opt-in upload «Messwerte teilen». This variant compiles the Kotlin and
      resources of src/labor/ but NOT src/labor/AndroidManifest.xml (which removes these two
      permissions); the plain Labor build keeps no network access.
      Network access exactly as in the Karten-Version (src/public/AndroidManifest.xml): used by one
-     class, upload/UploadClient.kt, for one host (BuildConfig.STADTLAERM_API,
+     class, upload/UploadClient.kt, for one host (BuildConfig.API_BASE,
      https://api.stadtlaerm.ch), only after the person switched sharing on. It sends the same
      measurement values as the Karten-Version, never audio: the upload code reads only the Room
      tables (UploadSourceIsolationTest). ACCESS_NETWORK_STATE: needed by Android for background jobs
