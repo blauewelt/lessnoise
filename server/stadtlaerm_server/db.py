@@ -1,8 +1,8 @@
 """SQLite storage (DESIGN.md §5): connection setup, migrations by version, row access.
 
-Times: `start_utc` is UTC epoch **milliseconds** (events have millisecond starts);
-`start_iso` is the timestamp exactly as the app sent it. Bookkeeping times
-(`created_at`, `received_at`, …) are ISO-8601 UTC strings.
+Times: `start_utc` / `time_utc` are UTC epoch **milliseconds** (events have millisecond
+starts); `start_iso` / `time_iso` are the timestamps exactly as the app sent them. Bookkeeping
+times (`created_at`, `received_at`, …) are ISO-8601 UTC strings.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import aggregate as agg
-from .schemas import EventIn, MinuteIn
+from .schemas import EventIn, MinuteIn, ReportIn
 
 MIGRATIONS: list[str] = [
     # 1: the tables of DESIGN.md §5, plus `hourly` for the retention job.
@@ -94,7 +94,7 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (device_id, hour_utc)
     ) WITHOUT ROWID;
     """,
-    # 2: named integer counters for stats.json (DESIGN.md §6.4): `devices_deleted` (devices that
+    # 2: named integer counters for stats.json (DESIGN.md §6.5): `devices_deleted` (devices that
     # deleted themselves) and `devices_expired` (deleted after INACTIVE_DELETE_DAYS without uploads,
     # retention.expire_inactive) — one number each, no ids, no dates. No schema change needed.
     """
@@ -103,19 +103,60 @@ MIGRATIONS: list[str] = [
         value INTEGER NOT NULL
     );
     """,
+    # 3: no more nights (DESIGN.md §6). Minutes and events may carry their own hectare (§4.3,
+    # §4.4); existing rows keep NULL = "the device's site cell", exactly what they meant before.
+    # `hourly` gets the cell in its key ('' = the site cell), so the retention job keeps the
+    # hectare of a moving device; existing hourly rows keep '' . New table `reports` (§4.7).
+    """
+    ALTER TABLE minutes ADD COLUMN cell TEXT;
+    ALTER TABLE events ADD COLUMN cell TEXT;
+    CREATE TABLE hourly_v3 (
+        device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+        hour_utc INTEGER NOT NULL,
+        cell TEXT NOT NULL DEFAULT '',
+        valid_s REAL NOT NULL,
+        valid_minutes INTEGER NOT NULL,
+        laeq_db REAL, l90_db REAL, l10_db REAL, dynamics_db REAL,
+        events TEXT NOT NULL,
+        loudest_db REAL,
+        calibrated INTEGER NOT NULL,
+        PRIMARY KEY (device_id, hour_utc, cell)
+    ) WITHOUT ROWID;
+    INSERT INTO hourly_v3 (device_id, hour_utc, cell, valid_s, valid_minutes, laeq_db, l90_db, l10_db,
+                           dynamics_db, events, loudest_db, calibrated)
+        SELECT device_id, hour_utc, '', valid_s, valid_minutes, laeq_db, l90_db, l10_db,
+               dynamics_db, events, loudest_db, calibrated FROM hourly;
+    DROP TABLE hourly;
+    ALTER TABLE hourly_v3 RENAME TO hourly;
+    CREATE TABLE reports (
+        device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+        time_utc INTEGER NOT NULL,
+        time_iso TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        accuracy_m REAL NOT NULL,
+        category TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        PRIMARY KEY (device_id, time_utc)
+    ) WITHOUT ROWID;
+    CREATE INDEX reports_time ON reports(time_utc);
+    """,
 ]
 
 MINUTE_COLUMNS = (
     "device_id", "start_utc", "start_iso", "duration_s", "valid_s", "coverage",
     "laeq_db", "lafmax_db", "lafmin_db", "l1_db", "l10_db", "l50_db", "l90_db",
     "event_count", "dominant_category", "category_shares", "calibration_id",
-    "calibration_offset_db", "calibrated", "audio_source", "clock_corrections", "received_at",
+    "calibration_offset_db", "calibrated", "audio_source", "clock_corrections", "received_at", "cell",
 )  # fmt: skip
 EVENT_COLUMNS = (
     "device_id", "start_utc", "start_iso", "duration_s", "lafmax_db", "sel_db",
     "background_db", "threshold_db", "min_level_db", "category", "category_score",
-    "calibration_id", "calibrated", "received_at",
+    "calibration_id", "calibrated", "received_at", "cell",
 )  # fmt: skip
+REPORT_COLUMNS = ("device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at")
+# Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
+REPORT_DECIMALS = 5
 
 
 def utc_now_iso() -> str:
@@ -163,20 +204,22 @@ def open_db(path: Path | str) -> Iterator[sqlite3.Connection]:
 # ---- writes -----------------------------------------------------------------------------
 
 
-def upsert_rows(conn: sqlite3.Connection, table: str, columns: Sequence[str], rows: Sequence[dict]) -> tuple[int, int]:
-    """Insert-or-replace on (device_id, start_utc). Returns (new rows, replaced rows).
+def upsert_rows(
+    conn: sqlite3.Connection, table: str, columns: Sequence[str], rows: Sequence[dict], key: str = "start_utc"
+) -> tuple[int, int]:
+    """Insert-or-replace on (device_id, key). Returns (new rows, replaced rows).
 
-    A record whose start already exists — stored earlier or earlier in the same batch — counts
+    A record whose time already exists — stored earlier or earlier in the same batch — counts
     as a duplicate; the later one wins.
     """
     if not rows:
         return 0, 0
     device_id = rows[0]["device_id"]
-    starts = [r["start_utc"] for r in rows]
+    starts = [r[key] for r in rows]
     seen: set[int] = set()
     for i in range(0, len(starts), 900):
         chunk = starts[i : i + 900]
-        q = f"SELECT start_utc FROM {table} WHERE device_id = ? AND start_utc IN ({','.join('?' * len(chunk))})"
+        q = f"SELECT {key} FROM {table} WHERE device_id = ? AND {key} IN ({','.join('?' * len(chunk))})"
         seen.update(r[0] for r in conn.execute(q, [device_id, *chunk]))
     accepted = duplicates = 0
     for s in starts:
@@ -187,9 +230,9 @@ def upsert_rows(conn: sqlite3.Connection, table: str, columns: Sequence[str], ro
             seen.add(s)
     cols = ", ".join(columns)
     marks = ", ".join(f":{c}" for c in columns)
-    updates = ", ".join(f"{c} = excluded.{c}" for c in columns if c not in ("device_id", "start_utc"))
+    updates = ", ".join(f"{c} = excluded.{c}" for c in columns if c not in ("device_id", key))
     conn.executemany(
-        f"INSERT INTO {table} ({cols}) VALUES ({marks}) ON CONFLICT (device_id, start_utc) DO UPDATE SET {updates}",
+        f"INSERT INTO {table} ({cols}) VALUES ({marks}) ON CONFLICT (device_id, {key}) DO UPDATE SET {updates}",
         rows,
     )
     return accepted, duplicates
@@ -197,7 +240,7 @@ def upsert_rows(conn: sqlite3.Connection, table: str, columns: Sequence[str], ro
 
 def delete_device_rows(conn: sqlite3.Connection, device_id: str) -> bool:
     """Deletes every row of the device; the caller holds the transaction. True if a device row existed."""
-    for table in ("minutes", "events", "hourly", "sites"):
+    for table in ("minutes", "events", "hourly", "reports", "sites"):
         conn.execute(f"DELETE FROM {table} WHERE device_id = ?", (device_id,))
     return conn.execute("DELETE FROM devices WHERE id = ?", (device_id,)).rowcount > 0
 
@@ -210,7 +253,7 @@ def bump_counter(conn: sqlite3.Connection, name: str) -> None:
 
 
 def delete_device(conn: sqlite3.Connection, device_id: str) -> None:
-    """Every row of the device, in one transaction (DESIGN.md §2.4, §4.5).
+    """Every row of the device, in one transaction (DESIGN.md §2.4, §4.5; reports §4.7).
 
     The only thing left behind is +1 on the anonymous counter `devices_deleted` (stats.json).
     """
@@ -222,22 +265,27 @@ def delete_device(conn: sqlite3.Connection, device_id: str) -> None:
 # ---- reads for aggregation ---------------------------------------------------------------
 
 
-def load_minutes(conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int) -> list[agg.Minute]:
+def load_minutes(
+    conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int, default_cell: str | None = None
+) -> list[agg.Minute]:
+    """`cell` is the record's own hectare, else `default_cell` (the publisher passes the site cell)."""
     rows = conn.execute(
-        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated FROM minutes "
+        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated, cell FROM minutes "
         "WHERE device_id = ? AND start_utc >= ? AND start_utc < ? ORDER BY start_utc",
         (device_id, start_ms, end_ms),
     )
-    return [agg.Minute(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6])) for r in rows]
+    return [agg.Minute(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7] or default_cell) for r in rows]
 
 
-def load_events(conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int) -> list[agg.Event]:
+def load_events(
+    conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int, default_cell: str | None = None
+) -> list[agg.Event]:
     rows = conn.execute(
-        "SELECT start_utc, lafmax_db, category FROM events "
+        "SELECT start_utc, lafmax_db, category, cell FROM events "
         "WHERE device_id = ? AND start_utc >= ? AND start_utc < ? ORDER BY start_utc",
         (device_id, start_ms, end_ms),
     )
-    return [agg.Event(r[0], r[1], r[2]) for r in rows]
+    return [agg.Event(r[0], r[1], r[2], r[3] or default_cell) for r in rows]
 
 
 def minute_row(device_id: str, m: MinuteIn, received_at: str) -> dict:
@@ -263,10 +311,24 @@ def event_row(device_id: str, e: EventIn, received_at: str) -> dict:
     return d
 
 
-def hour_row(device_id: str, h: agg.DeviceHour) -> dict:
+def report_row(device_id: str, r: ReportIn, received_at: str) -> dict:
+    return {
+        "device_id": device_id,
+        "time_utc": r.start_ms,
+        "time_iso": r.time,
+        "lat": round(r.lat, REPORT_DECIMALS),
+        "lon": round(r.lon, REPORT_DECIMALS),
+        "accuracy_m": round(r.accuracy_m, 1),
+        "category": r.category,
+        "received_at": received_at,
+    }
+
+
+def hour_row(device_id: str, h: agg.DeviceHour, cell: str | None = None) -> dict:
     return {
         "device_id": device_id,
         "hour_utc": h.hour_ms,
+        "cell": cell or "",
         "valid_s": h.valid_s,
         "valid_minutes": h.valid_minutes,
         "laeq_db": h.laeq_db,

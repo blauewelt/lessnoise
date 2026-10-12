@@ -16,6 +16,7 @@ class Settings:
     db_path: Path = Path("data/stadtlaerm.sqlite")
     map_dir: Path = Path("data/map")
     min_devices_per_cell: int = 1
+    loud_event_db: float = 75.0  # an event with LAFmax ≥ this counts as a «loud event» (DESIGN.md §6)
     publish_interval_s: float = 600.0
     background_jobs: bool = True
     retention_days: int = 730
@@ -46,6 +47,7 @@ class Settings:
             db_path=Path(e.get("DB_PATH", str(d.db_path))),
             map_dir=Path(e.get("MAP_DIR", str(d.map_dir))),
             min_devices_per_cell=int(e.get("MIN_DEVICES_PER_CELL", d.min_devices_per_cell)),
+            loud_event_db=float(e.get("LOUD_EVENT_DB", d.loud_event_db)),
             publish_interval_s=float(e.get("PUBLISH_INTERVAL_S", d.publish_interval_s)),
             background_jobs=_bool(e.get("BACKGROUND_JOBS", "1")),
             retention_days=int(e.get("RETENTION_DAYS", d.retention_days)),

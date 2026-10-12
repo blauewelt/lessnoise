@@ -1,4 +1,4 @@
-"""stats.json (DESIGN.md §6.4): project-wide usage counts, from synthetic data."""
+"""stats.json (DESIGN.md §6.5): project-wide usage counts, from synthetic data."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from test_api import SITE, minute, recent, register
-from test_publish import LAST, NOW, add_night
+from test_publish import LAST, NOW, add_day
 
 from stadtlaerm_server import __main__ as cli
 from stadtlaerm_server import aggregate as agg
@@ -18,7 +18,7 @@ from stadtlaerm_server.schemas import MinuteIn
 KEYS = {
     "generated_at", "devices_registered", "devices_with_site", "devices_ever_shared",
     "devices_active_7d", "devices_active_30d", "devices_deleted_total", "devices_expired_total",
-    "cells_with_data_30d", "nights_shared_total", "app_versions", "registrations_by_week",
+    "cells_with_data_30d", "days_shared_total", "app_versions", "registrations_by_week",
 }  # fmt: skip
 
 
@@ -46,7 +46,7 @@ def conn(tmp_path: Path):
 
 @pytest.fixture
 def network(conn):
-    """Six devices; NOW = 2026-10-25 06:40 (Sunday of ISO week 2026-W43)."""
+    """Six devices; NOW = 2026-10-25 18:40 (Sunday of ISO week 2026-W43)."""
     a = add(conn, "dev-a", "2026-10-19T10:00:00+00:00", "0.5.0", "h26824_12473")
     # 23:30 UTC on Sunday 18 Oct is 01:30 on Monday 19 Oct in Zürich → week 43, not 42.
     b = add(conn, "dev-b", "2026-10-18T23:30:00+00:00", "0.5.0", "h26830_12490")
@@ -55,26 +55,26 @@ def network(conn):
     add(conn, "dev-idle", "2026-10-01T08:00:00+00:00", "0.5.0")  # registered, never sent anything
     old = add(conn, "dev-old", "2024-08-01T08:00:00+00:00", "0.4.0", "h26850_12510")
     for i in range(10):
-        add_night(conn, a, LAST - timedelta(days=i), 44.0, 6.0, 100 + i)
-    add_night(conn, b, LAST, 40.0, 3.0, 300)
-    add_night(conn, hidden, LAST, 70.0, 30.0, 400)
-    add_night(conn, nosite, LAST - timedelta(days=20), 40.0, 3.0, 500, start_h=23, hours=2)
-    add_night(conn, old, date(2024, 9, 1), 42.0, 6.0, 600)
+        add_day(conn, a, LAST - timedelta(days=i), 44.0, 6.0, 100 + i)
+    add_day(conn, b, LAST, 40.0, 3.0, 300)
+    add_day(conn, hidden, LAST, 70.0, 30.0, 400)
+    add_day(conn, nosite, LAST - timedelta(days=20), 40.0, 3.0, 500, start_h=21, hours=2)
+    add_day(conn, old, date(2024, 9, 1), 42.0, 6.0, 600)
     conn.commit()
     return conn
 
 
 EXPECTED = {
-    "generated_at": "2026-10-25T06:40:00+01:00",
+    "generated_at": "2026-10-25T18:40:00+01:00",
     "devices_registered": 6,
     "devices_with_site": 4,  # a, b, hidden, old
     "devices_ever_shared": 5,  # all but dev-idle
     "devices_active_7d": 3,  # a, b, hidden (hidden counts here, not on the map)
-    "devices_active_30d": 4,  # + nosite (20 nights ago)
+    "devices_active_30d": 4,  # + nosite (20 days ago)
     "devices_deleted_total": 0,
     "devices_expired_total": 0,
     "cells_with_data_30d": 2,  # a's and b's hectares; hidden not shown, old too old
-    "nights_shared_total": 14,  # a 10, b 1, hidden 1, nosite 1, old 1
+    "days_shared_total": 14,  # a 10, b 1, hidden 1, nosite 1, old 1
     "app_versions": {"0.5.0": 2, "andere": 1, "unbekannt": 1},
     "registrations_by_week": [
         {"week": f"2026-W{w}", "devices": {32: 1, 40: 1, 43: 2}.get(w, 0)} for w in range(32, 44)
@@ -97,7 +97,7 @@ def test_written_by_publish_and_contains_no_ids(network, tmp_path):
     text = (out / "stats.json").read_text()
     for forbidden in ("dev-", "h268", "Pixel", "drop"):
         assert forbidden not in text
-    # Republishing leaves stats.json in place (only stale cells/nights files are removed).
+    # Republishing leaves stats.json in place (only stale cells/days files are removed).
     publish.publish(network, out, now=NOW)
     assert (out / "stats.json").exists()
 
@@ -112,7 +112,7 @@ def test_after_delete(network):
     assert s["devices_ever_shared"] == 4
     assert s["devices_active_7d"] == 2 and s["devices_active_30d"] == 3
     assert s["cells_with_data_30d"] == 1
-    assert s["nights_shared_total"] == 13
+    assert s["days_shared_total"] == 13
     assert s["app_versions"] == {"0.5.0": 1, "andere": 1, "unbekannt": 1}
     assert s["registrations_by_week"][-1] == {"week": "2026-W43", "devices": 1}
 
@@ -120,18 +120,18 @@ def test_after_delete(network):
 def test_after_retention(network):
     before = publish.current_stats(network, NOW)
     result = retention.run_retention(network, now=NOW, retention_days=730)
-    assert result["minutes_deleted"] == 480  # dev-old's night of 2024-09-01 is now hourly only
+    assert result["minutes_deleted"] == 720  # dev-old's day of 2024-09-01 is now hourly only
     assert network.execute("SELECT COUNT(*) FROM minutes WHERE device_id = 'dev-old'").fetchone()[0] == 0
     after = publish.current_stats(network, NOW)
     assert after == before
-    assert after["devices_ever_shared"] == 5 and after["nights_shared_total"] == 14
+    assert after["devices_ever_shared"] == 5 and after["days_shared_total"] == 14
 
 
 def test_valid_minute_rule_matches_the_map(conn):
     """VALID_MINUTE_SQL = aggregate.Minute.valid; active_7d = the map's figure for shown devices."""
     good = add(conn, "dev-good", "", "0.5.0", "h26824_12473")
     low = add(conn, "dev-low", "", "0.5.0", "h26830_12490")
-    t = datetime(2026, 10, 24, 23, 0, tzinfo=agg.ZONE)  # in the night of 24 October
+    t = datetime(2026, 10, 24, 23, 0, tzinfo=agg.ZONE)
     rec = minute(t)
     received = "2026-10-25T05:00:00+00:00"
     db.upsert_rows(conn, "minutes", db.MINUTE_COLUMNS, [db.minute_row(good, MinuteIn(**rec), received)])
@@ -143,7 +143,7 @@ def test_valid_minute_rule_matches_the_map(conn):
     cells = publish.build_from_db(conn, NOW)[0]
     assert s["devices_active_7d"] == cells["network"]["devices_active_7d"] == 1
     assert s["devices_ever_shared"] == 2  # an invalid minute is still a shared minute
-    assert s["nights_shared_total"] == 1  # only the valid minute makes a shared night
+    assert s["days_shared_total"] == 1  # only the valid minute makes a shared day
     for m in db.load_minutes(conn, low, 0, 2**62):
         assert not m.valid
 
@@ -159,7 +159,7 @@ def test_version_key():
 
 def test_empty_database(conn):
     s = publish.current_stats(conn, NOW)
-    assert s["devices_registered"] == 0 and s["app_versions"] == {} and s["nights_shared_total"] == 0
+    assert s["devices_registered"] == 0 and s["app_versions"] == {} and s["days_shared_total"] == 0
     assert len(s["registrations_by_week"]) == 12 and all(w["devices"] == 0 for w in s["registrations_by_week"])
 
 

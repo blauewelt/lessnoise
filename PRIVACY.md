@@ -127,7 +127,7 @@ the code keeps them:
 | **When** | After every full hour and shortly after a measurement stops (WorkManager), only over Wi-Fi/unmetered networks unless «nur über WLAN» is switched off. At the first opt-in the last 7 days are included (the screen says so); afterwards nothing measured while sharing was off is ever sent. |
 | **Identity** | At the first upload the server issues a random device id and a secret token (DESIGN.md §4.1). The token is stored encrypted with a key held in the Android Keystore; the id is never shown on the public map. «Neue Kennung» deletes the server data and starts a fresh id. |
 | **Delete means delete** | «Meine Daten auf dem Server löschen» sends `DELETE /v1/devices/{id}` and waits for the server's `204` (sent only after every row is gone, DESIGN.md §2.4); only then are id and token forgotten on the phone and sharing switched off. On an error nothing changes and the screen says so. |
-| **Silent devices are deleted** | If the server receives nothing from a device for **60 days** (no upload, no other authenticated request), it deletes every row of that device exactly as «Löschen» does, and the map is rebuilt without it (DESIGN.md §2.9, §5; `retention.expire_inactive`, setting `INACTIVE_DELETE_DAYS`). This covers phones that switched to the Offline-Version, uninstalled the app, or stopped sharing without deleting. Only an anonymous counter (`devices_expired`) goes up by one. If such a phone shares again, the server answers `401`; the app says why and offers «Neue Kennung», which starts over under a fresh id (it does not re-register silently). |
+| **Silent devices are deleted** | If the server receives nothing from a device for **60 days** (no upload, no other authenticated request), it deletes every row of that device (reports included) exactly as «Löschen» does, and the map is rebuilt without it (DESIGN.md §2.9, §5; `retention.expire_inactive`, setting `INACTIVE_DELETE_DAYS`). This covers phones that switched to the Offline-Version, uninstalled the app, or stopped sharing without deleting. Only an anonymous counter (`devices_expired`) goes up by one. If such a phone shares again, the server answers `401`; the app says why and offers «Neue Kennung», which starts over under a fresh id (it does not re-register silently). |
 
 `ACCESS_NETWORK_STATE` is required by Android for background jobs that wait for a network (and
 for «nur über WLAN»); it tells the app whether a connection is up and metered, not which network.
@@ -144,6 +144,22 @@ is removed everywhere) and that the location code logs, stores and sends nothing
 path and when a fix is accepted; and on a phone,
 Android's per-app data usage (on a Pixel: *Settings → Apps → Stadtlärm → Mobile data & Wi-Fi*)
 shows the app's traffic, which stays at zero while sharing is off.
+
+## On the server: what is stored and what the map publishes (schema v3, from 2026-10-12)
+
+This part is about the server ([server/DESIGN.md](server/DESIGN.md) §2, §4–§6), whichever app
+version sends. The app's side (when it reads the location, what its screens say) is described
+above and in [android/README.md](android/README.md).
+
+| | Stored on the server | Published on the map |
+|---|---|---|
+| **Minutes and events** (levels, events) | Each row with the hectare it was measured in, if the app sent one (`"cell"`, an LV95 hectare id, §4.3), else none — then it counts for the device's site hectare. Never coordinates. A hectare outside Switzerland is refused. | Per hectare and **calendar day** (all hours, Europe/Zurich), the 7- and 30-day means, and a 24-hour profile (mean per clock hour over 30 days). No device id; device models only as counts over the whole network. With `MIN_DEVICES_PER_CELL = 1` a single contributor's hectare is shown; a contributor who measures in several hectares appears in each of them, not linked to each other. |
+| **Manual reports** (§4.7) | Time as sent, point (latitude/longitude rounded to 5 decimals, ≈ 1 m), location accuracy, category. A point outside Switzerland or an accuracy over 200 m is refused. | `reports.json`: the reports of the last 30 days, each with the **exact reported point**, the category and the time **rounded down to the full hour** — nothing else: no device id, no exact time, no accuracy; within an hour sorted by place, so the order says nothing about who reported what or in which order. Reports are published at the reported point because the person explicitly reported that place; whoever reports often from the same spot makes that spot visible as a cluster of points. |
+| **Deletion** | «Löschen» and the 60-day expiry delete every row of the device, reports included. Raw minutes and events are reduced to hourly figures after 2 years; raw reports are deleted after 2 years. | Rebuilt within 10 minutes without the deleted rows. |
+
+**Server host names.** The API answers on `api.lessnoise.ch` and, for app versions up to 0.5.1
+and while the website moves, on `api.stadtlaerm.ch` — the same machine in Switzerland, the same
+code, the same data. Neither host keeps an access log.
 
 ## Labor-Build
 
@@ -282,10 +298,11 @@ something to report if a version is ever also attached to a GitHub Release.)
 
 **The map page is the one exception.** `docs/karte.html` (the shared noise map, see
 [server/DESIGN.md](server/DESIGN.md) §7) loads map tiles from swisstopo
-(`wmts.geo.admin.ch`) and the published per-hectare aggregates from the project's own API host
-(`api.stadtlaerm.ch`), and nothing else; its Content-Security-Policy allows exactly these two
-hosts (`img-src` and `connect-src`) and scripts only from the site itself (vendored Leaflet,
-no inline script). It says so in one sentence above the map, and `datenschutz.html` repeats it.
+(`wmts.geo.admin.ch`) and the published per-hectare aggregates and reports from the project's
+own API server (`api.lessnoise.ch`; only if that host cannot be reached, `api.stadtlaerm.ch`,
+the same server under its old name), and nothing else; its Content-Security-Policy allows
+exactly these hosts (`img-src` and `connect-src`) and scripts only from the site itself
+(vendored Leaflet, no inline script). It says so in one sentence above the map, and `datenschutz.html` repeats it.
 Both hosts necessarily see the visitor's IP address; the page sends no referrer and sets no
 cookies, and the API server keeps no access log. All other pages still load nothing from third
 parties.
@@ -299,9 +316,9 @@ are served from the website (`docs/download/`), and GitHub Pages reports nothing
 attached to a GitHub Release.)
 
 1. **Sharing**, from the server's own data: `https://api.stadtlaerm.ch/v1/map/stats.json`
-   ([server/DESIGN.md](server/DESIGN.md) §6.4), rebuilt with the map — how many devices are
+   ([server/DESIGN.md](server/DESIGN.md) §6.5), rebuilt with the map — how many devices are
    registered, have set a hectare, ever shared, were active in the last 7/30 days, deleted their
-   data (one counter), were deleted by the server after 60 days without uploads (one counter), how many hectares are on the map, how many device-nights were shared, how
+   data (one counter), were deleted by the server after 60 days without uploads (one counter), how many hectares are on the map, how many device-days were shared, how
    many active devices reported which app version at registration, and registrations per ISO week.
    Counts only: no device ids, no cells or places, no IP addresses (the server stores none, and
    neither Caddy nor the app server keeps an access log). Nothing new is collected for it; the only

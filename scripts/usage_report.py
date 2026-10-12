@@ -5,7 +5,7 @@
     python3 scripts/usage_report.py --releases-file r.json --stats-file stats.json   # offline
 
 Downloads come from scripts/download_stats.py (GitHub's download_count per release asset);
-sharing figures from https://api.stadtlaerm.ch/v1/map/stats.json (server/DESIGN.md §6.4),
+sharing figures from https://api.stadtlaerm.ch/v1/map/stats.json (server/DESIGN.md §6.5),
 both public, both counts only. The Offline-Version cannot report anything: beyond its
 downloads, nothing about it is known, by design.
 """
@@ -55,8 +55,8 @@ def render(downloads: dict, stats: dict) -> str:
         f"  active, last 7 / 30 days    {stats.get('devices_active_7d', 0):>3} / {stats.get('devices_active_30d', 0)}",
         f"  deleted their data          {stats.get('devices_deleted_total', 0):>7}",
         f"  deleted after 60 d inactive {stats.get('devices_expired_total', 0):>7}",
-        f"  hectares on the map (30 n.) {stats.get('cells_with_data_30d', 0):>7}",
-        f"  device-nights shared        {stats.get('nights_shared_total', 0):>7}",
+        f"  hectares on the map (30 d.) {stats.get('cells_with_data_30d', 0):>7}",
+        f"  device-days shared          {stats.get('days_shared_total', 0):>7}",
         f"  app versions (active 30 d)  {versions}",
         "  registrations per ISO week  " + (" ".join(str(w["devices"]) for w in weeks) or "–")
         + (f"  ({weeks[0]['week']} … {weeks[-1]['week']})" if weeks else ""),

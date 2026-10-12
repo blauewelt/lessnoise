@@ -1,10 +1,11 @@
 /* Pure helpers of the noise map (docs/karte.html): number and date wording, the colour
- * scales of the four metrics, and the model of the small night chart in the cell card.
- * No DOM, no Leaflet. Loaded as a classic script in the browser (window.KarteModel) and
- * with require() in the node unit tests (tests/unit/model.test.js).
+ * scales of the metrics, the report categories, and the model of the 24-hour chart in the
+ * cell card. No DOM, no Leaflet. Loaded as a classic script in the browser (window.KarteModel)
+ * and with require() in the node unit tests (tests/unit/model.test.js).
  *
  * Data contract: server/DESIGN.md §6 and server/README.md "Published files"; the fixtures
- * server/example_cells.json and server/example_cell.json are what the server emits.
+ * server/example_cells.json, server/example_cell.json and server/example_reports.json are what
+ * the server emits.
  */
 (function (root, factory) {
   "use strict";
@@ -25,10 +26,16 @@
   /** 0.97 -> "97 %" (narrow no-break space, as in Swiss typesetting). */
   function fmtPct(share) {
     if (share === null || share === undefined || !isFinite(share)) return "–";
-    return Math.round(share * 100) + " %";
+    return Math.round(share * 100) + " %";
   }
 
-  /* ---------- nights and dates ---------------------------------------------------------- */
+  /** Measured hours: 37.5 -> "37,5 h", 0.4 -> "0,4 h". */
+  function fmtHours(h) {
+    if (h === null || h === undefined || !isFinite(h)) return "–";
+    return fmt1(h) + " h";
+  }
+
+  /* ---------- days and dates ------------------------------------------------------------ */
 
   var MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
     "September", "Oktober", "November", "Dezember"];
@@ -59,28 +66,36 @@
     return Math.round((Date.UTC(pb.y, pb.m, pb.d) - Date.UTC(pa.y, pa.m, pa.d)) / 86400000);
   }
 
-  /** The night that starts at 22:00 on `dateStr`: "Nacht vom Mi 7. auf Do 8. Oktober 2026". */
-  function nightLabel(dateStr) {
-    var a = parts(dateStr), b = parts(addDays(dateStr, 1));
-    var from = WEEKDAYS[a.wd] + " " + a.d + ".";
-    if (a.y !== b.y) from += " " + MONTHS[a.m] + " " + a.y;
-    else if (a.m !== b.m) from += " " + MONTHS[a.m];
-    return "Nacht vom " + from + " auf " + WEEKDAYS[b.wd] + " " + b.d + ". " + MONTHS[b.m] + " " + b.y;
+  /** "2026-10-08" -> "Do 8. Oktober 2026". */
+  function dayLabel(dateStr) {
+    var p = parts(dateStr);
+    return WEEKDAYS[p.wd] + " " + p.d + ". " + MONTHS[p.m] + " " + p.y;
   }
 
-  /** Short form for the "when" column: "7./8. Okt.", "30. Sept./1. Okt.". */
-  function nightShort(dateStr) {
-    var a = parts(dateStr), b = parts(addDays(dateStr, 1));
-    if (a.m === b.m) return a.d + "./" + b.d + ". " + MONTHS_SHORT[b.m];
-    return a.d + ". " + MONTHS_SHORT[a.m] + "/" + b.d + ". " + MONTHS_SHORT[b.m];
+  /** "2026-10-08" -> "8. Okt." (the "when" column of the card). */
+  function dayShort(dateStr) {
+    var p = parts(dateStr);
+    return p.d + ". " + MONTHS_SHORT[p.m];
   }
 
-  /** Calendar span covered by `n` nights ending with the night of `lastNight`:
-   *  (7 nights to 2026-10-07) -> "1.–8. Okt."; across months "9. Sept.–8. Okt.". */
-  function spanLabel(lastNight, n) {
-    var a = parts(addDays(lastNight, -(n - 1))), b = parts(addDays(lastNight, 1));
+  /** The `n` calendar days ending with `lastDay`, short: (7, 2026-10-08) -> "2.–8. Okt.";
+   *  across months "9. Sept.–8. Okt."; one day -> "8. Okt.". */
+  function spanLabel(lastDay, n) {
+    if (n <= 1) return dayShort(lastDay);
+    var a = parts(addDays(lastDay, -(n - 1))), b = parts(lastDay);
     if (a.y === b.y && a.m === b.m) return a.d + ".–" + b.d + ". " + MONTHS_SHORT[b.m];
     return a.d + ". " + MONTHS_SHORT[a.m] + "–" + b.d + ". " + MONTHS_SHORT[b.m];
+  }
+
+  /** The same span with full month names and the year, for the date bar:
+   *  (7, 2026-10-08) -> "2.–8. Oktober 2026"; "9. September – 8. Oktober 2026";
+   *  across years "29. Dezember 2026 – 4. Januar 2027". */
+  function periodLabel(lastDay, n) {
+    var a = parts(addDays(lastDay, -(n - 1))), b = parts(lastDay);
+    var end = b.d + ". " + MONTHS[b.m] + " " + b.y;
+    if (a.y !== b.y) return a.d + ". " + MONTHS[a.m] + " " + a.y + " – " + end;
+    if (a.m !== b.m) return a.d + ". " + MONTHS[a.m] + " – " + end;
+    return a.d + ".–" + end;
   }
 
   /** "2026-10-08T06:40:00+02:00" -> "8. Okt. 2026, 06:40" — read from the text, which the
@@ -91,41 +106,60 @@
     return (+m[3]) + ". " + MONTHS_SHORT[+m[2] - 1] + " " + m[1] + ", " + m[4] + ":" + m[5];
   }
 
+  /** A report's hour (local ISO, rounded down by the server) -> "Do 8. Okt., 14–15 Uhr". */
+  function hourLabel(iso) {
+    var m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):/.exec(String(iso || ""));
+    if (!m) return "";
+    var p = parts(m[1]), h = +m[2];
+    return WEEKDAYS[p.wd] + " " + p.d + ". " + MONTHS_SHORT[p.m] + ", " + h + "–" + ((h + 1) % 24) + " Uhr";
+  }
+
+  /** The local calendar date of a report time: "2026-10-08T14:00:00+02:00" -> "2026-10-08". */
+  function localDate(iso) {
+    return String(iso || "").slice(0, 10);
+  }
+
   /* ---------- metrics and colour scales ------------------------------------------------ */
 
-  // Seven classes per metric. LAeq: 5 dB classes so that the ordinance's night values
-  // (LSV Anhang 3: 45, 50, 55, 65) fall on class edges and the legend ticks mean something.
-  var LEVEL_COLOURS = ["#2b7a78", "#7aae6a", "#d8c35a", "#eb9a3a", "#d95a2b", "#b02a3a", "#6c1d5f"];
+  // Mean level and background: one neutral hue (blue), light -> dark = quiet -> loud, in 5 dB
+  // classes. Deliberately no traffic-light colours: the map shows measurements, not a legal
+  // judgement. In dark mode (the basemap is inverted) the ramp runs dark -> light instead, so
+  // loud stays the most visible. Both ramps pass the ordinal checks of the dataviz validator
+  // (monotone lightness, visible steps, end step ≥ 2:1 against the surface).
+  var LEVEL_COLOURS = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281", "#0a2547"];
+  var LEVEL_COLOURS_DARK = ["#184f95", "#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6", "#e3eefc"];
   var RATE_COLOURS = ["#f1e6a6", "#c9dd8a", "#86c27c", "#3fa27f", "#227d82", "#2a5a85", "#33306e"];
 
-  var LSV_TICKS = [
-    { db: 45, text: "Planungswert für Wohnzonen (ES\u00a0II)" },
-    { db: 50, text: "Immissionsgrenzwert für Wohnzonen (ES\u00a0II)" },
-    { db: 55, text: "Immissionsgrenzwert für Mischzonen (ES\u00a0III)" },
-    { db: 65, text: "Alarmwert für Wohn- und Mischzonen (ES\u00a0II/III)" },
-  ];
+  function blockGet(key) { return function (b) { return b ? b[key] : null; }; }
 
   var METRICS = {
     laeq: {
-      id: "laeq", label: "Nacht-LAeq", unit: "dB(A)",
-      title: "Mittlerer Pegel der Nacht (LAeq, 22–6 Uhr), dB(A)",
-      breaks: [40, 45, 50, 55, 60, 65], colours: LEVEL_COLOURS,
-      ticks: [45, 50, 55, 65],
-      get: function (b) { return b ? b.laeq_db : null; },
+      id: "laeq", label: "Mittlerer Pegel", unit: "dB(A)",
+      title: "Mittlerer Pegel (LAeq) über die gemessene Zeit, dB(A)",
+      breaks: [45, 50, 55, 60, 65], colours: LEVEL_COLOURS, coloursDark: LEVEL_COLOURS_DARK,
+      ticks: [45, 50, 55, 60, 65],
+      get: blockGet("laeq_db"),
+    },
+    l90: {
+      id: "l90", label: "Hintergrund", unit: "dB(A)",
+      title: "Hintergrund (L90): der Pegel, der in 90 % der Zeit überschritten wird, dB(A)",
+      breaks: [35, 40, 45, 50, 55], colours: LEVEL_COLOURS, coloursDark: LEVEL_COLOURS_DARK,
+      ticks: [35, 40, 45, 50, 55],
+      get: blockGet("l90_db"),
     },
     dynamics: {
       id: "dynamics", label: "Dynamik", unit: "dB",
       title: "Dynamik: typischer Abstand zwischen lauten und leisen Momenten (L10 − L90), dB",
       breaks: [3, 5, 7, 9, 11, 13], colours: RATE_COLOURS,
       ticks: [3, 5, 7, 9, 11, 13],
-      get: function (b) { return b ? b.dynamics_db : null; },
+      get: blockGet("dynamics_db"),
     },
     events: {
       id: "events", label: "Ereignisse/h", unit: "pro Stunde",
       title: "Laute Einzelereignisse pro Stunde Messzeit, alle Quellen",
       breaks: [2, 5, 10, 15, 20, 30], colours: RATE_COLOURS,
       ticks: [2, 5, 10, 15, 20, 30],
-      get: function (b) { return b ? b.events_per_h : null; },
+      get: blockGet("events_per_h"),
     },
     loud: {
       id: "loud", label: "Töff & Poser/h", unit: "pro Stunde",
@@ -136,8 +170,22 @@
         return b && b.events_per_h_by_category ? b.events_per_h_by_category.loud_vehicle : null;
       },
     },
+    peaks: {
+      id: "peaks", label: "Sehr laut/h", unit: "pro Stunde",
+      // the threshold comes from the file (loud_event_db); karte.js fills it in
+      title: "Ereignisse ab {db} dB(A) pro Stunde Messzeit, alle Quellen",
+      breaks: [0.2, 0.5, 1, 2, 3, 5], colours: RATE_COLOURS,
+      ticks: [0.2, 0.5, 1, 2, 3, 5],
+      get: blockGet("loud_events_per_h"),
+    },
   };
-  var METRIC_ORDER = ["laeq", "dynamics", "events", "loud"];
+  var METRIC_ORDER = ["laeq", "l90", "dynamics", "events", "loud", "peaks"];
+
+  // The two periods of the map (server: `last_7_days`, `last_30_days`).
+  var PERIODS = {
+    last_7_days: { key: "last_7_days", days: 7, label: "Letzte 7 Tage" },
+    last_30_days: { key: "last_30_days", days: 30, label: "Letzte 30 Tage" },
+  };
 
   /** Index of the class a value falls in: value < breaks[0] -> 0, ≥ last break -> n. */
   function classIndex(value, breaks) {
@@ -146,12 +194,13 @@
     return i;
   }
 
-  /** Fill colour of a cell for a metric, or null when the cell has no value that night. */
-  function colourFor(metricId, block) {
+  /** Fill colour of a cell for a metric, or null when the block has no value. */
+  function colourFor(metricId, block, dark) {
     var m = METRICS[metricId];
     var v = m.get(block);
     if (v === null || v === undefined || !isFinite(v)) return null;
-    return m.colours[classIndex(v, m.breaks)];
+    var colours = dark && m.coloursDark ? m.coloursDark : m.colours;
+    return colours[classIndex(v, m.breaks)];
   }
 
   /** Legend-bar position (0..1) of a class edge: classes are drawn with equal width. */
@@ -162,7 +211,7 @@
     return (i + 1) / (m.breaks.length + 1);
   }
 
-  /* ---------- the night chart in the card ----------------------------------------------- */
+  /* ---------- sources and reports -------------------------------------------------------- */
 
   var CATEGORY_NAMES = {
     loud_vehicle: "Töff & Poser", road_traffic: "Strassenverkehr", rail_tram: "Tram & Bahn",
@@ -171,28 +220,55 @@
   };
   var HIGHLIGHT = "loud_vehicle";   // the app's default highlight
 
-  /** The app's y-axis rule (android/chart/.../ChartModel.kt `yRange`): lowest L90 − 5 dB to
-   *  the loudest shown event or level + 5 dB, rounded to 5 dB, at least 30 dB, within 0–120. */
+  // Manual reports (server: reports.json). The letter is the marker's identity; the colour
+  // only helps (three hues that pass the all-pairs colour-vision checks, two neutral).
+  var REPORT_CATEGORIES = [
+    { id: "motorrad", name: "Motorrad", letter: "M" },
+    { id: "poser", name: "Poser", letter: "P" },
+    { id: "lastwagen", name: "Lastwagen", letter: "L" },
+    { id: "auto", name: "Auto", letter: "A" },
+    { id: "andere", name: "Andere", letter: "+" },
+  ];
+
+  function reportCategory(id) {
+    for (var i = 0; i < REPORT_CATEGORIES.length; i++) if (REPORT_CATEGORIES[i].id === id) return REPORT_CATEGORIES[i];
+    return REPORT_CATEGORIES[REPORT_CATEGORIES.length - 1];
+  }
+
+  /** Reports whose local date lies in the `n` days ending with `lastDay`. */
+  function reportsInPeriod(reports, lastDay, n) {
+    var first = addDays(lastDay, -(n - 1));
+    return (reports || []).filter(function (r) {
+      var d = localDate(r.time);
+      return isDate(d) && d >= first && d <= lastDay;
+    });
+  }
+
+  /* ---------- the 24-hour chart in the card ---------------------------------------------- */
+
+  // Reference values of the Swiss Noise Abatement Ordinance (Lärmschutz-Verordnung, LSV,
+  // Anhang 3, road traffic), sensitivity level ES II (residential zones), dB(A): planning value
+  // and impact limit, for the two periods the ordinance assesses separately.
+  var LSV_BANDS = [
+    { from: 6, to: 22, pw: 55, igw: 60, text: "6–22 Uhr: Planungswert 55 / Immissionsgrenzwert 60 (ES II)" },
+    { from: 22, to: 6, pw: 45, igw: 50, text: "22–6 Uhr: 45 / 50" },
+  ];
+
+  /** The y range: lowest L90 − 5 dB to the loudest level + 5 dB, rounded to 5 dB, at least
+   *  30 dB, always containing the LSV values (40–65), within 0–120. */
   function yRange(hours) {
-    var lows = [], highs = [];
-    hours.forEach(function (h) {
+    var lows = [40], highs = [65];
+    (hours || []).forEach(function (h) {
       if (h.laeq_db !== null && h.laeq_db !== undefined) {
         lows.push(h.l90_db !== null && h.l90_db !== undefined ? h.l90_db : h.laeq_db);
         highs.push(h.laeq_db);
         if (h.l10_db !== null && h.l10_db !== undefined) highs.push(h.l10_db);
       }
-      if (h.loudest_db !== null && h.loudest_db !== undefined) highs.push(h.loudest_db);
     });
-    if (!lows.length && !highs.length) return { lo: 20, hi: 80 };
-    var minLow = lows.length ? Math.min.apply(null, lows) : Math.min.apply(null, highs);
-    var maxTop = Math.max.apply(null, highs.length ? highs : lows);
-    var lo = Math.floor((minLow - 5) / 5) * 5;
-    var hi = Math.ceil((maxTop + 5) / 5) * 5;
+    var lo = Math.floor((Math.min.apply(null, lows) - 5) / 5) * 5;
+    var hi = Math.ceil((Math.max.apply(null, highs) + 5) / 5) * 5;
     if (hi - lo < 30) hi = lo + 30;
-    lo = Math.min(120, Math.max(0, lo));
-    hi = Math.min(120, Math.max(0, hi));
-    if (hi - lo < 30) { if (hi >= 120) lo = 90; else hi = lo + 30; }
-    return { lo: lo, hi: hi };
+    return { lo: Math.max(0, lo), hi: Math.min(120, hi) };
   }
 
   /** Gridlines every 10 dB inside the range. */
@@ -206,46 +282,53 @@
     return h.laeq_db !== null && h.laeq_db !== undefined;
   }
 
-  /** Data -> drawing model of the night chart. Hours are the rows of cells/{cell}.json
-   *  (§6.2): one per clock hour of the night, `start` with offset (the autumn DST night has
-   *  "02" twice). Returns x positions as fractions 0..1 of the night, so the SVG code only
-   *  scales. `runs` are maximal stretches of consecutive hours with levels: the band and the
-   *  LAeq line are drawn per run, so nothing is drawn across a missing hour. */
+  /** The LSV bands as x ranges (fractions of the day) for the chart: 22–6 Uhr is two pieces. */
+  function lsvSegments() {
+    var out = [];
+    LSV_BANDS.forEach(function (b) {
+      var pieces = b.from < b.to ? [[b.from, b.to]] : [[b.from, 24], [0, b.to]];
+      pieces.forEach(function (p) { out.push({ x0: p[0] / 24, x1: p[1] / 24, pw: b.pw, igw: b.igw }); });
+    });
+    return out.sort(function (a, b) { return a.x0 - b.x0; });
+  }
+
+  /** Data -> drawing model of the 24-hour chart. `hours` are the 24 rows of
+   *  cells/{cell}.json `profile.hours` (hour 0–23). x positions are fractions 0..1 of the day.
+   *  `runs` are maximal stretches of consecutive hours with levels: band and line are drawn per
+   *  run, so nothing is drawn across an hour without enough data (a `gap`). */
   function chartModel(hours) {
     if (!hours || !hours.length) return null;
-    var starts = hours.map(function (h) { return Date.parse(h.start); });
-    var t0 = starts[0];
-    var t1 = starts[starts.length - 1] + 3600000;
-    var span = t1 - t0;
-    var slots = hours.map(function (h, i) {
-      var x0 = (starts[i] - t0) / span, x1 = (starts[i] + 3600000 - t0) / span;
-      var counts = h.events || {};
-      var total = 0;
-      Object.keys(counts).forEach(function (k) { total += counts[k] || 0; });
-      var hl = Math.round(counts[HIGHLIGHT] || 0);
-      var all = Math.round(total);
-      return {
-        hour: h.hour, x0: x0, x1: x1, valid: hasLevels(h),
-        laeq: h.laeq_db, l90: h.l90_db, l10: h.l10_db, loudest: h.loudest_db,
-        highlighted: hl, others: Math.max(0, all - hl), measuredShare: h.measured_share,
-      };
-    });
+    var byHour = {};
+    hours.forEach(function (h) { byHour[h.hour] = h; });
+    var slots = [];
+    for (var hr = 0; hr < 24; hr++) {
+      var h = byHour[hr] || { hour: hr, laeq_db: null, l90_db: null, l10_db: null, events_per_h_by_category: {}, measured_hours: 0 };
+      var cats = h.events_per_h_by_category || {};
+      slots.push({
+        hour: hr, x0: hr / 24, x1: (hr + 1) / 24, valid: hasLevels(h),
+        laeq: h.laeq_db, l90: h.l90_db, l10: h.l10_db,
+        highlighted: cats[HIGHLIGHT] === undefined ? null : cats[HIGHLIGHT],
+        eventsPerH: h.events_per_h === undefined ? null : h.events_per_h,
+        measuredHours: h.measured_hours,
+      });
+    }
     var runs = [], cur = null;
-    slots.forEach(function (s, i) {
-      if (s.valid && cur && starts[i] === starts[i - 1] + 3600000) cur.push(s);
+    slots.forEach(function (s) {
+      if (s.valid && cur) cur.push(s);
       else if (s.valid) { cur = [s]; runs.push(cur); }
       else cur = null;
     });
     var gaps = slots.filter(function (s) { return !s.valid; });
-    var endHour = (parseInt(hours[hours.length - 1].hour, 10) + 1) % 24;
-    var labels = slots.map(function (s) { return { x: s.x0, text: s.hour }; })
-      .concat([{ x: 1, text: (endHour < 10 ? "0" : "") + endHour }]);
+    var labels = [0, 3, 6, 9, 12, 15, 18, 21, 24].map(function (v) {
+      return { x: v / 24, text: (v < 10 ? "0" : "") + v };
+    });
     var r = yRange(hours);
     var valid = slots.filter(function (s) { return s.valid; });
+    var hl = slots.map(function (s) { return s.highlighted || 0; });
     return {
       range: r, grid: gridlines(r), slots: slots, runs: runs, gaps: gaps, labels: labels,
-      eventsHighlighted: slots.reduce(function (a, s) { return a + s.highlighted; }, 0),
-      eventsTotal: slots.reduce(function (a, s) { return a + s.highlighted + s.others; }, 0),
+      lsv: lsvSegments(),
+      highlightMax: Math.max.apply(null, hl),
       laeqMin: valid.length ? Math.min.apply(null, valid.map(function (s) { return s.laeq; })) : null,
       laeqMax: valid.length ? Math.max.apply(null, valid.map(function (s) { return s.laeq; })) : null,
     };
@@ -259,12 +342,14 @@
   }
 
   return {
-    fmt1: fmt1, fmtPct: fmtPct,
+    fmt1: fmt1, fmtPct: fmtPct, fmtHours: fmtHours,
     isDate: isDate, addDays: addDays, daysBetween: daysBetween,
-    nightLabel: nightLabel, nightShort: nightShort, spanLabel: spanLabel, stampLabel: stampLabel,
-    METRICS: METRICS, METRIC_ORDER: METRIC_ORDER, LSV_TICKS: LSV_TICKS,
+    dayLabel: dayLabel, dayShort: dayShort, spanLabel: spanLabel, periodLabel: periodLabel,
+    stampLabel: stampLabel, hourLabel: hourLabel, localDate: localDate,
+    METRICS: METRICS, METRIC_ORDER: METRIC_ORDER, PERIODS: PERIODS, LSV_BANDS: LSV_BANDS,
     classIndex: classIndex, colourFor: colourFor, tickPosition: tickPosition,
     CATEGORY_NAMES: CATEGORY_NAMES, HIGHLIGHT: HIGHLIGHT,
-    yRange: yRange, gridlines: gridlines, chartModel: chartModel, stepPoints: stepPoints,
+    REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };
 });

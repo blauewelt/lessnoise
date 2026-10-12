@@ -23,7 +23,7 @@
 <section id="website">
   <h2>Diese Website</h2>
   <p>wenigerlaerm.ch besteht aus wenigen statischen Seiten. Sie setzt keine Cookies und lädt nichts von Dritten: keine Schriften, keine Skripte, keine Bilder und keine Statistik- oder Analysedienste – mit einer Ausnahme, der Lärmkarte. Das Projekt erfährt nicht, wer die Seite besucht.</p>
-  <p>Ausnahme ist die Seite <a href="karte.html">«Lärmkarte»</a>: Diese Seite lädt die Kartenbilder von swisstopo und die Messwerte von api.stadtlaerm.ch, sonst nichts von anderen Servern. Dabei erfahren swisstopo (Bundesamt für Landestopografie) und der Server des Projekts technisch bedingt Ihre IP-Adresse; die Seite sendet keine Herkunftsadresse (Referrer) mit und setzt keine Cookies. Der Server des Projekts führt kein Zugriffsprotokoll.</p>
+  <p>Ausnahme ist die Seite <a href="karte.html">«Lärmkarte»</a>: Diese Seite lädt die Kartenbilder von swisstopo und die Messwerte und Meldungen vom Server des Projekts (api.lessnoise.ch, übergangsweise api.stadtlaerm.ch), sonst nichts von anderen Servern. Dabei erfahren swisstopo (Bundesamt für Landestopografie) und der Server des Projekts technisch bedingt Ihre IP-Adresse; die Seite sendet keine Herkunftsadresse (Referrer) mit und setzt keine Cookies. Der Server des Projekts führt kein Zugriffsprotokoll.</p>
   <p>Ausserdem enthält die Seite <a href="update.html">«Update prüfen»</a> ein kleines Skript. Die App öffnet sie im Browser und hängt die installierte Version an die Adresse an, nach einem #. Diesen Teil der Adresse sendet der Browser nicht an den Server; der Vergleich mit der aktuellen Version findet nur im Browser statt.</p>
   <p>Die Website wird über GitHub Pages bereitgestellt (GitHub, Inc.). Beim Aufruf verarbeitet GitHub technisch bedingt Daten wie die IP-Adresse, zum Beispiel für Betrieb und Sicherheit. Dafür gilt das <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>. Dasselbe gilt für Links auf github.com, etwa zum Quellcode.</p>
 </section>
@@ -39,27 +39,37 @@
     <li>Der Ton vom Mikrofon wird nur im Arbeitsspeicher ausgewertet, in kleinen Zwischenspeichern von höchstens etwa einer Sekunde, die laufend überschrieben werden. Es wird nie Audio gespeichert.</li>
     <li>Gespeichert werden nur Pegel und Statistiken: Lärmpegel pro Minute, laute Ereignisse (Zeit, Dauer, Spitzenpegel, wahrscheinliche Quelle) und Kalibrierungen. Diese Daten liegen nur auf Ihrem Telefon.</li>
     <li>Die App gibt es seit Version 0.5.0 in zwei Ausführungen. Die <strong>Offline-Version</strong> hat, wie alle Versionen bis 0.4.0, gar keine Internet-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. Sie hat auch keine Standort-Berechtigung.</li>
-    <li>Die <strong>Karten-Version</strong> nutzt das Internet für genau eine Sache: das freiwillige «Messwerte teilen» für die Lärmkarte. Es ist ausgeschaltet, bis Sie es unter «Einstellungen → Messwerte teilen» einschalten. Eingeschaltet sendet die App nur die Minutenpegel und die lauten Ereignisse zusammen mit der Hektare (100&nbsp;×&nbsp;100&nbsp;m), in der der Sensor steht – nie Audio, nie den genauen Standort, nie die Rohbezeichnungen des Klassifikators – und nur an den Server des Projekts in der Schweiz (api.stadtlaerm.ch). Das Gerät erhält dafür eine zufällige Kennung ohne Bezug zu Ihrer Person. Mit «Meine Daten auf dem Server löschen» werden alle Daten des Geräts sofort gelöscht; übrig bleibt nur, dass ein Zähler der gelöschten Geräte um eins steigt. Wenn 60 Tage lang keine Messwerte mehr ankommen – etwa weil Sie zur Offline-Version gewechselt, die App deinstalliert oder das Teilen ausgeschaltet haben –, löscht der Server alle Daten des Telefons ebenso vollständig von selbst; auch dann steigt nur ein Zähler um eins. Es gibt keine Statistikdienste, keine Absturzberichte und keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
+    <li>Die <strong>Karten-Version</strong> nutzt das Internet für genau eine Sache: das freiwillige «Messwerte teilen» für die Lärmkarte. Es ist ausgeschaltet, bis Sie es unter «Einstellungen → Messwerte teilen» einschalten. Eingeschaltet sendet die App nur die Minutenpegel und die lauten Ereignisse zusammen mit der Hektare (100&nbsp;×&nbsp;100&nbsp;m), in der gemessen wurde – nie Audio, bei Messungen nie den genauen Standort, nie die Rohbezeichnungen des Klassifikators –, dazu die Meldungen, die Sie selbst auslösen (siehe «Lärmkarte» unten), und nur an den Server des Projekts in der Schweiz (api.lessnoise.ch; App-Versionen bis 0.5.1: api.stadtlaerm.ch, derselbe Server). Das Gerät erhält dafür eine zufällige Kennung ohne Bezug zu Ihrer Person. Mit «Meine Daten auf dem Server löschen» werden alle Daten des Geräts sofort gelöscht; übrig bleibt nur, dass ein Zähler der gelöschten Geräte um eins steigt. Wenn 60 Tage lang keine Messwerte mehr ankommen – etwa weil Sie zur Offline-Version gewechselt, die App deinstalliert oder das Teilen ausgeschaltet haben –, löscht der Server alle Daten des Telefons ebenso vollständig von selbst; auch dann steigt nur ein Zähler um eins. Es gibt keine Statistikdienste, keine Absturzberichte und keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
     <li>Ab Version 0.5.1 hat die <strong>Karten-Version</strong> eine Standort-Berechtigung, damit sie die Hektare selbst bestimmen kann. Die App fragt danach erst, wenn Sie unter «Messwerte teilen» auf «Standort bestimmen» tippen, und liest den Standort nur auf diesen Knopfdruck, einmalig, während die Seite offen ist – nie im Hintergrund. Die Hektare wird auf dem Telefon berechnet; die Koordinaten werden weder gespeichert noch gesendet, gespeichert und gesendet wird nur die Hektare. Der Standort wird über die Standortdienste von Android bestimmt (GPS und Netzwerk), ohne Dienste von Google oder anderen Anbietern in der App. Statt des Knopfs können Sie auch Koordinaten einfügen. Die Offline-Version hat keine Standort-Berechtigung.</li>
     <li>Die Erkennung der Lärmquelle läuft auf dem Telefon. Sie hält fest, welche Art von Geräusch vorkam (etwa «Stimmen»), nicht was gesagt wurde.</li>
     <li>Sonst – und in der Offline-Version überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst exportieren (als CSV-Datei) und weitergeben. Bedenken Sie dabei: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
     <li>Löschen können Sie die Daten in der App unter «Daten» oder indem Sie die App deinstallieren.</li>
   </ul>
-  <p>Wie der Quellcode diese Zusagen umsetzt und wie man sie nachprüft, steht in <a href="https://github.com/blauewelt/stadtlaerm/blob/main/PRIVACY.md">PRIVACY.md</a> (Englisch).</p>
+  <p>Wie der Quellcode diese Zusagen umsetzt und wie man sie nachprüft, steht in <a href="https://github.com/blauewelt/lessnoise/blob/main/PRIVACY.md">PRIVACY.md</a> (Englisch).</p>
+</section>
+
+<section id="laermkarte">
+  <h2>Lärmkarte: was der Server speichert und zeigt</h2>
+  <ul class="features">
+    <li><strong>Messwerte</strong> speichert der Server mit der Hektare, in der gemessen wurde: der Hektare Ihres Messorts oder, wenn die App sie mitsendet, der Hektare jeder einzelnen Minute. Koordinaten von Messungen erhält er nie. Die Karte zeigt die Werte pro Hektare und Kalendertag (alle Stunden), gemittelt über 7 oder 30 Tage, und einen Tagesverlauf pro Stunde – ohne Gerätekennung. Wer an mehreren Orten misst, erscheint in mehreren Hektaren.</li>
+    <li><strong>Meldungen</strong>, die Sie in der App auslösen, enthalten den genauen Ort (auf etwa einen Meter), die Zeit, die Genauigkeit des Standorts und die Art des Fahrzeugs. Die Karte zeigt jede Meldung der letzten 30 Tage als Punkt genau an der gemeldeten Stelle, weil Sie diese Stelle ausdrücklich gemeldet haben – mit der Art des Fahrzeugs und der auf die volle Stunde abgerundeten Zeit, ohne Gerätekennung, ohne genaue Uhrzeit und ohne Genauigkeit. Wer oft vom selben Ort aus meldet, etwa vom eigenen Balkon, macht diesen Ort als Häufung von Punkten sichtbar.</li>
+    <li>Meldungen werden zusammen mit allen anderen Daten des Geräts gelöscht («Meine Daten auf dem Server löschen» oder nach 60 Tagen ohne Messwerte), spätestens nach zwei Jahren.</li>
+    <li>Der Server ist unter zwei Namen erreichbar, api.lessnoise.ch und api.stadtlaerm.ch: Es ist derselbe Server in der Schweiz mit denselben Daten, ohne Zugriffsprotokoll.</li>
+  </ul>
 </section>
 
 <section id="statistik">
   <h2>Öffentliche Zahlen</h2>
   <p>Damit das Projekt weiss, ob die Lärmkarte genutzt wird, gibt es eine öffentliche Zahlenquelle, nur mit Summen über das ganze Projekt:</p>
   <ul class="features">
-    <li>Die Datei <a href="https://api.stadtlaerm.ch/v1/map/stats.json">stats.json</a> des Projekt-Servers. Sie wird aus den Daten berechnet, die für die Lärmkarte ohnehin vorhanden sind, und enthält nur Anzahlen: wie viele Geräte angemeldet sind, wie viele je Messwerte geteilt haben, wie viele in den letzten 7 und 30 Tagen aktiv waren, wie viele ihre Daten gelöscht haben, wie viele der Server nach 60 Tagen ohne Messwerte gelöscht hat, wie viele Hektaren auf der Karte sind, wie viele Nächte geteilt wurden, wie viele aktive Geräte welche App-Version angegeben haben und wie viele Geräte sich pro Kalenderwoche angemeldet haben. Keine Kennungen, keine Orte, keine IP-Adressen.</li>
+    <li>Die Datei <a href="https://api.stadtlaerm.ch/v1/map/stats.json">stats.json</a> des Projekt-Servers. Sie wird aus den Daten berechnet, die für die Lärmkarte ohnehin vorhanden sind, und enthält nur Anzahlen: wie viele Geräte angemeldet sind, wie viele je Messwerte geteilt haben, wie viele in den letzten 7 und 30 Tagen aktiv waren, wie viele ihre Daten gelöscht haben, wie viele der Server nach 60 Tagen ohne Messwerte gelöscht hat, wie viele Hektaren auf der Karte sind, an wie vielen Tagen Geräte Messwerte geteilt haben, wie viele aktive Geräte welche App-Version angegeben haben und wie viele Geräte sich pro Kalenderwoche angemeldet haben. Keine Kennungen, keine Orte, keine IP-Adressen.</li>
   </ul>
   <p>Über die Offline-Version erfährt das Projekt nichts.</p>
 </section>
 
 <section id="kontakt">
   <h2>Verantwortlich</h2>
-  <p>Verein Weniger Lärm, Zürich, vertreten durch den Präsidenten Christian Frank. Fragen und Hinweise bitte als <a href="https://github.com/blauewelt/stadtlaerm/issues">Issue auf GitHub</a>.</p>
+  <p>Verein Weniger Lärm, Zürich, vertreten durch den Präsidenten Christian Frank. Fragen und Hinweise bitte als <a href="https://github.com/blauewelt/lessnoise/issues">Issue auf GitHub</a>.</p>
   <p class="small">Stand: 12. Oktober 2026</p>
 </section>
 
@@ -69,8 +79,8 @@
   <ul>
     <li>Ein Projekt des <a href="./#verein">Vereins Weniger Lärm</a>, Zürich</li>
     <li><a href="./">Startseite</a></li>
-    <li><a href="https://github.com/blauewelt/stadtlaerm">Quellcode</a></li>
-    <li>Lizenz: <a href="https://github.com/blauewelt/stadtlaerm/blob/main/LICENSE">Apache-2.0</a></li>
+    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a></li>
+    <li>Lizenz: <a href="https://github.com/blauewelt/lessnoise/blob/main/LICENSE">Apache-2.0</a></li>
   </ul>
 </footer>
 

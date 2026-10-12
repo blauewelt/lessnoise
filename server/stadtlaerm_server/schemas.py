@@ -12,19 +12,27 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .lv95 import cell_in_switzerland, point_in_switzerland
+
 DB_MIN, DB_MAX = 0.0, 140.0
 CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
-# LV95 hectare ids inside a generous box around Switzerland (E 2 480 000–2 840 000,
-# N 1 070 000–1 300 000).
-CELL_E_RANGE = (24800, 28400)
-CELL_N_RANGE = (10700, 13000)
+# Categories of a manual report (§4.7), as the app offers them.
+REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
+MAX_REPORT_ACCURACY_M = 200.0
 
 Level = Annotated[float, Field(ge=DB_MIN, le=DB_MAX, allow_inf_nan=False)]
 Share = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
 CalibrationOffset = Annotated[float, Field(ge=50.0, le=200.0, allow_inf_nan=False)]
 Category = Annotated[str, Field(pattern=CATEGORY_PATTERN)]
 ShortText = Annotated[str, Field(max_length=64)]
+Cell = Annotated[str, Field(pattern=CELL_PATTERN)]
+
+
+def _check_cell(v: str | None) -> str | None:
+    if v is not None and not cell_in_switzerland(v):
+        raise ValueError("cell is not an LV95 hectare in Switzerland")
+    return v
 
 
 class Strict(BaseModel):
@@ -42,7 +50,7 @@ class DeviceOut(BaseModel):
 
 
 class SiteIn(Strict):
-    cell: Annotated[str, Field(pattern=CELL_PATTERN)]
+    cell: Cell
     placement: Literal["open_window", "balcony", "behind_glass", "other"]
     floor: Annotated[int, Field(ge=-3, le=100)] | None = None
     street_facing: bool | None = None
@@ -52,28 +60,26 @@ class SiteIn(Strict):
     calibration_offset_db: CalibrationOffset | None = None
     note: Annotated[str, Field(max_length=200)] | None = None
 
-    @field_validator("cell")
-    @classmethod
-    def _in_switzerland(cls, v: str) -> str:
-        e, n = (int(x) for x in v[1:].split("_"))
-        if not (CELL_E_RANGE[0] <= e < CELL_E_RANGE[1] and CELL_N_RANGE[0] <= n < CELL_N_RANGE[1]):
-            raise ValueError("cell is not an LV95 hectare in Switzerland")
-        return v
+    _in_switzerland = field_validator("cell")(_check_cell)
 
 
-def parse_start(v: str) -> datetime:
+def parse_start(v: str, name: str = "start") -> datetime:
     """ISO-8601 with a zone offset (the app's format); naive times are refused."""
     try:
         t = datetime.fromisoformat(v)
     except ValueError as e:
-        raise ValueError("start is not ISO-8601") from e
+        raise ValueError(f"{name} is not ISO-8601") from e
     if t.tzinfo is None or t.utcoffset() is None:
-        raise ValueError("start has no zone offset")
+        raise ValueError(f"{name} has no zone offset")
     return t
 
 
 class _Timed(Strict):
     start: Annotated[str, Field(max_length=40)]
+    # The hectare the record was measured in (§4.3, §4.4). Absent (older apps): the device's
+    # current site cell is used when the map is built.
+    cell: Cell | None = None
+    _in_switzerland = field_validator("cell")(_check_cell)
 
     @field_validator("start")
     @classmethod
@@ -132,6 +138,36 @@ class EventIn(_Timed):
     calibrated: bool
 
 
+class ReportIn(Strict):
+    """A manual report (§4.7): «here and now something loud passed», with its category."""
+
+    time: Annotated[str, Field(max_length=40)]
+    lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    lon: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+    accuracy_m: Annotated[float, Field(ge=0, le=MAX_REPORT_ACCURACY_M, allow_inf_nan=False)]
+    category: Literal[REPORT_CATEGORIES]  # type: ignore[valid-type]
+
+    @field_validator("time")
+    @classmethod
+    def _iso(cls, v: str) -> str:
+        parse_start(v, "time")
+        return v
+
+    def problems(self) -> list[dict[str, str]]:
+        """Checks across fields, reported per field like the schema errors (app.upload)."""
+        if not point_in_switzerland(self.lat, self.lon):
+            return [{"field": "lat", "reason": "the point (lat, lon) is not in Switzerland"}]
+        return []
+
+    @property
+    def start_dt(self) -> datetime:
+        return parse_start(self.time, "time")
+
+    @property
+    def start_ms(self) -> int:
+        return math.floor(self.start_dt.timestamp() * 1000 + 0.5)
+
+
 class UploadResult(BaseModel):
     accepted: int
     duplicates: int
@@ -140,3 +176,4 @@ class UploadResult(BaseModel):
 
 MAX_MINUTES = 1440
 MAX_EVENTS = 2000
+MAX_REPORTS = 50

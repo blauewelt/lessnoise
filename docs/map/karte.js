@@ -1,12 +1,14 @@
 /* The noise map (docs/karte.html): Leaflet, swisstopo's grey map, one quadrilateral per
- * hectare cell, coloured by the chosen metric; a card per cell with the night chart.
+ * hectare cell, coloured by the chosen metric over the chosen period (last 7 or 30 days);
+ * a card per cell with the 24-hour profile; the manual reports as small lettered markers.
  *
  * Reads only the published files of server/DESIGN.md §6 from the base URL in the map
- * element's `data-api` attribute: cells.json (the last complete night), nights/{date}.json
- * (older nights, 404 when the server has none) and cells/{cell}.json (one cell's history and
- * the hours of the last night). Depends on window.L (vendored Leaflet 1.9.4), window.Lv95
- * (lv95.js) and window.KarteModel (model.js). No inline script, no innerHTML with data:
- * the page runs under a CSP without 'unsafe-inline'.
+ * element's `data-api` attribute (falling back to `data-api-fallback` once if the first host
+ * cannot be reached at all): cells.json (windows ending today), days/{date}.json (windows
+ * ending an earlier day, 404 when the server has none), cells/{cell}.json (one cell's days and
+ * its 24-hour profile) and reports.json (the reports of the last 30 days). Depends on
+ * window.L (vendored Leaflet 1.9.4), window.Lv95 (lv95.js) and window.KarteModel (model.js).
+ * No inline script, no innerHTML with data: the page runs under a CSP without 'unsafe-inline'.
  */
 (function () {
   "use strict";
@@ -21,22 +23,32 @@
   var MIN_ZOOM = 7;          // the whole country on a phone
   var MAX_ZOOM = 18;
   var DOT_MAX_ZOOM = 13;     // up to this zoom a hectare is ≤ 8 px: also draw a dot
-  var HISTORY_NIGHTS = 90;   // DESIGN §7: ‹ › through the last 90 nights
+  var HISTORY_DAYS = 90;     // DESIGN §7: ‹ › through the last 90 days
   var SVGNS = "http://www.w3.org/2000/svg";
 
   var mapEl = document.getElementById("karte");
-  var api = (mapEl.getAttribute("data-api") || "https://api.stadtlaerm.ch/v1/map/").replace(/\/?$/, "/");
+  function base(url) { return url ? url.replace(/\/?$/, "/") : null; }
+  var api = base(mapEl.getAttribute("data-api") || "https://api.lessnoise.ch/v1/map/");
+  var apiFallback = base(mapEl.getAttribute("data-api-fallback"));
+  var apiSettled = false;    // true once a host has answered; no switching after that
+
+  var darkMq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
   var state = {
     metric: "laeq",
-    latest: null,       // night of cells.json
-    night: null,        // night shown
-    file: null,         // the night file shown (cells.json or nights/{date}.json), or null
+    period: "last_7_days",
+    latest: null,       // the day of cells.json (today)
+    day: null,          // the last day of the period shown
+    file: null,         // the file shown (cells.json or days/{date}.json), or null
     byCell: {},         // cell id -> entry of the shown file
     layers: {},         // cell id -> { poly, dot }
     selected: null,     // cell id of the open card
     history: {},        // cell id -> Promise of cells/{cell}.json
     loadSeq: 0,
+    loudDb: 75,         // the server's LOUD_EVENT_DB (cells.json `loud_event_db`)
+    reports: null,      // reports.json `reports`, or null while not loaded
+    showReports: true,
+    periodChosen: false,
   };
 
   /* ---------- small DOM helpers ---------- */
@@ -72,13 +84,30 @@
     s.hidden = !text;
   }
 
+  function dark() { return !!(darkMq && darkMq.matches); }
+  function period() { return M.PERIODS[state.period]; }
+  function blockOf(entry) { return entry ? entry[state.period] : null; }
+  function dbText(v) { return M.fmt1(v).replace(/,0$/, ""); }
+
   /* ---------- fetching ---------- */
 
-  function getJson(path) {
-    return fetch(api + path, { credentials: "omit", referrerPolicy: "no-referrer" }).then(function (r) {
+  function fetchFrom(root, path) {
+    return fetch(root + path, { credentials: "omit", referrerPolicy: "no-referrer" }).then(function (r) {
+      apiSettled = true;
       if (r.status === 404) { var e = new Error("404"); e.notFound = true; throw e; }
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
+    });
+  }
+
+  /** GET a map file. While no host has answered yet, a network failure of the first host
+   *  (no DNS record, no certificate) switches to the fallback host for the rest of the visit. */
+  function getJson(path) {
+    return fetchFrom(api, path).catch(function (e) {
+      if (apiSettled || !apiFallback || e.notFound || !(e instanceof TypeError)) throw e;
+      api = apiFallback;
+      apiFallback = null;
+      return fetchFrom(api, path);
     });
   }
 
@@ -104,6 +133,7 @@
     attributionControl: true,
   });
   map.fitBounds(START);
+  map.createPane("reports").style.zIndex = 450;   // above the cells (400), below tooltips
 
   L.tileLayer(TILES, {
     attribution: "© swisstopo",
@@ -121,19 +151,19 @@
   function valueText(metricId, block) {
     var m = M.METRICS[metricId];
     var v = m.get(block);
-    if (v === null || v === undefined) return "keine Messung";
+    if (v === null || v === undefined) return "kein Wert";
     return M.fmt1(v) + " " + m.unit;
   }
 
   function cellStyle(entry) {
-    var fill = M.colourFor(state.metric, entry.last_night);
+    var fill = M.colourFor(state.metric, blockOf(entry), dark());
     return { fillColor: fill || "#ffffff", fillOpacity: fill ? 0.78 : 0 };
   }
 
   function cellClasses(entry) {
     var c = ["cell"];
     if (!entry.calibrated) c.push("uncal");
-    if (!M.colourFor(state.metric, entry.last_night)) c.push("nodata");
+    if (!M.colourFor(state.metric, blockOf(entry))) c.push("nodata");
     if (entry.cell === state.selected) c.push("selected");
     return c.join(" ");
   }
@@ -153,7 +183,7 @@
         var e = state.byCell[entry.cell];
         if (!e) return;
         tip.setLatLng(Lv95.cellCenter(entry.cell))
-          .setContent(el("span", { text: valueText(state.metric, e.last_night) + (e.calibrated ? "" : " · unkalibriert") }));
+          .setContent(el("span", { text: valueText(state.metric, blockOf(e)) + (e.calibrated ? "" : " · unkalibriert") }));
         map.openTooltip(tip);
       });
       layer.on("mouseout", function () { map.closeTooltip(tip); });
@@ -168,13 +198,18 @@
     state.layers = {};
   }
 
+  function metricValue(entry) {
+    var v = M.METRICS[state.metric].get(blockOf(entry));
+    return v === null || v === undefined ? null : v;
+  }
+
   function drawCells() {
     clearCells();
     var cells = state.file ? state.file.cells : [];
     // quiet first, loud last, so the loud ones are drawn on top where dots overlap
     var sorted = cells.slice().sort(function (a, b) {
-      var va = M.METRICS[state.metric].get(a.last_night), vb = M.METRICS[state.metric].get(b.last_night);
-      return (va === null || va === undefined ? -1 : va) - (vb === null || vb === undefined ? -1 : vb);
+      var va = metricValue(a), vb = metricValue(b);
+      return (va === null ? -1 : va) - (vb === null ? -1 : vb);
     });
     sorted.forEach(function (entry) {
       var corners;
@@ -230,14 +265,66 @@
     if (b.isValid()) map.fitBounds(b, { padding: [24, 24], maxZoom: 15 });
   }
 
+  /* ---------- reports ---------- */
+
+  var reportLayer = L.layerGroup().addTo(map);
+
+  function drawReports() {
+    reportLayer.clearLayers();
+    var shown = state.reports && state.day ? M.reportsInPeriod(state.reports, state.day, period().days) : [];
+    shown.forEach(function (r) {
+      if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
+      var cat = M.reportCategory(r.category);
+      var text = cat.name + " · " + M.hourLabel(r.time);
+      var icon = L.divIcon({
+        className: "report report-" + cat.id,
+        html: el("span", { "aria-label": text, "data-category": cat.id, text: cat.letter }),
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+      L.marker([r.lat, r.lon], { icon: icon, pane: "reports", keyboard: false, bubblingMouseEvents: false })
+        .bindTooltip(el("span", { text: text }), { className: "cell-tip report-tip", direction: "top", offset: [0, -8], opacity: 1 })
+        .addTo(reportLayer);
+    });
+    var count = document.getElementById("reports-count");
+    if (count) {
+      count.textContent = state.reports === null ? "Meldungen werden geladen …"
+        : shown.length + (shown.length === 1 ? " Meldung" : " Meldungen") + " in diesem Zeitraum";
+    }
+  }
+
+  function drawReportLegend() {
+    var ul = document.getElementById("legend-reports");
+    clear(ul);
+    ul.appendChild(el("li", { class: "reports-head", id: "reports-count" }));
+    M.REPORT_CATEGORIES.forEach(function (c) {
+      ul.appendChild(el("li", null, [
+        el("span", { class: "report report-" + c.id, "aria-hidden": "true" }, [el("span", { text: c.letter })]),
+        c.name,
+      ]));
+    });
+    ul.hidden = !state.showReports;
+  }
+
+  document.getElementById("reports-toggle").addEventListener("change", function (e) {
+    state.showReports = e.target.checked;
+    if (state.showReports) reportLayer.addTo(map);
+    else map.removeLayer(reportLayer);
+    document.getElementById("legend-reports").hidden = !state.showReports;
+  });
+
   /* ---------- legend ---------- */
+
+  function metricTitle(m) {
+    return m.title.replace("{db}", dbText(state.loudDb));
+  }
 
   function drawLegend() {
     var m = M.METRICS[state.metric];
-    document.getElementById("legend-title").textContent = m.title;
+    document.getElementById("legend-title").textContent = metricTitle(m) + " · " + period().label;
     var bar = document.getElementById("legend-bar");
     clear(bar);
-    m.colours.forEach(function (c) {
+    (dark() && m.coloursDark ? m.coloursDark : m.colours).forEach(function (c) {
       var s = el("span");
       s.style.background = c;
       bar.appendChild(s);
@@ -245,33 +332,20 @@
     var ticks = document.getElementById("legend-ticks");
     clear(ticks);
     m.ticks.forEach(function (v) {
-      var isLsv = state.metric === "laeq";
-      var t = el("span", { class: isLsv ? "lsv" : "", "data-value": String(v), text: M.fmt1(v).replace(/,0$/, "") });
+      var t = el("span", { "data-value": String(v), text: M.fmt1(v).replace(/,0$/, "") });
       t.style.left = (M.tickPosition(state.metric, v) * 100) + "%";
       ticks.appendChild(t);
     });
-    var lsv = document.getElementById("legend-lsv");
-    clear(lsv);
-    var note = document.getElementById("legend-note");
-    if (state.metric === "laeq") {
-      lsv.hidden = false;
-      lsv.appendChild(el("li", { class: "lsv-head" }, [
-        "Nachtwerte der Lärmschutz-Verordnung (LSV) für Strassenlärm; ES heisst Empfindlichkeitsstufe:",
-      ]));
-      M.LSV_TICKS.forEach(function (t) {
-        lsv.appendChild(el("li", { "data-db": String(t.db) }, [el("b", { text: t.db + " dB" }), el("span", { text: t.text })]));
-      });
-      note.textContent = "Die Werte der Verordnung sind Beurteilungspegel Lr, mit Korrekturen und über das ganze Jahr " +
-        "beurteilt; die Karte zeigt den gemessenen LAeq einzelner Nächte – die Marken dienen der Orientierung " +
-        "und sind keine rechtliche Beurteilung.";
-    } else {
-      lsv.hidden = true;
-      note.textContent = {
-        dynamics: "Wenige dB: gleichmässiger Verkehr. Viele dB: ruhige Strasse mit einzelnen lauten Fahrzeugen.",
-        events: "Gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
-        loud: "Gezählt pro Stunde gültiger Messzeit; die Quelle erkennt die App auf dem Telefon, ohne Audio zu speichern.",
-      }[state.metric];
-    }
+    var note = {
+      laeq: "Die Farben sind bewusst neutral: Die Karte zeigt Messwerte, keine rechtliche Beurteilung. " +
+        "Die Werte der Lärmschutz-Verordnung stehen im Tagesverlauf jeder Hektare (antippen).",
+      l90: "Der Hintergrund ist der Pegel ohne die einzelnen lauten Momente.",
+      dynamics: "Wenige dB: gleichmässiger Verkehr. Viele dB: ruhige Strasse mit einzelnen lauten Fahrzeugen.",
+      events: "Gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
+      loud: "Gezählt pro Stunde gültiger Messzeit; die Quelle erkennt die App auf dem Telefon, ohne Audio zu speichern.",
+      peaks: "Gezählt pro Stunde gültiger Messzeit: Ereignisse mit einem Spitzenpegel ab " + dbText(state.loudDb) + " dB(A).",
+    }[state.metric];
+    document.getElementById("legend-note").textContent = note;
   }
 
   /* ---------- list of cells (keyboard and screen readers) ---------- */
@@ -280,20 +354,19 @@
     var ol = document.getElementById("celllist-items");
     clear(ol);
     var cells = state.file ? state.file.cells.slice() : [];
-    var get = M.METRICS[state.metric].get;
     cells.sort(function (a, b) {
-      var va = get(a.last_night), vb = get(b.last_night);
-      if (va === null || va === undefined) return 1;
-      if (vb === null || vb === undefined) return -1;
+      var va = metricValue(a), vb = metricValue(b);
+      if (va === null) return 1;
+      if (vb === null) return -1;
       return vb - va;
     });
     cells.forEach(function (c) {
       var sw = el("span", { class: "swatch", "aria-hidden": "true" });
-      sw.style.background = M.colourFor(state.metric, c.last_night) || "transparent";
+      sw.style.background = M.colourFor(state.metric, blockOf(c), dark()) || "transparent";
       var b = el("button", { type: "button", "data-cell": c.cell }, [
         sw,
         el("span", { text: c.cell + (c.calibrated ? "" : " (unkalibriert)") }),
-        el("span", { class: "val", text: valueText(state.metric, c.last_night) }),
+        el("span", { class: "val", text: valueText(state.metric, blockOf(c)) }),
       ]);
       b.addEventListener("click", function () { openCard(c.cell, true); });
       ol.appendChild(el("li", null, [b]));
@@ -311,61 +384,53 @@
     ]);
   }
 
-  function windowRows(title, w, n) {
-    if (!w || !w.nights_with_data) {
-      return el("section", { class: "card-sec" }, [
-        el("h3", { text: title }), el("p", { class: "card-note", text: "Keine Messung in diesen Nächten." }),
-      ]);
-    }
-    var span = M.spanLabel(state.night, n);
-    return el("section", { class: "card-sec" }, [
-      el("h3", null, [title, el("small", { text: span + ", " + w.nights_with_data + " von " + n + " Nächten gemessen" })]),
-      el("dl", { class: "rows" }, [
-        row("Nacht-LAeq", M.fmt1(w.laeq_db) + " dB(A)"),
-        row("Dynamik", M.fmt1(w.dynamics_db) + " dB"),
-        row("Ereignisse", M.fmt1(w.events_per_h) + " pro h"),
-      ]),
-    ]);
+  function measuredText(b, n) {
+    return M.fmtHours(b.measured_hours) + (n > 1 ? " an " + b.days_with_data + " von " + n + " Tagen" : "");
   }
 
-  function nightRows(b) {
-    var when = M.nightShort(state.night);
-    var share = b.measured_share;
+  /** Every figure of a block, each with the span it was measured in. */
+  function fullRows(b, when, n) {
+    var cats = b.events_per_h_by_category || {};
     return el("dl", { class: "rows" }, [
-      row("Nacht-LAeq", M.fmt1(b.laeq_db) + " dB(A)", when),
-      row("L90 (Hintergrund)", M.fmt1(b.l90_db) + " dB(A)", when),
-      row("L10 (laut)", M.fmt1(b.l10_db) + " dB(A)", when),
+      row("Mittlerer Pegel (LAeq)", M.fmt1(b.laeq_db) + " dB(A)", when),
+      row("Hintergrund (L90)", M.fmt1(b.l90_db) + " dB(A)", when),
+      row("Laut (L10)", M.fmt1(b.l10_db) + " dB(A)", when),
       row("Dynamik", M.fmt1(b.dynamics_db) + " dB", when),
       row("Ereignisse", M.fmt1(b.events_per_h) + " pro h", when),
-      row("Töff & Poser", M.fmt1((b.events_per_h_by_category || {}).loud_vehicle) + " pro h", when),
+      row("Töff & Poser", M.fmt1(cats.loud_vehicle) + " pro h", when),
+      row("Ab " + dbText(state.loudDb) + " dB(A)", M.fmt1(b.loud_events_per_h) + " pro h", when),
       row("Lautestes", M.fmt1(b.loudest_event_db) + " dB(A)", when),
-      row("Gemessen", M.fmtPct(share), when),
+      row("Gemessen", measuredText(b, n), when),
     ]);
   }
 
-  /** The app's night chart, redrawn from the hourly rows of cells/{cell}.json. */
-  function nightChart(hours) {
+  function shortRows(b, when, n) {
+    return el("dl", { class: "rows" }, [
+      row("Mittlerer Pegel", M.fmt1(b.laeq_db) + " dB(A)", when),
+      row("Dynamik", M.fmt1(b.dynamics_db) + " dB", when),
+      row("Ereignisse", M.fmt1(b.events_per_h) + " pro h", when),
+      row("Gemessen", measuredText(b, n), when),
+    ]);
+  }
+
+  /** The 24-hour profile of cells/{cell}.json: band L90–L10, LAeq line, the LSV reference
+   *  values as two clock-time bands, Töff & Poser per hour as small bars under the plot. */
+  function profileChart(hours) {
     var cm = M.chartModel(hours);
     if (!cm) return null;
-    var W = 320, left = 26, right = 6, top = 6, plotH = 104;
-    var maxDots = 0;
-    cm.slots.forEach(function (s) { maxDots = Math.max(maxDots, s.highlighted + s.others); });
-    var plotW = W - left - right;
-    var slotW = plotW / cm.slots.length;
-    var perRow = Math.max(1, Math.floor((slotW - 2) / 4.4));
-    var rows = Math.min(3, Math.max(1, Math.ceil(maxDots / perRow)));
-    var stripTop = top + plotH + 4, stripH = rows * 4.4 + 2;
+    var W = 320, left = 26, right = 6, top = 6, plotH = 112;
+    var stripTop = top + plotH + 4, stripH = 16;
     var axisY = stripTop + stripH + 11;
     var H = axisY + 3;
     var r = cm.range;
+    var plotW = W - left - right;
     function X(f) { return left + f * plotW; }
-    function Y(db) { return top + (r.hi - db) / (r.hi - r.lo) * plotH; }
+    function Y(db) { return top + (r.hi - Math.max(r.lo, Math.min(r.hi, db))) / (r.hi - r.lo) * plotH; }
 
     var root = svg("svg", {
-      class: "nightchart", viewBox: "0 0 " + W + " " + H.toFixed(1), role: "img",
-      "aria-label": "Nachtverlauf pro Stunde: LAeq zwischen " + M.fmt1(cm.laeqMin) + " und " + M.fmt1(cm.laeqMax) +
-        " dB(A), " + cm.eventsTotal + " Ereignisse, davon " + cm.eventsHighlighted + " Töff & Poser" +
-        (cm.gaps.length ? ", " + cm.gaps.length + " Stunden ohne Messung" : ""),
+      class: "daychart", viewBox: "0 0 " + W + " " + H.toFixed(1), role: "img",
+      "aria-label": "Tagesverlauf pro Stunde: mittlerer Pegel zwischen " + M.fmt1(cm.laeqMin) + " und " +
+        M.fmt1(cm.laeqMax) + " dB(A)" + (cm.gaps.length ? ", " + cm.gaps.length + " Stunden ohne genug Messzeit" : ""),
     });
 
     cm.grid.forEach(function (g) {
@@ -373,10 +438,20 @@
       root.appendChild(svg("text", { class: "axis", x: left - 4, y: (Y(g) + 3.5).toFixed(1), "text-anchor": "end", text: String(g) }));
     });
 
+    // LSV ES II: the band between planning value and impact limit, per clock-time range
+    cm.lsv.forEach(function (s) {
+      var x0 = X(s.x0), x1 = X(s.x1);
+      root.appendChild(svg("rect", {
+        class: "lsv-band", "data-pw": s.pw, "data-igw": s.igw,
+        x: x0.toFixed(1), y: Y(s.igw).toFixed(1), width: (x1 - x0).toFixed(1), height: (Y(s.pw) - Y(s.igw)).toFixed(1),
+      }));
+      root.appendChild(svg("line", { class: "lsv-pw", x1: x0.toFixed(1), x2: x1.toFixed(1), y1: Y(s.pw).toFixed(1), y2: Y(s.pw).toFixed(1) }));
+      root.appendChild(svg("line", { class: "lsv-igw", x1: x0.toFixed(1), x2: x1.toFixed(1), y1: Y(s.igw).toFixed(1), y2: Y(s.igw).toFixed(1) }));
+    });
+
     cm.gaps.forEach(function (s) {
       var x0 = X(s.x0), x1 = X(s.x1);
       root.appendChild(svg("rect", { class: "gap", "data-hour": s.hour, x: x0.toFixed(1), y: top, width: (x1 - x0).toFixed(1), height: plotH }));
-      root.appendChild(svg("text", { class: "gaplabel", x: ((x0 + x1) / 2).toFixed(1), y: top + plotH / 2, "text-anchor": "middle", text: "–" }));
     });
 
     // band L90–L10 and the LAeq line, one shape per run of consecutive hours with data
@@ -395,29 +470,28 @@
       root.appendChild(svg("path", { class: "laeq", d: line }));
     });
 
-    // loudest event of each hour, and one dot per event in the strip under the plot
+    // Töff & Poser per hour of measurement, scaled to the busiest hour; and a hover target per
+    // hour with its numbers (the native SVG tooltip)
+    var slotW = plotW / 24;
     cm.slots.forEach(function (s) {
-      var cx = (X(s.x0) + X(s.x1)) / 2;
-      if (s.loudest !== null && s.loudest !== undefined) {
-        root.appendChild(svg("circle", { class: "peak", cx: cx.toFixed(1), cy: Y(Math.min(r.hi, s.loudest)).toFixed(1), r: 3 }));
-      }
-      var kinds = [];
-      for (var i = 0; i < s.highlighted; i++) kinds.push(true);
-      for (var j = 0; j < s.others; j++) kinds.push(false);
-      kinds = kinds.slice(0, perRow * rows);
-      var x0 = X(s.x0) + (slotW - Math.min(kinds.length, perRow) * 4.4) / 2 + 2.2;
-      kinds.forEach(function (hl, k) {
-        root.appendChild(svg("circle", {
-          class: hl ? "dot hl" : "dot",
-          cx: (x0 + (k % perRow) * 4.4).toFixed(1),
-          cy: (stripTop + 2.2 + Math.floor(k / perRow) * 4.4).toFixed(1),
-          r: hl ? 1.9 : 1.5,
+      var x0 = X(s.x0);
+      if (s.valid && s.highlighted && cm.highlightMax > 0) {
+        var h = Math.max(1.5, s.highlighted / cm.highlightMax * stripH);
+        root.appendChild(svg("rect", {
+          class: "bar hl", "data-hour": s.hour, rx: 1,
+          x: (x0 + 1).toFixed(1), y: (stripTop + stripH - h).toFixed(1), width: (slotW - 2).toFixed(1), height: h.toFixed(1),
         }));
-      });
+      }
+      var label = s.hour + "–" + (s.hour + 1) + " Uhr: " + (s.valid
+        ? "LAeq " + M.fmt1(s.laeq) + " dB(A), L90 " + M.fmt1(s.l90) + ", L10 " + M.fmt1(s.l10) +
+          ", Töff & Poser " + M.fmt1(s.highlighted) + " pro h"
+        : "zu wenig Messzeit") + ", gemessen " + M.fmtHours(s.measuredHours);
+      root.appendChild(svg("rect", {
+        class: "hit", "data-hour": s.hour, x: x0.toFixed(1), y: top, width: slotW.toFixed(1), height: (stripTop + stripH - top).toFixed(1),
+      }, [svg("title", { text: label })]));
     });
 
-    cm.labels.forEach(function (lb, i) {
-      if (i % 2) return;
+    cm.labels.forEach(function (lb) {
       root.appendChild(svg("text", { class: "axis", x: X(lb.x).toFixed(1), y: axisY.toFixed(1), "text-anchor": "middle", text: lb.text }));
     });
     return root;
@@ -427,31 +501,37 @@
     history(cellId).then(function (h) {
       if (state.selected !== cellId) return;
       clear(sec);
-      if (h.hours_night !== state.night || !h.hours || !h.hours.length) {
-        sec.appendChild(el("h3", { text: "Verlauf der Nacht" }));
-        sec.appendChild(el("p", {
-          class: "card-note",
-          text: h.hours_night === state.night
-            ? "Für diese Nacht gibt es keine Stundenwerte."
-            : "Den Verlauf pro Stunde veröffentlicht der Server nur für die letzte Nacht (" + M.nightShort(h.hours_night) + ").",
-        }));
+      var p = h.profile;
+      var hours = p && p.hours ? p.hours : [];
+      var any = hours.some(function (x) { return x.laeq_db !== null && x.laeq_db !== undefined; });
+      if (!any) {
+        sec.appendChild(el("h3", { text: "Tagesverlauf" }));
+        sec.appendChild(el("p", { class: "card-note", text: "In den letzten 30 Tagen gibt es keine Stunde mit genug Messzeit." }));
         return;
       }
-      sec.appendChild(el("h3", null, ["Verlauf der Nacht", el("small", { text: "pro Stunde, " + M.nightShort(state.night) })]));
-      sec.appendChild(nightChart(h.hours));
+      var n = M.daysBetween(p.from, p.to) + 1;
+      sec.appendChild(el("h3", null, ["Tagesverlauf", el("small", { text: "Mittel pro Stunde, " + M.spanLabel(p.to, n) })]));
+      sec.appendChild(profileChart(hours));
       sec.appendChild(el("ul", { class: "chart-keys" }, [
         el("li", null, [el("i", { class: "k-band" }), "L90–L10"]),
         el("li", null, [el("i", { class: "k-line" }), "LAeq"]),
-        el("li", null, [el("i", { class: "k-peak" }), "lautestes Ereignis"]),
-        el("li", null, [el("i", { class: "k-hl" }), "Töff & Poser"]),
-        el("li", null, [el("i", { class: "k-dot" }), "andere Ereignisse"]),
+        el("li", null, [el("i", { class: "k-hl" }), "Töff & Poser pro h"]),
+        el("li", null, [el("i", { class: "k-lsv" }), "Lärmschutz-Verordnung"]),
       ]));
-      var missing = h.hours.filter(function (x) { return x.laeq_db === null || x.laeq_db === undefined; }).length;
-      if (missing) sec.appendChild(el("p", { class: "card-note", text: missing + (missing === 1 ? " Stunde" : " Stunden") + " mit zu wenig Messzeit (unter 30 Minuten): dort keine Linie." }));
+      var lsv = el("ul", { class: "lsv-list", id: "lsv-list" });
+      M.LSV_BANDS.forEach(function (b) { lsv.appendChild(el("li", { "data-from": String(b.from), text: b.text })); });
+      sec.appendChild(lsv);
+      sec.appendChild(el("p", { class: "card-note lsv-note", text:
+        "Die Werte der Lärmschutz-Verordnung für Strassenlärm in Wohnzonen (ES II = Empfindlichkeitsstufe II) " +
+        "sind Beurteilungspegel Lr, mit Korrekturen und über das ganze Jahr beurteilt; hier stehen gemessene " +
+        "Mittelwerte einzelner Stunden – die Bänder dienen der Orientierung und sind keine rechtliche Beurteilung." }));
+      var missing = hours.filter(function (x) { return x.laeq_db === null || x.laeq_db === undefined; }).length;
+      if (missing) sec.appendChild(el("p", { class: "card-note", text: missing + (missing === 1 ? " Stunde" : " Stunden") + " mit zu wenig Messzeit (unter 30 Minuten in 30 Tagen): dort keine Linie." }));
+      if (state.day !== p.to) sec.appendChild(el("p", { class: "card-note", text: "Der Tagesverlauf gilt immer für die 30 Tage bis zum neuesten Tag." }));
     }).catch(function (e) {
       if (state.selected !== cellId) return;
       clear(sec);
-      sec.appendChild(el("h3", { text: "Verlauf der Nacht" }));
+      sec.appendChild(el("h3", { text: "Tagesverlauf" }));
       sec.appendChild(el("p", { class: "card-note", text: e.notFound ? "Für diese Hektare gibt es keinen Verlauf." : "Der Verlauf konnte nicht geladen werden." }));
     });
   }
@@ -473,20 +553,35 @@
       (entry ? " · " + entry.devices + (entry.devices === 1 ? " Gerät" : " Geräte") : "") }));
 
     if (!entry) {
-      body.appendChild(el("p", { class: "card-note", text: "In der " + M.nightLabel(state.night) + " ist diese Hektare nicht auf der Karte." }));
+      body.appendChild(el("p", { class: "card-note", text: "In den 30 Tagen bis " + M.dayLabel(state.day) + " ist diese Hektare nicht auf der Karte." }));
     } else {
-      var b = entry.last_night;
-      var nightSec = el("section", { class: "card-sec" }, [el("h3", null, [M.nightLabel(state.night)])]);
-      if (b) nightSec.appendChild(nightRows(b));
-      else nightSec.appendChild(el("p", { class: "card-note", text: "In dieser Nacht keine Messung; unten die Mittel der Nächte davor." }));
-      body.appendChild(nightSec);
-      if (b) {
-        var chart = el("section", { class: "card-sec chart-sec" }, [el("p", { class: "card-note", text: "Verlauf wird geladen …" })]);
-        body.appendChild(chart);
-        chartSection(id, chart);
+      var n = period().days;
+      var when = M.spanLabel(state.day, n);
+      var b = blockOf(entry);
+      var sec = el("section", { class: "card-sec", id: "card-period" }, [
+        el("h3", null, [period().label, el("small", { text: M.periodLabel(state.day, n) })]),
+      ]);
+      if (b && b.days_with_data) sec.appendChild(fullRows(b, when, n));
+      else sec.appendChild(el("p", { class: "card-note", text: "In diesem Zeitraum keine Messung; unten die Werte der 30 Tage." }));
+      body.appendChild(sec);
+
+      var chart = el("section", { class: "card-sec chart-sec" }, [el("p", { class: "card-note", text: "Tagesverlauf wird geladen …" })]);
+      body.appendChild(chart);
+      chartSection(id, chart);
+
+      if (entry.day) {
+        body.appendChild(el("section", { class: "card-sec", id: "card-day" }, [
+          el("h3", null, ["Am " + M.dayLabel(state.day)]),
+          shortRows(entry.day, M.dayShort(state.day), 1),
+        ]));
       }
-      body.appendChild(windowRows("Mittel der letzten 7 Nächte", entry.last_7_nights, 7));
-      body.appendChild(windowRows("Mittel der letzten 30 Nächte", entry.last_30_nights, 30));
+      var other = state.period === "last_7_days" ? M.PERIODS.last_30_days : M.PERIODS.last_7_days;
+      var ob = entry[other.key];
+      body.appendChild(el("section", { class: "card-sec", id: "card-other" }, [
+        el("h3", null, [other.label, el("small", { text: M.periodLabel(state.day, other.days) })]),
+        ob && ob.days_with_data ? shortRows(ob, M.spanLabel(state.day, other.days), other.days)
+          : el("p", { class: "card-note", text: "Keine Messung in diesen Tagen." }),
+      ]));
       if (!entry.calibrated) {
         body.appendChild(el("p", { class: "card-note", text: "Unkalibriert: Mindestens ein Telefon hier wurde nicht mit einem Schallpegelmesser verglichen; die Pegel können um mehrere Dezibel abweichen." }));
       }
@@ -527,65 +622,88 @@
     if (e.key === "Escape" && state.selected) closeCard();
   });
 
-  /* ---------- nights ---------- */
+  /* ---------- period and days ---------- */
 
-  function setNightText(text) {
-    document.getElementById("night").textContent = text;
+  function setSpanText(text) {
+    document.getElementById("span").textContent = text;
+  }
+
+  function spanText() {
+    return M.periodLabel(state.day, period().days);
   }
 
   function updateButtons() {
     var prev = document.getElementById("prev"), next = document.getElementById("next");
     if (!state.latest) { prev.disabled = next.disabled = true; return; }
-    var back = M.daysBetween(state.night, state.latest);
-    prev.disabled = back >= HISTORY_NIGHTS - 1;
+    var back = M.daysBetween(state.day, state.latest);
+    prev.disabled = back >= HISTORY_DAYS - 1;
     next.disabled = back <= 0;
   }
 
-  function showFile(file, night) {
+  function showFile(file, day) {
     state.file = file;
-    state.night = night;
+    state.day = day;
     state.byCell = {};
     (file ? file.cells : []).forEach(function (c) { state.byCell[c.cell] = c; });
-    setNightText(M.nightLabel(night));
+    setSpanText(spanText());
     drawCells();
+    drawReports();
     if (state.selected) renderCard();
     updateButtons();
   }
 
-  function loadNight(night) {
+  function emptyText() {
+    return state.period === "last_7_days" ? "In diesen 7 Tagen keine Messwerte." : "In diesen 30 Tagen keine Messwerte.";
+  }
+
+  function loadDay(day) {
     var seq = ++state.loadSeq;
-    state.night = night;
-    setNightText(M.nightLabel(night) + " – wird geladen …");
+    state.day = day;
+    setSpanText(spanText() + " – wird geladen …");
     updateButtons();
-    var path = night === state.latest ? "cells.json" : "nights/" + night + ".json";
+    var path = day === state.latest ? "cells.json" : "days/" + day + ".json";
     return getJson(path).then(function (file) {
       if (seq !== state.loadSeq) return;
-      showFile(file, night);
-      setStatus(file.cells && file.cells.length ? "" : "In dieser Nacht keine Messwerte.");
+      showFile(file, day);
+      setStatus(file.cells && file.cells.length ? "" : emptyText());
     }).catch(function (e) {
       if (seq !== state.loadSeq) return;
-      showFile(null, night);
-      if (e.notFound) setNightText(M.nightLabel(night) + " – keine Daten");
-      setStatus(e.notFound ? "Für diese Nacht hat der Server keine Daten." : "Die Messwerte konnten nicht geladen werden (" + e.message + ").");
+      showFile(null, day);
+      if (e.notFound) setSpanText(spanText() + " – keine Daten");
+      setStatus(e.notFound ? "Für diesen Tag hat der Server keine Daten." : "Die Messwerte konnten nicht geladen werden (" + e.message + ").");
     });
   }
 
   document.getElementById("prev").addEventListener("click", function () {
-    if (state.night) loadNight(M.addDays(state.night, -1));
+    if (state.day) loadDay(M.addDays(state.day, -1));
   });
   document.getElementById("next").addEventListener("click", function () {
-    if (state.night && state.night !== state.latest) loadNight(M.addDays(state.night, 1));
+    if (state.day && state.day !== state.latest) loadDay(M.addDays(state.day, 1));
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll('#metric input[name="metric"]'), function (input) {
-    input.addEventListener("change", function () {
-      if (!input.checked) return;
-      state.metric = input.value;
-      drawLegend();
-      drawCells();
-      if (state.selected) renderCard();
+  function onRadio(name, apply) {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="' + name + '"]'), function (input) {
+      input.addEventListener("change", function () {
+        if (!input.checked) return;
+        apply(input.value);
+        drawLegend();
+        drawCells();
+        if (state.selected) renderCard();
+      });
     });
+  }
+  onRadio("metric", function (v) { state.metric = v; });
+  onRadio("period", function (v) {
+    state.period = v;
+    state.periodChosen = true;
+    if (state.day) setSpanText(spanText());
+    drawReports();
+    if (state.file && !state.file.cells.length) setStatus(emptyText());
   });
+
+  if (darkMq && darkMq.addEventListener) {
+    darkMq.addEventListener("change", function () { drawLegend(); restyleCells(); fillList(); });
+  }
 
   function showNetwork(file) {
     var n = file && file.network;
@@ -598,25 +716,51 @@
       (models.length ? " (" + models.join(", ") + ")" : "") + ". Stand der Daten: " + M.stampLabel(file.generated_at) + ".";
   }
 
+  function setLoudDb(v) {
+    if (typeof v !== "number" || !isFinite(v)) return;
+    state.loudDb = v;
+    Array.prototype.forEach.call(document.querySelectorAll(".loud-db"), function (s) { s.textContent = dbText(v); });
+  }
+
   /* ---------- start ---------- */
 
   drawLegend();
+  drawReportLegend();
   renderCard();
   getJson("cells.json").then(function (file) {
-    if (!M.isDate(file.night)) throw new Error("cells.json ohne Nacht");
-    state.latest = file.night;
-    showFile(file, file.night);
+    if (!M.isDate(file.day)) throw new Error("cells.json ohne Tag");
+    state.latest = file.day;
+    // the server's default period, unless the visitor already chose one while the file loaded
+    if (!state.periodChosen && file.default_period && M.PERIODS[file.default_period]) {
+      state.period = file.default_period;
+      var radio = document.querySelector('input[name="period"][value="' + state.period + '"]');
+      if (radio) radio.checked = true;
+    }
+    setLoudDb(file.loud_event_db);
+    drawLegend();
+    showFile(file, file.day);
     showNetwork(file);
     fitToCells();
     setStatus(file.cells.length ? "" : "Noch keine Messwerte auf der Karte.");
     mapEl.setAttribute("data-ready", "1");
+    return getJson("reports.json").then(function (r) {
+      state.reports = Array.isArray(r.reports) ? r.reports : [];
+      drawReports();
+      mapEl.setAttribute("data-reports", String(state.reports.length));
+    }).catch(function () {
+      state.reports = [];
+      drawReports();
+      var c = document.getElementById("reports-count");
+      if (c) c.textContent = "Die Meldungen konnten nicht geladen werden.";
+      mapEl.setAttribute("data-reports", "error");
+    });
   }).catch(function (e) {
-    setNightText("keine Daten");
+    setSpanText("keine Daten");
     setStatus("Die Messwerte konnten nicht geladen werden" + (e.notFound ? "." : " (" + e.message + ")."));
     updateButtons();
     mapEl.setAttribute("data-ready", "error");
   });
 
-  // for the Playwright tests: the map and the layer of each cell
-  window.__karte = { map: map, state: state };
+  // for the Playwright tests: the map and the state
+  window.__karte = { map: map, state: state, reportLayer: reportLayer };
 })();

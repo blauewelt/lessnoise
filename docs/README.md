@@ -10,19 +10,23 @@ spelling, system fonts, no third-party requests — except on the map page, whic
 | `update.html` | Update check opened by the app (`#v=…&c=…&e=offline` or `karte`; one inline script, pinned by hash in its CSP) |
 | `karte.html` | The noise map ([../server/DESIGN.md](../server/DESIGN.md) §7) |
 | `map/lv95.js` | WGS84 ↔ Swiss LV95 and hectare cell ids (§3), pure functions |
-| `map/model.js` | Pure helpers of the map: wording, colour scales, the card's night-chart model |
-| `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, card, date control) |
+| `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
+| `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
 | `img/`, `download/` | Screenshots; `download/stadtlaerm.apk`, the signed Offline-Version as a fallback for old links (the download buttons link the GitHub Release assets `stadtlaerm.apk` and `stadtlaerm-karte.apk`) |
 
 ## The map page
 
-- Reads `cells.json`, `nights/{date}.json` and `cells/{cell}.json` from the URL in the map
-  element's `data-api` attribute (default `https://api.stadtlaerm.ch/v1/map/`). The page's CSP
-  allows `connect-src` only to that host, so a different API host needs a CSP change too.
+- Reads `cells.json`, `days/{date}.json`, `cells/{cell}.json` and `reports.json` from the URL
+  in the map element's `data-api` attribute (`https://api.lessnoise.ch/v1/map/`); if that host
+  cannot be reached at all before it has answered once, it switches to `data-api-fallback`
+  (`https://api.stadtlaerm.ch/v1/map/`, the same server) for the rest of the visit. The page's
+  CSP allows `connect-src` only to these two hosts, so a different API host needs a CSP change
+  too. Remove the fallback and its CSP entry once api.lessnoise.ch has served the map for a while.
 - Tiles: swisstopo `ch.swisstopo.pixelkarte-grau` (Web Mercator), credit «© swisstopo».
-- The formats are those of `server/example_cells.json` and `server/example_cell.json`, which
-  the server's tests check against the real publisher.
+- The formats are those of `server/example_cells.json`, `server/example_cell.json` and
+  `server/example_reports.json`, which the server's tests check against the real publisher.
+- No word «Nacht» on the map: the unit tests check `karte.html` and `map/*`.
 
 ## Before committing a change to the map
 

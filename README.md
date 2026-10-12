@@ -33,8 +33,9 @@ internet permission at all, and from v0.5.0 neither has the default
 **Offline-Version** (`stadtlaerm.apk`). The **Karten-Version** (`stadtlaerm-karte.apk`, same app id,
 installs over the other and keeps the data) uses the internet for exactly one thing, the opt-in upload «Messwerte teilen» described
 in [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until switched on, minute and event
-numbers plus a 100 m hectare (never coordinates, never the raw classifier labels), to one host
-(`api.stadtlaerm.ch`, in Switzerland), through one network class
+numbers plus a 100 m hectare (never coordinates, never the raw classifier labels), to the
+project's server in Switzerland (`api.lessnoise.ch`; `api.stadtlaerm.ch` for app versions up to
+0.5.1, the same server), through one network class
 (`android/app/src/main/kotlin/ch/stadtlaerm/app/upload/UploadClient.kt`), with no third-party SDK;
 deletable on the server from the app at any time, and deleted by the server automatically after
 60 days without uploads. From v0.5.1 the Karten-Version also has the location permission
@@ -42,6 +43,11 @@ deletable on the server from the app at any time, and deleted by the server auto
 the placement step: one fix from Android's own location service, turned into the hectare on the
 phone; the coordinates are neither stored nor sent, and location is never read in the background
 (no `ACCESS_BACKGROUND_LOCATION`). The Offline-Version has no location permission.
+On the server (schema v3) a minute or event may carry its own hectare instead of the site's,
+and manual reports of a loud vehicle are stored with their point and published on the
+map at that point, with the time rounded down to the full hour and no device id
+([PRIVACY.md](PRIVACY.md), «On the server»). The map shows per-hectare figures per calendar day
+(all hours), not per night.
 [PRIVACY.md](PRIVACY.md) explains how the code keeps these promises and how to check them.
 
 ## Usage numbers
@@ -52,9 +58,9 @@ What the project counts, and who counts it — totals over the whole project, al
   Pages), which reports nothing. `python3 scripts/download_stats.py` reads GitHub Release download
   counts, should a version ever also be attached to a GitHub Release.
 - **Sharing:** the server publishes [`stats.json`](https://api.stadtlaerm.ch/v1/map/stats.json)
-  with the map files ([server/DESIGN.md](server/DESIGN.md) §6.4): devices registered, with a
+  with the map files ([server/DESIGN.md](server/DESIGN.md) §6.5): devices registered, with a
   hectare, ever shared, active in 7/30 days, deleted, deleted by the server after 60 days without
-  uploads; hectares on the map; shared device-nights; app versions of active devices; registrations
+  uploads; hectares on the map; shared device-days; app versions of active devices; registrations
   per ISO week. Computed from the data the map already
   uses; no ids, no places, no IP addresses.
 - `python3 scripts/usage_report.py` prints both in one short report.
@@ -92,14 +98,16 @@ What the project counts, and who counts it — totals over the whole project, al
   itself with «Standort bestimmen» (location permission, one fix on tap, coordinates neither stored
   nor sent); pasting coordinates remains as a second way. The Offline-Version is unchanged and has
   no location permission.
-- **Noise map and server:** the contribution server ([server/](server/)) runs at
-  `api.stadtlaerm.ch` (in Switzerland); the map page `docs/karte.html` is on the website and covers all of Switzerland.
+- **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
+  `api.stadtlaerm.ch` and, once its DNS record exists, `api.lessnoise.ch` (the same server); the
+  map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30
+  days per hectare with a 24-hour profile, and the manual reports as points.
 - The app passes its JVM unit tests and JVM renders but is not yet validated on many devices. Download at
   [wenigerlaerm.ch](https://wenigerlaerm.ch); changes in [android/CHANGELOG.md](android/CHANGELOG.md).
 - **Windowsill sensor:** planned, see [firmware/README.md](firmware/README.md).
 
 Bug reports and measurements from different phone models are welcome as
-[GitHub issues](https://github.com/blauewelt/stadtlaerm/issues).
+[GitHub issues](https://github.com/blauewelt/lessnoise/issues).
 
 ## License
 

@@ -1,17 +1,20 @@
-# Stadtlärm – shared noise map: data model, contribution API, map
+# Weniger Lärm – shared noise map: data model, contribution API, map
 
-Status: design, 2026-10-08. This document is the contract between the three parts that
-make the shared map: the **app** (sends), the **server** (stores and aggregates) and the
-**website** (shows). Each part is built against this file; when one of them needs a
-change, this file changes first.
+Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
+reports) 2026-10-12. This document is the contract between the three parts that make the
+shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
+(shows). Each part is built against this file; when one of them needs a change, this file
+changes first.
 
 ## 1. What the map is for
 
-A city-wide, resident-run picture of night-time road noise in Zürich: where it is loud,
-where it is *bursty* (quiet street, loud single motorbikes), how many loud single events
-per hour, and how that changes over weeks. It is meant to be shown to the city's
-Team Strassenlärm and to neighbours — so every number on it must be reproducible from
-the stored data, and the stored data must be explainable to the person who contributed it.
+A resident-run picture of road noise in Switzerland: where it is loud, where it is *bursty*
+(quiet street, loud single motorbikes), how many loud single events per hour, at which hours
+of the day, and how that changes over weeks — plus the places where people reported a loud
+passing vehicle by hand. No time of day is special: someone may measure all day, only in the
+evening or only at night, and every measured hour counts the same. It is meant to be shown to
+the authorities and to neighbours — so every number on it must be reproducible from the stored
+data, and the stored data must be explainable to the person who contributed it.
 
 ## 2. Privacy rules (not optional)
 
@@ -22,49 +25,72 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
    surface for no gain.
-2. **No precise location.** The contributor places the sensor **once**, in the app: from
-   app v0.5.1 by tapping «Standort bestimmen» (one location fix from Android's own location
-   service while the screen is open; the Karten-Version asks for the location permission for
-   this button only), or by pasting coordinates. The app snaps that point to a **Swiss hectare
-   cell** (the 100 m × 100 m grid of the national LV95 coordinate system, the same grid the
-   Federal Statistical Office publishes population on) *before* anything is sent and keeps
-   only the cell id; the coordinates are neither stored nor sent. The server never sees
-   coordinates, only cell ids. Location is never read in the background (no
-   `ACCESS_BACKGROUND_LOCATION`, no request outside that button); the Offline-Version has no
-   location permission.
+2. **Measurements carry a hectare, never coordinates.** A measurement is placed on a **Swiss
+   hectare cell** (the 100 m × 100 m grid of the national LV95 coordinate system, the same
+   grid the Federal Statistical Office publishes population on, §3). The app turns any
+   location into the cell id on the phone *before* anything is sent; for measurements the
+   server never receives coordinates, only cell ids: the cell of the site (§4.2) and, from
+   schema v3, optionally a cell per minute or event record (§4.3, §4.4) for a contributor who
+   measures in more than one place. How and when the app reads the location for this is the
+   app's part and is described in PRIVACY.md and android/README.md; the server's guarantee is
+   that a measurement row holds at most a hectare id. A contributor who measures in several
+   places appears on the map in several hectares, each with its own days and hours, never
+   linked to each other (no device id is published) — but with `MIN_DEVICES_PER_CELL = 1` a
+   reader who knows that one person measures in a sparse area could follow that person's
+   hectares day by day. The app must say this before the first upload with record cells.
 3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»),
    off until the contributor switches it on in a screen that lists exactly what leaves the
    phone, what never does, and where it goes. Switching it off stops uploads at once.
 4. **Delete means delete.** «Meine Daten auf dem Server löschen» removes every row for
-   the device, synchronously, and the server answers only after the rows are gone. The
-   published aggregates are rebuilt on the next cycle without them.
+   the device — site, minutes, events, hourly rows and reports — synchronously, and the server
+   answers only after the rows are gone. The published files are rebuilt on the next cycle
+   without them.
 5. **No account, no identity.** A device gets a random id and a secret token at opt-in.
    The id is never shown on the public map. «Neue Kennung» in settings deletes the server
    data and starts a fresh id.
-6. **Only aggregates are public.** The website never fetches per-device rows. The server
-   publishes per-cell aggregates (section 6). The minimum number of devices per shown cell
-   is a server parameter `MIN_DEVICES_PER_CELL`, **default 1**: a lone contributor who
-   opted in, snapped to a hectare with dozens of households, is showing their own street's
-   noise, which is the point of the project. Raise it later if the network grows and the
-   map becomes dense enough that it would not go blank.
-7. **Swiss hosting.** The server runs in Switzerland (see section 8). The website's main
-   page still loads nothing from third parties; the map page is the one exception and says
-   so (swisstopo tiles and our own API host only; see section 7).
-8. **Minimisation on publish.** Event times are published at hour resolution (counts and
-   peak per hour), never as a per-second list. Device models are published only as counts
-   per model over the whole network («Beteiligte Geräte»), never per cell. The usage figures
-   of `stats.json` (§6.4) are likewise whole-network counts only.
+6. **Measurements are public only as aggregates.** The website never fetches per-device rows.
+   The server publishes per-cell, per-day aggregates (section 6). The minimum number of devices
+   per shown cell is a server parameter `MIN_DEVICES_PER_CELL`, **default 1**: a lone
+   contributor who opted in, snapped to a hectare with dozens of households, is showing their
+   own street's noise, which is the point of the project. Raise it later if the network grows
+   and the map becomes dense enough that it would not go blank. Manual reports are the one
+   exception and have their own rule (10).
+7. **Swiss hosting.** The server runs in Switzerland (see section 8), under two host names
+   for the same machine (`api.lessnoise.ch`, and `api.stadtlaerm.ch` for app versions up to
+   0.5.1 and while the website moves). The website's main page still loads nothing from third
+   parties; the map page is the one exception and says so (swisstopo tiles and our own API
+   host only; see section 7).
+8. **Minimisation on publish.** Event times are published only as counts per day and per
+   clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
+   (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,
+   not on which day. Report times are rounded down to the full hour (rule 10). Device models
+   are published only as counts per model over the whole network («Beteiligte Geräte»), never
+   per cell. The usage figures of `stats.json` (§6.5) are likewise whole-network counts only.
 9. **Data of a silent device does not stay.** When no authenticated request has arrived
    from a device for 60 days (`INACTIVE_DELETE_DAYS`), the server deletes every row of it,
-   exactly as in rule 4, and the map is rebuilt without it. «Without uploads» means: the
-   device's `last_seen_at` (set on every authenticated request; `created_at` if there never
-   was one) is older than the cutoff. This covers the people who cannot or do not press
-   «Löschen»: who switched to the Offline-Version (no internet permission, so it cannot
-   delete), uninstalled the app, lost the phone, or switched sharing off and forgot. It
-   strengthens the rules above: nothing is kept about a person who has stopped
-   contributing, and no data outlives the contribution by more than 60 days. What remains is
-   +1 on the anonymous counter `devices_expired` (§6.4). The app then gets `401` and asks
-   for «Neue Kennung», which starts over with a fresh id.
+   reports included, exactly as in rule 4, and the map is rebuilt without it. «Without
+   uploads» means: the device's `last_seen_at` (set on every authenticated request;
+   `created_at` if there never was one) is older than the cutoff. This covers the people who
+   cannot or do not press «Löschen»: who switched to the Offline-Version (no internet
+   permission, so it cannot delete), uninstalled the app, lost the phone, or switched sharing
+   off and forgot. It strengthens the rules above: nothing is kept about a person who has
+   stopped contributing, and no data outlives the contribution by more than 60 days. What
+   remains is +1 on the anonymous counter `devices_expired` (§6.5). The app then gets `401`
+   and asks for «Neue Kennung», which starts over with a fresh id.
+10. **Manual reports are published at the reported point, an hour, and nothing else.** A
+    report (§4.7) is the contributor's explicit statement «here, now, a loud motorbike / car /
+    lorry / poser passed». Its place *is* its content, so the server stores the point
+    (rounded to 5 decimals of a degree, ≈ 1 m) and publishes it in `reports.json` (§6.4) as it
+    was reported — not snapped to a hectare. What is published per report is exactly: the
+    point, the category, and the time **rounded down to the full hour**. Never published: the
+    device id, the exact time, the location accuracy, any link between two reports. Within an
+    hour the reports are sorted by place, not by time or device, so the order reveals no
+    sequence (§6.4). Only the last 30 days are published; reports of hidden devices are left
+    out; `MIN_DEVICES_PER_CELL` does not apply (a report is a statement, not a measurement of
+    someone's home). The raw report is deleted with the device (rules 4, 9) and at the latest
+    after 2 years (§5). Risk that remains, and that the app must say on its report screen:
+    someone who reports often from the same spot (their balcony, their front door) makes that
+    spot visible on the map as a cluster of points, at hour resolution.
 
 ## 3. Cell ids
 
@@ -92,10 +118,13 @@ Cell → polygon for display: the four corners (E, N), (E+100, N), (E+100, N+100
 converted to WGS84; drawn as a quadrilateral (it is not quite a square in Web Mercator and
 that is fine).
 
+
 ## 4. What the app sends
 
 All timestamps are ISO-8601 with zone offset, as in the CSV export. Levels in dB(A), one
-decimal. JSON, gzip-compressed request bodies, idempotent on `(device_id, start)`.
+decimal. JSON, optionally gzip-compressed request bodies (`Content-Encoding: gzip`),
+idempotent on `(device_id, start)` (reports: `(device_id, time)`). Base URL: new app versions
+use `https://api.lessnoise.ch`; `https://api.stadtlaerm.ch` answers identically (§8).
 
 ### 4.1 Device (`POST /v1/devices`)
 
@@ -132,6 +161,7 @@ calibration id they were measured with — that is enough to reason about calibr
 ```json
 {
   "start": "2026-10-07T23:14:00+02:00",
+  "cell": "h26824_12473",          // optional (schema v3): the hectare this minute was measured in
   "duration_s": 60.0,
   "valid_s": 59.5,
   "coverage": 0.992,
@@ -146,8 +176,17 @@ calibration id they were measured with — that is enough to reason about calibr
 }
 ```
 
-Response: `{ "accepted": n, "duplicates": m }`. A record whose `start` already exists for
-the device replaces the stored one (re-evaluation after a calibration sends the night again).
+**`cell`** (optional, from schema v3): the hectare id of §3, same format as the site's `cell`
+(`^h\d{5}_\d{5}$`), inside the LV95 box used for site cells (E 2 480 000–2 840 000,
+N 1 070 000–1 300 000). If present it determines the record's cell and is stored with the
+row; if absent (apps up to 0.5.1) the record counts for the device's **current** site cell
+when the map is built. A record with a malformed or out-of-range cell is rejected
+(`{field: "cell", reason}`); the other records of the batch are stored. A device without a
+site may send records that all carry a cell; records with neither are stored but not shown.
+
+Response: `{ "accepted": n, "duplicates": m, "rejected": [ {index, start, reasons}, … ] }`.
+A record whose `start` already exists for the device replaces the stored one, its cell
+included (re-evaluation after a calibration sends the day again).
 
 ### 4.4 Events (`POST /v1/devices/{id}/events`)
 
@@ -156,6 +195,7 @@ Array of up to 2 000 events:
 ```json
 {
   "start": "2026-10-07T23:14:12.375+02:00",
+  "cell": "h26824_12473",          // optional (schema v3), as for minutes
   "duration_s": 2.75,
   "lafmax_db": 71.4,
   "sel_db": 74.0,
@@ -174,11 +214,13 @@ the threshold over the 5-min background (default 10 dB). Events the app flags as
 microphone (detector v2) are not sent, just as the app leaves them out of its own counts; the
 minutes' `event_count` (§4.3) likewise counts events without wind.
 
-Idempotent on `(device_id, start)`; same replace rule as minutes.
+`cell` follows the rule of §4.3. Idempotent on `(device_id, start)`; same replace rule as
+minutes.
 
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
 
-Deletes the device, its site, minutes and events in one transaction. Response `204`.
+Deletes the device, its site, minutes, events, hourly rows and reports in one transaction.
+Response `204`. Never rate limited.
 
 ### 4.6 Upload cadence in the app
 
@@ -186,44 +228,89 @@ While «Messwerte teilen» is on: at the end of every full hour and when a measu
 the app sends all minutes and events newer than the last acknowledged `start`, in batches,
 over Wi-Fi or mobile data (setting «nur über WLAN», default on). Failures are retried with
 backoff; nothing is lost because the local database is the source of truth. The settings
-screen shows «Zuletzt gesendet: …» and the number of minutes still to send.
+screen shows «Zuletzt gesendet: …» and the number of minutes still to send. Reports are sent
+with the next upload (the app agent documents the details in android/README.md).
+
+### 4.7 Reports (`POST /v1/devices/{id}/reports`)
+
+A manual report: the contributor reports in the app that a loud vehicle is passing here and now. Bearer
+auth and rate limit as for the other calls; body = JSON array of at most **50** reports:
+
+```json
+{
+  "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
+  "lat": 47.355312,                      // WGS84 degrees
+  "lon": 8.535549,
+  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 200 m
+  "category": "motorrad"                 // motorrad | auto | lastwagen | poser | andere
+}
+```
+
+Validation, per report (a bad one is skipped and listed in `rejected` as
+`{index, time, reasons: [{field, reason}]}`, the others are stored):
+
+- `time` with a zone offset, not more than `MAX_RECORD_AGE_DAYS` (7) days old and not more
+  than `CLOCK_SKEW_S` (600 s) in the future — the rule of minutes and events;
+- the point inside Switzerland: first the WGS84 box of the map (lat 45.8–47.85,
+  lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
+  border areas of neighbouring countries inside that box are accepted, as for site cells;
+- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields.
+
+Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
+`accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds.
+Idempotent on `(device_id, time)`: the same time again counts as a duplicate and replaces the
+stored report. Response like minutes: `{accepted, duplicates, rejected}`.
 
 ## 5. Server storage (SQLite)
 
 ```
-devices(id TEXT PK, token_hash TEXT, app_version TEXT, created_at, last_seen_at, hidden INT DEFAULT 0)
+devices(id TEXT PK, token_hash TEXT, app_version TEXT, app_build INT, created_at, last_seen_at, hidden INT DEFAULT 0)
 sites(device_id PK→devices, cell TEXT, placement TEXT, floor INT, street_facing INT,
       device_model TEXT, audio_source TEXT, calibrated INT, calibration_offset_db REAL,
       note TEXT, updated_at)
 minutes(device_id, start_utc INT, start_iso TEXT, … all fields of 4.3 …, received_at,
+        cell TEXT NULL,                    -- v3; NULL = the device's site cell
         PRIMARY KEY(device_id, start_utc))
 events(device_id, start_utc INT, start_iso TEXT, … all fields of 4.4 …, received_at,
+       cell TEXT NULL,                     -- v3; NULL = the device's site cell
        PRIMARY KEY(device_id, start_utc))
-counters(name TEXT PK, value INT)          -- schema v2; 'devices_deleted', 'devices_expired' (§6.4)
+hourly(device_id, hour_utc INT, cell TEXT DEFAULT '', valid_s, valid_minutes, laeq_db, l90_db,
+       l10_db, dynamics_db, events TEXT, loudest_db, calibrated,
+       PRIMARY KEY(device_id, hour_utc, cell))   -- v3: cell in the key, '' = the site cell
+reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m REAL,
+        category TEXT, received_at, PRIMARY KEY(device_id, time_utc))   -- v3
+counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
 ```
 
 `token_hash` is SHA-256 of the token; the token itself is never stored. `hidden` lets the
-operator keep a misbehaving device out of the aggregates without deleting the data (it is
-still deletable by its owner). Indexes on `minutes(start_utc)`, `events(start_utc)`,
-`sites(cell)`.
+operator keep a misbehaving device out of the aggregates and out of `reports.json` without
+deleting the data (it is still deletable by its owner). Indexes on `minutes(start_utc)`,
+`events(start_utc)`, `reports(time_utc)`, `sites(cell)`.
 
-Retention: raw minutes and events are kept for 2 years, then reduced to the hourly
-aggregates of section 6 (a nightly job).
+**Migration v2 → v3** (runs at startup, one transaction): `ALTER TABLE minutes/events ADD
+COLUMN cell` (existing rows: NULL, i.e. the site cell, exactly what they meant before);
+`hourly` is rebuilt with `cell` in its primary key (a `WITHOUT ROWID` key cannot be altered),
+existing rows copied with `cell = ''`; new table `reports`. No row is lost or changed.
+
+Retention: raw minutes and events are kept for 2 years (`RETENTION_DAYS`), then reduced to
+per-device hourly rows (one per device, UTC hour and hectare; the arithmetic of
+`aggregate.summarize_hour`) by the daily job, and deleted. Raw reports older than 2 years are
+deleted without any reduction.
 
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
-60; 0 disables) days old is deleted with all its rows (minutes, events, hourly, sites,
-devices), one transaction per device, hidden devices included. The transaction re-reads the
-time under a write lock, so a device that uploads while the job runs is kept. Each deletion
-adds 1 to the counter `devices_expired`, kept apart from `devices_deleted` (deletions the
-device asked for). The job logs one line with the count, never an id. If any device expired,
-the map is republished at once. Because the 2-year retention only applies to devices that
-keep sending, it now matters only for long-running contributors.
+60; 0 disables) days old is deleted with all its rows (minutes, events, hourly, reports,
+sites, devices), one transaction per device, hidden devices included. The transaction
+re-reads the time under a write lock, so a device that uploads while the job runs is kept.
+Each deletion adds 1 to the counter `devices_expired`, kept apart from `devices_deleted`
+(deletions the device asked for). The job logs one line with the count, never an id. If any
+device expired, the map is republished at once. Because the 2-year retention only applies to
+devices that keep sending, it now matters only for long-running contributors.
 
-`last_seen_at` is updated by every authenticated request (site, minutes, events), including
-one that carries no records (an empty list). This is accepted: only the holder of the
-device's token can make such a request, so a device can only keep *its own* data alive, and
-the app never makes one — it calls the server only when the site changed or there are
+`last_seen_at` is updated by every authenticated request (site, minutes, events, reports),
+including one that carries no records (an empty list). This is accepted: only the holder of
+the device's token can make such a request, so a device can only keep *its own* data alive,
+and the app never makes one — it calls the server only when the site changed or there are
 records to send (`android/…/upload/Uploader.kt`). A rate-limited request (429) is refused
 before `last_seen_at` is touched.
 
@@ -232,56 +319,138 @@ Backups: nightly SQLite `.backup` to encrypted object storage in Switzerland, 30
 ## 6. Published aggregates (what the website reads)
 
 Rebuilt every 10 minutes and written as static JSON files served with
-`Cache-Control: max-age=300` under `/v1/map/`. The website only ever reads these.
+`Cache-Control: max-age=300` under `/v1/map/` (on both API hosts). The website only ever reads
+these. Times are Europe/Zurich local time with offset.
+
+**Days, not nights.** The unit is the **calendar day in local time** (Europe/Zurich): 00:00 to
+00:00, so 24 h, or 23 h / 25 h on the days the clocks change, all hours. A record belongs to
+the day its start falls in, and to its cell (its own, else the site's, §4.3); a measurement
+over midnight counts for both days, each with its own minutes. The newest day is **today**
+(still running; the files are rebuilt every 10 minutes), so a contributor sees today's data on
+the map within minutes.
+
+**Per device and day** (the app's rules, with the 22–6 h restriction removed):
+
+- a minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq;
+- `laeq_db` = energy mean of the valid minutes' LAeq, weighted by their valid seconds;
+- `l90_db` / `l10_db` = median over the valid minutes of the minute L90 / L10;
+- `dynamics_db` = median over the valid minutes of (L10 − L90);
+- `measured_hours` = valid seconds / 3600;
+- `events_per_h` (and per category) = events of the day in the cell / measured hours;
+- `loud_events` = events with `lafmax_db ≥ LOUD_EVENT_DB` (server setting, default 75 dB(A));
+  `loud_events_per_h` = that / measured hours; `loudest_event_db` = the largest LAFmax.
+
+**Several devices in one cell and day:** levels are the energy mean of the device values,
+rates and counts the arithmetic mean over the devices (so two phones side by side do not
+double the hours or the motorbikes), dynamics the median of the device medians, the loudest
+event the maximum. A cell-day needs at least `MIN_DEVICES_PER_CELL` devices.
+
+**Windows** (`last_7_days`, `last_30_days`, ending with the file's day): each day with data
+counts once — energy mean of the daily levels, median of the daily dynamics, mean of the daily
+rates, sums of `measured_hours` and `loud_events`, the maximum of the loudest events, distinct
+devices over the window. A day with one measured hour weighs as much as one with 24 (as nights
+did); `measured_hours` and `days_with_data` say how much stands behind a value.
+
+The arithmetic is one pure module (`server/stadtlaerm_server/aggregate.py`) with tests for a
+measurement over midnight and both DST days.
 
 ### 6.1 `cells.json` — the map
 
+Every block (a day, a window) has the same keys, so the map can colour any metric for any
+period:
+
 ```json
 {
-  "generated_at": "2026-10-08T06:40:00+02:00",
-  "night": "2026-10-07",                 // the night 22:00 of this date → 06:00 next day
+  "generated_at": "2026-10-08T18:40:00+02:00",
+  "day": "2026-10-08",                      // today: the last day of both windows
+  "default_period": "last_7_days",          // what the map shows first
+  "periods": {
+    "last_7_days":  { "from": "2026-10-02", "to": "2026-10-08", "days": 7 },
+    "last_30_days": { "from": "2026-09-09", "to": "2026-10-08", "days": 30 }
+  },
   "min_devices_per_cell": 1,
+  "loud_event_db": 75.0,                    // LOUD_EVENT_DB
   "cells": [
     {
-      "cell": "h26824_12473",
-      "devices": 1,
-      "calibrated": true,                // all contributing devices calibrated
-      "last_night": {
-        "laeq_db": 46.8, "l90_db": 37.2, "l10_db": 49.9,
-        "dynamics_db": 11.5,             // median over valid minutes of (L10 − L90)
-        "events_per_h": 7.3,
-        "events_per_h_by_category": { "loud_vehicle": 1.1, "road_traffic": 4.9, "…": 0 },
-        "loudest_event_db": 84.1,
-        "measured_share": 0.97           // valid time / night length
+      "cell": "h26828_12455",
+      "devices": 2,                         // distinct devices in the 30 days
+      "calibrated": true,                   // all of them calibrated
+      "day": {                              // today, or null if no data today
+        "laeq_db": 58.3, "l90_db": 55.8, "l10_db": 60.6, "dynamics_db": 5.5,
+        "events_per_h": 7.1,
+        "events_per_h_by_category": { "loud_vehicle": 1.4, "road_traffic": 5.2, "rail_tram": 0.0,
+          "aircraft": 0.0, "construction": 0.0, "voices": 0.4, "music": 0.0, "unclassified": 0.0 },
+        "loud_events_per_h": 1.2, "loud_events": 20.5, "loudest_event_db": 88.3,
+        "measured_hours": 17.2, "days_with_data": 1, "devices": 2, "calibrated": true
       },
-      "last_7_nights": { "laeq_db": 47.1, "dynamics_db": 10.9, "events_per_h": 6.8,
-                         "nights_with_data": 6 },
-      "last_30_nights": { "…same…": 0 }
+      "last_7_days":  { "laeq_db": 59.1, "…": "same keys", "measured_hours": 160.0, "days_with_data": 7 },
+      "last_30_days": { "laeq_db": 58.9, "…": "same keys", "measured_hours": 709.4, "days_with_data": 30 }
     }
   ],
-  "network": { "devices_active_7d": 14, "device_models": { "Pixel 8": 3, "…": 1 } }
+  "network": { "devices_active_7d": 30, "device_models": { "Pixel 8": 13, "…": 1 } }
 }
 ```
 
-Night rules are the app's: a night is 22:00–06:00 local (Europe/Zurich, DST-aware),
-LAeq is the energy average over valid time of minutes with coverage ≥ 50 %, events/h is per
-hour of valid measurement. With several devices in a cell, the cell value is the energy
-mean of the device night-LAeqs (levels), the mean of the per-device rates (events/h), and
-the median of the per-device medians (dynamics). The arithmetic is one pure module
-(`server/stadtlaerm_server/aggregate.py`) with tests that reuse the fixture nights from
-the app's chart tests.
+A cell is listed while it has data on any day of the 30-day window; a window without data
+has every value `null`, `measured_hours` 0 and `days_with_data` 0.
+`events_per_h_by_category` always lists the eight app categories. Values are rounded to 0.1.
 
-### 6.2 `cells/{cell}.json` — one cell's history
+### 6.2 `cells/{cell}.json` — one cell's days and its 24-hour profile
 
-Per night, the `last_night` block above, for the last 90 nights, plus per hour of the last
-night: `{ "hour": "23", "laeq_db", "l90_db", "l10_db", "events": {…by category…},
-"loudest_db", "measured_share" }`. This feeds the night chart in the hover card.
+```json
+{
+  "generated_at": "2026-10-08T18:40:00+02:00",
+  "cell": "h26828_12455", "devices": 2, "calibrated": true, "loud_event_db": 75.0,
+  "days": [ { "day": "2026-10-08", "…": "the block of §6.1" }, "… newest first, only days with data, ≤ 90" ],
+  "profile": {
+    "from": "2026-09-09", "to": "2026-10-08",
+    "hours": [
+      { "hour": 7, "laeq_db": 59.6, "l90_db": 55.1, "l10_db": 60.6, "events_per_h": 9.5,
+        "events_per_h_by_category": { "loud_vehicle": 2.0, "…": 0.0 },
+        "loud_events_per_h": 1.7, "measured_hours": 54.0, "devices": 2 },
+      "… 24 rows, hour 0–23 local clock time"
+    ]
+  }
+}
+```
 
-### 6.3 `nights/{date}.json`
+**24-hour profile:** for each local clock hour 0–23, over the 30 days ending today: per device
+the energy mean of its valid minutes in that hour (weighted by valid seconds, so across days),
+L90/L10 the median of the minute values, events and loud events per hour of valid measurement;
+then across devices each device once (energy mean of levels, mean of rates). An hour with
+fewer than **30 valid minutes in total** (all devices, all days), or fewer devices than
+`MIN_DEVICES_PER_CELL`, has `null` levels and rates; its `measured_hours` and `devices` are
+still given. On the autumn DST day the hour «02» occurs twice and both count for hour 2; in
+spring hour 2 has no data that day.
 
-`cells.json` for a past night (last 90 nights kept), so the map has a date control.
+### 6.3 `days/{date}.json`
 
-### 6.4 `stats.json` — usage figures of the whole project
+`cells.json` as it was at the end of that day (windows ending that day), for each of the last
+90 days, also days without any cell, so the map can step back day by day. `nights/` of
+schema v2 is removed on the first publish after the update.
+
+### 6.4 `reports.json` — manual reports
+
+```json
+{
+  "generated_at": "2026-10-08T18:40:00+02:00",
+  "from": "2026-09-09", "to": "2026-10-08",
+  "categories": ["motorrad", "auto", "lastwagen", "poser", "andere"],
+  "reports": [
+    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad" }
+  ]
+}
+```
+
+The reports of the last 30 calendar days up to today, of devices that are not hidden.
+`time` is the report time **rounded down to the full hour**, local ISO with offset (Swiss
+offsets are whole hours, so the UTC hour and the local hour coincide; in the autumn DST night
+the two «02:00» hours keep their offsets). `lat`/`lon` as stored (5 decimals). No device id,
+no accuracy, no exact time. Sorted by (hour, lat, lon, category): deterministic and testable,
+and within an hour the order says nothing about the order of the reports or who made them —
+chosen over a random shuffle, which could not be tested and would change the file on every run.
+
+### 6.5 `stats.json` — usage figures of the whole project
 
 Written in the same publish run, served the same way (`/v1/map/stats.json`, same cache and
 CORS headers), and printed by `python -m stadtlaerm_server stats`. Counts only:
@@ -291,11 +460,15 @@ CORS headers), and printed by `python -m stadtlaerm_server stats`. Counts only:
   "generated_at": "2026-10-25T06:40:00+01:00",
   "devices_registered": 6, "devices_with_site": 4, "devices_ever_shared": 5,
   "devices_active_7d": 3, "devices_active_30d": 4, "devices_deleted_total": 0,
-  "devices_expired_total": 0, "cells_with_data_30d": 2, "nights_shared_total": 14,
+  "devices_expired_total": 0, "cells_with_data_30d": 2, "days_shared_total": 14,
   "app_versions": { "0.5.0": 2, "andere": 1, "unbekannt": 1 },
   "registrations_by_week": [ { "week": "2026-W32", "devices": 1 }, "… 12 weeks, oldest first …" ]
 }
 ```
+
+`days_shared_total` (schema v3, was `nights_shared_total`): device-days (local calendar days)
+with at least one valid minute, including days already reduced to hourly rows.
+`cells_with_data_30d`: the cells of `cells.json`, i.e. with data in the 30 days up to today.
 
 The exact definitions are in `server/stadtlaerm_server/stats.py`. In short: active = a valid
 minute in the window (the rule of `network.devices_active_7d`, but over every device, hidden
@@ -322,57 +495,78 @@ Karten-Version are counted.
 ## 7. The map page (`docs/karte.html`)
 
 - Own CSP: `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:
-  https://wmts.geo.admin.ch; connect-src https://api.stadtlaerm.ch`. The page says, in one
-  sentence above the map, that it loads map tiles from swisstopo and the measurements from
-  api.stadtlaerm.ch and nothing else. `datenschutz.html` gets the same sentence.
+  https://wmts.geo.admin.ch; connect-src https://api.lessnoise.ch https://api.stadtlaerm.ch`.
+  The page reads `https://api.lessnoise.ch/v1/map/` (`data-api`); if that host cannot be
+  reached at all (no DNS record yet, no certificate) before any answer, it switches once to
+  `https://api.stadtlaerm.ch/v1/map/` (`data-api-fallback`) for the rest of the visit. The old
+  host stays in the CSP until api.lessnoise.ch has served the map for a while; then both the
+  fallback and the CSP entry go. The page says, in one sentence above the map, that it loads
+  map tiles from swisstopo and the measurements and reports from the project's server and
+  nothing else. `datenschutz.html` says the same.
 - **Leaflet** (vendored into `docs/vendor/`, no CDN), raster tiles
   `https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg`
-  with credit «© swisstopo» — the same tile source and credit pattern as the `swisstopo`
-  layers in blauewelt/earth (`src/app.js`, the `wmts.geo.admin.ch` entries); swisstopo
-  answers 400 outside Switzerland, which earth handles by bounding the layer — here the map
-  is bounded to the Zürich region anyway.
-- Cells drawn as filled quadrilaterals (section 3), coloured by the chosen metric:
-  **night LAeq** (default), **dynamics**, **events per hour**, **Töff & Poser per hour**.
-  The LAeq scale is anchored on the night values of the Swiss Noise Abatement Ordinance
-  (Lärmschutz-Verordnung, LSV, Anhang 3, road traffic; Lr in dB(A), night), so the colours
-  mean something. The table, so that nobody has to look it up:
+  with credit «© swisstopo», bounded to Switzerland (swisstopo answers 400 outside).
+- Cells drawn as filled quadrilaterals (section 3), coloured by the chosen metric over the
+  chosen period: **Mittlerer Pegel** (LAeq, default), **Hintergrund** (L90), **Dynamik**,
+  **Ereignisse/h**, **Töff & Poser/h**, **Sehr laut/h** (loud events). Period selector
+  «Letzte 7 Tage» (default, from `default_period`) / «Letzte 30 Tage»; ‹ › move the period's
+  last day back and forth through the last 90 days (`days/{date}.json`).
+- The level scale is **neutral** (one blue hue, light → dark = quiet → loud, 5-dB classes
+  45 · 50 · 55 · 60 · 65): the map shows measurements, not a legal judgement. No legal values
+  in the legend.
+- The Swiss Noise Abatement Ordinance (Lärmschutz-Verordnung, LSV, Anhang 3, road traffic;
+  values are *Beurteilungspegel Lr* in dB(A)) appears only in the card's 24-hour profile chart,
+  as two clock-time bands for sensitivity level ES II (residential zones), each band spanning
+  Planungswert to Immissionsgrenzwert: **6–22 Uhr** 55 / 60 and **22–6 Uhr** 45 / 50. The
+  card says that the ordinance's values are rated levels with corrections, assessed over the
+  whole year, while the chart shows measured hourly means — orientation, not a legal finding.
+  The table, so that nobody has to look it up (night values: as documented in this file since
+  v0.5.0; day values: LSV Anhang 3 Ziff. 2 — OPEN: to be checked against the ordinance text by
+  the maintainer, see WORKLOG 2026-10-12):
 
-  | Empfindlichkeitsstufe | Planungswert | Immissionsgrenzwert | Alarmwert |
+  | Empfindlichkeitsstufe | Planungswert Tag / Nacht | Immissionsgrenzwert Tag / Nacht | Alarmwert Tag / Nacht |
   |---|---|---|---|
-  | ES I (recreation zones) | 40 | 45 | 60 |
-  | ES II (residential) | 45 | 50 | 65 |
-  | ES III (mixed residential/commercial) | 50 | 55 | 65 |
-  | ES IV (industrial) | 55 | 65 | 70 |
+  | ES I (recreation zones) | 50 / 40 | 55 / 45 | 65 / 60 |
+  | ES II (residential) | 55 / 45 | 60 / 50 | 70 / 65 |
+  | ES III (mixed residential/commercial) | 60 / 50 | 65 / 55 | 70 / 65 |
+  | ES IV (industrial) | 65 / 55 | 70 / 60 | 75 / 70 |
 
-  Legend ticks at 45 · 50 · 55 · 65 dB(A) with the plain-German meaning of each (Planungswert
-  ES II, Immissionsgrenzwert ES II, Immissionsgrenzwert ES III, Alarmwert ES II/III). The
-  legend must say, in one line, that the ordinance's values are *Beurteilungspegel Lr*
-  (a rated level with corrections, assessed over the whole year) while the map shows the
-  measured LAeq of single nights — the ticks are for orientation, not a legal finding.
-- Tap/hover card in the style of earth's pixel inspector: cell, devices, last night's
-  numbers each with *when* it was measured, a small night chart (L90–L10 band, LAeq line,
-  event dots with the chosen category in amber — the app's chart, redrawn in SVG), and the
-  7- and 30-night means. «Unkalibriert» badge when any device in the cell is uncalibrated.
-- Date control: last night by default, ‹ › through the last 90 nights.
-- Everything is static files plus two JSON fetches; works at 360 px; dark mode via the
-  site's existing CSS variables. Hash-stamped asset URLs as in earth's
-  `scripts/stamp_assets.py` so a phone never runs yesterday's script against today's JSON.
-- Playwright tests at 360 px against a fixture `cells.json`: renders, legend ticks, card
-  opens, date control, CSP has exactly the two external hosts.
+  (Tag = 6–22 Uhr, Nacht = 22–6 Uhr.)
+- Layer **«Meldungen»** (on by default, checkbox «Meldungen zeigen»): the reports of the chosen
+  period from `reports.json` as small round markers with a letter per category (M Motorrad,
+  P Poser, L Lastwagen, A Auto, + Andere; the colour only helps), tooltip «category · day,
+  hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
+- Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
+  figures each with *when* they were measured, the 24-hour profile chart (L90–L10 band, LAeq
+  step line, Töff & Poser per hour as amber bars, hours without enough data as grey gaps, the
+  LSV bands), the figures of the file's day, and the other period. «Unkalibriert» badge when
+  any device in the cell is uncalibrated.
+- The page never uses the word «Nacht»: nothing about night is special any more.
+- Everything is static files plus JSON fetches (cells.json, reports.json, a cell's file on
+  tap, a day's file on ‹ ›); works at 360 px; dark mode via the site's CSS variables.
+  Hash-stamped asset URLs (`scripts/stamp_assets.py`) so a phone never runs yesterday's script
+  against today's JSON.
+- Playwright tests at 360 px and 1280 px against the fixtures: renders, legend, period switch,
+  card and chart, LSV bands, reports layer, day steps, fallback host, no «Nacht», CSP exact.
 
 ## 8. Hosting
 
 Code is hosting-agnostic: one container (Python 3.12, FastAPI, SQLite on a volume, the
 aggregation job as a loop in the same process), reverse-proxied by Caddy for TLS.
 Target: **Infomaniak** (Swiss company, the project's registrar already), a small VPS /
-Public Cloud instance in Switzerland, `api.stadtlaerm.ch` pointed at it. Alternative if a
-managed service is preferred: Google Cloud Run in `europe-west6` (Zürich) with the SQLite
-file on a mounted volume — the container does not change. Deployment is `docker compose
-up`; `server/README.md` documents it.
+Public Cloud instance in Switzerland. Host names: `API_HOSTS` (default
+`api.lessnoise.ch, api.stadtlaerm.ch`), one Caddy site block for all of them, a certificate per
+host; each host's DNS record must point at the machine. A host without a DNS record yet only
+fails its own certificate (Caddy retries in the background) and does not block the others.
+New app versions use `api.lessnoise.ch`; `api.stadtlaerm.ch` stays for apps up to 0.5.1.
+Alternative if a managed service is preferred: Google Cloud Run in `europe-west6` (Zürich)
+with the SQLite file on a mounted volume — the container does not change. Deployment is
+`docker compose up`; `server/README.md` documents it.
 
-Abuse limits: 10 device registrations per IP per day, 60 requests per device per hour,
-request body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage outside
-0–1, starts more than 7 days old or in the future are rejected with the reason).
+Abuse limits: 10 device registrations per IP per day, 60 requests per device per hour (reports
+included), request body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage
+outside 0–1, starts or report times more than 7 days old or in the future, cells or report
+points outside Switzerland are rejected with the reason).
 
 ## 9. App changes (public flavour)
 
@@ -397,4 +591,4 @@ request body ≤ 2 MB, strict schema validation (values outside 0–140 dB, cove
 ## 10. Out of scope for the first version
 
 Per-device public pages, user accounts, comparing cells, exporting from the website,
-non-Zürich bounding, the windowsill sensor's own upload (it will speak the same API).
+the windowsill sensor's own upload (it will speak the same API).

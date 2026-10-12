@@ -26,7 +26,8 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      API_HOST: ${API_HOST:-api.stadtlaerm.ch}
+      # Comma-separated site addresses for the Caddyfile: one site block, a certificate per host.
+      API_HOSTS: "${API_HOSTS:-api.lessnoise.ch, api.stadtlaerm.ch}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

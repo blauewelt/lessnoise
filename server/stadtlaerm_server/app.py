@@ -27,7 +27,18 @@ from pydantic import BaseModel, ValidationError
 from . import db, publish, retention
 from .config import Settings
 from .ratelimit import TokenBuckets
-from .schemas import MAX_EVENTS, MAX_MINUTES, DeviceIn, DeviceOut, EventIn, MinuteIn, SiteIn, UploadResult
+from .schemas import (
+    MAX_EVENTS,
+    MAX_MINUTES,
+    MAX_REPORTS,
+    DeviceIn,
+    DeviceOut,
+    EventIn,
+    MinuteIn,
+    ReportIn,
+    SiteIn,
+    UploadResult,
+)
 
 log = logging.getLogger("stadtlaerm")
 
@@ -57,7 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def publish_once() -> None:
         with db.open_db(settings.db_path) as conn:
-            publish.publish(conn, settings.map_dir, min_devices=settings.min_devices_per_cell)
+            publish.publish(
+                conn, settings.map_dir, min_devices=settings.min_devices_per_cell, loud_db=settings.loud_event_db
+            )
 
     def retention_once() -> int:
         """Retention and expiry (DESIGN.md §5); returns the number of expired devices."""
@@ -91,7 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
-    app = FastAPI(title="Stadtlärm contribution API", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Weniger Lärm contribution API", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.publish_once = publish_once
     app.state.retention_once = retention_once
@@ -172,14 +185,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Auth = Annotated[str | None, Header()]
 
-    def check_time(start: datetime, now: datetime) -> str | None:
+    def check_time(start: datetime, now: datetime, name: str = "start") -> str | None:
         if start > now + timedelta(seconds=settings.clock_skew_s):
-            return "start is in the future"
+            return f"{name} is in the future"
         if start < now - timedelta(days=settings.max_record_age_days):
-            return f"start is more than {settings.max_record_age_days} days old"
+            return f"{name} is more than {settings.max_record_age_days} days old"
         return None
 
-    def upload(body: Any, model: type[MinuteIn] | type[EventIn], limit: int, to_row) -> tuple[list[dict], list[dict]]:
+    def upload(
+        body: Any, model: type[MinuteIn] | type[EventIn] | type[ReportIn], limit: int, to_row, time_key: str = "start"
+    ) -> tuple[list[dict], list[dict]]:
+        """Validates each record; a bad one is reported in `rejected` as {index, <time_key>, reasons}."""
         if not isinstance(body, list):
             raise ApiError(422, "body must be a JSON array of records")
         if len(body) > limit:
@@ -187,14 +203,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         now = datetime.now(UTC)
         rows, rejected = [], []
         for i, item in enumerate(body):
-            start = item.get("start") if isinstance(item, dict) else None
+            start = item.get(time_key) if isinstance(item, dict) else None
             try:
                 rec = model.model_validate(item)
             except ValidationError as e:
-                rejected.append({"index": i, "start": start, "reasons": _reasons(e)})
+                rejected.append({"index": i, time_key: start, "reasons": _reasons(e)})
                 continue
-            if (why := check_time(rec.start_dt, now)) is not None:
-                rejected.append({"index": i, "start": start, "reasons": [{"field": "start", "reason": why}]})
+            problems = rec.problems() if isinstance(rec, ReportIn) else []
+            if (why := check_time(rec.start_dt, now, time_key)) is not None:
+                problems.insert(0, {"field": time_key, "reason": why})
+            if problems:
+                rejected.append({"index": i, time_key: start, "reasons": problems})
                 continue
             rows.append(to_row(rec))
         return rows, rejected
@@ -271,6 +290,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, rows)
         return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
 
+    @app.post("/v1/devices/{device_id}/reports", response_model=UploadResult)
+    async def post_reports(device_id: str, request: Request, conn: Conn, authorization: Auth = None) -> UploadResult:
+        """Manual reports (DESIGN.md §4.7); idempotent on (device, time), the later one wins."""
+        authenticate(device_id, conn, authorization)
+        received = db.utc_now_iso()
+        rows, rejected = upload(
+            await read_body(request), ReportIn, MAX_REPORTS, lambda r: db.report_row(device_id, r, received), "time"
+        )
+        with conn:
+            accepted, duplicates = db.upsert_rows(conn, "reports", db.REPORT_COLUMNS, rows, key="time_utc")
+        return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
+
     @app.delete("/v1/devices/{device_id}", status_code=204)
     def delete(device_id: str, conn: Conn, authorization: Auth = None) -> Response:
         # Never rate limited: deleting one's data must always work (DESIGN.md §2.4).
@@ -283,6 +314,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def map_headers(request: Request) -> dict[str, str]:
         # Several website origins may read the map (wenigerlaerm.ch, and stadtlaerm.ch while it
         # redirects): answer with the requesting origin if it is allowed, else with the first one.
+        # The same answer on every API host (api.lessnoise.ch, api.stadtlaerm.ch).
         origin = request.headers.get("origin", "")
         allowed = settings.cors_origins
         return {

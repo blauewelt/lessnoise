@@ -2,9 +2,10 @@
 
 A Python port of the app's chart test data (android/chart/src/test/.../SyntheticData.kt):
 the same minute generator (background L90, L10 = L90 + 3…5.5 dB, event energy added to the
-minute it starts in) and the same Friday night 9 → 10 October 2026. The random numbers differ
-from Kotlin's, so tests check the arithmetic, not the Kotlin values. Records come out in the
-upload format of DESIGN.md §4.3 / §4.4.
+minute it starts in) and the same measurement from Friday 9 October 2026, 21:30, to Saturday
+06:30 — which also makes a good test of a measurement that runs over midnight. The random
+numbers differ from Kotlin's, so tests check the arithmetic, not the Kotlin values. Records
+come out in the upload format of DESIGN.md §4.3 / §4.4 / §4.7.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ def epoch_ms(local: datetime) -> int:
 
 
 def _local_minutes(start: datetime, end: datetime) -> list[int]:
-    """UTC epoch ms of every real minute in [start, end) local; DST-aware (a 9 h night has 540)."""
+    """UTC epoch ms of every real minute in [start, end) local; DST-aware (25 Oct 2026 has 1500)."""
     a, b = epoch_ms(start), epoch_ms(end)
     return list(range(a, b, 60_000))
 
@@ -60,11 +61,13 @@ def minutes(
     offset_db: float = 112.35,
     spread: tuple[float, float] = (0.0, 2.5),
     low_coverage: Sequence[tuple[datetime, datetime]] = (),
+    cell: str | None = None,
 ) -> list[dict]:
     """Minute records from `start` to `end` (naive local), skipping `gaps`.
 
     `spread` is the random part of L10 − L90 on top of 3 dB (the app's 0…2.5 dB); minutes in
-    `low_coverage` get 20 s of valid audio (coverage 0.33, left out of every level).
+    `low_coverage` get 20 s of valid audio (coverage 0.33, left out of every level). With
+    `cell`, every record carries that hectare (§4.3); without, none (an older app).
     """
     r = random.Random(seed)
     ev_ms = [(epoch_ms(e.at), e) for e in events]
@@ -92,33 +95,36 @@ def minutes(
         cats["road_traffic"] += rest * 0.6
         cats["unclassified"] = cats.get("unclassified", 0.0) + rest * 0.4
         valid = 20.0 if any(a <= t < b for a, b in low_ms) else 60.0
-        out.append(
-            {
-                "start": iso_utc_ms(t),
-                "duration_s": 60.0,
-                "valid_s": valid,
-                "coverage": round(valid / 60, 3),
-                "laeq_db": round(10 * math.log10(energy), 1),
-                "lafmax_db": round(lafmax, 1),
-                "lafmin_db": round(bg - 2, 1),
-                "l1_db": round(lafmax - 2, 1),
-                "l10_db": round(l10, 1),
-                "l50_db": round(l50, 1),
-                "l90_db": round(bg, 1),
-                "event_count": count,
-                "dominant_category": max(cats, key=lambda k: cats[k]),
-                "category_shares": {k: round(v, 3) for k, v in cats.items()},
-                "calibration_id": "cal-synthetic" if calibrated else None,
-                "calibration_offset_db": offset_db,
-                "calibrated": calibrated,
-                "audio_source": "UNPROCESSED",
-                "clock_corrections": 0,
-            }
-        )
+        rec = {
+            "start": iso_utc_ms(t),
+            "duration_s": 60.0,
+            "valid_s": valid,
+            "coverage": round(valid / 60, 3),
+            "laeq_db": round(10 * math.log10(energy), 1),
+            "lafmax_db": round(lafmax, 1),
+            "lafmin_db": round(bg - 2, 1),
+            "l1_db": round(lafmax - 2, 1),
+            "l10_db": round(l10, 1),
+            "l50_db": round(l50, 1),
+            "l90_db": round(bg, 1),
+            "event_count": count,
+            "dominant_category": max(cats, key=lambda k: cats[k]),
+            "category_shares": {k: round(v, 3) for k, v in cats.items()},
+            "calibration_id": "cal-synthetic" if calibrated else None,
+            "calibration_offset_db": offset_db,
+            "calibrated": calibrated,
+            "audio_source": "UNPROCESSED",
+            "clock_corrections": 0,
+        }
+        if cell is not None:
+            rec["cell"] = cell
+        out.append(rec)
     return out
 
 
-def event_records(events: Sequence[Ev], l90: Callable[[datetime], float], calibrated: bool = False) -> list[dict]:
+def event_records(
+    events: Sequence[Ev], l90: Callable[[datetime], float], calibrated: bool = False, cell: str | None = None
+) -> list[dict]:
     return [
         {
             "start": iso(e.at, millis=True),
@@ -132,6 +138,7 @@ def event_records(events: Sequence[Ev], l90: Callable[[datetime], float], calibr
             "category_score": 0.6,
             "calibration_id": "cal-synthetic" if calibrated else None,
             "calibrated": calibrated,
+            **({"cell": cell} if cell is not None else {}),
         }
         for e in events
     ]
@@ -144,20 +151,24 @@ def to_agg(minute_records: Sequence[dict], event_records_: Sequence[dict] = ()) 
         return math.floor(datetime.fromisoformat(s).timestamp() * 1000 + 0.5)
 
     mins = [
-        Minute(ms(m["start"]), m["valid_s"], m["coverage"], m["laeq_db"], m["l10_db"], m["l90_db"], m["calibrated"])
+        Minute(
+            ms(m["start"]), m["valid_s"], m["coverage"], m["laeq_db"], m["l10_db"], m["l90_db"], m["calibrated"],
+            m.get("cell"),
+        )
         for m in minute_records
-    ]
-    evs = [Event(ms(e["start"]), e["lafmax_db"], e["category"]) for e in event_records_]
+    ]  # fmt: skip
+    evs = [Event(ms(e["start"]), e["lafmax_db"], e["category"], e.get("cell")) for e in event_records_]
     return mins, evs
 
 
-# ---- Friday night 9 → 10 October 2026 (the app's fixture) ----------------------------------
+# ---- Friday 9 October 2026, 21:30 → Saturday 06:30 (the app's fixture) -------------------
 
 FRIDAY = date(2026, 10, 9)
+SATURDAY = FRIDAY + timedelta(days=1)
 
 
 def fri(h: int, m: int, s: int = 0) -> datetime:
-    d = FRIDAY if h >= 12 else FRIDAY + timedelta(days=1)
+    d = FRIDAY if h >= 12 else SATURDAY
     return datetime(d.year, d.month, d.day, h, m, s)
 
 
@@ -179,7 +190,6 @@ FRIDAY_EVENTS: list[Ev] = [
     Ev(fri(4, 15), 62.0, "road_traffic"),
     Ev(fri(4, 52), 65.0, "road_traffic"),
     Ev(fri(5, 20), 63.5, "rail_tram", 9.0),
-    # The night window is [22:00, 06:00): this one starts just before 06:00 and counts.
     Ev(fri(5, 59, 20), 67.0, "aircraft", 25.0),
 ]
 FRIDAY_GAP = (fri(3, 10), fri(3, 35))
@@ -196,40 +206,53 @@ def friday_l90(t: datetime) -> float:
     return 48.0
 
 
-def friday_night() -> tuple[list[dict], list[dict]]:
-    """Minutes 21:30 → 06:30 (so some fall outside the night) with a 25 min gap at 03:10."""
-    mins = minutes(fri(21, 30), fri(6, 30), friday_l90, FRIDAY_EVENTS, gaps=[FRIDAY_GAP], seed=9)
-    return mins, event_records(FRIDAY_EVENTS, friday_l90)
+def friday_measurement(cell: str | None = None) -> tuple[list[dict], list[dict]]:
+    """Minutes 21:30 → 06:30 (over midnight: 150 minutes on Friday, the rest on Saturday) with a
+    25 min gap at 03:10, and the 18 events of the app's fixture."""
+    mins = minutes(fri(21, 30), fri(6, 30), friday_l90, FRIDAY_EVENTS, gaps=[FRIDAY_GAP], seed=9, cell=cell)
+    return mins, event_records(FRIDAY_EVENTS, friday_l90, cell=cell)
 
 
-# ---- a generic night, for the fixture and multi-night tests -------------------------------
+# ---- a generic 24-hour background, for the fixture and multi-day tests ----------------------
 
 
-def night_profile(base: float, morning_rise: float = 6.0) -> Callable[[datetime], float]:
-    """Background that dips after midnight and rises from 04:30 (morning traffic)."""
+def day_profile(base: float, day_rise: float = 8.0) -> Callable[[datetime], float]:
+    """Background L90 over the clock: `base` in the small hours (lowest around 03:30), rising from
+    05:00 to `base + day_rise` by 08:00, a plateau through the day, falling from 19:00 to
+    midnight."""
 
     def l90(t: datetime) -> float:
         h = t.hour + t.minute / 60
-        x = h - 24 if h >= 12 else h  # hours relative to midnight, −2 … +6
-        dip = -2.5 * math.exp(-((x - 2.5) ** 2) / 3)
-        rise = morning_rise * max(0.0, (x - 4.5) / 1.5) if x > 4.5 else 0.0
+        dip = -2.5 * math.exp(-((h - 3.5) ** 2) / 3)
+        if h < 5:
+            rise = 0.0
+        elif h < 8:
+            rise = day_rise * (h - 5) / 3
+        elif h < 19:
+            rise = day_rise
+        else:
+            rise = day_rise * (24 - h) / 5
         return base + dip + rise
 
     return l90
 
 
 def random_events(
-    night: date, seed: int, per_hour: dict[str, float], level: dict[str, tuple[float, float]]
+    start: datetime, hours: float, seed: int, per_hour: dict[str, float], level: dict[str, tuple[float, float]]
 ) -> list[Ev]:
-    """Poisson-ish events per category through the night 22:00–06:00."""
+    """Poisson-ish events per category from `start` (naive local) for `hours` hours."""
     r = random.Random(seed)
     out = []
-    start = datetime(night.year, night.month, night.day, 22)
     for cat, rate in per_hour.items():
-        n = int(rate * 8 + r.random())
+        n = int(rate * hours + r.random())
         lo, hi = level.get(cat, (55.0, 70.0))
         for _ in range(n):
-            at = start + timedelta(seconds=r.randrange(0, 8 * 3600))
+            at = start + timedelta(seconds=r.randrange(0, max(1, int(hours * 3600))))
             dur = TOP_CATEGORY_DURATION.get(cat, r.uniform(1.5, 7.0))
             out.append(Ev(at, r.uniform(lo, hi), cat, round(dur, 2)))
     return sorted(out, key=lambda e: e.at)
+
+
+def report_record(at: datetime, lat: float, lon: float, category: str, accuracy_m: float = 8.0) -> dict:
+    """A manual report in the upload format of §4.7 (`at` naive local)."""
+    return {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m, "category": category}

@@ -1,7 +1,7 @@
 [project]
 name = "stadtlaerm-server"
 version = "0.1.0"
-description = "Stadtlärm contribution server: opt-in uploads in, per-hectare night aggregates out"
+description = "Stadtlärm contribution server: opt-in uploads in, per-hectare day aggregates and reports out"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 dependencies = [

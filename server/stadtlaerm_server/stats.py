@@ -1,4 +1,4 @@
-"""Project-wide usage figures (DESIGN.md §6.4): `stats.json` next to the map files.
+"""Project-wide usage figures (DESIGN.md §6.5): `stats.json` next to the map files.
 
 Only counts over the whole network: no device ids, no per-device rows, no cells, no places,
 no IP addresses (the server stores none). Computed from the data the server already keeps
@@ -23,9 +23,9 @@ Definitions (all "now" = the publish time):
   nothing for INACTIVE_DELETE_DAYS (60) days (one integer, no ids, no dates). Kept apart from
   `devices_deleted_total`, which counts deletions the device asked for.
 - `cells_with_data_30d`: hectares shown on the current map (cells.json), i.e. with data in the
-  30 nights up to the last complete night, after MIN_DEVICES_PER_CELL.
-- `nights_shared_total`: device-nights (22–06 local) with at least one valid minute, including
-  nights already reduced to hourly rows (an hour with valid minutes).
+  30 calendar days up to today, after MIN_DEVICES_PER_CELL.
+- `days_shared_total`: device-days (local calendar days, Europe/Zurich) with at least one valid
+  minute, including days already reduced to hourly rows (an hour with valid minutes).
 - `app_versions`: devices active in the last 30 days per `app_version`, the version the app
   reported when it registered (the server is not told about later updates). Strings that do not
   look like a version number are counted as "andere", a missing one as "unbekannt".
@@ -99,13 +99,13 @@ def compute(conn: sqlite3.Connection, now: datetime, cells_with_data_30d: int) -
             if device_id in active_30:
                 versions[_version_key(version)] += 1
 
-    # Device-nights with a valid minute: distinct (device, hour) first, then hour → night. Night
-    # bounds are whole local hours, so every minute of an hour belongs to the same night.
+    # Device-days with a valid minute: distinct (device, hour) first, then hour → local day. Swiss
+    # offsets are whole hours, so every minute of a UTC hour belongs to the same local day.
     device_hours = conn.execute(
         f"SELECT DISTINCT device_id, start_utc / {agg.HOUR_MS} FROM minutes WHERE {VALID_MINUTE_SQL} "
         f"UNION SELECT device_id, hour_utc / {agg.HOUR_MS} FROM hourly WHERE valid_minutes > 0"
     )
-    nights = {(dev, n) for dev, h in device_hours if (n := agg.night_of(int(h) * agg.HOUR_MS)) is not None}
+    days = {(dev, agg.day_of(int(h) * agg.HOUR_MS)) for dev, h in device_hours}
 
     today = now.astimezone(agg.ZONE).date()
     this_monday = today - timedelta(days=today.weekday())
@@ -133,7 +133,7 @@ def compute(conn: sqlite3.Connection, now: datetime, cells_with_data_30d: int) -
         "devices_deleted_total": counters.get("devices_deleted", 0),
         "devices_expired_total": counters.get("devices_expired", 0),
         "cells_with_data_30d": cells_with_data_30d,
-        "nights_shared_total": len(nights),
+        "days_shared_total": len(days),
         "app_versions": dict(sorted(versions.items())),
         "registrations_by_week": [{"week": w, "devices": per_week.get(w, 0)} for w in weeks],
     }

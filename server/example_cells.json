@@ -1,21 +1,36 @@
 {
-  "generated_at": "2026-10-08T06:40:00+02:00",
-  "night": "2026-10-07",
+  "generated_at": "2026-10-08T18:40:00+02:00",
+  "day": "2026-10-08",
+  "default_period": "last_7_days",
+  "periods": {
+    "last_7_days": {
+      "from": "2026-10-02",
+      "to": "2026-10-08",
+      "days": 7
+    },
+    "last_30_days": {
+      "from": "2026-09-09",
+      "to": "2026-10-08",
+      "days": 30
+    }
+  },
   "min_devices_per_cell": 1,
+  "loud_event_db": 75.0,
   "cells": [
     {
       "cell": "h26818_12446",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 55.0,
-        "l90_db": 51.3,
-        "l10_db": 55.4,
-        "dynamics_db": 4.2,
-        "events_per_h": 10.1,
+      "day": null,
+      "last_7_days": {
+        "laeq_db": 59.0,
+        "l90_db": 54.4,
+        "l10_db": 58.7,
+        "dynamics_db": 4.3,
+        "events_per_h": 9.3,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.0,
-          "road_traffic": 9.0,
+          "loud_vehicle": 0.9,
+          "road_traffic": 8.3,
           "rail_tram": 0.0,
           "aircraft": 0.1,
           "construction": 0.0,
@@ -23,71 +38,129 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 79.1,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.4,
+        "loud_events": 25.0,
+        "loudest_event_db": 80.5,
+        "measured_hours": 54.9,
+        "days_with_data": 5,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 55.2,
-        "dynamics_db": 4.3,
-        "events_per_h": 10.9,
-        "nights_with_data": 5
-      },
-      "last_30_nights": {
-        "laeq_db": 55.2,
-        "dynamics_db": 4.3,
-        "events_per_h": 10.7,
-        "nights_with_data": 24
+      "last_30_days": {
+        "laeq_db": 58.9,
+        "l90_db": 54.2,
+        "l10_db": 58.5,
+        "dynamics_db": 4.2,
+        "events_per_h": 9.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 8.0,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.5,
+        "loud_events": 159.0,
+        "loudest_event_db": 80.5,
+        "measured_hours": 319.2,
+        "days_with_data": 27,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26818_12478",
       "devices": 1,
       "calibrated": false,
-      "last_night": {
-        "laeq_db": 50.5,
-        "l90_db": 42.2,
-        "l10_db": 49.2,
-        "dynamics_db": 7.1,
-        "events_per_h": 10.6,
+      "day": {
+        "laeq_db": 51.7,
+        "l90_db": 42.5,
+        "l10_db": 49.5,
+        "dynamics_db": 6.9,
+        "events_per_h": 7.1,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.2,
-          "road_traffic": 3.5,
+          "loud_vehicle": 1.0,
+          "road_traffic": 2.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 4.7,
+          "voices": 3.0,
+          "music": 0.8,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.0,
+        "loud_events": 8.0,
+        "loudest_event_db": 83.3,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": false
+      },
+      "last_7_days": {
+        "laeq_db": 52.0,
+        "l90_db": 45.0,
+        "l10_db": 51.9,
+        "dynamics_db": 6.9,
+        "events_per_h": 10.9,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.2,
+          "road_traffic": 3.4,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.2,
+          "music": 1.2,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.8,
+        "loud_events": 64.0,
+        "loudest_event_db": 83.8,
+        "measured_hours": 77.5,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": false
+      },
+      "last_30_days": {
+        "laeq_db": 52.2,
+        "l90_db": 45.1,
+        "l10_db": 52.2,
+        "dynamics_db": 7.0,
+        "events_per_h": 11.8,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.8,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.4,
           "music": 1.3,
           "unclassified": 0.0
         },
-        "loudest_event_db": 82.2,
-        "measured_share": 0.94
-      },
-      "last_7_nights": {
-        "laeq_db": 50.5,
-        "dynamics_db": 6.9,
-        "events_per_h": 13.0,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 51.1,
-        "dynamics_db": 7.0,
-        "events_per_h": 14.1,
-        "nights_with_data": 28
+        "loud_events_per_h": 0.9,
+        "loud_events": 329.0,
+        "loudest_event_db": 84.0,
+        "measured_hours": 375.0,
+        "days_with_data": 29,
+        "devices": 1,
+        "calibrated": false
       }
     },
     {
       "cell": "h26819_12449",
       "devices": 2,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 58.3,
-        "l90_db": 54.7,
-        "l10_db": 58.9,
+      "day": {
+        "laeq_db": 64.6,
+        "l90_db": 62.8,
+        "l10_db": 66.9,
         "dynamics_db": 4.2,
-        "events_per_h": 9.9,
+        "events_per_h": 8.5,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.0,
-          "road_traffic": 8.8,
+          "loud_vehicle": 0.9,
+          "road_traffic": 7.5,
           "rail_tram": 0.0,
           "aircraft": 0.1,
           "construction": 0.0,
@@ -95,35 +168,76 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 81.4,
-        "measured_share": 0.95
+        "loud_events_per_h": 0.6,
+        "loud_events": 10.5,
+        "loudest_event_db": 81.5,
+        "measured_hours": 17.8,
+        "days_with_data": 1,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 58.4,
-        "dynamics_db": 4.2,
-        "events_per_h": 10.7,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 58.3,
+      "last_7_days": {
+        "laeq_db": 64.6,
+        "l90_db": 62.5,
+        "l10_db": 66.6,
         "dynamics_db": 4.3,
-        "events_per_h": 10.6,
-        "nights_with_data": 29
+        "events_per_h": 9.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.0,
+          "road_traffic": 8.5,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.7,
+        "loud_events": 110.5,
+        "loudest_event_db": 82.0,
+        "measured_hours": 159.7,
+        "days_with_data": 7,
+        "devices": 2,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 64.4,
+        "l90_db": 62.4,
+        "l10_db": 66.4,
+        "dynamics_db": 4.2,
+        "events_per_h": 9.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.0,
+          "road_traffic": 8.5,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.7,
+        "loud_events": 460.5,
+        "loudest_event_db": 82.0,
+        "measured_hours": 683.4,
+        "days_with_data": 29,
+        "devices": 2,
+        "calibrated": true
       }
     },
     {
       "cell": "h26820_12453",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 58.8,
-        "l90_db": 55.3,
-        "l10_db": 59.5,
-        "dynamics_db": 4.2,
-        "events_per_h": 10.1,
+      "day": {
+        "laeq_db": 61.0,
+        "l90_db": 55.6,
+        "l10_db": 59.8,
+        "dynamics_db": 4.3,
+        "events_per_h": 6.3,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.0,
-          "road_traffic": 9.0,
+          "loud_vehicle": 0.8,
+          "road_traffic": 5.4,
           "rail_tram": 0.0,
           "aircraft": 0.1,
           "construction": 0.0,
@@ -131,161 +245,361 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 82.4,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.6,
+        "loud_events": 5.0,
+        "loudest_event_db": 81.9,
+        "measured_hours": 7.8,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 58.8,
-        "dynamics_db": 4.2,
-        "events_per_h": 10.7,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 58.9,
+      "last_7_days": {
+        "laeq_db": 62.5,
+        "l90_db": 57.5,
+        "l10_db": 61.8,
         "dynamics_db": 4.3,
-        "events_per_h": 10.7,
-        "nights_with_data": 27
+        "events_per_h": 8.6,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 7.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.6,
+        "loud_events": 56.0,
+        "loudest_event_db": 82.5,
+        "measured_hours": 91.4,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 62.8,
+        "l90_db": 58.1,
+        "l10_db": 62.4,
+        "dynamics_db": 4.3,
+        "events_per_h": 8.9,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 7.9,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.7,
+        "loud_events": 236.0,
+        "loudest_event_db": 82.5,
+        "measured_hours": 360.4,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26820_12478",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 52.8,
-        "l90_db": 46.3,
-        "l10_db": 53.4,
-        "dynamics_db": 7.1,
-        "events_per_h": 10.9,
+      "day": null,
+      "last_7_days": {
+        "laeq_db": 55.3,
+        "l90_db": 49.0,
+        "l10_db": 56.0,
+        "dynamics_db": 7.0,
+        "events_per_h": 12.4,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.1,
-          "road_traffic": 3.5,
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.9,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 5.0,
-          "music": 1.2,
+          "voices": 5.9,
+          "music": 1.3,
           "unclassified": 0.0
         },
-        "loudest_event_db": 85.4,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.9,
+        "loud_events": 75.0,
+        "loudest_event_db": 85.9,
+        "measured_hours": 76.7,
+        "days_with_data": 6,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 54.0,
+      "last_30_days": {
+        "laeq_db": 55.4,
+        "l90_db": 49.3,
+        "l10_db": 56.4,
         "dynamics_db": 7.0,
-        "events_per_h": 15.2,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 53.9,
-        "dynamics_db": 7.0,
-        "events_per_h": 14.9,
-        "nights_with_data": 26
+        "events_per_h": 12.4,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.4,
+          "road_traffic": 4.0,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.7,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.0,
+        "loud_events": 360.0,
+        "loudest_event_db": 86.0,
+        "measured_hours": 344.4,
+        "days_with_data": 29,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26821_12476",
       "devices": 1,
       "calibrated": true,
-      "last_night": null,
-      "last_7_nights": {
-        "laeq_db": 51.4,
-        "dynamics_db": 7.0,
-        "events_per_h": 16.2,
-        "nights_with_data": 5
+      "day": {
+        "laeq_db": 48.6,
+        "l90_db": 41.5,
+        "l10_db": 48.6,
+        "dynamics_db": 6.8,
+        "events_per_h": 8.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.5,
+          "road_traffic": 2.5,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 3.8,
+          "music": 1.2,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.3,
+        "loud_events": 2.0,
+        "loudest_event_db": 79.8,
+        "measured_hours": 7.6,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 50.9,
+      "last_7_days": {
+        "laeq_db": 51.3,
+        "l90_db": 44.1,
+        "l10_db": 51.2,
         "dynamics_db": 7.0,
-        "events_per_h": 14.7,
-        "nights_with_data": 7
+        "events_per_h": 11.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.4,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.8,
+        "loud_events": 64.0,
+        "loudest_event_db": 83.4,
+        "measured_hours": 77.6,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 51.5,
+        "l90_db": 44.3,
+        "l10_db": 51.4,
+        "dynamics_db": 7.0,
+        "events_per_h": 11.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.5,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.2,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.8,
+        "loud_events": 78.0,
+        "loudest_event_db": 83.4,
+        "measured_hours": 97.6,
+        "days_with_data": 9,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26821_12480",
       "devices": 2,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 54.3,
-        "l90_db": 47.7,
-        "l10_db": 54.7,
-        "dynamics_db": 7.0,
-        "events_per_h": 10.9,
+      "day": {
+        "laeq_db": 53.8,
+        "l90_db": 48.1,
+        "l10_db": 55.3,
+        "dynamics_db": 7.1,
+        "events_per_h": 8.1,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.2,
-          "road_traffic": 3.5,
+          "loud_vehicle": 0.7,
+          "road_traffic": 3.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 5.0,
-          "music": 1.2,
+          "voices": 3.6,
+          "music": 0.7,
           "unclassified": 0.0
         },
-        "loudest_event_db": 85.1,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.5,
+        "loud_events": 3.5,
+        "loudest_event_db": 82.1,
+        "measured_hours": 7.5,
+        "days_with_data": 1,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 55.0,
+      "last_7_days": {
+        "laeq_db": 56.6,
+        "l90_db": 50.7,
+        "l10_db": 57.8,
         "dynamics_db": 7.0,
-        "events_per_h": 14.6,
-        "nights_with_data": 7
+        "events_per_h": 12.6,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.4,
+          "road_traffic": 4.1,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.9,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.1,
+        "loud_events": 91.5,
+        "loudest_event_db": 86.5,
+        "measured_hours": 86.2,
+        "days_with_data": 7,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 54.9,
+      "last_30_days": {
+        "laeq_db": 56.5,
+        "l90_db": 50.8,
+        "l10_db": 57.9,
         "dynamics_db": 7.0,
-        "events_per_h": 14.7,
-        "nights_with_data": 27
+        "events_per_h": 12.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.9,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.6,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.0,
+        "loud_events": 348.5,
+        "loudest_event_db": 86.5,
+        "measured_hours": 339.2,
+        "days_with_data": 30,
+        "devices": 2,
+        "calibrated": true
       }
     },
     {
       "cell": "h26821_12483",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 53.9,
-        "l90_db": 45.3,
-        "l10_db": 52.3,
-        "dynamics_db": 7.1,
-        "events_per_h": 11.8,
+      "day": {
+        "laeq_db": 57.1,
+        "l90_db": 53.4,
+        "l10_db": 60.5,
+        "dynamics_db": 7.0,
+        "events_per_h": 10.8,
         "events_per_h_by_category": {
-          "loud_vehicle": 2.0,
-          "road_traffic": 4.2,
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.5,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 4.5,
-          "music": 1.0,
+          "voices": 4.9,
+          "music": 1.2,
           "unclassified": 0.0
         },
-        "loudest_event_db": 85.2,
-        "measured_share": 0.5
+        "loud_events_per_h": 1.0,
+        "loud_events": 11.0,
+        "loudest_event_db": 85.6,
+        "measured_hours": 11.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 53.8,
-        "dynamics_db": 7.1,
-        "events_per_h": 14.8,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 53.6,
+      "last_7_days": {
+        "laeq_db": 57.8,
+        "l90_db": 53.9,
+        "l10_db": 60.9,
         "dynamics_db": 7.0,
-        "events_per_h": 14.3,
-        "nights_with_data": 27
+        "events_per_h": 14.6,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.6,
+          "road_traffic": 4.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 6.7,
+          "music": 1.6,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.3,
+        "loud_events": 106.0,
+        "loudest_event_db": 85.7,
+        "measured_hours": 81.8,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 57.8,
+        "l90_db": 53.9,
+        "l10_db": 60.9,
+        "dynamics_db": 7.0,
+        "events_per_h": 14.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.6,
+          "road_traffic": 4.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 6.5,
+          "music": 1.6,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.2,
+        "loud_events": 382.0,
+        "loudest_event_db": 85.7,
+        "measured_hours": 318.7,
+        "days_with_data": 27,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26822_12452",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 52.4,
-        "l90_db": 48.3,
-        "l10_db": 52.5,
+      "day": {
+        "laeq_db": 54.2,
+        "l90_db": 48.5,
+        "l10_db": 52.8,
         "dynamics_db": 4.2,
-        "events_per_h": 10.1,
+        "events_per_h": 6.2,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.0,
-          "road_traffic": 9.0,
+          "loud_vehicle": 0.5,
+          "road_traffic": 5.6,
           "rail_tram": 0.0,
           "aircraft": 0.1,
           "construction": 0.0,
@@ -293,35 +607,100 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 76.7,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.1,
+        "loud_events": 1.0,
+        "loudest_event_db": 77.8,
+        "measured_hours": 7.7,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 52.6,
+      "last_7_days": {
+        "laeq_db": 55.8,
+        "l90_db": 50.6,
+        "l10_db": 54.9,
         "dynamics_db": 4.3,
-        "events_per_h": 10.6,
-        "nights_with_data": 7
+        "events_per_h": 8.7,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 7.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.3,
+        "loud_events": 28.0,
+        "loudest_event_db": 78.8,
+        "measured_hours": 91.7,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 52.6,
+      "last_30_days": {
+        "laeq_db": 56.1,
+        "l90_db": 51.3,
+        "l10_db": 55.6,
         "dynamics_db": 4.2,
-        "events_per_h": 10.6,
-        "nights_with_data": 25
+        "events_per_h": 8.8,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 7.9,
+          "rail_tram": 0.0,
+          "aircraft": 0.1,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.3,
+        "loud_events": 98.0,
+        "loudest_event_db": 79.0,
+        "measured_hours": 334.3,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26822_12454",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 48.6,
-        "l90_db": 40.8,
-        "l10_db": 46.4,
-        "dynamics_db": 5.8,
-        "events_per_h": 6.1,
+      "day": {
+        "laeq_db": 48.7,
+        "l90_db": 41.0,
+        "l10_db": 46.9,
+        "dynamics_db": 5.7,
+        "events_per_h": 4.1,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.5,
+          "road_traffic": 3.2,
+          "rail_tram": 0.4,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.2,
+        "loud_events": 2.0,
+        "loudest_event_db": 80.4,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_7_days": {
+        "laeq_db": 50.8,
+        "l90_db": 44.2,
+        "l10_db": 50.0,
+        "dynamics_db": 5.7,
+        "events_per_h": 5.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.9,
-          "road_traffic": 4.5,
+          "road_traffic": 4.0,
           "rail_tram": 0.8,
           "aircraft": 0.0,
           "construction": 0.0,
@@ -329,143 +708,307 @@
           "music": 0.0,
           "unclassified": 0.0
         },
+        "loud_events_per_h": 0.5,
+        "loud_events": 36.0,
         "loudest_event_db": 83.3,
-        "measured_share": 1.0
+        "measured_hours": 77.4,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 49.2,
+      "last_30_days": {
+        "laeq_db": 51.0,
+        "l90_db": 44.3,
+        "l10_db": 50.1,
         "dynamics_db": 5.7,
-        "events_per_h": 6.9,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 49.1,
-        "dynamics_db": 5.7,
-        "events_per_h": 6.8,
-        "nights_with_data": 11
+        "events_per_h": 5.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.8,
+          "road_traffic": 3.9,
+          "rail_tram": 0.7,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.5,
+        "loud_events": 63.0,
+        "loudest_event_db": 83.3,
+        "measured_hours": 137.3,
+        "days_with_data": 12,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26822_12477",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 51.6,
-        "l90_db": 44.3,
-        "l10_db": 51.0,
+      "day": {
+        "laeq_db": 51.8,
+        "l90_db": 44.5,
+        "l10_db": 51.5,
         "dynamics_db": 6.9,
-        "events_per_h": 10.8,
+        "events_per_h": 8.9,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.1,
-          "road_traffic": 3.5,
+          "loud_vehicle": 0.6,
+          "road_traffic": 3.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 5.0,
-          "music": 1.1,
+          "voices": 4.2,
+          "music": 0.6,
           "unclassified": 0.0
         },
-        "loudest_event_db": 83.6,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.6,
+        "loud_events": 5.0,
+        "loudest_event_db": 84.6,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 52.8,
-        "dynamics_db": 6.9,
-        "events_per_h": 14.5,
-        "nights_with_data": 7
+      "last_7_days": {
+        "laeq_db": 53.7,
+        "l90_db": 46.8,
+        "l10_db": 54.0,
+        "dynamics_db": 7.0,
+        "events_per_h": 12.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.9,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.5,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.9,
+        "loud_events": 81.0,
+        "loudest_event_db": 84.9,
+        "measured_hours": 91.2,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 52.7,
-        "dynamics_db": 6.9,
-        "events_per_h": 14.8,
-        "nights_with_data": 20
+      "last_30_days": {
+        "laeq_db": 53.8,
+        "l90_db": 47.2,
+        "l10_db": 54.2,
+        "dynamics_db": 7.0,
+        "events_per_h": 12.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 4.0,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.6,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.9,
+        "loud_events": 240.0,
+        "loudest_event_db": 84.9,
+        "measured_hours": 263.2,
+        "days_with_data": 20,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26822_12482",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 54.5,
-        "l90_db": 48.2,
+      "day": {
+        "laeq_db": 55.5,
+        "l90_db": 48.4,
         "l10_db": 55.6,
-        "dynamics_db": 7.2,
-        "events_per_h": 11.0,
+        "dynamics_db": 6.9,
+        "events_per_h": 7.9,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.3,
-          "road_traffic": 3.6,
+          "loud_vehicle": 0.7,
+          "road_traffic": 2.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 5.0,
-          "music": 1.2,
+          "voices": 4.2,
+          "music": 0.5,
           "unclassified": 0.0
         },
-        "loudest_event_db": 85.0,
-        "measured_share": 0.98
+        "loud_events_per_h": 0.7,
+        "loud_events": 5.0,
+        "loudest_event_db": 85.5,
+        "measured_hours": 7.4,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 55.7,
+      "last_7_days": {
+        "laeq_db": 56.8,
+        "l90_db": 50.8,
+        "l10_db": 57.9,
         "dynamics_db": 7.1,
-        "events_per_h": 14.6,
-        "nights_with_data": 7
+        "events_per_h": 11.9,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.8,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.5,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.1,
+        "loud_events": 103.0,
+        "loudest_event_db": 86.7,
+        "measured_hours": 91.2,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 55.5,
+      "last_30_days": {
+        "laeq_db": 57.0,
+        "l90_db": 51.1,
+        "l10_db": 58.1,
         "dynamics_db": 7.0,
-        "events_per_h": 14.3,
-        "nights_with_data": 30
+        "events_per_h": 11.9,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.3,
+          "road_traffic": 3.8,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 5.5,
+          "music": 1.3,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.2,
+        "loud_events": 471.0,
+        "loudest_event_db": 87.0,
+        "measured_hours": 400.0,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26824_12458",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
+      "day": {
         "laeq_db": 49.1,
-        "l90_db": 41.7,
-        "l10_db": 47.5,
+        "l90_db": 42.0,
+        "l10_db": 47.8,
         "dynamics_db": 5.7,
-        "events_per_h": 6.2,
+        "events_per_h": 3.6,
         "events_per_h_by_category": {
-          "loud_vehicle": 0.9,
-          "road_traffic": 4.5,
-          "rail_tram": 0.9,
+          "loud_vehicle": 0.5,
+          "road_traffic": 2.5,
+          "rail_tram": 0.6,
           "aircraft": 0.0,
           "construction": 0.0,
           "voices": 0.0,
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 83.9,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.4,
+        "loud_events": 3.0,
+        "loudest_event_db": 81.4,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 49.6,
+      "last_7_days": {
+        "laeq_db": 52.0,
+        "l90_db": 44.8,
+        "l10_db": 50.6,
         "dynamics_db": 5.7,
-        "events_per_h": 7.0,
-        "nights_with_data": 7
+        "events_per_h": 5.8,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.8,
+          "road_traffic": 4.3,
+          "rail_tram": 0.7,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.6,
+        "loud_events": 55.0,
+        "loudest_event_db": 84.0,
+        "measured_hours": 92.0,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 49.8,
-        "dynamics_db": 5.8,
-        "events_per_h": 6.8,
-        "nights_with_data": 28
+      "last_30_days": {
+        "laeq_db": 52.0,
+        "l90_db": 45.3,
+        "l10_db": 51.1,
+        "dynamics_db": 5.7,
+        "events_per_h": 5.8,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 4.3,
+          "rail_tram": 0.7,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.6,
+        "loud_events": 216.0,
+        "loudest_event_db": 84.2,
+        "measured_hours": 374.9,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26825_12461",
       "devices": 2,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 49.4,
-        "l90_db": 41.6,
-        "l10_db": 47.3,
-        "dynamics_db": 5.7,
-        "events_per_h": 6.0,
+      "day": {
+        "laeq_db": 53.4,
+        "l90_db": 50.8,
+        "l10_db": 55.9,
+        "dynamics_db": 5.8,
+        "events_per_h": 5.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.8,
+          "road_traffic": 4.0,
+          "rail_tram": 0.7,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.5,
+        "loud_events": 9.5,
+        "loudest_event_db": 83.8,
+        "measured_hours": 17.7,
+        "days_with_data": 1,
+        "devices": 2,
+        "calibrated": true
+      },
+      "last_7_days": {
+        "laeq_db": 53.8,
+        "l90_db": 50.8,
+        "l10_db": 55.9,
+        "dynamics_db": 5.8,
+        "events_per_h": 6.2,
         "events_per_h_by_category": {
           "loud_vehicle": 0.9,
-          "road_traffic": 4.3,
+          "road_traffic": 4.5,
           "rail_tram": 0.8,
           "aircraft": 0.0,
           "construction": 0.0,
@@ -473,67 +1016,102 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 83.7,
-        "measured_share": 0.94
+        "loud_events_per_h": 0.6,
+        "loud_events": 101.0,
+        "loudest_event_db": 84.0,
+        "measured_hours": 160.2,
+        "days_with_data": 7,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 49.5,
+      "last_30_days": {
+        "laeq_db": 53.7,
+        "l90_db": 50.8,
+        "l10_db": 55.9,
         "dynamics_db": 5.8,
-        "events_per_h": 6.9,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 49.6,
-        "dynamics_db": 5.7,
-        "events_per_h": 6.8,
-        "nights_with_data": 30
+        "events_per_h": 6.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.9,
+          "road_traffic": 4.5,
+          "rail_tram": 0.8,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.0,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.6,
+        "loud_events": 412.0,
+        "loudest_event_db": 84.0,
+        "measured_hours": 707.6,
+        "days_with_data": 30,
+        "devices": 2,
+        "calibrated": true
       }
     },
     {
       "cell": "h26826_12456",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 39.0,
-        "l90_db": 35.3,
-        "l10_db": 44.3,
-        "dynamics_db": 8.9,
-        "events_per_h": 1.2,
+      "day": null,
+      "last_7_days": {
+        "laeq_db": 43.2,
+        "l90_db": 37.8,
+        "l10_db": 46.9,
+        "dynamics_db": 9.0,
+        "events_per_h": 1.3,
         "events_per_h_by_category": {
-          "loud_vehicle": 0.0,
-          "road_traffic": 0.8,
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 0.2,
+          "voices": 0.3,
           "music": 0.0,
-          "unclassified": 0.2
+          "unclassified": 0.3
         },
-        "loudest_event_db": 65.9,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 73.0,
+        "measured_hours": 76.8,
+        "days_with_data": 6,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 39.7,
-        "dynamics_db": 8.9,
-        "events_per_h": 1.5,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 39.7,
+      "last_30_days": {
+        "laeq_db": 43.6,
+        "l90_db": 38.5,
+        "l10_db": 47.6,
         "dynamics_db": 9.0,
-        "events_per_h": 1.5,
-        "nights_with_data": 26
+        "events_per_h": 1.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 3.0,
+        "loudest_event_db": 75.4,
+        "measured_hours": 347.2,
+        "days_with_data": 29,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26827_12459",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 56.6,
-        "l90_db": 45.8,
-        "l10_db": 51.4,
-        "dynamics_db": 5.6,
+      "day": {
+        "laeq_db": 60.1,
+        "l90_db": 56.5,
+        "l10_db": 62.0,
+        "dynamics_db": 5.7,
         "events_per_h": 8.1,
         "events_per_h_by_category": {
           "loud_vehicle": 1.6,
@@ -545,70 +1123,176 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 88.4,
-        "measured_share": 1.0
+        "loud_events_per_h": 1.6,
+        "loud_events": 18.0,
+        "loudest_event_db": 86.4,
+        "measured_hours": 11.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 55.5,
-        "dynamics_db": 5.6,
-        "events_per_h": 10.3,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 55.2,
+      "last_7_days": {
+        "laeq_db": 60.8,
+        "l90_db": 57.0,
+        "l10_db": 62.4,
         "dynamics_db": 5.5,
-        "events_per_h": 9.6,
-        "nights_with_data": 26
+        "events_per_h": 10.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 2.1,
+          "road_traffic": 7.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.6,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.8,
+        "loud_events": 128.0,
+        "loudest_event_db": 88.7,
+        "measured_hours": 71.0,
+        "days_with_data": 6,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 60.6,
+        "l90_db": 56.8,
+        "l10_db": 62.2,
+        "dynamics_db": 5.5,
+        "events_per_h": 9.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.8,
+          "road_traffic": 6.9,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.6,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.6,
+        "loud_events": 482.0,
+        "loudest_event_db": 88.7,
+        "measured_hours": 305.4,
+        "days_with_data": 26,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26828_12455",
       "devices": 2,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 54.9,
-        "l90_db": 45.7,
-        "l10_db": 51.1,
+      "day": {
+        "laeq_db": 58.3,
+        "l90_db": 55.8,
+        "l10_db": 60.6,
         "dynamics_db": 5.5,
-        "events_per_h": 8.1,
+        "events_per_h": 7.1,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.6,
-          "road_traffic": 6.0,
+          "loud_vehicle": 1.4,
+          "road_traffic": 5.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 0.5,
+          "voices": 0.4,
           "music": 0.0,
           "unclassified": 0.0
         },
+        "loud_events_per_h": 1.2,
+        "loud_events": 20.5,
+        "loudest_event_db": 88.3,
+        "measured_hours": 17.2,
+        "days_with_data": 1,
+        "devices": 2,
+        "calibrated": true
+      },
+      "last_7_days": {
+        "laeq_db": 59.1,
+        "l90_db": 55.6,
+        "l10_db": 60.7,
+        "dynamics_db": 5.5,
+        "events_per_h": 9.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.8,
+          "road_traffic": 6.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.6,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.5,
+        "loud_events": 246.0,
         "loudest_event_db": 88.5,
-        "measured_share": 1.0
+        "measured_hours": 160.0,
+        "days_with_data": 7,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 55.0,
+      "last_30_days": {
+        "laeq_db": 58.9,
+        "l90_db": 55.6,
+        "l10_db": 60.6,
         "dynamics_db": 5.5,
-        "events_per_h": 9.8,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 55.0,
-        "dynamics_db": 5.5,
-        "events_per_h": 9.8,
-        "nights_with_data": 30
+        "events_per_h": 8.8,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.7,
+          "road_traffic": 6.5,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.6,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.5,
+        "loud_events": 1047.0,
+        "loudest_event_db": 88.5,
+        "measured_hours": 709.4,
+        "days_with_data": 30,
+        "devices": 2,
+        "calibrated": true
       }
     },
     {
       "cell": "h26830_12448",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 54.2,
-        "l90_db": 44.3,
-        "l10_db": 49.8,
-        "dynamics_db": 5.6,
-        "events_per_h": 8.1,
+      "day": {
+        "laeq_db": 55.0,
+        "l90_db": 44.4,
+        "l10_db": 50.2,
+        "dynamics_db": 5.5,
+        "events_per_h": 6.1,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.6,
+          "loud_vehicle": 1.9,
+          "road_traffic": 4.1,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.1,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.8,
+        "loud_events": 14.0,
+        "loudest_event_db": 87.3,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_7_days": {
+        "laeq_db": 56.1,
+        "l90_db": 47.6,
+        "l10_db": 53.1,
+        "dynamics_db": 5.5,
+        "events_per_h": 8.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.7,
           "road_traffic": 6.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
@@ -617,35 +1301,23 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 86.3,
-        "measured_share": 1.0
+        "loud_events_per_h": 1.4,
+        "loud_events": 129.0,
+        "loudest_event_db": 88.0,
+        "measured_hours": 90.6,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 54.5,
-        "dynamics_db": 5.6,
-        "events_per_h": 9.9,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 54.5,
+      "last_30_days": {
+        "laeq_db": 55.7,
+        "l90_db": 48.1,
+        "l10_db": 53.6,
         "dynamics_db": 5.5,
-        "events_per_h": 9.6,
-        "nights_with_data": 25
-      }
-    },
-    {
-      "cell": "h26831_12444",
-      "devices": 1,
-      "calibrated": false,
-      "last_night": {
-        "laeq_db": 53.7,
-        "l90_db": 43.2,
-        "l10_db": 48.5,
-        "dynamics_db": 5.4,
-        "events_per_h": 8.2,
+        "events_per_h": 7.4,
         "events_per_h_by_category": {
-          "loud_vehicle": 1.8,
-          "road_traffic": 5.9,
+          "loud_vehicle": 1.5,
+          "road_traffic": 5.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
@@ -653,102 +1325,148 @@
           "music": 0.0,
           "unclassified": 0.0
         },
-        "loudest_event_db": 87.1,
-        "measured_share": 0.92
+        "loud_events_per_h": 1.2,
+        "loud_events": 394.0,
+        "loudest_event_db": 88.0,
+        "measured_hours": 330.5,
+        "days_with_data": 28,
+        "devices": 1,
+        "calibrated": true
+      }
+    },
+    {
+      "cell": "h26831_12444",
+      "devices": 1,
+      "calibrated": false,
+      "day": {
+        "laeq_db": 52.0,
+        "l90_db": 43.4,
+        "l10_db": 49.0,
+        "dynamics_db": 5.4,
+        "events_per_h": 5.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.8,
+          "road_traffic": 4.2,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.2,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 0.6,
+        "loud_events": 5.0,
+        "loudest_event_db": 85.4,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": false
       },
-      "last_7_nights": {
-        "laeq_db": 53.7,
+      "last_7_days": {
+        "laeq_db": 55.1,
+        "l90_db": 46.4,
+        "l10_db": 52.0,
         "dynamics_db": 5.5,
-        "events_per_h": 10.1,
-        "nights_with_data": 7
+        "events_per_h": 8.0,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.5,
+          "road_traffic": 6.0,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.5,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.3,
+        "loud_events": 116.0,
+        "loudest_event_db": 87.4,
+        "measured_hours": 89.3,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": false
       },
-      "last_30_nights": {
-        "laeq_db": 54.1,
+      "last_30_days": {
+        "laeq_db": 55.4,
+        "l90_db": 47.2,
+        "l10_db": 52.7,
         "dynamics_db": 5.5,
-        "events_per_h": 9.8,
-        "nights_with_data": 28
+        "events_per_h": 8.4,
+        "events_per_h_by_category": {
+          "loud_vehicle": 1.7,
+          "road_traffic": 6.2,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.5,
+          "music": 0.0,
+          "unclassified": 0.0
+        },
+        "loud_events_per_h": 1.3,
+        "loud_events": 496.0,
+        "loudest_event_db": 87.5,
+        "measured_hours": 371.1,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": false
       }
     },
     {
       "cell": "h26844_12469",
       "devices": 2,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 38.0,
-        "l90_db": 33.7,
-        "l10_db": 42.9,
+      "day": {
+        "laeq_db": 40.0,
+        "l90_db": 33.8,
+        "l10_db": 43.5,
         "dynamics_db": 9.1,
-        "events_per_h": 1.5,
+        "events_per_h": 1.1,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
-          "road_traffic": 0.8,
+          "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 0.3,
+          "voices": 0.2,
           "music": 0.0,
-          "unclassified": 0.3
+          "unclassified": 0.2
         },
-        "loudest_event_db": 68.8,
-        "measured_share": 0.97
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 68.9,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 38.0,
+      "last_7_days": {
+        "laeq_db": 41.8,
+        "l90_db": 36.2,
+        "l10_db": 45.4,
         "dynamics_db": 9.0,
-        "events_per_h": 1.6,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 38.3,
-        "dynamics_db": 9.0,
-        "events_per_h": 1.6,
-        "nights_with_data": 29
-      }
-    },
-    {
-      "cell": "h26846_12479",
-      "devices": 1,
-      "calibrated": false,
-      "last_night": {
-        "laeq_db": 35.8,
-        "l90_db": 30.3,
-        "l10_db": 39.0,
-        "dynamics_db": 8.9,
-        "events_per_h": 1.4,
+        "events_per_h": 1.2,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
-          "road_traffic": 0.8,
+          "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
-          "voices": 0.3,
+          "voices": 0.2,
           "music": 0.0,
           "unclassified": 0.3
         },
-        "loudest_event_db": 68.0,
-        "measured_share": 0.97
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 73.5,
+        "measured_hours": 91.0,
+        "days_with_data": 7,
+        "devices": 2,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 35.7,
-        "dynamics_db": 8.9,
-        "events_per_h": 1.4,
-        "nights_with_data": 7
-      },
-      "last_30_nights": {
-        "laeq_db": 35.6,
-        "dynamics_db": 9.0,
-        "events_per_h": 1.5,
-        "nights_with_data": 17
-      }
-    },
-    {
-      "cell": "h26847_12472",
-      "devices": 1,
-      "calibrated": true,
-      "last_night": {
-        "laeq_db": 38.9,
-        "l90_db": 34.1,
-        "l10_db": 43.3,
+      "last_30_days": {
+        "laeq_db": 42.1,
+        "l90_db": 36.9,
+        "l10_db": 46.1,
         "dynamics_db": 9.0,
         "events_per_h": 1.3,
         "events_per_h_by_category": {
@@ -759,32 +1477,180 @@
           "construction": 0.0,
           "voices": 0.3,
           "music": 0.0,
-          "unclassified": 0.1
+          "unclassified": 0.2
         },
-        "loudest_event_db": 73.1,
-        "measured_share": 0.89
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 73.8,
+        "measured_hours": 359.3,
+        "days_with_data": 30,
+        "devices": 2,
+        "calibrated": true
+      }
+    },
+    {
+      "cell": "h26846_12479",
+      "devices": 1,
+      "calibrated": false,
+      "day": {
+        "laeq_db": 42.9,
+        "l90_db": 39.9,
+        "l10_db": 48.6,
+        "dynamics_db": 8.8,
+        "events_per_h": 1.4,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 70.6,
+        "measured_hours": 10.8,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": false
       },
-      "last_7_nights": {
-        "laeq_db": 38.6,
+      "last_7_days": {
+        "laeq_db": 43.0,
+        "l90_db": 39.9,
+        "l10_db": 48.8,
+        "dynamics_db": 8.9,
+        "events_per_h": 1.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.8,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 72.3,
+        "measured_hours": 82.0,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": false
+      },
+      "last_30_days": {
+        "laeq_db": 43.0,
+        "l90_db": 39.9,
+        "l10_db": 48.8,
+        "dynamics_db": 8.9,
+        "events_per_h": 1.5,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.8,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 72.3,
+        "measured_hours": 197.8,
+        "days_with_data": 17,
+        "devices": 1,
+        "calibrated": false
+      }
+    },
+    {
+      "cell": "h26847_12472",
+      "devices": 1,
+      "calibrated": true,
+      "day": {
+        "laeq_db": 45.1,
+        "l90_db": 43.4,
+        "l10_db": 51.1,
+        "dynamics_db": 9.1,
+        "events_per_h": 1.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.6,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.2,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 68.3,
+        "measured_hours": 18.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_7_days": {
+        "laeq_db": 45.0,
+        "l90_db": 43.0,
+        "l10_db": 50.6,
         "dynamics_db": 9.0,
         "events_per_h": 1.4,
-        "nights_with_data": 7
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 74.5,
+        "measured_hours": 161.2,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_30_nights": {
-        "laeq_db": 38.8,
+      "last_30_days": {
+        "laeq_db": 45.0,
+        "l90_db": 42.9,
+        "l10_db": 50.6,
         "dynamics_db": 9.0,
-        "events_per_h": 1.5,
-        "nights_with_data": 26
+        "events_per_h": 1.4,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 1.0,
+        "loudest_event_db": 75.0,
+        "measured_hours": 612.6,
+        "days_with_data": 26,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26852_12464",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 35.8,
-        "l90_db": 31.4,
-        "l10_db": 40.5,
+      "day": null,
+      "last_7_days": {
+        "laeq_db": 39.5,
+        "l90_db": 33.8,
+        "l10_db": 43.0,
         "dynamics_db": 9.1,
         "events_per_h": 1.3,
         "events_per_h_by_category": {
@@ -795,73 +1661,54 @@
           "construction": 0.0,
           "voices": 0.3,
           "music": 0.0,
-          "unclassified": 0.4
+          "unclassified": 0.3
         },
-        "loudest_event_db": 65.1,
-        "measured_share": 0.93
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 70.0,
+        "measured_hours": 63.0,
+        "days_with_data": 5,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 36.3,
+      "last_30_days": {
+        "laeq_db": 40.0,
+        "l90_db": 34.5,
+        "l10_db": 43.7,
         "dynamics_db": 9.1,
-        "events_per_h": 1.5,
-        "nights_with_data": 5
-      },
-      "last_30_nights": {
-        "laeq_db": 36.6,
-        "dynamics_db": 9.1,
-        "events_per_h": 1.5,
-        "nights_with_data": 25
+        "events_per_h": 1.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 73.1,
+        "measured_hours": 329.3,
+        "days_with_data": 28,
+        "devices": 1,
+        "calibrated": true
       }
     },
     {
       "cell": "h26856_12461",
       "devices": 1,
       "calibrated": true,
-      "last_night": {
-        "laeq_db": 37.0,
-        "l90_db": 32.3,
-        "l10_db": 41.7,
-        "dynamics_db": 9.2,
-        "events_per_h": 1.6,
-        "events_per_h_by_category": {
-          "loud_vehicle": 0.1,
-          "road_traffic": 0.9,
-          "rail_tram": 0.0,
-          "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.4
-        },
-        "loudest_event_db": 70.1,
-        "measured_share": 1.0
-      },
-      "last_7_nights": {
-        "laeq_db": 36.9,
-        "dynamics_db": 9.1,
-        "events_per_h": 1.4,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
-        "laeq_db": 36.9,
+      "day": {
+        "laeq_db": 39.5,
+        "l90_db": 32.4,
+        "l10_db": 41.9,
         "dynamics_db": 9.0,
-        "events_per_h": 1.5,
-        "nights_with_data": 29
-      }
-    },
-    {
-      "cell": "h26865_12461",
-      "devices": 1,
-      "calibrated": true,
-      "last_night": {
-        "laeq_db": 40.6,
-        "l90_db": 36.3,
-        "l10_db": 45.5,
-        "dynamics_db": 9.2,
         "events_per_h": 1.4,
         "events_per_h_by_category": {
-          "loud_vehicle": 0.1,
-          "road_traffic": 0.8,
+          "loud_vehicle": 0.2,
+          "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
           "construction": 0.0,
@@ -869,20 +1716,115 @@
           "music": 0.0,
           "unclassified": 0.2
         },
-        "loudest_event_db": 75.6,
-        "measured_share": 1.0
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 70.3,
+        "measured_hours": 8.0,
+        "days_with_data": 1,
+        "devices": 1,
+        "calibrated": true
       },
-      "last_7_nights": {
-        "laeq_db": 40.5,
-        "dynamics_db": 9.0,
-        "events_per_h": 1.5,
-        "nights_with_data": 6
-      },
-      "last_30_nights": {
+      "last_7_days": {
         "laeq_db": 40.6,
-        "dynamics_db": 8.9,
-        "events_per_h": 1.5,
-        "nights_with_data": 25
+        "l90_db": 35.4,
+        "l10_db": 44.4,
+        "dynamics_db": 9.0,
+        "events_per_h": 1.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.2,
+          "music": 0.0,
+          "unclassified": 0.2
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 72.2,
+        "measured_hours": 77.1,
+        "days_with_data": 7,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 40.8,
+        "l90_db": 35.3,
+        "l10_db": 44.4,
+        "dynamics_db": 9.0,
+        "events_per_h": 1.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.2,
+          "music": 0.0,
+          "unclassified": 0.3
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 73.4,
+        "measured_hours": 387.6,
+        "days_with_data": 30,
+        "devices": 1,
+        "calibrated": true
+      }
+    },
+    {
+      "cell": "h26865_12461",
+      "devices": 1,
+      "calibrated": true,
+      "day": null,
+      "last_7_days": {
+        "laeq_db": 44.1,
+        "l90_db": 38.8,
+        "l10_db": 48.0,
+        "dynamics_db": 9.0,
+        "events_per_h": 1.2,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.2,
+          "music": 0.0,
+          "unclassified": 0.2
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 0.0,
+        "loudest_event_db": 72.9,
+        "measured_hours": 77.1,
+        "days_with_data": 6,
+        "devices": 1,
+        "calibrated": true
+      },
+      "last_30_days": {
+        "laeq_db": 44.6,
+        "l90_db": 39.7,
+        "l10_db": 48.7,
+        "dynamics_db": 9.0,
+        "events_per_h": 1.3,
+        "events_per_h_by_category": {
+          "loud_vehicle": 0.1,
+          "road_traffic": 0.7,
+          "rail_tram": 0.0,
+          "aircraft": 0.0,
+          "construction": 0.0,
+          "voices": 0.3,
+          "music": 0.0,
+          "unclassified": 0.2
+        },
+        "loud_events_per_h": 0.0,
+        "loud_events": 1.0,
+        "loudest_event_db": 75.6,
+        "measured_hours": 329.3,
+        "days_with_data": 29,
+        "devices": 1,
+        "calibrated": true
       }
     }
   ],

@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from test_api import SITE, minute, recent, register
-from test_publish import LAST, NOW, add_night
+from test_publish import LAST, NOW, add_day, add_report
 
 from stadtlaerm_server import __main__ as cli
 from stadtlaerm_server import db, publish, retention
 from stadtlaerm_server.config import Settings
 
 CELL = "h26824_12473"
-TABLES = ("minutes", "events", "hourly", "sites")
+TABLES = ("minutes", "events", "hourly", "reports", "sites")
 
 
 def iso(days_ago: float) -> str:
@@ -32,7 +32,8 @@ def add(conn, dev, *, last_seen: str | None, created: str = "2026-01-01T00:00:00
         "VALUES (?, ?, 'open_window', 'Pixel 8', 'UNPROCESSED', 1, '')",
         (dev, cell),
     )
-    add_night(conn, dev, LAST, 42.0, 4.0, sum(map(ord, dev)))
+    add_day(conn, dev, LAST, 42.0, 4.0, sum(map(ord, dev)))
+    add_report(conn, dev, datetime(2026, 10, 25, 9, 0), 47.36, 8.54)
     conn.execute(
         "INSERT INTO hourly (device_id, hour_utc, valid_s, valid_minutes, events, calibrated) "
         "VALUES (?, 0, 3600, 60, '{}', 1)",
@@ -123,7 +124,8 @@ def test_expired_device_leaves_the_map(conn, tmp_path):
     cells = publish.publish(conn, out, now=NOW)
     assert cells["cells"] == []
     assert not (out / "cells" / f"{CELL}.json").exists()
-    assert all(json.loads(p.read_text())["cells"] == [] for p in (out / "nights").glob("*.json"))
+    assert all(json.loads(p.read_text())["cells"] == [] for p in (out / "days").glob("*.json"))
+    assert json.loads((out / "reports.json").read_text())["reports"] == []
     assert json.loads((out / "stats.json").read_text())["devices_expired_total"] == 1
 
 

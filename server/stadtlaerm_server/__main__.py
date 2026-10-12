@@ -3,7 +3,8 @@
 serve (default)  run the API with the background publish/retention loop
 publish          rebuild the map files (and stats.json) once and exit
 retention        run the retention job once (raw data older than RETENTION_DAYS → hourly rows,
-                 devices without uploads for INACTIVE_DELETE_DAYS deleted), republish if any
+                 reports older than that deleted, devices without uploads for
+                 INACTIVE_DELETE_DAYS deleted), republish if any
                  device was deleted, and exit
 stats            print the usage counts of stats.json (computed now, nothing written)
 """
@@ -37,8 +38,8 @@ def main(argv: list[str]) -> int:
     with db.open_db(s.db_path) as conn:
         db.migrate(conn)
         if cmd == "publish":
-            cells = publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell)
-            print(f"published {len(cells['cells'])} cells for night {cells['night']} to {s.map_dir}")
+            cells = publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
+            print(f"published {len(cells['cells'])} cells, windows ending {cells['day']}, to {s.map_dir}")
         elif cmd == "stats":
             stats = publish.current_stats(conn, min_devices=s.min_devices_per_cell)
             print(json.dumps(stats, ensure_ascii=False, indent=2))
@@ -46,7 +47,7 @@ def main(argv: list[str]) -> int:
             result = retention.run_retention(conn, retention_days=s.retention_days)
             result["devices_expired"] = retention.expire_inactive(conn, inactive_days=s.inactive_delete_days)
             if result["devices_expired"]:
-                publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell)
+                publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
             print(json.dumps(result))
         else:
             print(__doc__, file=sys.stderr)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Renders docs/karte.html at 360 px with the server fixture and saves docs/img/karte-360.png.
-// The API is answered from server/example_cells.json / example_cell.json (tests/support/mock.js).
+// The API is answered from server/example_cells.json, example_cell.json and example_reports.json (tests/support/mock.js).
 // swisstopo tiles are replaced by a grey placeholder unless REAL_TILES=1 is set — agents must
 // not fetch from the web (CLAUDE.md rule 6), so only the main session retakes it with real tiles.
 //
@@ -31,7 +31,7 @@ const { mockNetwork, cellJson } = require("../tests/support/mock");
       const b = document.querySelector(`#celllist-items button[data-cell="${id}"]`);
       b.click();
     }, cellJson.cell);
-    await page.waitForSelector("#card svg.nightchart");
+    await page.waitForSelector("#card svg.daychart");
   }
   await page.waitForTimeout(400);
   if (args.includes("--full")) {
