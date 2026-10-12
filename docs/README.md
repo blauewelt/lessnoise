@@ -1,19 +1,23 @@
 # docs/ — the website wenigerlaerm.ch (formerly stadtlaerm.ch, which now redirects via blauewelt/stadtlaerm-weiterleitung)
 
 Static files served by GitHub Pages (`CNAME`: wenigerlaerm.ch). No build step. German, Swiss
-spelling, system fonts, no third-party requests — except on the map page, which says so.
+spelling (ss, never ß), «Sie», guillemets, system fonts, no third-party requests — except on the
+map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the offline app) and
+«Weniger Lärm · Karte» (the map edition), and of measurements, never of nights;
+`tests/pages.spec.js` checks that for index, datenschutz and update.
 
 | File | What |
 |---|---|
-| `index.html`, `style.css` | Home page and the shared stylesheet (light/dark via CSS variables) |
+| `index.html`, `style.css` | Home page (promise, the two uses, download with version/size/SHA-256, installation and calibration as collapsed `<details>`, map, privacy in two lines, association) and the shared stylesheet (light/dark via CSS variables) |
 | `datenschutz.html` | Privacy page (mirrors [../PRIVACY.md](../PRIVACY.md)) |
-| `update.html` | Update check opened by the app (`#v=…&c=…&e=offline` or `karte`; one inline script, pinned by hash in its CSP) |
+| `update.html` | Update check opened by the app (`#v=…&c=…&e=offline` or `karte`; one inline script, pinned by hash in its CSP — after editing it run `python3 android/tools/csp_hash.py --write docs/update.html`). Installs older than `data-first-code` (13 = 0.6.0) are «Stadtlärm», another app id: they are told to uninstall it first |
 | `karte.html` | The noise map ([../server/DESIGN.md](../server/DESIGN.md) §7) |
 | `map/lv95.js` | WGS84 ↔ Swiss LV95 and hectare cell ids (§3), pure functions |
 | `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
 | `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
-| `img/`, `download/` | Screenshots; `download/stadtlaerm.apk`, the signed Offline-Version as a fallback for old links (the download buttons link the GitHub Release assets `stadtlaerm.apk` and `stadtlaerm-karte.apk`) |
+| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Weniger Lärm», `stadtlaerm-karte.apk` = «Weniger Lärm · Karte». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in version, size and SHA-256 in `index.html` (`.facts`) and `data-version`/`data-code` in `update.html` |
+| `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `chart-nacht*.png` show the old «Nächte» screen of 0.5.x and are no longer linked — a new app screenshot needs a phone |
 
 ## The map page
 

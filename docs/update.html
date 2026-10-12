@@ -3,38 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-P9T/fPJoPDL2cqMMM4vs7It3FIGWLwr4mApmcV6fhdY='; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4l5DtPcluGADJO2KHSWUcah+xfHAiNhZww/u5nUa2lg='; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
-<title>Update prüfen – Stadtlärm</title>
-<meta name="description" content="Prüfen, ob eine neuere Version der Stadtlärm-App verfügbar ist.">
+<title>Update prüfen – Weniger Lärm</title>
+<meta name="description" content="Prüfen, ob eine neuere Version der App «Weniger Lärm» verfügbar ist.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header class="wrap page-head">
-  <a class="home" href="./">Stadtlärm</a>
+  <a class="home" href="./">Weniger Lärm</a>
   <h1>Update prüfen</h1>
 </header>
 
 <!-- Release checklist: data-version / data-code must match the published APKs (versionName / versionCode,
-     the same for both editions); data-offline / data-karte and the two links below point to docs/download/. -->
-<main class="wrap" id="update" data-version="0.5.1" data-code="12"
+     the same for both editions); data-offline / data-karte and the two links below point to docs/download/.
+     data-first-code is the first versionCode of the app id ch.lessnoise.app (0.6.0): older installs are
+     «Stadtlärm» and cannot be updated in place. -->
+<main class="wrap" id="update" data-version="0.6.0" data-code="13" data-first-code="13"
       data-offline="download/stadtlaerm.apk"
       data-karte="download/stadtlaerm-karte.apk">
 
 <section>
-  <h2 id="status">Aktuelle Version: 0.5.1</h2>
-  <p id="download"><a class="button" id="download-link" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Offline-Version herunterladen</a></p>
+  <h2 id="status">Aktuelle Version: 0.6.0</h2>
+  <p id="download"><a class="button" id="download-link" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a></p>
   <ol class="steps" id="hints" hidden>
     <li>Die heruntergeladene Datei in der App «Dateien» öffnen (Ordner «Downloads»). Der Download-Dialog des Browsers verweigert das Öffnen oft.</li>
-    <li>Die neue Version wird über die alte installiert. Die Messwerte bleiben erhalten.</li>
+    <li id="hint-over">Die neue Version wird über die alte installiert. Die Messwerte bleiben erhalten.</li>
   </ol>
-  <p id="other"><span id="other-text">Wer Messwerte für die Lärmkarte teilen möchte:</span> <a id="other-link" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Karten-Version herunterladen</a>. Sie wird über die installierte Version installiert, die Messungen bleiben erhalten. <a href="./#version">Welche Version?</a></p>
+  <p id="new-app">Ab 0.6.0 ist Weniger Lärm eine neue App und installiert sich nicht über «Stadtlärm»: Stadtlärm zuerst deinstallieren, vorher bei Bedarf die Messwerte als CSV exportieren und geteilte Daten auf dem Server löschen.</p>
+  <p id="other"><span id="other-text">Wer Messwerte für die Lärmkarte teilen oder unterwegs melden möchte:</span> <a id="other-link" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a>. Ab 0.6.0 installiert sich die eine Ausführung über die andere, die Messungen bleiben erhalten. <a href="./#version">Welche wählen?</a></p>
   <p class="small">Die installierte Version wird nur im Browser verglichen; der Teil nach dem # wird nicht an den Server gesendet.</p>
-  <p class="small">Mehr zur Installation und die Prüfsummen der Dateien stehen auf der <a href="./#installation">Startseite</a>.</p>
+  <p class="small">Mehr zur Installation und die Prüfsummen der Dateien stehen auf der <a href="./#download">Startseite</a>.</p>
 </section>
 
 </main>
@@ -44,7 +47,7 @@
     <li>Ein Projekt des <a href="./#verein">Vereins Weniger Lärm</a>, Zürich</li>
     <li><a href="./">Startseite</a></li>
     <li><a href="datenschutz.html">Datenschutz</a></li>
-    <li><a href="https://github.com/blauewelt/stadtlaerm">Quellcode</a></li>
+    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a></li>
   </ul>
 </footer>
 
@@ -58,11 +61,13 @@
   var download = document.getElementById("download");
   var downloadLink = document.getElementById("download-link");
   var hints = document.getElementById("hints");
+  var hintOver = document.getElementById("hint-over");
+  var firstCode = parseInt(main.getAttribute("data-first-code"), 10);
   var otherText = document.getElementById("other-text");
   var otherLink = document.getElementById("other-link");
   var EDITIONS = {
-    offline: { label: "Offline-Version", url: main.getAttribute("data-offline") },
-    karte: { label: "Karten-Version", url: main.getAttribute("data-karte") }
+    offline: { label: "Weniger Lärm", url: main.getAttribute("data-offline") },
+    karte: { label: "Weniger Lärm · Karte", url: main.getAttribute("data-karte") }
   };
 
   function compareVersions(a, b) {
@@ -82,7 +87,7 @@
     if (v !== null && !/^[0-9A-Za-z.+ -]{1,32}$/.test(v)) v = null;
     if (c !== null && !/^[0-9]{1,9}$/.test(c)) c = null;
     // Only the two published editions; apps up to 0.4.0 send no e (and Labor's is ignored):
-    // they get the Offline-Version, which is what they have (no internet permission).
+    // they get «Weniger Lärm», the edition without internet permission, which is what they have.
     if (e !== null && !/^(offline|karte)$/.test(e)) e = null;
 
     var mine = EDITIONS[e === "karte" ? "karte" : "offline"];
@@ -92,13 +97,20 @@
     otherLink.href = other.url;
     otherLink.textContent = other.label + " herunterladen";
     otherText.textContent = e === "karte"
-      ? "Zur Offline-Version wechseln (ohne Internet-Berechtigung):"
-      : "Wer Messwerte für die Lärmkarte teilen möchte:";
+      ? "Zu «Weniger Lärm» wechseln (ohne Internet- und Standort-Berechtigung):"
+      : "Wer Messwerte für die Lärmkarte teilen oder unterwegs melden möchte:";
     var label = e !== null ? EDITIONS[e].label : null;
 
-    var newer;
-    if (c !== null) newer = parseInt(c, 10) < latestCode;
-    else if (v !== null) newer = compareVersions(v, latest) < 0;
+    var newer, stadtlaerm;
+    if (c !== null) {
+      newer = parseInt(c, 10) < latestCode;
+      stadtlaerm = parseInt(c, 10) < firstCode;
+    } else if (v !== null) {
+      newer = compareVersions(v, latest) < 0;
+      stadtlaerm = compareVersions(v, "0.6.0") < 0;
+    }
+    // «Stadtlärm» (up to 0.5.x, another app id) cannot be updated in place; #new-app says what to do.
+    hintOver.hidden = stadtlaerm === true;
 
     if (newer === undefined) {
       status.textContent = "Aktuelle Version: " + latest;
