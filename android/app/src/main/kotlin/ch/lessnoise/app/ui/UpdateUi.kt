@@ -105,7 +105,7 @@ fun AppVersionCard() {
     val open = rememberUpdateAction()
     SectionCard("App-Version") {
         Text(
-            "Stadtlärm ${BuildConfig.VERSION_NAME} (Build vom ${UpdateCheck.displayBuildDate(BuildConfig.BUILD_DATE)})",
+            "${EditionInfo.label(BuildConfig.EDITION)} ${BuildConfig.VERSION_NAME} (Build vom ${UpdateCheck.displayBuildDate(BuildConfig.BUILD_DATE)})",
             style = MaterialTheme.typography.bodyMedium,
         )
         // Which edition is installed, and how to switch (install the other APK over this one).
@@ -113,7 +113,7 @@ fun AppVersionCard() {
         EditionInfo.switchHint(BuildConfig.EDITION)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         OutlinedButton(onClick = open) { Text("Nach Update suchen") }
         Text(
-            "Öffnet stadtlaerm.ch im Browser. Die App selbst fragt keinen Server nach Updates.",
+            "Öffnet wenigerlaerm.ch im Browser; die App selbst fragt keinen Server.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

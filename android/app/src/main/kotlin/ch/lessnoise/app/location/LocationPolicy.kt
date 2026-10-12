@@ -4,18 +4,25 @@ import ch.lessnoise.app.upload.CellInput
 import kotlin.math.ceil
 
 /**
- * «Standort bestimmen» (since v0.5.1, Karten-Version and Labor-Version mit Karte only): the rules,
- * as pure Kotlin so that the JVM tests check them (LocationPolicyTest). The Android side, which asks
- * the LocationManager for one fix, is [LocationFetcher].
+ * One location fix (Karten editions only): the rules, as pure Kotlin so that the JVM tests check
+ * them (LocationPolicyTest). The Android side, which asks the LocationManager for one fix, is
+ * [LocationFetcher]. Two uses since 0.6.0:
  *
- * Privacy (server/DESIGN.md §2.2, PRIVACY.md): the coordinates of a fix exist only as local
- * variables of [LocationFetcher.locate] and of [decide]; what leaves this object is an [Outcome],
- * which holds at most the hectare id and the accuracy in metres. Nothing here stores or logs.
+ * 1. At «Start» of a shared measurement: [decide] turns the fix into the 100 m cell; what leaves
+ *    this object is an [Outcome], which holds at most the cell id and the accuracy in metres.
+ * 2. «Laut! Melden»: [decideReport] keeps the coordinates in a [ReportOutcome.Fix], the ONE result
+ *    that carries them. The report screen puts it into the report queue (upload/Reports.kt), which
+ *    deletes the coordinates once the server has the report.
+ *
+ * Nothing here stores or logs.
  */
 object LocationPolicy {
 
     /** Worst accepted accuracy (Android's 68 % radius). A 100 m hectare needs better than this. */
     const val MAX_ACCURACY_M = 75.0
+
+    /** Worst accepted accuracy of a «Laut! Melden» report. */
+    const val REPORT_MAX_ACCURACY_M = 50.0
 
     /** Stop waiting for the other provider once a fix is at least this good. */
     const val GOOD_ENOUGH_M = 25.0
@@ -42,7 +49,7 @@ object LocationPolicy {
         else -> Permission.DENIED
     }
 
-    /** The result of one «Standort bestimmen». Holds no coordinates. */
+    /** The result of the fix at «Start»: the cell, or why there is none. Holds no coordinates. */
     sealed interface Outcome {
         /** Accepted: the hectare to use and the fix's accuracy in whole metres (rounded up). */
         data class Hectare(val cell: String, val accuracyM: Int) : Outcome
@@ -106,38 +113,45 @@ object LocationPolicy {
         }
     }
 
-    private fun roundUp(m: Double): Int = maxOf(1, ceil(m).toInt())
+    /** The result of the fix for a report: the coordinates, or why there are none. */
+    sealed interface ReportOutcome {
+        /** Accepted: exact place, accuracy (m) and its cell. Goes straight into the report queue. */
+        data class Fix(val lat: Double, val lon: Double, val accuracyM: Double, val cell: String) : ReportOutcome {
+            val accuracyText: Int get() = roundUp(accuracyM)
+        }
 
-    /** «Hektare h26833_12479 · Genauigkeit ± 12 m». */
-    fun hectareLine(cell: String, accuracyM: Int): String = "Hektare $cell · Genauigkeit ± $accuracyM m"
+        /** No usable fix; [outcome] says why (never [Outcome.Hectare]). */
+        data class Problem(val outcome: Outcome) : ReportOutcome
+    }
+
+    /** «Laut! Melden»: precise permission, accuracy ≤ [REPORT_MAX_ACCURACY_M] and a place in Switzerland. */
+    fun decideReport(lat: Double, lon: Double, accuracyM: Double?, precise: Boolean): ReportOutcome {
+        if (!precise) return ReportOutcome.Problem(Outcome.ApproximateOnly)
+        val acc = accuracyM?.takeIf { !it.isNaN() && it >= 0 }
+        if (acc == null || acc > REPORT_MAX_ACCURACY_M) return ReportOutcome.Problem(Outcome.TooInaccurate(acc?.let { roundUp(it) }))
+        return when (val p = CellInput.fromLatLon(lat, lon, how = "Standort")) {
+            is CellInput.Parsed.Ok -> ReportOutcome.Fix(lat, lon, acc, p.cell)
+            is CellInput.Parsed.Error -> ReportOutcome.Problem(Outcome.OutsideSwitzerland(p.message))
+        }
+    }
+
+    internal fun roundUp(m: Double): Int = maxOf(1, ceil(m).toInt())
+
+    /** «Zelle h26833_12479 · ± 12 m». */
+    fun hectareLine(cell: String, accuracyM: Int): String = "Zelle $cell · ± $accuracyM m"
 
     /** Shown while waiting for the fix. */
     const val PROGRESS_TEXT = "Standort wird bestimmt …"
 
-    /** One line under the button, before the permission dialog. */
-    const val RATIONALE_TEXT =
-        "Dafür fragt die App nach der Standort-Berechtigung. Gelesen wird der Standort nur, wenn du hier tippst, einmal; behalten wird nur die Hektare."
-
-    /** The explanation for an outcome (Swiss spelling, «du»). */
+    /** Why there is no usable fix, one short sentence (Swiss spelling, «du»). */
     fun message(o: Outcome): String = when (o) {
         is Outcome.Hectare -> hectareLine(o.cell, o.accuracyM)
-        Outcome.ApproximateOnly ->
-            "Du hast nur den ungefähren Standort erlaubt. Für eine Hektare (100 × 100 m) braucht die App «Genauer Standort»: " +
-                "In den App-Einstellungen unter «Berechtigungen → Standort» «Genauen Standort verwenden» einschalten und nochmals " +
-                "«Standort bestimmen» tippen – oder die Koordinaten einfügen."
+        Outcome.ApproximateOnly -> "Nur der ungefähre Standort ist erlaubt; die App braucht «Genauer Standort»."
         is Outcome.TooInaccurate ->
-            (if (o.accuracyM != null) "Der Standort ist nur auf ± ${o.accuracyM} m genau. " else "Das Telefon hat keine Genauigkeit angegeben. ") +
-                "Für eine Hektare (100 × 100 m) reicht das nicht, sie wurde nicht übernommen. Versuch es nochmals am Fenster oder im Freien, " +
-                "mit eingeschaltetem WLAN – oder füge die Koordinaten ein."
-        is Outcome.OutsideSwitzerland -> o.message + " Die Lärmkarte gibt es nur für die Schweiz."
-        Outcome.LocationOff ->
-            "Die Standortdienste des Telefons sind ausgeschaltet. Schalte sie in den Einstellungen ein und tippe nochmals " +
-                "«Standort bestimmen» – oder füge die Koordinaten ein."
-        Outcome.NoFix ->
-            "In ${TIMEOUT_MS / 1000} Sekunden kam kein Standort. Am Fenster oder im Freien klappt es meist besser; " +
-                "du kannst es nochmals versuchen oder die Koordinaten einfügen."
-        Outcome.PermissionDenied ->
-            "Ohne Standort-Berechtigung kann die App den Standort nicht bestimmen. Du kannst sie in den App-Einstellungen " +
-                "erlauben («Genauer Standort», «Nur während der Nutzung der App») – oder die Koordinaten einfügen."
+            if (o.accuracyM != null) "Der Standort ist nur auf ± ${o.accuracyM} m genau." else "Das Telefon hat keine Genauigkeit angegeben."
+        is Outcome.OutsideSwitzerland -> o.message
+        Outcome.LocationOff -> "Die Standortdienste sind ausgeschaltet."
+        Outcome.NoFix -> "In ${TIMEOUT_MS / 1000} Sekunden kam kein Standort."
+        Outcome.PermissionDenied -> "Die App hat keine Standort-Berechtigung."
     }
 }

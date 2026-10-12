@@ -17,10 +17,10 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * One location fix for «Standort bestimmen», with the platform [LocationManager] only (no Google
- * Play Services: the app is open source and adds no proprietary library). Called only from the
- * button in «Messwerte teilen» while the screen is open; never in the background, never on a
- * schedule. The rules are in [LocationPolicy].
+ * One location fix, with the platform [LocationManager] only (no Google Play Services: the app is
+ * open source and adds no proprietary library). Called only while the app is open: at «Start» of
+ * a shared measurement ([locate]) and for «Laut! Melden» ([locateForReport]); never in the
+ * background, never on a schedule. The rules are in [LocationPolicy].
  *
  * 1. Permission: ACCESS_FINE_LOCATION → go on; only ACCESS_COARSE_LOCATION → ApproximateOnly
  *    (no fix is requested: «Ungefähr» is off by up to ~2 km); none → PermissionDenied.
@@ -32,8 +32,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  *    or when [LocationPolicy.TIMEOUT_MS] is over. Cancelling the coroutine (the «Abbrechen» button,
  *    leaving the screen) cancels the requests.
  *
- * The coordinates exist only in local variables here and in [LocationPolicy.decide]; the result is
- * an [LocationPolicy.Outcome] (hectare id and accuracy). Nothing is stored or logged.
+ * [locate]: the coordinates exist only in local variables here and in [LocationPolicy.decide]; the
+ * result is an [LocationPolicy.Outcome] (cell id and accuracy). [locateForReport]: the coordinates
+ * leave in a [LocationPolicy.ReportOutcome.Fix] for the report queue. Nothing is stored or logged here.
  */
 object LocationFetcher {
 
@@ -51,28 +52,46 @@ object LocationFetcher {
     private fun granted(context: Context, p: String): Boolean =
         ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
-    /** Must be called on the main thread (the API 26–29 listener runs on the main looper). */
-    @SuppressLint("MissingPermission") // checked first: permission() == PRECISE
+    /** The cell at «Start». Must be called on the main thread (the API 26–29 listener runs on the main looper). */
     suspend fun locate(context: Context): LocationPolicy.Outcome {
+        val f = fix(context)
+        if (f !is Fix.Ok) return (f as Fix.Failed).outcome
+        return LocationPolicy.decide(f.location.latitude, f.location.longitude, accuracyOf(f.location), precise = true)
+    }
+
+    /** The exact place of a «Laut! Melden» report. Main thread, like [locate]. */
+    suspend fun locateForReport(context: Context): LocationPolicy.ReportOutcome {
+        val f = fix(context)
+        if (f !is Fix.Ok) return LocationPolicy.ReportOutcome.Problem((f as Fix.Failed).outcome)
+        return LocationPolicy.decideReport(f.location.latitude, f.location.longitude, accuracyOf(f.location), precise = true)
+    }
+
+    private sealed interface Fix {
+        class Ok(val location: Location) : Fix
+        class Failed(val outcome: LocationPolicy.Outcome) : Fix
+    }
+
+    @SuppressLint("MissingPermission") // checked first: permission() == PRECISE
+    private suspend fun fix(context: Context): Fix {
         when (permission(context)) {
-            LocationPolicy.Permission.DENIED -> return LocationPolicy.Outcome.PermissionDenied
-            LocationPolicy.Permission.APPROXIMATE_ONLY -> return LocationPolicy.Outcome.ApproximateOnly
+            LocationPolicy.Permission.DENIED -> return Fix.Failed(LocationPolicy.Outcome.PermissionDenied)
+            LocationPolicy.Permission.APPROXIMATE_ONLY -> return Fix.Failed(LocationPolicy.Outcome.ApproximateOnly)
             LocationPolicy.Permission.PRECISE -> Unit
         }
-        val lm = context.getSystemService(LocationManager::class.java) ?: return LocationPolicy.Outcome.LocationOff
+        val lm = context.getSystemService(LocationManager::class.java) ?: return Fix.Failed(LocationPolicy.Outcome.LocationOff)
         val providers = LocationPolicy.providersToAsk(
             gpsEnabled = enabled(lm, LocationManager.GPS_PROVIDER),
             networkEnabled = enabled(lm, LocationManager.NETWORK_PROVIDER),
         )
-        if (providers.isEmpty()) return LocationPolicy.Outcome.LocationOff
+        if (providers.isEmpty()) return Fix.Failed(LocationPolicy.Outcome.LocationOff)
 
         return try {
-            val fix = freshLastKnown(lm, providers) ?: currentFix(context, lm, providers)
-                ?: return LocationPolicy.Outcome.NoFix
-            LocationPolicy.decide(fix.latitude, fix.longitude, accuracyOf(fix), precise = true)
+            val loc = freshLastKnown(lm, providers) ?: currentFix(context, lm, providers)
+                ?: return Fix.Failed(LocationPolicy.Outcome.NoFix)
+            Fix.Ok(loc)
         } catch (_: SecurityException) {
             // The permission was revoked in the meantime.
-            LocationPolicy.Outcome.PermissionDenied
+            Fix.Failed(LocationPolicy.Outcome.PermissionDenied)
         }
     }
 

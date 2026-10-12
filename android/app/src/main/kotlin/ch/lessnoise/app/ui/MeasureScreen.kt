@@ -34,7 +34,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.rememberCoroutineScope
+import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.audio.AudioSourceSelector
+import kotlinx.coroutines.launch
 import ch.lessnoise.app.container
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.edition.EditionUi
@@ -47,9 +51,20 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val live by c.live.collectAsStateWithLifecycle()
     val events by remember { c.measurements.recentEvents(30) }.collectAsStateWithLifecycle(emptyList())
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
-    val requestPermission = rememberMicPermissionLauncher { granted ->
-        if (granted) MeasurementService.start(context)
+    val snackbar = LocalSnackbarHost.current
+    val scope = rememberCoroutineScope()
+    // Karten editions with «Messwerte teilen» on: one location fix at «Start» (LocationFlows.kt).
+    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { cell -> MeasurementService.start(context, cell) } else null
+    fun startMeasurement() {
+        val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
+        if (sharing && sharedStart != null) sharedStart() else MeasurementService.start(context)
     }
+    val requestPermission = rememberMicPermissionLauncher { granted ->
+        if (granted) startMeasurement()
+    }
+    val report = if (BuildConfig.UPLOAD_AVAILABLE) {
+        rememberReportAction { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } }
+    } else null
 
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -154,11 +169,15 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
                 } else {
                     Button(
                         onClick = {
-                            if (hasMicPermission(context)) MeasurementService.start(context) else requestPermission()
+                            if (hasMicPermission(context)) startMeasurement() else requestPermission()
                         },
                         enabled = !live.starting && !calibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) { Text(if (live.starting) "Startet …" else "Messung starten", fontSize = 18.sp) }
+                    // «Laut! Melden»: Karten editions only, while no measurement runs.
+                    if (report != null && !live.starting) {
+                        OutlinedButton(onClick = report, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
+                    }
                 }
                 if (calibrating) Text("Kalibrierung läuft – Messung erst danach möglich.", style = MaterialTheme.typography.bodySmall)
                 if (!live.running) UpdateReminderLine()
@@ -174,6 +193,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
                         Text("Effekte: " + live.effects.joinToString(", "), style = MaterialTheme.typography.bodySmall)
                     }
                     Text("Läuft seit ${Fmt.time(live.startedAtMs)} – auch bei ausgeschaltetem Bildschirm.", style = MaterialTheme.typography.bodySmall)
+                    live.cell?.let { Text("Wird für die Karte geteilt (Zelle $it).", style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }

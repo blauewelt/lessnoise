@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher label only; the app itself is in Swiss German. -->
+<resources>
+    <string name="app_name">Less Noise</string>
+</resources>

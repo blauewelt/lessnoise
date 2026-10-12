@@ -245,7 +245,7 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
             SectionCard("Verlauf") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
-                        scope.launch { shareFiles(context, listOf(vm.exportHistory()), "application/json", "Stadtlärm Kalibrierungen") }
+                        scope.launch { shareFiles(context, listOf(vm.exportHistory()), "application/json", "Weniger Lärm Kalibrierungen") }
                     }) { Text("Als JSON exportieren") }
                     TextButton(onClick = { vm.resetToDefault() }, enabled = !busy) { Text("Auf Standard") }
                 }

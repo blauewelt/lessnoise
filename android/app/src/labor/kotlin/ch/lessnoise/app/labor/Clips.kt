@@ -435,9 +435,10 @@ data class WavInfo(val sampleRate: Int, val channels: Int, val bitsPerSample: In
     }
 }
 
-/** «Diese Nacht» in the clip list: the night (22:00–06:00) that is running or ended last. */
-object ClipNights {
-    /** The date the current/last night started on: the local date 22 h before [nowMs]. */
-    fun currentNightOf(nowMs: Long, zone: ZoneId): java.time.LocalDate =
-        java.time.Instant.ofEpochMilli(nowMs).atZone(zone).minusHours(22).toLocalDate()
+/** «Letzte 24 h» in the clip list (since 0.6.0 no time of day is special). */
+object ClipRecent {
+    const val SPAN_MS = 24 * 3_600_000L
+
+    /** Whether an event starting at [eventStartMs] is within the 24 hours before [nowMs]. */
+    fun isRecent(eventStartMs: Long, nowMs: Long): Boolean = eventStartMs in (nowMs - SPAN_MS)..nowMs
 }

@@ -42,7 +42,7 @@ private data class Tab(val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
     Tab("Messen", Icons.Filled.Home),
-    Tab("Nächte", Icons.Filled.DateRange),
+    Tab("Messungen", Icons.Filled.DateRange),
     Tab("Kalibrieren", Icons.Filled.Build),
     Tab("Daten", Icons.Filled.Share),
     Tab("Einstellungen", Icons.Filled.Settings),
@@ -73,7 +73,7 @@ fun AppRoot() {
         CompositionLocalProvider(LocalSnackbarHost provides snackbar) {
             when (selected) {
                 0 -> MeasureScreen(m)
-                1 -> NightsScreen(m)
+                1 -> MeasurementsScreen(m)
                 2 -> CalibrateScreen(m)
                 3 -> DataScreen(m)
                 else -> SettingsScreen(m)

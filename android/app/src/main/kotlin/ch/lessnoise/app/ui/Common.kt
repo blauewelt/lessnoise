@@ -61,6 +61,18 @@ object Fmt {
     }
 
     fun percent(v: Double): String = String.format(SwissLocale, "%.0f %%", v * 100)
+
+    /** «3 h 05 min», «45 min». */
+    fun hoursMinutes(ms: Long): String {
+        val min = (ms / 60_000L).coerceAtLeast(0)
+        return if (min < 60) "$min min" else String.format(SwissLocale, "%d h %02d min", min / 60, min % 60)
+    }
+
+    /** «Sa 10.10. 22:14». */
+    fun weekdayDateTime(ms: Long): String {
+        val z = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault())
+        return "${ch.lessnoise.chart.Windows.weekday(z.toLocalDate())} ${z.dayOfMonth}.${z.monthValue}. ${z.format(hm)}"
+    }
 }
 
 /** German display name of a category id. */

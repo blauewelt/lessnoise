@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * Update check without network access. The app never contacts a server for it: «Nach Update suchen»
- * opens stadtlaerm.ch/update.html in the browser with the installed version in the URL fragment
+ * opens wenigerlaerm.ch/update.html in the browser with the installed version in the URL fragment
  * (which the browser does not send to the server), and the page compares it locally.
  *
  * The age reminder is fully offline too: it only compares the build date baked into the APK
@@ -15,7 +15,7 @@ import java.time.temporal.ChronoUnit
  * on the JVM.
  */
 object UpdateCheck {
-    const val PAGE = "https://stadtlaerm.ch/update.html"
+    const val PAGE = "https://wenigerlaerm.ch/update.html"
 
     /** Show the reminder once the installed build is at least this many days old. */
     const val REMINDER_AGE_DAYS = 30L
@@ -26,10 +26,10 @@ object UpdateCheck {
     private val displayDate: DateTimeFormatter = DateTimeFormatter.ofPattern("d.M.yyyy")
 
     /**
-     * `https://stadtlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>`. The page
+     * `https://wenigerlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>`. The page
      * offers the download of the same edition ([ch.lessnoise.app.edition.EditionInfo]: "offline",
      * "karte"); it ignores any other value (Labor), and without `e` (apps up to 0.4.0) it offers
-     * the Offline-Version.
+     * the offline edition.
      */
     fun updateUrl(versionName: String, versionCode: Int, edition: String? = null): String =
         "$PAGE#v=${URLEncoder.encode(versionName, "UTF-8")}&c=$versionCode" +

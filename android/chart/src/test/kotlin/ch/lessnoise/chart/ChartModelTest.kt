@@ -5,9 +5,10 @@ import ch.lessnoise.dsp.EventShape
 import ch.lessnoise.dsp.Iso
 import ch.lessnoise.dsp.WindRule
 import ch.lessnoise.dsp.MinuteRecord
-import ch.lessnoise.dsp.NightSummarizer
+import ch.lessnoise.dsp.MeasurementSpan
+import ch.lessnoise.dsp.MeasurementSummarizer
 import ch.lessnoise.dsp.NoiseEvent
-import java.time.LocalDate
+
 import java.time.LocalDateTime
 import kotlin.math.log10
 import kotlin.math.pow
@@ -20,7 +21,10 @@ import kotlin.test.assertTrue
 class ChartModelTest {
     private val zone = SyntheticData.zone
     private val win = Windows(zone)
-    private val night = win.of(RangeMode.NIGHT, LocalDate.of(2026, 10, 9))
+    /** A measurement Friday 22:00 → Saturday 06:00. */
+    private val night = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 6, 0)))
+    private val weekWindow = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 5, 0, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 12, 0, 0)))
+    private fun spanOf(w: TimeWindow) = MeasurementSpan(w.startMs, w.endMs)
     private val after = night.endMs + 3 * 3_600_000L
 
     private fun minute(t: Long, laeq: Double, l10: Double = laeq + 3, l90: Double = laeq - 3, coverage: Double = 1.0, calibrated: Boolean = true) =
@@ -111,13 +115,13 @@ class ChartModelTest {
 
     @Test
     fun gapTextsTellInterruptionsFromStartAndEnd() {
-        // Night 22–06, data 23:54–05:00, earlier data until 20:55, nothing after.
+        // Measurement 22–06, data 23:54–05:00, earlier data until 20:55, nothing after. Over two dates: with weekday.
         val ms = (0 until (5 * 60 + 6)).map { i -> minute(at(23, 54) + i * 60_000L, 30.0) }
         val prev = SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 20, 55))
         val m = ChartModel.build(ChartData(night, ms, emptyList(), after, prevValidEndMs = prev, nextValidStartMs = null), zone, "loud_vehicle", 45.0)
-        assertEquals(listOf("unterbrochen 20:55–23:54", "Messung bis 05:00"), m.summary.gapTexts)
+        assertEquals(listOf("unterbrochen Fr 20:55–Fr 23:54", "Messung bis Sa 05:00"), m.summary.gapTexts)
         val first = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0)
-        assertEquals("Messung ab 23:54", first.summary.gapTexts.first())
+        assertEquals("Messung ab Fr 23:54", first.summary.gapTexts.first())
     }
 
     @Test
@@ -137,9 +141,9 @@ class ChartModelTest {
         assertEquals(1, m.highlightedEvents.size)
         assertEquals(2, m.summary.eventCount)
         assertEquals(1, m.summary.highlightCount)
-        // Same count as the night list for the same floor.
-        val night = NightSummarizer.summarize(minutes(22, 0, 10), evs, zone, eventMinLevelDb = 45.0).single()
-        assertEquals(night.eventCount, m.summary.eventCount)
+        // Same count as the measurement list for the same floor.
+        val n = MeasurementSummarizer.summarize(spanOf(night), minutes(22, 0, 10), evs, eventMinLevelDb = 45.0)
+        assertEquals(n.eventCount, m.summary.eventCount)
     }
 
     @Test
@@ -151,14 +155,15 @@ class ChartModelTest {
     }
 
     @Test
-    fun weekDrawsOnlyLoudHighlightedEventsCappedAt300() {
+    fun longMeasurementsDrawOnlyLoudHighlightedEventsCappedAt300() {
         val d = SyntheticData.weekData()
         val w = d.window
         val many = (0 until 400).map { i -> event(w.startMs + i * 1_200_000L, 61.0 + (i % 20), "loud_vehicle") } +
             (0 until 50).map { i -> event(w.startMs + i * 3_600_000L + 600_000, 55.0, "loud_vehicle") } + // below 60
             (0 until 30).map { i -> event(w.startMs + i * 3_600_000L + 900_000, 80.0, "voices") } // not highlighted
         val m = ChartModel.build(d.copy(events = many), zone, "loud_vehicle", 45.0)
-        assertTrue(m.otherEvents.isEmpty()) // the week view draws no grey dots
+        assertTrue(m.hourly)
+        assertTrue(m.otherEvents.isEmpty()) // hourly views draw no grey dots
         assertEquals(300, m.highlightedEvents.size)
         assertTrue(m.eventsCapped)
         assertTrue(m.highlightedEvents.all { it.lafMaxDb >= 66.0 }) // the loudest 300
@@ -170,12 +175,14 @@ class ChartModelTest {
         val voices = ChartModel.build(d.copy(events = many), zone, "voices", 45.0)
         assertEquals(30, voices.highlightedEvents.size)
         assertTrue(voices.otherEvents.isEmpty())
-        // A floor above 60 dB raises the week threshold too.
+        // A floor above 60 dB raises the hourly threshold too.
         val high = ChartModel.build(d.copy(events = many), zone, "loud_vehicle", 75.0)
         assertTrue(high.highlightedEvents.all { it.lafMaxDb >= 75.0 })
-        // Night and day views still draw all events.
-        val night = ChartModel.build(SyntheticData.fridayNight(), zone, "loud_vehicle", 45.0)
-        assertEquals(13, night.otherEvents.size)
+        // Measurements up to 36 h still draw all events, minute by minute.
+        val short = ChartModel.build(SyntheticData.fridayNight(), zone, "loud_vehicle", 45.0)
+        assertTrue(!short.hourly)
+        assertEquals(13, short.otherEvents.size)
+        assertTrue(!ChartModel.build(SyntheticData.dayData(), zone, "loud_vehicle", 45.0).hourly)
     }
 
     // ---- hit testing -----------------------------------------------------------------------------
@@ -241,11 +248,11 @@ class ChartModelTest {
         assertEquals(5, m.summary.highlightCount)
     }
 
-    // ---- week aggregation ----------------------------------------------------------------------
+    // ---- hourly aggregation (measurements longer than 36 h) --------------------------------------
 
     @Test
     fun weeklyHourAggregation() {
-        val w = win.of(RangeMode.WEEK, LocalDate.of(2026, 10, 5))
+        val w = weekWindow
         val h0 = w.startMs
         // Hour 0: 40 valid minutes, 20 at 40 dB and 20 at 50 dB, plus 20 invalid ones (ignored).
         val ms = (0 until 20).map { minute(h0 + it * 60_000L, 40.0, l10 = 42.0 + it % 3, l90 = 36.0 + it % 2) } +
@@ -267,7 +274,7 @@ class ChartModelTest {
 
     @Test
     fun weeklyEnergyMeanIsCoverageWeighted() {
-        val w = win.of(RangeMode.WEEK, LocalDate.of(2026, 10, 5))
+        val w = weekWindow
         val ms = (0 until 30).map { minute(w.startMs + it * 60_000L, 40.0) } +
             (30 until 60).map { minute(w.startMs + it * 60_000L, 60.0, coverage = 0.5) }
         val p = ChartModel.hourlyPoints(w, ms, w.endMs)[0]
@@ -275,10 +282,10 @@ class ChartModelTest {
     }
 
     @Test
-    fun summaryLaeqMatchesNightSummary() {
+    fun summaryLaeqMatchesMeasurementSummary() {
         val d = SyntheticData.fridayNight()
         val m = ChartModel.build(d, zone, "loud_vehicle", 45.0)
-        val n = NightSummarizer.summarize(d.minutes, d.events, zone, eventMinLevelDb = 45.0).single()
+        val n = MeasurementSummarizer.summarize(spanOf(d.window), d.minutes, d.events, eventMinLevelDb = 45.0)
         assertEquals(n.laeqDb, m.summary.laeqDb, 1e-9)
         assertEquals(n.coverage, m.summary.coverage, 1e-9)
         assertNotNull(m.summary.loudest)
@@ -291,13 +298,13 @@ class ChartModelTest {
         val m = ChartModel.build(d, zone, "loud_vehicle", 45.0)
         val e = d.events.maxBy { it.lafMaxDb }
         val lines = tooltipLines(Selection.Event(e, true), m)
-        assertEquals("23:40:30 · Töff & Poser", lines[0])
+        // Over midnight: weekday and date first.
+        assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", lines[0])
         assertTrue("LAFmax 85.0 dB(A)" in lines && "unkalibriert" in lines, lines.toString())
-        assertEquals(listOf("03:20", "keine Messung"), tooltipLines(Selection.NoData(SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 3, 20))), m))
-        // Day and week: weekday and date first.
-        val dayData = SyntheticData.fridayNight().let { it.copy(window = Windows(zone).of(RangeMode.DAY, LocalDate.of(2026, 10, 9))) }
-        val dayModel = ChartModel.build(dayData, zone, "loud_vehicle", 45.0)
-        assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", tooltipLines(Selection.Event(e, true), dayModel)[0])
+        assertEquals(listOf("Sa 10.10. 03:20", "keine Messung"), tooltipLines(Selection.NoData(SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 3, 20))), m))
+        // Within one date: the time is enough.
+        val evening = ChartModel.build(d.copy(window = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 23, 59)))), zone, "loud_vehicle", 45.0)
+        assertEquals("23:40:30 · Töff & Poser", tooltipLines(Selection.Event(e, true), evening)[0])
         val weekModel = ChartModel.build(SyntheticData.weekData(), zone, "loud_vehicle", 45.0)
         val p = weekModel.points.first { it.valid }
         assertEquals("Mo 5.10. 00:00–01:00", tooltipLines(Selection.Point(p), weekModel)[0])
@@ -313,10 +320,10 @@ class ChartModelTest {
         val m = build(ms, evs, floor = 30.0)
         assertEquals(48.0, m.summary.eventsPerHour, 1e-9)
         assertEquals(6.0, m.summary.dynamicsDb, 1e-9)
-        // Night 22–06 measured only 22–23: coverage 12.5 %, then the end of measurement.
-        assertEquals("LAeq 40,0 dB(A) · 48 Ereignisse · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis 23:00", m.summary.line())
+        // Measurement 22–06 with data only 22–23: coverage 12.5 %, then the end of the data.
+        assertEquals("LAeq 40,0 dB(A) · 48 Ereignisse · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis Fr 23:00", m.summary.line())
         assertEquals(
-            "LAeq 40,0 dB(A) · 48 Ereignisse (0 Töff & Poser) · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis 23:00",
+            "LAeq 40,0 dB(A) · 48 Ereignisse (0 Töff & Poser) · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis Fr 23:00",
             m.summary.line(highlightName = "Töff & Poser"),
         )
         assertEquals("48/h", m.summary.eventsPerHourText)
@@ -350,13 +357,13 @@ class ChartModelTest {
         assertTrue(hidden.windEvents.isEmpty())
         assertEquals(2, hidden.summary.windCount)
         assertTrue(hidden.yRange.hi < 95.0)
-        // The night list counts the same way.
-        val n = NightSummarizer.summarize(ms, evs, zone, eventMinLevelDb = 45.0).single()
+        // The measurement list counts the same way.
+        val n = MeasurementSummarizer.summarize(spanOf(night), ms, evs, eventMinLevelDb = 45.0)
         assertEquals(n.eventCount, m.summary.eventCount)
         assertEquals(n.windEventCount, m.summary.windCount)
         assertEquals(n.humDb, m.summary.humDb)
-        // The week view draws no wind.
-        val week = ChartModel.build(ChartData(win.of(RangeMode.WEEK, LocalDate.of(2026, 10, 5)), ms, evs, after), zone, "loud_vehicle", 45.0)
+        // Hourly views draw no wind.
+        val week = ChartModel.build(ChartData(weekWindow, ms, evs, after), zone, "loud_vehicle", 45.0)
         assertTrue(week.windEvents.isEmpty())
         // Hit test and tooltip.
         val g = ChartGeometry(m, PlotRect(40f, 10f, 1040f, 410f))
@@ -373,11 +380,45 @@ class ChartModelTest {
     }
 
     @Test
-    fun dynamicsMatchNightSummary() {
+    fun dynamicsMatchMeasurementSummary() {
         val d = SyntheticData.fridayNight()
         val m = ChartModel.build(d, zone, "loud_vehicle", 30.0)
-        val n = NightSummarizer.summarize(d.minutes, d.events, zone, eventMinLevelDb = 30.0).single()
+        val n = MeasurementSummarizer.summarize(spanOf(d.window), d.minutes, d.events, eventMinLevelDb = 30.0)
         assertEquals(n.eventsPerHour, m.summary.eventsPerHour, 1e-9)
         assertEquals(n.dynamicsDb, m.summary.dynamicsDb, 1e-9)
+    }
+
+    // ---- «Tagesverlauf» -------------------------------------------------------------------------
+
+    @Test
+    fun profileLaysAllDaysOverOneDayByHour() {
+        // Two days: 14:00–14:30 at 40 dB on Monday and at 50 dB on Tuesday (valid), plus 5 minutes
+        // at 03:00 (too few for the hour → gap) and invalid minutes (ignored).
+        fun t(d: Int, h: Int, m: Int) = SyntheticData.ms(LocalDateTime.of(2026, 10, 5 + d, h, m))
+        val ms = (0 until 30).map { minute(t(0, 14, 0) + it * 60_000L, 40.0, l10 = 44.0, l90 = 36.0) } +
+            (0 until 30).map { minute(t(1, 14, 0) + it * 60_000L, 50.0, l10 = 56.0, l90 = 46.0) } +
+            (0 until 5).map { minute(t(1, 3, 0) + it * 60_000L, 30.0) } +
+            (0 until 20).map { minute(t(1, 15, 0) + it * 60_000L, 90.0, coverage = 0.2) }
+        val pts = ChartModel.profilePoints(ms, zone)
+        assertEquals(24, pts.size)
+        assertEquals(14 * 3_600_000L, pts[14].startMs)
+        assertTrue(pts[14].valid)
+        assertEquals(10 * log10((1e4 + 1e5) / 2), pts[14].laeq, 1e-9)
+        assertEquals((44.0 + 56.0) / 2, pts[14].l10, 1e-9) // median of the minute L10s
+        assertEquals((36.0 + 46.0) / 2, pts[14].l90, 1e-9)
+        assertTrue(!pts[3].valid) // 5 minutes < 10
+        assertTrue(!pts[15].valid) // only invalid minutes
+        // The model: 0–24 h axis in clock time, events at their clock time, same summary as the span view.
+        val w = TimeWindow.span(t(0, 13, 0), t(1, 16, 0))
+        val e = event(t(1, 14, 10), 80.0, "loud_vehicle")
+        val span = ChartModel.build(ChartData(w, ms, listOf(e), t(2, 0, 0)), zone, "loud_vehicle", 45.0)
+        val prof = ChartModel.build(ChartData(TimeWindow.profile(w.startMs, w.endMs), ms, listOf(e), t(2, 0, 0)), zone, "loud_vehicle", 45.0)
+        assertEquals(Windows.PROFILE_WINDOW, prof.window)
+        assertTrue(prof.hourly)
+        assertEquals(listOf("0", "3", "6", "9", "12", "15", "18", "21", "24"), prof.axisLabels.map { it.text })
+        assertEquals((14 * 60 + 10) * 60_000L, prof.highlightedEvents.single().startEpochMs)
+        assertEquals("14:10:00 · Töff & Poser", tooltipLines(Selection.Event(prof.highlightedEvents.single(), true), prof)[0])
+        assertEquals("14:00–15:00", tooltipLines(Selection.Point(prof.points[14]), prof)[0])
+        assertEquals(span.summary, prof.summary)
     }
 }

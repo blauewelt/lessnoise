@@ -1,19 +1,21 @@
 package ch.lessnoise.app.edition
 
 /**
- * Names and texts of the four editions (BuildConfig.EDITION). Pure Kotlin in app/src/main, so
+ * Names and texts of the four editions (BuildConfig.EDITION). Since 0.6.0 the app is «Weniger Lärm»
+ * (renamed in 0.6.0); the internal flavour names stay. Pure Kotlin in app/src/main, so
  * every flavour compiles the same texts and the JVM tests check them. Which edition a build is
  * comes from the Gradle flavour (app/build.gradle.kts):
  *
- * - [OFFLINE] «Offline-Version» (flavour `offline`, ch.lessnoise.app): no internet and (v0.5.1) no location permission;
- *   the default download, GitHub release asset stadtlaerm.apk.
- * - [KARTE] «Karten-Version» (flavour `public`, ch.lessnoise.app): internet only for the opt-in
- *   «Messwerte teilen», location (v0.5.1) only for its «Standort bestimmen»; file stadtlaerm-karte.apk.
- * - [LABOR] «Labor-Version» (flavour `labor`, ch.lessnoise.labor): never published, no internet.
- * - [LABOR_KARTE] «Labor-Version mit Karte» (flavour `laborKarte`, ch.lessnoise.labor): the Labor
+ * - [OFFLINE] «Weniger Lärm» (flavour `offline`, ch.lessnoise.app): no internet and no location
+ *   permission; the default download.
+ * - [KARTE] «Weniger Lärm · Karte» (flavour `public`, ch.lessnoise.app): internet only for the opt-in
+ *   «Messwerte teilen» and «Melden», location only for one fix at the start of a shared measurement
+ *   and for a report.
+ * - [LABOR] «Weniger Lärm Labor» (flavour `labor`, ch.lessnoise.labor): never published, no internet.
+ * - [LABOR_KARTE] «Weniger Lärm Labor · Karte» (flavour `laborKarte`, ch.lessnoise.labor): the Labor
  *   build plus the opt-in «Messwerte teilen» (audio is never sent); internal, never published.
  *
- * Offline and Karten-Version share the app id and the signing key: installing one over the other
+ * Offline and Karte editions share the app id and the signing key: installing one over the other
  * switches the edition and keeps the measurements.
  */
 object EditionInfo {
@@ -22,40 +24,37 @@ object EditionInfo {
     const val LABOR = "labor"
     const val LABOR_KARTE = "labor-karte"
 
-    /** «Offline-Version», «Karten-Version», «Labor-Version», «Labor-Version mit Karte». */
+    /** The names users see: «Weniger Lärm», «Weniger Lärm · Karte», «Weniger Lärm Labor», «Weniger Lärm Labor · Karte». */
     fun label(edition: String): String = when (edition) {
-        OFFLINE -> "Offline-Version"
-        KARTE -> "Karten-Version"
-        LABOR -> "Labor-Version"
-        LABOR_KARTE -> "Labor-Version mit Karte"
+        OFFLINE -> "Weniger Lärm"
+        KARTE -> "Weniger Lärm · Karte"
+        LABOR -> "Weniger Lärm Labor"
+        LABOR_KARTE -> "Weniger Lärm Labor · Karte"
         else -> edition
     }
 
     /** Line in Einstellungen → App-Version: which edition is installed. */
     fun summary(edition: String): String = when (edition) {
-        OFFLINE -> "Offline-Version: ohne Internet- und ohne Standort-Berechtigung."
-        KARTE -> "Karten-Version: mit «Messwerte teilen» für die Lärmkarte (aus, bis du es einschaltest)."
-        LABOR -> "Labor-Version: kann Audio aufzeichnen, wird nicht veröffentlicht."
+        OFFLINE -> "Weniger Lärm: ohne Internet und ohne Standort."
+        KARTE -> "Weniger Lärm · Karte: mit «Messwerte teilen» und «Melden» für die Lärmkarte (aus, bis du es einschaltest)."
+        LABOR -> "Weniger Lärm Labor: kann Audio aufzeichnen, wird nicht veröffentlicht."
         LABOR_KARTE ->
-            "Labor-Version mit Karte: kann Audio aufzeichnen und hat «Messwerte teilen» (aus, bis du es einschaltest; " +
-                "Audio wird nie gesendet). Wird nicht veröffentlicht."
+            "Weniger Lärm Labor · Karte: kann Audio aufzeichnen und hat «Messwerte teilen» (Audio wird nie gesendet). Wird nicht veröffentlicht."
         else -> edition
     }
 
     /**
      * How to switch to the other published edition; null for Labor (it is a separate app), one
-     * short sentence for the Labor-Version mit Karte.
+     * short sentence for the Labor edition with the map.
      */
     fun switchHint(edition: String): String? = when (edition) {
         OFFLINE ->
-            "Wer Messwerte für die Lärmkarte teilen möchte, installiert die Karten-Version von stadtlaerm.ch über diese App. Die Messungen bleiben erhalten."
+            "Für die Lärmkarte «Weniger Lärm · Karte» von wenigerlaerm.ch über diese App installieren; die Messungen bleiben erhalten."
         KARTE ->
-            "Zur Offline-Version wechselst du, indem du sie von stadtlaerm.ch über diese App installierst. Die Messungen bleiben erhalten, " +
-                "«Messwerte teilen» wird ausgeschaltet. Willst du deine Daten auf dem Server sofort löschen, tu das vorher unter «Messwerte teilen»: " +
-                "In der Offline-Version geht das nicht. Sonst löscht der Server sie von selbst, wenn 60 Tage lang keine Messwerte mehr ankommen."
+            "Zurück zu «Weniger Lärm» ohne Internet: von wenigerlaerm.ch über diese App installieren; die Messungen bleiben erhalten. " +
+                "Deine Daten auf dem Server vorher unter «Messwerte teilen» löschen, sonst löscht sie der Server nach 60 Tagen ohne neue Werte."
         LABOR_KARTE ->
-            "Interne Testversion. Die Labor-Version ohne Internet kann über diese App installiert werden: Messungen und Aufnahmen bleiben erhalten, " +
-                "«Messwerte teilen» wird ausgeschaltet."
+            "Interne Testversion. «Weniger Lärm Labor» ohne Internet kann über diese App installiert werden; Messungen und Aufnahmen bleiben erhalten."
         else -> null
     }
 

@@ -133,13 +133,14 @@ class RecalibrationTest {
     }
 
     @Test
-    fun nightSummaryFlagsRecalibratedNights() {
+    fun measurementSummaryFlagsRecalibratedMeasurements() {
         val zone = java.time.ZoneId.of("Europe/Zurich")
         val t = java.time.LocalDateTime.of(2026, 10, 2, 23, 0).atZone(zone).toInstant().toEpochMilli()
         val m = minute(40.0).copy(startEpochMs = t)
-        val plain = NightSummarizer.summarize(listOf(m), emptyList(), zone).single()
+        val span = MeasurementSpan(t, t + 60_000)
+        val plain = MeasurementSummarizer.summarize(span, listOf(m), emptyList())
         assertFalse(plain.anyRecalibrated); assertFalse(plain.allCalibrated)
-        val recal = NightSummarizer.summarize(listOf(Recalibration.recalibrate(m, b)), emptyList(), zone).single()
+        val recal = MeasurementSummarizer.summarize(span, listOf(Recalibration.recalibrate(m, b)), emptyList())
         assertTrue(recal.anyRecalibrated); assertTrue(recal.allCalibrated)
     }
 

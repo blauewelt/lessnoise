@@ -21,13 +21,13 @@ class EditionTextTest {
         val text = EditionUi.ABOUT_AUDIO
         if (BuildConfig.FLAVOR == "labor") {
             // Labor can store clips and hour files locally; it has no internet permission.
-            assertTrue(text.contains("Labor-Version"), text)
+            assertTrue(text.contains("Weniger Lärm Labor"), text)
             assertTrue(text.contains("keine Internet-Berechtigung"), text)
             assertFalse(text.contains("verlässt nie den Arbeitsspeicher"), text)
         } else if (BuildConfig.FLAVOR == "laborKarte") {
             // Labor with «Messwerte teilen»: must not claim «no internet», must say audio is never sent.
             assertEquals(
-                "• Labor-Version: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
+                "• Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
                     "gespeichert werden, dazu ein Protokoll der Erkennung. " +
                     "Nichts davon wird gesendet: «Messwerte teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
                 text,
@@ -65,11 +65,11 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.5.1-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.6.0-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
-        // Offline and Karten-Version are one app in two editions: same version name, no suffix
+        // Offline and Karte editions are one app in two editions: same version name, no suffix
         // (update.html compares versionCode; the edition travels separately as &e=).
         if (BuildConfig.FLAVOR == "labor") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor"))
         else if (BuildConfig.FLAVOR == "laborKarte") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor-karte"))
@@ -78,22 +78,28 @@ class EditionTextTest {
 
     @Test
     fun editionTexts() {
-        assertEquals("Offline-Version", EditionInfo.label(EditionInfo.OFFLINE))
-        assertEquals("Karten-Version", EditionInfo.label(EditionInfo.KARTE))
-        assertEquals("Labor-Version", EditionInfo.label(EditionInfo.LABOR))
-        assertEquals("Labor-Version mit Karte", EditionInfo.label(EditionInfo.LABOR_KARTE))
+        assertEquals("Weniger Lärm", EditionInfo.label(EditionInfo.OFFLINE))
+        assertEquals("Weniger Lärm · Karte", EditionInfo.label(EditionInfo.KARTE))
+        assertEquals("Weniger Lärm Labor", EditionInfo.label(EditionInfo.LABOR))
+        assertEquals("Weniger Lärm Labor · Karte", EditionInfo.label(EditionInfo.LABOR_KARTE))
         assertTrue(EditionInfo.summary(EditionInfo.LABOR_KARTE).contains("Audio wird nie gesendet"))
         assertNotNull(EditionInfo.switchHint(EditionInfo.LABOR_KARTE))
-        assertEquals("Offline-Version: ohne Internet- und ohne Standort-Berechtigung.", EditionInfo.summary(EditionInfo.OFFLINE))
-        assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Karten-Version: mit «Messwerte teilen»"))
-        // Switching: install the other APK from stadtlaerm.ch over this one, measurements are kept.
+        assertEquals("Weniger Lärm: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
+        assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Weniger Lärm · Karte: mit «Messwerte teilen»"))
+        // Switching: install the other APK from wenigerlaerm.ch over this one, measurements are kept.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {
             val hint = assertNotNull(EditionInfo.switchHint(e))
-            assertTrue(hint.contains("stadtlaerm.ch über diese App"), hint)
+            assertTrue(hint.contains("wenigerlaerm.ch über diese App"), hint)
             assertTrue(hint.contains("Messungen bleiben erhalten"), hint)
         }
-        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("Karten-Version"))
-        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("Offline-Version"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("«Weniger Lärm · Karte»"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("«Weniger Lärm» ohne Internet"))
+        // The app's old name appears in no edition text.
+        for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE, EditionInfo.LABOR, EditionInfo.LABOR_KARTE)) {
+            for (t in listOf(EditionInfo.label(e), EditionInfo.summary(e), EditionInfo.switchHint(e) ?: "")) {
+                assertFalse(t.contains("Stadtlärm") || t.contains("stadtlaerm"), t)
+            }
+        }
         // The server deletes a device's data after 60 days without uploads (server/DESIGN.md §2.9).
         assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("60 Tage"))
         assertNull(EditionInfo.switchHint(EditionInfo.LABOR))

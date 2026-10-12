@@ -1,13 +1,6 @@
 package ch.lessnoise.app.ui
 
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,21 +39,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.container
-import ch.lessnoise.app.location.LocationFetcher
-import ch.lessnoise.app.location.LocationPolicy
-import ch.lessnoise.app.upload.CellInput
+import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.SiteSettings
 import ch.lessnoise.app.upload.UploadSnapshot
 import ch.lessnoise.app.upload.Uploader
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // «Einstellungen → Messwerte teilen» (server/DESIGN.md §2, §9). Off by default; switching on needs
-// the explanation (once) and a hectare. Everything network goes through upload/UploadClient.kt.
+// the explanation (once; or the short consent of «Laut! Melden»). The cell comes from the location
+// fix at the start of each measurement. Everything network goes through upload/UploadClient.kt.
 
 /** Short German labels of the placement values (server/DESIGN.md §4.2). */
 fun placementLabel(p: String): String = when (p) {
@@ -71,23 +61,33 @@ fun placementLabel(p: String): String = when (p) {
 }
 
 /**
- * The bullet about location in «Was nie gesendet wird» (v0.5.1). Shown only where «Messwerte
- * teilen» exists (Karten-Version, Labor-Version mit Karte), which are the editions with the
- * location permission.
+ * The bullet about location in «Was nie gesendet wird». Shown only where «Messwerte teilen» exists
+ * (the Karten editions), which are the editions with the location permission.
  */
 const val LOCATION_NEVER_SENT =
-    "Dein genauer Standort. Die App fragt nach der Standort-Berechtigung, liest den Standort aber nur, wenn du unten bei " +
-        "«Aufstellung» auf «Standort bestimmen» tippst, und dann ein einziges Mal – nie im Hintergrund. Daraus berechnet das " +
-        "Telefon selbst die Hektare; nur diese wird gespeichert und gesendet, die Koordinaten weder gespeichert noch gesendet. " +
-        "Die Offline-Version hat keine Standort-Berechtigung."
+    "Dein genauer Standort, ausser bei einer Meldung; die App liest ihn nie im Hintergrund."
+
+/** «Was gesendet wird» (app 0.6.0). */
+val SHARE_SENT_BULLETS: List<String> = listOf(
+    "Die Minutenwerte und Lärmspitzen deiner geteilten Messungen, jeweils mit der 100-m-Zelle, in der du die Messung gestartet hast.",
+    "Laute Momente einer geteilten Messung erscheinen so auf der Karte.",
+    "Meldungen («Laut! Melden»): Zeit, genauer Standort und Kategorie.",
+    "Telefonmodell, Audioquelle, Kalibrierung und deine Angaben zur Aufstellung.",
+    "Eine zufällige Kennung dieses Telefons, nie öffentlich.",
+)
+
+/** «Standort» (app 0.6.0). */
+val SHARE_LOCATION_BULLETS: List<String> = listOf(
+    "Beim Start einer Messung bestimmt das Telefon einmal den Standort; behalten und gesendet wird nur die 100-m-Zelle.",
+    "Bei einer Meldung wird der genaue Standort gesendet und danach auf dem Telefon gelöscht.",
+)
 
 /** One line for the settings overview. */
 fun shareSummary(s: UploadSnapshot): String = when {
     s.enabled && s.authFailed ->
         "Ein – der Server kennt diese Kennung nicht mehr, wohl weil 60 Tage lang nichts ankam (dann löscht er alle Daten). " +
             "«Neue Kennung» wählen, um neu zu beginnen."
-    s.enabled -> "Ein" + (s.site?.let { " · Hektare ${it.cell}" } ?: "") +
-        (s.lastSuccessAtMs?.let { " · zuletzt gesendet ${Fmt.dateTime(it)}" } ?: "")
+    s.enabled -> "Ein" + (s.lastSuccessAtMs?.let { " · zuletzt gesendet ${Fmt.dateTime(it)}" } ?: "")
     else -> "Aus – es wird nichts gesendet"
 }
 
@@ -98,7 +98,7 @@ fun ShareSettingsCard(onOpen: () -> Unit) {
     val s by c.upload.store.state.collectAsStateWithLifecycle()
     SectionCard("Messwerte teilen") {
         Text(
-            "Freiwillig: deine Messwerte (nie Audio) für die gemeinsame Lärmkarte an den Server des Projekts in der Schweiz senden.",
+            "Freiwillig: Messwerte und Meldungen (nie Audio) für die Lärmkarte senden.",
             style = MaterialTheme.typography.bodySmall,
         )
         StatRow("Status", if (s.enabled) "Ein" else "Aus")
@@ -131,36 +131,27 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         )
 
         // 1. What is sent, what never, where, how to delete.
-        SectionCard("Was gesendet wird") {
-            Bullets(
-                "Deine Minutenwerte: Pegel (LAeq, LAFmax, LAFmin, L1, L10, L50, L90), gültige Messzeit, Anzahl Ereignisse und die Anteile der Geräuschkategorien.",
-                "Deine Ereignisse: Beginn, Dauer, Spitzenpegel, SEL, Hintergrundpegel und die Kategorie (z. B. «Töff & Poser»).",
-                "Die Hektare (100 × 100 m), in der das Telefon steht, und deine Angaben zur Aufstellung (Fenster, Balkon, Stockwerk, Strassenseite, Notiz).",
-                "Telefonmodell, Audioquelle und Kalibrierung, damit die Werte vergleichbar sind.",
-                "Eine zufällige Kennung dieses Telefons. Sie hat nichts mit dir oder dem Telefon zu tun und wird nie öffentlich gezeigt.",
-            )
-        }
+        SectionCard("Was gesendet wird") { Bullets(*SHARE_SENT_BULLETS.toTypedArray()) }
+        SectionCard("Standort") { Bullets(*SHARE_LOCATION_BULLETS.toTypedArray()) }
         SectionCard("Was nie gesendet wird") {
             Bullets(
                 "Audio. Die App speichert gar keines.",
                 LOCATION_NEVER_SENT,
-                "Name, Telefonnummer, E-Mail oder ein Konto – es gibt keine Anmeldung.",
-                "Die einzelnen Klassen des Klassifikators (etwa «Speech» oder «Motorcycle»), nur die Kategorie.",
+                "Name, Telefonnummer, E-Mail oder ein Konto.",
             )
         }
         SectionCard("Wohin") {
             Bullets(
-                "An den Server des Projekts in der Schweiz: ${module.client.host}. Die App verbindet sich mit keinem anderen Server.",
-                "Öffentlich sind nur Werte pro Hektare auf der Lärmkarte (stadtlaerm.ch/karte.html) – nie einzelne Messungen, die Kennung oder deine Notiz. Das Telefonmodell erscheint nur in einer Zählung über alle beteiligten Geräte.",
-                "Beim ersten Einschalten werden die Messungen der letzten 7 Tage mitgesendet, danach nach jeder vollen Stunde und nach jeder Messung das Neue. Was du misst, während das Teilen aus ist, wird nie gesendet.",
+                "An ${module.client.host}, den Server des Projekts in der Schweiz, an keinen anderen.",
+                "Öffentlich sind nur Werte pro Zelle auf der Lärmkarte (wenigerlaerm.ch/karte.html), nie die Kennung oder deine Notiz.",
+                "Was du misst, während das Teilen aus ist, wird nie gesendet.",
             )
         }
         SectionCard("Löschen") {
             Bullets(
                 "Ausschalten stoppt das Senden sofort.",
-                "«Meine Daten auf dem Server löschen» (unten) entfernt alles von diesem Telefon sofort vom Server; die Karte wird beim nächsten Durchlauf (alle 10 Minuten) ohne deine Werte neu berechnet.",
-                "Kommen 60 Tage lang keine Messwerte an – etwa weil du das Teilen ausgeschaltet, zur Offline-Version gewechselt oder die App deinstalliert hast –, löscht der Server alle Daten dieses Telefons von selbst.",
-                "Deine Daten auf dem Telefon bleiben in jedem Fall, bis du sie unter «Daten» löschst.",
+                "«Daten auf dem Server löschen» (unten) entfernt alles von diesem Telefon, auch die Meldungen.",
+                "Kommen 60 Tage lang keine Werte an, löscht der Server alles von selbst.",
             )
             if (!s.explanationSeen) {
                 Button(onClick = { module.store.update { it.copy(explanationSeen = true) } }) { Text("Gelesen, weiter") }
@@ -172,6 +163,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 module.store.update { it.copy(site = site) }
                 module.uploadSoon()
             }
+            ReportsCard()
 
             // 3. The switches and the status.
             SectionCard("Teilen") {
@@ -189,9 +181,6 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         },
                     )
                 }
-                if (!s.enabled && s.site == null) {
-                    Text("Zuerst oben die Hektare festlegen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Nur über WLAN", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Switch(checked = s.wifiOnly, onCheckedChange = { v ->
@@ -201,7 +190,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 }
                 Text(
                     if (s.wifiOnly) "Gesendet wird nur über WLAN (genauer: über Verbindungen ohne Datenvolumen-Begrenzung)."
-                    else "Gesendet wird auch über mobile Daten (weniger als 0,1 MB pro Nacht).",
+                    else "Gesendet wird auch über mobile Daten (weniger als 0,1 MB pro Tag).",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 StatRow("Zuletzt gesendet", s.lastSuccessAtMs?.let { Fmt.dateTime(it) } ?: "noch nie")
@@ -229,7 +218,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     onClick = { confirmDelete = true },
                     enabled = s.registered && busy == null,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Text("Meine Daten auf dem Server löschen") }
+                ) { Text("Daten auf dem Server löschen") }
                 OutlinedButton(onClick = { confirmNewId = true }, enabled = (s.registered || s.authFailed) && busy == null) {
                     Text("Neue Kennung")
                 }
@@ -273,8 +262,8 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             title = { Text("Daten auf dem Server löschen?") },
             text = {
                 Text(
-                    "Alle Minutenwerte, Ereignisse und die Aufstellung, die dieses Telefon gesendet hat, werden sofort vom Server gelöscht. " +
-                        "Das Teilen wird ausgeschaltet. Deine Daten auf dem Telefon bleiben.",
+                    "Alles, was dieses Telefon gesendet hat, auch Meldungen, wird sofort vom Server gelöscht. " +
+                        "Das Teilen wird ausgeschaltet; deine Messungen auf dem Telefon bleiben.",
                 )
             },
             confirmButton = { TextButton(onClick = { confirmDelete = false; runDelete(newIdentity = false) }) { Text("Löschen") } },
@@ -300,127 +289,24 @@ private fun Bullets(vararg lines: String) {
 }
 
 /**
- * The placement step. Since v0.5.1 the phone determines the place itself: «Standort bestimmen» asks
- * for the location permission (Karten-Version and Labor-Version mit Karte only), gets ONE fix and
- * turns it into the hectare at once ([LocationFetcher], [LocationPolicy]); only the hectare and the
- * accuracy are shown, only the hectare is stored (with «Aufstellung speichern») and sent. Pasting
- * coordinates stays as a secondary way («Oder Koordinaten einfügen», collapsed); the typed text is not
- * stored either.
+ * «Aufstellung»: optional details about how the phone stands, remembered for the next measurements.
+ * The place itself is the cell determined at the start of each measurement (LocationFlows.kt).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var coords by rememberSaveable { mutableStateOf("") }
-    var showPaste by rememberSaveable { mutableStateOf(false) }
-    var placement by rememberSaveable(current) { mutableStateOf(current?.placement ?: SiteSettings.PLACEMENT_OPEN_WINDOW) }
-    var floorText by rememberSaveable(current) { mutableStateOf(current?.floor?.toString() ?: "") }
+private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit) {
+    var placement by rememberSaveable(current) { mutableStateOf(current.placement) }
+    var floorText by rememberSaveable(current) { mutableStateOf(current.floor?.toString() ?: "") }
     // 0 = Strassenseite, 1 = Hofseite, 2 = keine Angabe
     var facing by rememberSaveable(current) {
-        mutableStateOf(when (current?.streetFacing) { true -> 0; false -> 1; null -> 2 })
+        mutableStateOf(when (current.streetFacing) { true -> 0; false -> 1; null -> 2 })
     }
-    var note by rememberSaveable(current) { mutableStateOf(current?.note ?: "") }
+    var note by rememberSaveable(current) { mutableStateOf(current.note) }
     var saved by remember { mutableStateOf(false) }
-    // «Standort bestimmen»: the running request and its outcome (hectare + accuracy, never coordinates).
-    var locateJob by remember { mutableStateOf<Job?>(null) }
-    var outcome by remember { mutableStateOf<LocationPolicy.Outcome?>(null) }
-
-    fun startLocate() {
-        locateJob?.cancel()
-        outcome = null
-        saved = false
-        locateJob = scope.launch {
-            val o = LocationFetcher.locate(context)
-            outcome = o
-            if (o is LocationPolicy.Outcome.Hectare) coords = "" // the newest choice wins
-            locateJob = null
-        }
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        when (LocationFetcher.permission(context)) {
-            LocationPolicy.Permission.PRECISE -> startLocate()
-            LocationPolicy.Permission.APPROXIMATE_ONLY -> outcome = LocationPolicy.Outcome.ApproximateOnly
-            LocationPolicy.Permission.DENIED -> outcome = LocationPolicy.Outcome.PermissionDenied
-        }
-    }
-
-    val parsed = if (coords.isBlank()) null else CellInput.parse(coords)
-    val pastedCell = (parsed as? CellInput.Parsed.Ok)?.cell
-    val located = outcome as? LocationPolicy.Outcome.Hectare
-    val cell = pastedCell ?: located?.cell ?: current?.cell
     val floor = floorText.trim().toIntOrNull()
     val floorOk = floorText.isBlank() || (floor != null && floor in -3..100)
 
-    SectionCard("Aufstellung") {
-        Text(
-            "Wo steht das Telefon? Geh mit dem Telefon an den Messort, etwa ans Fenster, und tippe auf «Standort bestimmen». " +
-                "Das Telefon rechnet daraus die Hektare (100 × 100 m); nur diese wird gespeichert und gesendet.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (BuildConfig.UPLOAD_AVAILABLE) {
-            Button(
-                enabled = locateJob == null,
-                onClick = {
-                    if (LocationFetcher.hasPreciseLocation(context)) startLocate()
-                    else permissionLauncher.launch(LocationFetcher.PERMISSIONS)
-                },
-            ) { Text("Standort bestimmen") }
-            if (!LocationFetcher.hasPreciseLocation(context)) {
-                Text(LocationPolicy.RATIONALE_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-            }
-            if (locateJob != null) {
-                Text(LocationPolicy.PROGRESS_TEXT, style = MaterialTheme.typography.bodySmall)
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                TextButton(onClick = { locateJob?.cancel(); locateJob = null }) { Text("Abbrechen") }
-            }
-            outcome?.let { o ->
-                when (o) {
-                    is LocationPolicy.Outcome.Hectare -> if (pastedCell == null) {
-                        Text(LocationPolicy.message(o), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
-                    else -> {
-                        Text(LocationPolicy.message(o), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            when (o) {
-                                LocationPolicy.Outcome.ApproximateOnly, LocationPolicy.Outcome.PermissionDenied ->
-                                    OutlinedButton(onClick = { openAppSettings(context) }) { Text("App-Einstellungen") }
-                                LocationPolicy.Outcome.LocationOff ->
-                                    OutlinedButton(onClick = { openLocationSettings(context) }) { Text("Standort-Einstellungen") }
-                                else -> OutlinedButton(onClick = { startLocate() }, enabled = locateJob == null) { Text("Nochmals versuchen") }
-                            }
-                            if (!showPaste) TextButton(onClick = { showPaste = true }) { Text("Koordinaten einfügen") }
-                        }
-                    }
-                }
-            }
-        }
-
-        TextButton(onClick = { showPaste = !showPaste }) {
-            Text(if (showPaste) "Oder Koordinaten einfügen ▾" else "Oder Koordinaten einfügen ▸")
-        }
-        if (showPaste) {
-            Text(
-                "Füge die Koordinaten ein, z. B. aus einer Karten-App (Punkt lange drücken, Koordinaten kopieren) " +
-                    "oder von map.geo.admin.ch. Die App rechnet daraus die Hektare; nur diese wird gespeichert und gesendet.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            OutlinedTextField(
-                value = coords, onValueChange = { coords = it; saved = false },
-                label = { Text("Koordinaten (z. B. 47.3769, 8.5417 oder 2'683'304, 1'247'925)") },
-                singleLine = true, modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        when {
-            parsed is CellInput.Parsed.Error -> Text(parsed.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            pastedCell == null && located != null ->
-                Text("Mit «Aufstellung speichern» übernehmen.", style = MaterialTheme.typography.bodySmall)
-            cell != null -> Text("Hektare: $cell – dieses Hektar wird gezeigt", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            else -> Text("Hektare: noch keine", style = MaterialTheme.typography.bodySmall)
-        }
-
-        Text("Aufstellung des Telefons", style = MaterialTheme.typography.bodyMedium)
+    SectionCard("Aufstellung (freiwillig)") {
         val places = SiteSettings.PLACEMENTS
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             places.forEachIndexed { i, p ->
@@ -432,7 +318,7 @@ private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit
         }
         OutlinedTextField(
             value = floorText, onValueChange = { floorText = it.filter { ch -> ch.isDigit() || ch == '-' }.take(3); saved = false },
-            label = { Text("Stockwerk (0 = Erdgeschoss, leer = keine Angabe)") },
+            label = { Text("Stockwerk (0 = Erdgeschoss)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             isError = !floorOk, singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
@@ -448,22 +334,20 @@ private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit
         }
         OutlinedTextField(
             value = note, onValueChange = { note = it.take(SiteSettings.NOTE_MAX); saved = false },
-            label = { Text("Notiz (freiwillig, wird nie veröffentlicht)") },
+            label = { Text("Notiz (wird nie veröffentlicht)") },
             supportingText = { Text("${note.length}/${SiteSettings.NOTE_MAX}") },
             modifier = Modifier.fillMaxWidth(),
         )
         Button(
-            enabled = cell != null && floorOk,
+            enabled = floorOk,
             onClick = {
                 onSave(
                     SiteSettings(
-                        cell = cell!!, placement = placement, floor = floor,
+                        placement = placement, floor = floor,
                         streetFacing = when (facing) { 0 -> true; 1 -> false; else -> null },
                         note = note.trim(),
                     )
                 )
-                coords = ""
-                outcome = null
                 saved = true
             },
         ) { Text("Aufstellung speichern") }
@@ -471,17 +355,20 @@ private fun PlacementCard(current: SiteSettings?, onSave: (SiteSettings) -> Unit
     }
 }
 
-private fun openAppSettings(context: Context) {
-    try {
-        context.startActivity(
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    } catch (_: ActivityNotFoundException) {}
-}
-
-private fun openLocationSettings(context: Context) {
-    try {
-        context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: ActivityNotFoundException) {}
+/** «Meldungen»: waiting and sent reports (sent ones without coordinates: category, time, cell). */
+@Composable
+private fun ReportsCard() {
+    val c = LocalContext.current.container
+    val r by c.upload.reports.state.collectAsStateWithLifecycle()
+    if (r.pending.isEmpty() && r.sent.isEmpty()) return
+    SectionCard("Meldungen") {
+        if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
+        StatRow("Gesendet", r.sent.size.toString())
+        r.sent.takeLast(5).reversed().forEach { s ->
+            Text(
+                "${Fmt.dateTime(s.epochMs)} · ${ReportCategory.fromId(s.category)?.label ?: s.category}" + (s.cell?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }

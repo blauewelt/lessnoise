@@ -14,8 +14,9 @@ import ch.lessnoise.dsp.geo.Lv95
  *
  * Nothing typed here is stored or sent: only the resulting hectare id is kept.
  *
- * Since v0.5.1 the main way is «Standort bestimmen» (ch.lessnoise.app.location): one location fix
- * goes through [fromLatLon], the same WGS84 → LV95 path as a pasted «47.3769, 8.5417».
+ * Since 0.6.0 this is the fallback of the location fix at «Start» of a shared measurement
+ * («Koordinaten einfügen»); the fix itself (ch.lessnoise.app.location) goes through [fromLatLon],
+ * the same WGS84 → LV95 path as a pasted «47.3769, 8.5417».
  */
 object CellInput {
 
@@ -29,7 +30,7 @@ object CellInput {
     fun parse(text: String): Parsed {
         val t = text.trim()
         if (t.isEmpty()) return Parsed.Error("Bitte Koordinaten eingeben.")
-        if (Lv95.isCellId(t.lowercase())) return check(t.lowercase(), "Hektare")
+        if (Lv95.isCellId(t.lowercase())) return check(t.lowercase(), "Zelle")
 
         // Swiss thousands separators (2'683'304) and spaces inside numbers are removed first.
         val cleaned = t.replace(Regex("(?<=\\d)['’ʼ\u2009\u202F](?=\\d)"), "")
@@ -51,8 +52,8 @@ object CellInput {
 
     /**
      * WGS84 latitude/longitude in decimal degrees → the hectare that contains the point, computed on
-     * the phone (Lv95.cellId, the map's formulas). Used for pasted WGS84 coordinates and for the fix
-     * of «Standort bestimmen». The caller keeps the coordinates in local variables only; this
+     * the phone (Lv95.cellId, the map's formulas). Used for pasted WGS84 coordinates and for the
+     * location fixes. The caller keeps the coordinates in local variables only; this
      * function stores nothing.
      */
     fun fromLatLon(lat: Double, lon: Double, how: String = "WGS84"): Parsed =
@@ -62,5 +63,5 @@ object CellInput {
     private fun isWgs84Switzerland(lat: Double, lon: Double): Boolean = lat in 45.0..48.5 && lon in 5.0..11.0
 
     private fun check(cell: String, how: String): Parsed =
-        if (Lv95.isInServerRange(cell)) Parsed.Ok(cell, how) else Parsed.Error("Diese Hektare liegt nicht in der Schweiz.")
+        if (Lv95.isInServerRange(cell)) Parsed.Ok(cell, how) else Parsed.Error("Diese Zelle liegt nicht in der Schweiz.")
 }

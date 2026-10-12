@@ -118,6 +118,26 @@ data class EventEntity(
     @ColumnInfo(name = "shape") val shape: String? = null,
 )
 
+/**
+ * One measurement (v6, app 0.6.0): a run from «Start» to «Stop», at any time of day, possibly over
+ * several days. Minutes and events belong to the measurement that started last before them
+ * (MeasurementSplitter.ownerIndex); they carry no id of their own. Rows from before 0.6.0 were
+ * derived from the stored minutes by the migration 5 → 6 (a gap of more than 10 minutes splits).
+ */
+@Entity(tableName = "measurements", indices = [Index("start_ms")])
+data class MeasurementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "start_ms") val startMs: Long,
+    /** Null while running, or if the app was killed before «Stop» (then the last minute ends it). */
+    @ColumnInfo(name = "end_ms") val endMs: Long? = null,
+    /**
+     * The 100 m cell (LV95 hectare id, e.g. "h26833_12479") determined on the phone at «Start»
+     * (Karten editions with «Messwerte teilen» on). Null: this measurement is not shared; its
+     * minutes and events are never sent. Never coordinates.
+     */
+    @ColumnInfo(name = "cell") val cell: String? = null,
+)
+
 @Entity(tableName = "calibrations", indices = [Index(value = ["deviceModel", "audioSource"])])
 data class CalibrationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -218,8 +238,38 @@ interface MeasurementDao {
     @Query("SELECT * FROM events WHERE startEpochMs > :afterMs ORDER BY startEpochMs ASC, id ASC LIMIT :limit")
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
-    @Query("SELECT COUNT(*) FROM minutes WHERE startEpochMs > :afterMs")
-    fun minuteCountAfter(afterMs: Long): Flow<Int>
+    /** Minutes after the marker that belong to a shared measurement (a cell), i.e. that will be sent. */
+    @Query(
+        "SELECT COUNT(*) FROM minutes AS m WHERE m.startEpochMs > :afterMs AND " +
+            "(SELECT cell FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
+    )
+    fun sharedMinuteCountAfter(afterMs: Long): Flow<Int>
+
+    // ---- Measurements (v6, app 0.6.0) ------------------------------------------------------------
+
+    @Insert suspend fun insertMeasurement(m: MeasurementEntity): Long
+
+    @Query("UPDATE measurements SET end_ms = :endMs WHERE id = :id")
+    suspend fun endMeasurement(id: Long, endMs: Long)
+
+    @Query("SELECT * FROM measurements ORDER BY start_ms ASC, id ASC")
+    suspend fun allMeasurements(): List<MeasurementEntity>
+
+    @Query("SELECT * FROM measurements ORDER BY start_ms ASC, id ASC")
+    fun measurementsFlow(): Flow<List<MeasurementEntity>>
+
+    @Query("SELECT * FROM measurements WHERE end_ms IS NULL")
+    suspend fun openMeasurements(): List<MeasurementEntity>
+
+    /** End (ms) of the last minute starting in [fromMs, toMs), or null. */
+    @Query("SELECT MAX(startEpochMs + CAST(durationSeconds * 1000 AS INTEGER)) FROM minutes WHERE startEpochMs >= :fromMs AND startEpochMs < :toMs")
+    suspend fun lastMinuteEnd(fromMs: Long, toMs: Long): Long?
+
+    /** The cell of the newest shared measurement (for the site call), or null. */
+    @Query("SELECT cell FROM measurements WHERE cell IS NOT NULL ORDER BY start_ms DESC LIMIT 1")
+    suspend fun latestCell(): String?
+
+    @Query("DELETE FROM measurements") suspend fun clearMeasurements()
 }
 
 @Dao
@@ -242,15 +292,18 @@ interface CalibrationDao {
     suspend fun byId(id: Long): CalibrationEntity?
 }
 
-@Database(entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class], version = 5, exportSchema = false)
+@Database(
+    entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class],
+    version = 6, exportSchema = false,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
     abstract fun calibrations(): CalibrationDao
 
     companion object {
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "stadtlaerm.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

@@ -56,8 +56,8 @@ interface HistoryActions {
 }
 
 /**
- * The top of the «Nächte» screen: range buttons, window navigation, the chart card with category
- * chips and legend, and the summary row.
+ * The chart part of the «Messungen» screen: the two views («Messung», «Tagesverlauf»), stepping to
+ * the previous/next measurement, the chart card with category chips and legend, and the summary row.
  *
  * [data] may belong to the previous window while the new one loads; it is then shown dimmed.
  *
@@ -78,6 +78,8 @@ fun HistorySection(
     onPlayClip: ((clipRef: String) -> Unit)? = null,
     /** Setting «Wind-Ereignisse in der Grafik zeigen» (they are never counted). */
     showWindEvents: Boolean = true,
+    /** An older measurement exists («‹»). */
+    canGoPrevious: Boolean = true,
 ) {
     val windows = remember(zone) { Windows(zone) }
     val model = remember(data, highlight, eventFloorDb, zone, showWindEvents) {
@@ -90,8 +92,8 @@ fun HistorySection(
 
     val margin = 16.dp
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // 1. Range and navigation.
-        val modes = listOf(RangeMode.NIGHT to "Nacht", RangeMode.DAY to "Tag", RangeMode.WEEK to "Woche")
+        // 1. View and navigation (‹ › = previous / next measurement).
+        val modes = listOf(RangeMode.SPAN to "Messung", RangeMode.PROFILE to "Tagesverlauf")
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = margin)) {
             modes.forEachIndexed { i, (m, label) ->
                 SegmentedButton(
@@ -102,7 +104,7 @@ fun HistorySection(
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = margin), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { actions.onShift(-1) }, modifier = Modifier.semantics { contentDescription = "früher" }) {
+            IconButton(onClick = { actions.onShift(-1) }, enabled = canGoPrevious, modifier = Modifier.semantics { contentDescription = "frühere Messung" }) {
                 Text("‹", style = MaterialTheme.typography.headlineMedium)
             }
             Text(
@@ -111,7 +113,7 @@ fun HistorySection(
             )
             IconButton(
                 onClick = { actions.onShift(1) }, enabled = canGoNext,
-                modifier = Modifier.semantics { contentDescription = "später" },
+                modifier = Modifier.semantics { contentDescription = "spätere Messung" },
             ) { Text("›", style = MaterialTheme.typography.headlineMedium) }
         }
 
@@ -134,7 +136,7 @@ fun HistorySection(
                 if (model == null || model.isEmpty) {
                     Box(Modifier.fillMaxWidth().height(chartHeight), contentAlignment = Alignment.Center) {
                         Text(
-                            if (model == null) "Lade …" else "Noch keine Messung in diesem Zeitraum.",
+                            if (model == null) "Lade …" else "Keine Messwerte.",
                             style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant,
                         )
                     }
@@ -146,17 +148,8 @@ fun HistorySection(
                         onPlayClip = onPlayClip,
                     )
                 }
-                if (model != null && model.eventsCapped) {
-                    Text(
-                        "Wochenansicht: Stundenwerte; gezeichnet sind nur die ${ChartModel.WEEK_EVENT_CAP} lautesten Ereignisse der hervorgehobenen Kategorie ab ${ChartFmt.dbCompact(maxOf(eventFloorDb, ChartModel.WEEK_EVENT_MIN_DB))} dB(A).",
-                        style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant,
-                    )
-                } else if (window.mode == RangeMode.WEEK) {
-                    Text(
-                        "Wochenansicht: Stundenwerte; gezeichnet sind nur Ereignisse der hervorgehobenen Kategorie ab " +
-                            "${ChartFmt.dbCompact(maxOf(eventFloorDb, ChartModel.WEEK_EVENT_MIN_DB))} dB(A).",
-                        style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant,
-                    )
+                if (model != null && model.hourly) {
+                    Text(hourlyNote(window.mode, model.eventsCapped, eventFloorDb), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
                 }
                 // Legend (text colours; small swatches carry the series colours).
                 FlowRow(
@@ -165,10 +158,17 @@ fun HistorySection(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     LegendItem(Swatch.Dot(palette.series2), "$highlightName (hervorgehoben)")
-                    if (window.mode != RangeMode.WEEK) {
+                    if (model?.hourly != true) {
                         LegendItem(Swatch.Dot(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor), small = true), "andere Ereignisse")
                     }
-                    LegendItem(Swatch.Line(palette.series1), if (window.mode == RangeMode.WEEK) "LAeq pro Stunde" else "LAeq pro Minute")
+                    LegendItem(
+                        Swatch.Line(palette.series1),
+                        when {
+                            window.mode == RangeMode.PROFILE -> "LAeq je Tagesstunde"
+                            model?.hourly == true -> "LAeq pro Stunde"
+                            else -> "LAeq pro Minute"
+                        },
+                    )
                     LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), "Hintergrund L90–L10")
                     if (model != null && model.windEvents.isNotEmpty()) {
                         LegendItem(Swatch.Hollow(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor)), WIND_LEGEND)
@@ -206,14 +206,14 @@ fun HistorySection(
         ) {
             // The hum (steady background) and the bursts above it are separate quantities.
             StatTile(
-                "Hintergrund (L90)", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–",
+                "Grundrauschen (L90)", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–",
                 if (s?.anyUncalibrated == true) "unkalibriert" else null, Modifier.weight(1f),
             )
-            StatTile("Ereignisse", s?.eventsPerHourText ?: "–", s?.let { "${it.windCount} Wind ausgeschlossen" }, Modifier.weight(1f))
+            StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", s?.let { "${it.windCount} Wind ausgeschlossen" }, Modifier.weight(1f))
             val loud = s?.loudest
             StatTile(
                 "Lautestes", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
-                loud?.let { TimeFmt(zone, window.mode == RangeMode.WEEK).hm(it.startEpochMs) }, Modifier.weight(1f),
+                loud?.let { TimeFmt(zone, windows.crossesDates(window)).hm(it.startEpochMs) }, Modifier.weight(1f),
             )
         }
         if (s != null && model?.isEmpty == false) {
@@ -230,6 +230,14 @@ fun HistorySection(
             }
         }
     }
+}
+
+/** Note under an hourly chart: what the points are and which events are drawn. */
+fun hourlyNote(mode: RangeMode, capped: Boolean, eventFloorDb: Double): String {
+    val what = if (mode == RangeMode.PROFILE) "Alle Tage der Messung übereinander, Werte je Stunde" else "Stundenwerte"
+    val db = ChartFmt.dbCompact(maxOf(eventFloorDb, ChartModel.HOURLY_EVENT_MIN_DB))
+    return if (capped) "$what; gezeichnet sind nur die ${ChartModel.HOURLY_EVENT_CAP} lautesten Ereignisse der hervorgehobenen Kategorie ab $db dB(A)."
+    else "$what; gezeichnet sind nur Ereignisse der hervorgehobenen Kategorie ab $db dB(A)."
 }
 
 @Composable

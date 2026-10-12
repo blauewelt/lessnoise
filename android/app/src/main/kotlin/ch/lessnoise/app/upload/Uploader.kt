@@ -1,7 +1,9 @@
 package ch.lessnoise.app.upload
 
 import ch.lessnoise.app.data.EventEntity
+import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.dsp.MeasurementSplitter
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -16,14 +18,41 @@ interface UploadSource {
     /** Events with `startEpochMs > afterMs`, oldest first, at most [limit]. */
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
+    /** All measurements (start, end, cell), to find the cell of a record. */
+    suspend fun measurements(): List<MeasurementEntity>
+
     /** Phone model, audio source and calibration for the site call. */
     suspend fun siteExtras(): SiteExtras
 }
 
 /**
+ * The cell of a record: the cell of the measurement it belongs to (the one that started last before
+ * it, MeasurementSplitter.ownerIndex), null if that measurement is not shared or the record lies
+ * after its end. Records without a cell are never sent.
+ */
+class CellIndex(measurements: List<MeasurementEntity>) {
+    private val sorted = measurements.sortedWith(compareBy({ it.startMs }, { it.id }))
+    private val starts = LongArray(sorted.size) { sorted[it].startMs }
+
+    fun cellAt(t: Long): String? {
+        val i = MeasurementSplitter.ownerIndex(starts, t)
+        if (i < 0) return null
+        val m = sorted[i]
+        if (m.endMs != null && t >= m.endMs) return null
+        return m.cell
+    }
+
+    /** The cell of the newest shared measurement (sent with the placement details). */
+    val latest: String? = sorted.lastOrNull { it.cell != null }?.cell
+}
+
+/**
  * The upload of server/DESIGN.md §4.6, independent of Android so that it runs in JVM tests:
- * register once, send the site when it changed, then every minute and event newer than the last
- * acknowledged `start`, in batches of ≤ 1440 / ≤ 2000. The local database stays the source of
+ * register once, send the site when it changed, the waiting «Laut! Melden» reports (≤ 50 per
+ * request; their coordinates are deleted from the phone once the server answered), then every
+ * minute and event newer than the last acknowledged `start`, in batches of ≤ 1440 / ≤ 2000. Since
+ * 0.6.0 each record carries the cell of its measurement; records of a measurement without a cell
+ * (not shared) are skipped and never sent. The local database stays the source of
  * truth; the markers only move forward after the server acknowledged a batch, so an interrupted
  * upload resumes where it stopped and a repeated batch is harmless (the server is idempotent on
  * `(device_id, start)`).
@@ -34,6 +63,8 @@ class Uploader(
     private val client: UploadClient,
     private val store: UploadStore,
     private val source: UploadSource,
+    /** «Laut! Melden» reports waiting to be sent. */
+    private val reports: ReportStore,
     private val appVersion: String,
     private val appBuild: Int,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -54,14 +85,11 @@ class Uploader(
         /** Sharing is off (or was switched off during the run): nothing sent. */
         data object Disabled : Outcome
 
-        /** No hectare chosen yet. */
-        data object NotReady : Outcome
-
         /** The server does not accept the token; stops until «Neue Kennung». */
         data object AuthFailed : Outcome
 
         /** Everything newer than the markers was sent (or the request budget of this run is used up: [more]). */
-        data class Done(val minutes: Int, val events: Int, val refused: Int, val more: Boolean) : Outcome
+        data class Done(val minutes: Int, val events: Int, val refused: Int, val more: Boolean, val reports: Int = 0) : Outcome
 
         /** Temporary problem (network, server, rate limit): try again later. */
         data class Retry(val message: String) : Outcome
@@ -81,7 +109,7 @@ class Uploader(
         data class Failed(val message: String) : DeleteOutcome
     }
 
-    /** Switch «Messwerte teilen» on. Needs the explanation and a hectare. */
+    /** Switch «Messwerte teilen» on. Needs the explanation (or the short consent of «Laut! Melden»). */
     fun enable(): Boolean {
         val s = store.state.value
         if (!s.canEnable) return false
@@ -95,9 +123,13 @@ class Uploader(
         return true
     }
 
-    /** Switch it off: no further request is started (a running one finishes its current call). */
+    /**
+     * Switch it off: no further request is started (a running one finishes its current call).
+     * Reports not sent yet are dropped with their coordinates: off means nothing more is sent.
+     */
     fun disable() {
         store.update { it.copy(enabled = false) }
+        ReportQueue.dropPending(reports)
     }
 
     /**
@@ -121,9 +153,9 @@ class Uploader(
     private suspend fun runLocked(): Outcome {
         var s = store.state.value
         if (!s.enabled) return Outcome.Disabled
-        val site = s.site ?: return Outcome.NotReady
         if (s.authFailed) return Outcome.AuthFailed
         var requests = 0
+        var sentReports = 0
         var sentMinutes = 0
         var sentEvents = 0
         var refused = 0
@@ -136,13 +168,42 @@ class Uploader(
             val id = s.deviceId!!
             val token = s.token!!
 
-            val siteJson = Payloads.site(site, source.siteExtras())
-            val siteText = siteJson.toString()
-            if (siteText != s.lastSiteJson) {
+            val cells = CellIndex(source.measurements())
+            // The placement details go with the newest shared measurement's cell; none yet: no site call.
+            val latestCell = cells.latest
+            if (latestCell != null) {
+                val siteJson = Payloads.site(latestCell, s.site, source.siteExtras())
+                val siteText = siteJson.toString()
+                if (siteText != s.lastSiteJson) {
+                    if (stopRequested()) return Outcome.Disabled
+                    client.putSite(id, token, siteJson)
+                    requests++
+                    s = store.update { it.copy(lastSiteJson = siteText) }
+                }
+            }
+
+            // Reports first: few, small, and their coordinates should not stay on the phone longer than needed.
+            while (true) {
                 if (stopRequested()) return Outcome.Disabled
-                client.putSite(id, token, siteJson)
+                val batch = reports.state.value.pending.take(UploadClient.MAX_REPORTS)
+                if (batch.isEmpty() || requests >= maxRequestsPerRun) break
+                val res = try {
+                    client.postReports(id, token, JsonArray(batch.map(Payloads::report)))
+                } catch (e: UploadClient.Failure.Rejected) {
+                    requests++
+                    // 404/405: a server without the reports call yet. Keep the reports for a later
+                    // run and still send the minutes and events.
+                    if (e.status == 404 || e.status == 405) break
+                    // Any other 4xx: this batch itself is refused and would be refused again; drop it
+                    // (its coordinates with it) instead of blocking every later upload.
+                    store.update { it.copy(refusedTotal = it.refusedTotal + batch.size) }
+                    ReportQueue.acknowledge(reports, batch, rejected = batch.indices.toSet())
+                    continue
+                }
                 requests++
-                s = store.update { it.copy(lastSiteJson = siteText) }
+                sentReports += res.accepted + res.duplicates
+                if (res.rejected.isNotEmpty()) store.update { it.copy(refusedTotal = it.refusedTotal + res.rejected.size) }
+                ReportQueue.acknowledge(reports, batch, rejected = res.rejected.map { it.index }.toSet())
             }
 
             var more = false
@@ -150,7 +211,9 @@ class Uploader(
                 kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests },
                 marker = { it.minutesSentUpToMs },
                 fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
-                post = { batch -> client.postMinutes(id, token, JsonArray(batch.map(Payloads::minute))) },
+                // Only minutes of shared measurements; the marker still moves past the others.
+                include = { cells.cellAt(it.startEpochMs) != null },
+                post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, cells.cellAt(it.startEpochMs)!!) })) },
                 advance = { snap, t -> snap.copy(minutesSentUpToMs = maxOf(snap.minutesSentUpToMs, t)) },
             ) ?: return Outcome.Disabled
             requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
@@ -160,16 +223,17 @@ class Uploader(
                     marker = { it.eventsSentUpToMs },
                     fetch = { after, n -> source.eventsAfter(after, n) }, start = { it.startEpochMs },
                     // Wind-flagged events (detector v2) are not shared, as they are left out of the app's
-                // own counts; the marker still moves past them (server/DESIGN.md §4.4).
-                include = Payloads::isShared,
-                post = { batch -> client.postEvents(id, token, JsonArray(batch.map(Payloads::event))) },
+                    // own counts, nor events of measurements without a cell; the marker still moves
+                    // past them (server/DESIGN.md §4.4).
+                    include = { Payloads.isShared(it) && cells.cellAt(it.startEpochMs) != null },
+                    post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, cells.cellAt(it.startEpochMs)!!) })) },
                     advance = { snap, t -> snap.copy(eventsSentUpToMs = maxOf(snap.eventsSentUpToMs, t)) },
                 ) ?: return Outcome.Disabled
                 requests += events.requests; sentEvents = events.sent; refused += events.refused; more = events.more
             }
             // «Zuletzt gesendet» only moves when something was actually sent.
             store.update { if (requests > 0) it.copy(lastSuccessAtMs = clock(), lastError = null) else it.copy(lastError = null) }
-            return Outcome.Done(sentMinutes, sentEvents, refused, more)
+            return Outcome.Done(sentMinutes, sentEvents, refused, more, sentReports)
         } catch (e: UploadClient.Failure.Unauthorized) {
             store.update { it.copy(authFailed = true, lastError = AUTH_FAILED_TEXT) }
             return Outcome.AuthFailed
@@ -253,14 +317,14 @@ class Uploader(
     }
 
     /**
-     * «Meine Daten auf dem Server löschen»: DELETE and wait for the server's 204, then forget the
-     * id and token and switch sharing off. On any error nothing changes on the phone.
+     * «Daten auf dem Server löschen»: DELETE and wait for the server's 204, then forget the id and
+     * token, switch sharing off and drop reports not sent yet. On any error nothing changes on the phone.
      */
     suspend fun deleteServerData(): DeleteOutcome {
         abort.set(true)
         return lock.withLock {
             abort.set(false)
-            deleteAndForget(disable = true)
+            deleteAndForget(disable = true).also { if (it !is DeleteOutcome.Failed) ReportQueue.dropPending(reports) }
         }
     }
 

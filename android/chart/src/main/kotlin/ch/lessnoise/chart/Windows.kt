@@ -1,25 +1,32 @@
 package ch.lessnoise.chart
 
-import ch.lessnoise.dsp.NightSummarizer
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
-import java.time.temporal.TemporalAdjusters
-
-/** The three chart ranges. */
-enum class RangeMode { NIGHT, DAY, WEEK }
+import java.time.temporal.ChronoUnit
 
 /**
- * One chart window [startMs, endMs) in local time.
- *
- * [anchor] identifies it: the evening date for a night, the date for a day, the Monday for a week.
+ * The two views of one measurement (since 0.6.0; they replace the three fixed ranges of 0.5):
+ * - [SPAN]: the measurement's own time span, start to stop.
+ * - [PROFILE]: «Tagesverlauf», the level by hour of day across the whole measurement (all days of
+ *   it laid over each other on one 0–24 h axis).
  */
-data class TimeWindow(val mode: RangeMode, val anchor: LocalDate, val startMs: Long, val endMs: Long) {
+enum class RangeMode { SPAN, PROFILE }
+
+/**
+ * The data window [startMs, endMs) of a chart: always the measurement's time span; [mode] says how
+ * it is drawn. A running measurement's window ends at "now".
+ */
+data class TimeWindow(val mode: RangeMode, val startMs: Long, val endMs: Long) {
     val durationMs: Long get() = endMs - startMs
     operator fun contains(t: Long): Boolean = t in startMs until endMs
+
+    companion object {
+        fun span(startMs: Long, endMs: Long) = TimeWindow(RangeMode.SPAN, startMs, endMs)
+        fun profile(startMs: Long, endMs: Long) = TimeWindow(RangeMode.PROFILE, startMs, endMs)
+    }
 }
 
 /** A labelled x position. */
@@ -30,130 +37,91 @@ data class Span(val startMs: Long, val endMs: Long) {
     val durationMs: Long get() = endMs - startMs
 }
 
-/**
- * Window arithmetic in the local [zone] (DST-aware). A night is 22:00–06:00 local time, as in
- * [NightSummarizer]; a day 00:00–24:00; a week Monday 00:00 – next Monday 00:00.
- */
+/** Axis and label arithmetic in the local [zone] (DST-aware). */
 class Windows(val zone: ZoneId) {
 
-    fun of(mode: RangeMode, date: LocalDate): TimeWindow = when (mode) {
-        RangeMode.NIGHT -> TimeWindow(
-            mode, date,
-            ms(date.atTime(LocalTime.of(NightSummarizer.NIGHT_START_HOUR, 0)).atZone(zone)),
-            ms(date.plusDays(1).atTime(LocalTime.of(NightSummarizer.NIGHT_END_HOUR, 0)).atZone(zone)),
-        )
-        RangeMode.DAY -> TimeWindow(mode, date, ms(date.atStartOfDay(zone)), ms(date.plusDays(1).atStartOfDay(zone)))
-        RangeMode.WEEK -> {
-            val monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-            TimeWindow(mode, monday, ms(monday.atStartOfDay(zone)), ms(monday.plusWeeks(1).atStartOfDay(zone)))
-        }
+    /**
+     * «Sa 10.10. 14:05–16:30», across dates «Sa 10.10. 22:14 – So 11.10. 06:30». The same for both
+     * views (the profile shows the same measurement).
+     */
+    fun label(w: TimeWindow): String {
+        val a = Instant.ofEpochMilli(w.startMs).atZone(zone)
+        val b = Instant.ofEpochMilli(w.endMs).atZone(zone)
+        val first = "${weekday(a.toLocalDate())} ${a.dayOfMonth}.${a.monthValue}. ${hm(a)}"
+        return if (a.toLocalDate() == b.toLocalDate()) "$first–${hm(b)}"
+        else "$first – ${weekday(b.toLocalDate())} ${b.dayOfMonth}.${b.monthValue}. ${hm(b)}"
     }
 
-    /** [n] windows later (negative: earlier). */
-    fun shift(w: TimeWindow, n: Int): TimeWindow = when (w.mode) {
-        RangeMode.NIGHT, RangeMode.DAY -> of(w.mode, w.anchor.plusDays(n.toLong()))
-        RangeMode.WEEK -> of(w.mode, w.anchor.plusWeeks(n.toLong()))
+    /** True if the window spans more than one local calendar date (then tooltips name the date). */
+    fun crossesDates(w: TimeWindow): Boolean = localDate(w.startMs) != localDate(maxOf(w.startMs, w.endMs - 1))
+
+    /** Grid step for a span: the smallest that gives at most [MAX_LABELS] labels. */
+    fun stepMinutes(w: TimeWindow): Long {
+        val minutes = w.durationMs / MINUTE_MS
+        return STEPS_MIN.firstOrNull { minutes / it <= MAX_LABELS } ?: STEPS_MIN.last()
     }
+
+    /** Vertical grid positions of the x axis (span: local wall-clock multiples of the step; profile: every 3 h). */
+    fun gridTicks(w: TimeWindow): List<Long> =
+        if (w.mode == RangeMode.PROFILE) (0..8).map { it * 3 * HOUR_MS } else spanTicks(w)
 
     /**
-     * The window of [mode] containing [t]. For a night outside the night period, the most recent
-     * night that has started (at 14:00 on Tuesday: the night Monday → Tuesday).
+     * x-axis labels. Span: «14:15» for steps under an hour, the hour («22», «23», «0») up to 3 h,
+     * the weekday at 00:00 and «12» at noon for 12 h, the weekday for a day or more. Profile:
+     * 0, 3, … 24.
      */
-    fun containing(mode: RangeMode, t: Long): TimeWindow {
-        val local = Instant.ofEpochMilli(t).atZone(zone)
-        return when (mode) {
-            RangeMode.NIGHT -> of(mode, if (local.hour >= NightSummarizer.NIGHT_START_HOUR) local.toLocalDate() else local.toLocalDate().minusDays(1))
-            else -> of(mode, local.toLocalDate())
+    fun axisLabels(w: TimeWindow): List<AxisLabel> {
+        if (w.mode == RangeMode.PROFILE) return gridTicks(w).mapIndexed { i, t -> AxisLabel(t, (i * 3).toString()) }
+        val step = stepMinutes(w)
+        return spanTicks(w).map { t ->
+            val z = Instant.ofEpochMilli(t).atZone(zone)
+            val text = when {
+                step < 60 -> hm(z)
+                step <= 180 -> z.hour.toString()
+                step == 720L && z.hour != 0 -> z.hour.toString()
+                else -> weekday(z.toLocalDate())
+            }
+            AxisLabel(t, text)
         }
     }
 
-    /**
-     * Window shown when the screen opens: the running night if [nowMs] is inside a night, otherwise
-     * the most recent night with data, otherwise the most recent night.
-     */
-    fun defaultWindow(nowMs: Long, latestNightWithData: LocalDate?): TimeWindow {
-        if (NightSummarizer.nightOf(nowMs, zone) != null) return containing(RangeMode.NIGHT, nowMs)
-        val latest = containing(RangeMode.NIGHT, nowMs)
-        return if (latestNightWithData != null && latestNightWithData <= latest.anchor) of(RangeMode.NIGHT, latestNightWithData) else latest
-    }
-
-    /** Switches range keeping roughly the same time: the window of [mode] containing the old midpoint (never the future). */
-    fun switchMode(w: TimeWindow, mode: RangeMode, nowMs: Long): TimeWindow {
-        if (mode == w.mode) return w
-        val mid = w.startMs + w.durationMs / 2
-        return containing(mode, minOf(mid, nowMs))
-    }
-
-    /** Later windows are allowed only while they have started. */
-    fun canGoNext(w: TimeWindow, nowMs: Long): Boolean = shift(w, 1).startMs <= nowMs
-
-    /** «Nacht Mo 6.→Di 7.10.», «Di 7.10.», «30.9.–6.10.» */
-    fun label(w: TimeWindow): String = when (w.mode) {
-        RangeMode.NIGHT -> {
-            val a = w.anchor
-            val b = a.plusDays(1)
-            val first = if (a.monthValue == b.monthValue) "${a.dayOfMonth}." else "${a.dayOfMonth}.${a.monthValue}."
-            "Nacht ${weekday(a)} $first→${weekday(b)} ${b.dayOfMonth}.${b.monthValue}."
-        }
-        RangeMode.DAY -> "${weekday(w.anchor)} ${w.anchor.dayOfMonth}.${w.anchor.monthValue}."
-        RangeMode.WEEK -> {
-            val sunday = w.anchor.plusDays(6)
-            "${w.anchor.dayOfMonth}.${w.anchor.monthValue}.–${sunday.dayOfMonth}.${sunday.monthValue}."
-        }
-    }
-
-    /** Vertical grid positions of the x axis. */
-    fun gridTicks(w: TimeWindow): List<Long> = when (w.mode) {
-        RangeMode.NIGHT -> hourly(w)
-        RangeMode.DAY -> (0..8).map { h -> if (h == 8) w.endMs else ms(w.anchor.atTime(h * 3, 0).atZone(zone)) }.distinct()
-        RangeMode.WEEK -> (0..7).map { d -> ms(w.anchor.plusDays(d.toLong()).atStartOfDay(zone)) }
-    }
-
-    /**
-     * x-axis labels: hours for a night (22, 23, 0, … 6; a DST night repeats or skips an hour),
-     * every 3 h for a day (0 … 24), weekday names centred on each day for a week.
-     */
-    fun axisLabels(w: TimeWindow): List<AxisLabel> = when (w.mode) {
-        RangeMode.NIGHT -> hourly(w).map { AxisLabel(it, Instant.ofEpochMilli(it).atZone(zone).hour.toString()) }
-        RangeMode.DAY -> gridTicks(w).mapIndexed { i, t -> AxisLabel(t, if (t == w.endMs) "24" else (i * 3).toString()) }
-        RangeMode.WEEK -> (0 until 7).map { d ->
-            val day = w.anchor.plusDays(d.toLong())
-            val s = ms(day.atStartOfDay(zone))
-            val e = ms(day.plusDays(1).atStartOfDay(zone))
-            AxisLabel(s + (e - s) / 2, weekday(day))
-        }
-    }
-
-    /** Night periods (22–06) intersecting [w], clipped to it. */
-    fun nightSpans(w: TimeWindow): List<Span> {
-        val first = Instant.ofEpochMilli(w.startMs).atZone(zone).toLocalDate().minusDays(1)
-        val last = Instant.ofEpochMilli(w.endMs).atZone(zone).toLocalDate()
-        val out = ArrayList<Span>()
-        var d = first
-        while (d <= last) {
-            val n = of(RangeMode.NIGHT, d)
-            val s = maxOf(n.startMs, w.startMs)
-            val e = minOf(n.endMs, w.endMs)
-            if (e > s) out += Span(s, e)
-            d = d.plusDays(1)
-        }
-        return out
-    }
-
-    private fun hourly(w: TimeWindow): List<Long> {
+    private fun spanTicks(w: TimeWindow): List<Long> {
+        val step = stepMinutes(w)
         val out = ArrayList<Long>()
-        var t = w.startMs
-        while (t <= w.endMs) { out += t; t += HOUR_MS }
+        // Walk local wall-clock time from the start of the first day; keep the multiples of the step.
+        var z: ZonedDateTime = Instant.ofEpochMilli(w.startMs).atZone(zone).truncatedTo(ChronoUnit.DAYS)
+        var guard = 0
+        while (guard++ < 20_000) {
+            val t = z.toInstant().toEpochMilli()
+            if (t > w.endMs) break
+            val minuteOfDay = z.hour * 60L + z.minute
+            val aligned = if (step >= 1440) minuteOfDay == 0L && dayAligned(z.toLocalDate(), step) else minuteOfDay % step == 0L
+            // A DST fall-back hour repeats a wall-clock time; both instants are real ticks.
+            if (t >= w.startMs && aligned && (out.isEmpty() || out.last() != t)) out += t
+            z = if (step >= 1440) z.plusDays(1) else z.plusMinutes(minOf(step, 60L))
+        }
         return out
     }
+
+    /** Multi-day steps: every 2nd / 7th day counted from the epoch day, so ticks do not jump while a measurement grows. */
+    private fun dayAligned(d: LocalDate, stepMinutes: Long): Boolean = d.toEpochDay() % (stepMinutes / 1440) == 0L
 
     fun localDate(t: Long): LocalDate = Instant.ofEpochMilli(t).atZone(zone).toLocalDate()
+
+    private fun hm(z: ZonedDateTime): String = "%02d:%02d".format(z.hour, z.minute)
 
     companion object {
         const val MINUTE_MS = 60_000L
         const val HOUR_MS = 3_600_000L
+        const val DAY_MS = 24 * HOUR_MS
+        /** At most this many x labels on a span. */
+        const val MAX_LABELS = 9L
+        private val STEPS_MIN = longArrayOf(15, 30, 60, 180, 720, 1440, 2880, 10080)
         private val WEEKDAYS = arrayOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
         fun weekday(d: LocalDate): String = WEEKDAYS[d.dayOfWeek.value - 1]
-        private fun ms(z: ZonedDateTime): Long = z.toInstant().toEpochMilli()
+
+        /** The x domain of the «Tagesverlauf»: one day, 0–24 h, drawn in UTC so that 14:00 is at 14 h. */
+        val PROFILE_ZONE: ZoneId = ZoneOffset.UTC
+        val PROFILE_WINDOW = TimeWindow(RangeMode.PROFILE, 0L, DAY_MS)
     }
 }

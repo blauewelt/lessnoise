@@ -32,7 +32,7 @@ class LessNoiseApp : Application() {
             container.appScope.launch { container.upload.start(container.appScope, container.live, container.recalibrator) }
         } else {
             // An edition without upload installed over one with sharing on (Offline over Karten-
-            // Version, Labor over Labor-Version mit Karte): switch it off, cancel the jobs.
+            // Version, Labor over the Labor edition with the map): switch it off, cancel the jobs.
             container.appScope.launch { container.upload.stopForOfflineEdition() }
         }
     }

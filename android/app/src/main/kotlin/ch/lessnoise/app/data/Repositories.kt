@@ -207,7 +207,7 @@ class CalibrationRepository(private val dao: CalibrationDao) {
     suspend fun exportJson(): String {
         val all = dao.all()
         return buildJsonObject {
-            put("app", "Stadtlärm")
+            put("app", "Weniger Lärm")
             put("format", "calibration-history-v1")
             put("default_offset_db", Acoustics.DEFAULT_CALIBRATION_OFFSET_DB)
             put("calibrations", buildJsonArray {
@@ -254,16 +254,34 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     suspend fun allEvents(): List<NoiseEvent> = dao.allEvents().map { it.toEvent() }
 
     suspend fun clear() {
-        dao.clearMinutes(); dao.clearEvents()
+        dao.clearMinutes(); dao.clearEvents(); dao.clearMeasurements()
     }
+
+    fun measurementsFlow() = dao.measurementsFlow()
+
+    /**
+     * «Start»: records a new measurement with its [cell] (null = not shared). Open rows left by a
+     * measurement the system killed before «Stop» are closed first, at the end of their last minute.
+     */
+    suspend fun beginMeasurement(startMs: Long, cell: String?): Long {
+        val open = dao.openMeasurements().sortedBy { it.startMs }
+        for ((i, m) in open.withIndex()) {
+            val next = open.getOrNull(i + 1)?.startMs ?: startMs
+            dao.endMeasurement(m.id, dao.lastMinuteEnd(m.startMs - ch.lessnoise.dsp.MeasurementSplitter.START_TOLERANCE_MS, next) ?: m.startMs)
+        }
+        return dao.insertMeasurement(MeasurementEntity(startMs = startMs, cell = cell))
+    }
+
+    /** «Stop». */
+    suspend fun endMeasurement(id: Long, endMs: Long) = dao.endMeasurement(id, endMs)
 
     /** Writes CSV exports into cache/exports (served via FileProvider). */
     suspend fun exportCsv(dir: File, bucketIds: List<String>): List<File> {
         dir.mkdirs()
         dir.listFiles()?.forEach { it.delete() }
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT).format(java.util.Date())
-        val minutes = File(dir, "stadtlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds)) }
-        val events = File(dir, "stadtlaerm-ereignisse-$stamp.csv").apply { writeText(Csv.events(allEvents())) }
+        val minutes = File(dir, "wenigerlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds)) }
+        val events = File(dir, "wenigerlaerm-ereignisse-$stamp.csv").apply { writeText(Csv.events(allEvents())) }
         return listOf(minutes, events)
     }
 }

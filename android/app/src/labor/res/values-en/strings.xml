@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Labor launcher label in this language: without it, main's values-en label (the public app's
+     name) would win over labor/res/values on a phone in this language. -->
+<resources>
+    <string name="app_name">Less Noise Labor</string>
+</resources>

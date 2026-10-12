@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * «Messwerte teilen» can never send audio — also not in the internal «Labor-Version mit Karte»
+ * «Messwerte teilen» can never send audio — also not in the internal «Weniger Lärm Labor · Karte»
  * (flavour laborKarte), which has both the Labor recorder and the upload.
  *
  * The upload reads its data through [UploadSource] (Room: minutes, events; the calibrations;
@@ -62,10 +62,12 @@ class UploadSourceIsolationTest {
         "ch.lessnoise.app.data.AppDatabase",
         "ch.lessnoise.app.data.CalibrationRepository",
         "ch.lessnoise.app.data.EventEntity",
+        "ch.lessnoise.app.data.MeasurementEntity", // start, end and 100 m cell of a measurement (Room row), no audio
         "ch.lessnoise.app.data.MinuteEntity",
         "ch.lessnoise.app.data.Recalibrator",
         "ch.lessnoise.app.service.LiveState",
         "ch.lessnoise.dsp.geo.Lv95",
+        "ch.lessnoise.dsp.MeasurementSplitter", // pure function: which measurement a record belongs to
     )
 
     /** java.io classes the upload package may import (in-memory buffers and the exception type). */

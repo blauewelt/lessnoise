@@ -6,7 +6,6 @@ import ch.lessnoise.dsp.classify.ClassifierResult
 import ch.lessnoise.dsp.classify.LabelScore
 import java.io.File
 import java.nio.file.Files
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import kotlin.test.Test
@@ -278,12 +277,12 @@ class ClipPlaybackLogicTest {
     }
 
     @Test
-    fun currentNightForTheClipList() {
-        fun at(s: String) = ClipNights.currentNightOf(ms("$s[Europe/Zurich]"), zurich)
-        assertEquals(LocalDate.of(2026, 10, 8), at("2026-10-08T23:00:00+02:00")) // tonight
-        assertEquals(LocalDate.of(2026, 10, 8), at("2026-10-08T22:00:00+02:00"))
-        assertEquals(LocalDate.of(2026, 10, 7), at("2026-10-08T03:00:00+02:00")) // still last night
-        assertEquals(LocalDate.of(2026, 10, 7), at("2026-10-08T15:00:00+02:00")) // the night that ended last
-        assertEquals(LocalDate.of(2026, 10, 7), at("2026-10-08T21:59:00+02:00"))
+    fun recentClipsAreTheLast24Hours() {
+        val now = ms("2026-10-08T15:00:00+02:00[Europe/Zurich]")
+        assertTrue(ClipRecent.isRecent(now, now))
+        assertTrue(ClipRecent.isRecent(ms("2026-10-07T15:00:00+02:00[Europe/Zurich]"), now))
+        assertTrue(ClipRecent.isRecent(ms("2026-10-08T03:00:00+02:00[Europe/Zurich]"), now))
+        assertFalse(ClipRecent.isRecent(ms("2026-10-07T14:59:59+02:00[Europe/Zurich]"), now))
+        assertFalse(ClipRecent.isRecent(now + 1, now))
     }
 }

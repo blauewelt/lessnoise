@@ -21,10 +21,12 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** Where the sensor is (server/DESIGN.md §4.2). Only the hectare is kept, never coordinates. */
+/**
+ * How the phone is placed (server/DESIGN.md §4.2), optional and remembered for the next
+ * measurements. The cell is no longer part of it: since 0.6.0 every measurement has its own
+ * (MeasurementEntity.cell); the site call sends the newest one.
+ */
 data class SiteSettings(
-    /** LV95 hectare id, e.g. "h26824_12473" (dsp `Lv95.cellId`). */
-    val cell: String,
     /** open_window | balcony | behind_glass | other */
     val placement: String = PLACEMENT_OPEN_WINDOW,
     /** 0 = ground floor; null = not given. */
@@ -60,7 +62,8 @@ data class UploadSnapshot(
     val wifiOnly: Boolean = true,
     /** The explanation screen was read and confirmed once. */
     val explanationSeen: Boolean = false,
-    val site: SiteSettings? = null,
+    /** Placement details (optional fields). */
+    val site: SiteSettings = SiteSettings(),
     val deviceId: String? = null,
     /** Bearer token; kept encrypted at rest (Android Keystore), plain only in memory. */
     val token: String? = null,
@@ -84,7 +87,7 @@ data class UploadSnapshot(
     val refusedTotal: Int = 0,
 ) {
     val registered: Boolean get() = deviceId != null && token != null
-    val canEnable: Boolean get() = explanationSeen && site != null
+    val canEnable: Boolean get() = explanationSeen
 
     companion object {
         const val REFUSED_KEEP = 2000
@@ -127,15 +130,12 @@ class UploadState(context: Context) : UploadStore {
     }
 
     private fun read(): UploadSnapshot {
-        val site = prefs.getString("site_cell", null)?.let { cell ->
-            SiteSettings(
-                cell = cell,
-                placement = prefs.getString("site_placement", null) ?: SiteSettings.PLACEMENT_OPEN_WINDOW,
-                floor = if (prefs.contains("site_floor")) prefs.getInt("site_floor", 0) else null,
-                streetFacing = if (prefs.contains("site_street")) prefs.getBoolean("site_street", true) else null,
-                note = prefs.getString("site_note", null) ?: "",
-            )
-        }
+        val site = SiteSettings(
+            placement = prefs.getString("site_placement", null) ?: SiteSettings.PLACEMENT_OPEN_WINDOW,
+            floor = if (prefs.contains("site_floor")) prefs.getInt("site_floor", 0) else null,
+            streetFacing = if (prefs.contains("site_street")) prefs.getBoolean("site_street", true) else null,
+            note = prefs.getString("site_note", null) ?: "",
+        )
         val token = prefs.getString("token_enc", null)?.let { TokenCipher.decrypt(it) }
         return UploadSnapshot(
             enabled = prefs.getBoolean("enabled", false),
@@ -169,11 +169,10 @@ class UploadState(context: Context) : UploadStore {
             .putBoolean("auth_failed", s.authFailed)
             .putInt("refused_total", s.refusedTotal)
             .putString("refused", formatRefused(s.refused))
-        s.site?.let { site ->
-            e.putString("site_cell", site.cell).putString("site_placement", site.placement).putString("site_note", site.note)
-            if (site.floor != null) e.putInt("site_floor", site.floor) else e.remove("site_floor")
-            if (site.streetFacing != null) e.putBoolean("site_street", site.streetFacing) else e.remove("site_street")
-        } ?: e.remove("site_cell").remove("site_placement").remove("site_note").remove("site_floor").remove("site_street")
+        val site = s.site
+        e.putString("site_placement", site.placement).putString("site_note", site.note)
+        if (site.floor != null) e.putInt("site_floor", site.floor) else e.remove("site_floor")
+        if (site.streetFacing != null) e.putBoolean("site_street", site.streetFacing) else e.remove("site_street")
         if (s.deviceId != null) e.putString("device_id", s.deviceId) else e.remove("device_id")
         val current = flow.value
         if (s.token == null) {
@@ -204,7 +203,7 @@ class UploadState(context: Context) : UploadStore {
 
 /** AES-256-GCM with a non-exportable key in the Android Keystore, for the one secret (the token). */
 private object TokenCipher {
-    private const val ALIAS = "stadtlaerm_upload_token"
+    private const val ALIAS = "lessnoise_upload_token"
     private const val KEYSTORE = "AndroidKeyStore"
 
     private fun key(): SecretKey {

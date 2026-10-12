@@ -256,7 +256,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun exportHistory(): File = withContext(Dispatchers.IO) {
         val dir = File(getApplication<Application>().cacheDir, "exports").apply { mkdirs() }
-        File(dir, "stadtlaerm-kalibrierungen.json").apply { writeText(c.calibrations.exportJson()) }
+        File(dir, "wenigerlaerm-kalibrierungen.json").apply { writeText(c.calibrations.exportJson()) }
     }
 
     fun clearMessage() { _state.value = _state.value.copy(message = null) }

@@ -10,7 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-/** «Standort bestimmen» (v0.5.1): lat/lon → hectare, and when a fix is accepted. Pure JVM. */
+/** One location fix (0.6.0: at «Start» of a shared measurement, and «Laut! Melden»): lat/lon → cell, and when a fix is accepted. Pure JVM. */
 class LocationPolicyTest {
 
     /**
@@ -88,31 +88,53 @@ class LocationPolicyTest {
     }
 
     @Test
-    fun textsTellTheTruthInSwissGerman() {
-        assertEquals("Hektare h26828_12455 · Genauigkeit ± 12 m", LocationPolicy.message(Outcome.Hectare("h26828_12455", 12)))
+    fun textsAreShortSwissGermanAndTrue() {
+        assertEquals("Zelle h26828_12455 · ± 12 m", LocationPolicy.message(Outcome.Hectare("h26828_12455", 12)))
         assertEquals("Standort wird bestimmt …", LocationPolicy.PROGRESS_TEXT)
         val outcomes = listOf(
             Outcome.Hectare("h26828_12455", 12), Outcome.ApproximateOnly, Outcome.TooInaccurate(140), Outcome.TooInaccurate(null),
             Outcome.OutsideSwitzerland("Dieser Standort liegt nicht in der Schweiz."), Outcome.LocationOff, Outcome.NoFix,
             Outcome.PermissionDenied,
         )
-        val texts = outcomes.map { LocationPolicy.message(it) } + LocationPolicy.RATIONALE_TEXT + LOCATION_NEVER_SENT
+        val texts = outcomes.map { LocationPolicy.message(it) } + LOCATION_NEVER_SENT
         for (t in texts) {
             assertFalse(t.contains('ß'), t)
             assertFalse(Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
             assertFalse(t.contains('"') || t.contains('„') || t.contains('“'), t) // guillemets only
+            // Owner: texts at most one short sentence.
+            assertEquals(0, t.trimEnd('.').count { it == '.' }, t)
         }
         assertTrue(LocationPolicy.message(Outcome.ApproximateOnly).contains("«Genauer Standort»"))
         assertTrue(LocationPolicy.message(Outcome.TooInaccurate(140)).contains("± 140 m"))
         assertTrue(LocationPolicy.message(Outcome.NoFix).contains("30 Sekunden"))
-        // Every failure offers the way around: pasting coordinates.
-        outcomes.filter { it !is Outcome.Hectare && it !is Outcome.OutsideSwitzerland }
-            .forEach { assertTrue(LocationPolicy.message(it).contains("Koordinaten ein"), it.toString()) }
-        // The explanation screen: when location is read, what is kept, what the Offline-Version has.
-        for (part in listOf("«Standort bestimmen»", "ein einziges Mal", "nie im Hintergrund", "berechnet das Telefon selbst die Hektare",
-            "weder gespeichert noch gesendet", "Die Offline-Version hat keine Standort-Berechtigung")) {
-            assertTrue(LOCATION_NEVER_SENT.contains(part), part)
-        }
-        assertFalse(LOCATION_NEVER_SENT.contains("keine Standort-Berechtigung. Aus"), LOCATION_NEVER_SENT) // the old claim is gone
+        // The exact place leaves the phone only with a report; location is never read in the background.
+        for (part in listOf("genauer Standort", "Meldung", "nie im Hintergrund")) assertTrue(LOCATION_NEVER_SENT.contains(part), part)
+    }
+
+    @Test
+    fun reportFixNeedsPreciseFiftyMetresAndSwitzerland() {
+        val zh = 47.37690 to 8.54170
+        val ok = LocationPolicy.decideReport(zh.first, zh.second, 50.0, precise = true)
+        assertTrue(ok is LocationPolicy.ReportOutcome.Fix, ok.toString())
+        ok as LocationPolicy.ReportOutcome.Fix
+        assertEquals(zh.first, ok.lat); assertEquals(zh.second, ok.lon); assertEquals(50, ok.accuracyText)
+        assertTrue(ok.cell.matches(Regex("h\\d{5}_\\d{5}")), ok.cell)
+        assertEquals(
+            LocationPolicy.ReportOutcome.Problem(Outcome.TooInaccurate(51)),
+            LocationPolicy.decideReport(zh.first, zh.second, 50.1, precise = true),
+        )
+        assertEquals(
+            LocationPolicy.ReportOutcome.Problem(Outcome.TooInaccurate(null)),
+            LocationPolicy.decideReport(zh.first, zh.second, null, precise = true),
+        )
+        assertEquals(
+            LocationPolicy.ReportOutcome.Problem(Outcome.ApproximateOnly),
+            LocationPolicy.decideReport(zh.first, zh.second, 5.0, precise = false),
+        )
+        assertTrue(LocationPolicy.decideReport(48.8566, 2.3522, 5.0, precise = true).let {
+            it is LocationPolicy.ReportOutcome.Problem && it.outcome is Outcome.OutsideSwitzerland
+        })
+        // A report is stricter than a measurement's cell (75 m).
+        assertTrue(LocationPolicy.REPORT_MAX_ACCURACY_M < LocationPolicy.MAX_ACCURACY_M)
     }
 }

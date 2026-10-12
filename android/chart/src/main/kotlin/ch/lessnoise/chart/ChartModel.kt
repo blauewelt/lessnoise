@@ -1,7 +1,7 @@
 package ch.lessnoise.chart
 
 import ch.lessnoise.dsp.MinuteRecord
-import ch.lessnoise.dsp.NightSummarizer
+import ch.lessnoise.dsp.MeasurementSummarizer
 import ch.lessnoise.dsp.NoiseEvent
 import ch.lessnoise.dsp.WindRule
 import java.time.Instant
@@ -47,7 +47,8 @@ fun ChartData.clipRefsInTimeOrder(eventFloorDb: Double): List<String> =
         .distinct()
 
 /**
- * One plotted sample: a minute (night, day) or an hour (week). Levels are NaN when not [valid].
+ * One plotted sample: a minute, an hour (long measurements) or an hour of the day («Tagesverlauf»).
+ * Levels are NaN when not [valid].
  * Plotted at the middle of [startMs, endMs).
  */
 data class SeriesPoint(
@@ -85,7 +86,7 @@ data class YRange(val lo: Double, val hi: Double) {
 /** Window statistics for the summary row. */
 data class WindowSummary(
     val laeqDb: Double,
-    /** Bursts: events with LAFmax ≥ the floor in the window, without wind (all of them, also in the week view). */
+    /** Bursts: events with LAFmax ≥ the floor in the window, without wind (all of them, also in the hourly views). */
     val eventCount: Int,
     /** Bursts of the highlighted category. */
     val highlightCount: Int,
@@ -102,7 +103,7 @@ data class WindowSummary(
     val dynamicsDb: Double = Double.NaN,
     /** Any minute of the window re-evaluated with a later calibration (shown as its own line under [line]). */
     val anyRecalibrated: Boolean = false,
-    /** «Hintergrund (L90)», the hum: median over the valid minutes of their L90 (same rule as the night list). */
+    /** «Grundrauschen», the hum: median over the valid minutes of their L90 (same rule as the measurement list). */
     val humDb: Double = Double.NaN,
     /** Events (after the floor) flagged as wind on the microphone: in none of the counts above. */
     val windCount: Int = 0,
@@ -141,14 +142,13 @@ class ChartModel(
     /** Runs of contiguous valid points: the line and band are drawn per run, never across gaps. */
     val segments: List<List<SeriesPoint>>,
     val gaps: List<Gap>,
-    val nightSpans: List<Span>,
     val gridTicks: List<Long>,
     val axisLabels: List<AxisLabel>,
     val yRange: YRange,
     /** Events drawn, non-highlighted first (they are drawn below), each list oldest first. Never wind. */
     val otherEvents: List<NoiseEvent>,
     val highlightedEvents: List<NoiseEvent>,
-    /** True if the week view dropped events beyond [WEEK_EVENT_CAP]. */
+    /** True if an hourly view dropped events beyond [HOURLY_EVENT_CAP]. */
     val eventsCapped: Boolean,
     val highlight: String,
     val summary: WindowSummary,
@@ -157,9 +157,11 @@ class ChartModel(
     val clipRefs: Map<Long, String> = emptyMap(),
     /**
      * Wind events (≥ the floor), drawn as small hollow grey dots below the others when shown
-     * (setting «Wind-Ereignisse zeigen»; never in the week view). Not counted anywhere.
+     * (setting «Wind-Ereignisse zeigen»; never in the hourly views). Not counted anywhere.
      */
     val windEvents: List<NoiseEvent> = emptyList(),
+    /** Tooltips name weekday and date (the measurement spans more than one calendar date). */
+    val withDates: Boolean = false,
 ) {
     /** The event's clip reference, or null (always null in the public app). */
     fun clipRefOf(e: NoiseEvent): String? = if (clipRefs.isEmpty()) null else clipRefs[e.startEpochMs]
@@ -180,16 +182,20 @@ class ChartModel(
     }
 
     companion object {
-        /** Minutes with less valid audio are treated as missing (same rule as the night summaries). */
-        const val MIN_COVERAGE = NightSummarizer.MIN_MINUTE_COVERAGE
+        /** Minutes with less valid audio are treated as missing (same rule as the measurement summaries). */
+        const val MIN_COVERAGE = MeasurementSummarizer.MIN_MINUTE_COVERAGE
+        /** Measurements longer than this are drawn with hourly values (like the former week view). */
+        const val HOURLY_FROM_MS = 36 * Windows.HOUR_MS
+        /** «Tagesverlauf»: an hour of the day needs this many valid minutes over the whole measurement. */
+        const val MIN_VALID_MINUTES_PER_PROFILE_HOUR = 10
         /** Gaps at least this long get a "keine Messung" rectangle and are listed in the summary. */
         const val MIN_GAP_MS = 10 * Windows.MINUTE_MS
-        /** Week view: an hour needs this many valid minutes. */
+        /** Hourly values: an hour needs this many valid minutes. */
         const val MIN_VALID_MINUTES_PER_HOUR = 30
-        /** Week view: only events of the highlighted category at least this loud (and ≥ the floor) are drawn … */
-        const val WEEK_EVENT_MIN_DB = 60.0
+        /** Hourly views: only events of the highlighted category at least this loud (and ≥ the floor) are drawn … */
+        const val HOURLY_EVENT_MIN_DB = 60.0
         /** … and at most this many (the loudest). */
-        const val WEEK_EVENT_CAP = 300
+        const val HOURLY_EVENT_CAP = 300
         /** Two minutes are contiguous if the second starts at most this long after the first ends. */
         private const val CONTIGUOUS_SLACK_MS = 30_000L
         /** An interruption is told apart from a first start if the neighbouring data is this close. */
@@ -200,37 +206,116 @@ class ChartModel(
         fun build(data: ChartData, zone: ZoneId, highlight: String, eventFloorDb: Double, showWind: Boolean = true): ChartModel {
             val w = data.window
             val windows = Windows(zone)
-            val hourly = w.mode == RangeMode.WEEK
             val minutes = data.minutes.filter { it.startEpochMs in w }.sortedBy { it.startEpochMs }
-            val points = if (hourly) hourlyPoints(w, minutes, data.nowMs) else minutes.map { minutePoint(it) }
-            val segments = segments(points, if (hourly) 0L else CONTIGUOUS_SLACK_MS)
             val dataEnd = minOf(w.endMs, maxOf(data.nowMs, w.startMs))
-            val gaps = gaps(points.filter { it.valid }.map { Span(it.startMs, it.endMs) }, w.startMs, dataEnd)
-
             // Events: the floor everywhere (also for events stored before it existed); wind apart.
             val (wind, floored) = data.events.filter { it.startEpochMs in w && it.reachesFloor(eventFloorDb) }.partition { it.wind }
+
+            // The summary row is the same in both views: it describes the measurement.
+            val spanPoints = if (w.durationMs > HOURLY_FROM_MS) hourlyPoints(w, minutes, data.nowMs) else minutes.map { minutePoint(it) }
+            val spanGaps = gaps(spanPoints.filter { it.valid }.map { Span(it.startMs, it.endMs) }, w.startMs, dataEnd)
+            val summary = summary(data, minutes, floored, highlight, spanGaps, windows, dataEnd).copy(windCount = wind.size)
+
+            if (w.mode == RangeMode.PROFILE) return profile(data, minutes, floored, zone, highlight, eventFloorDb, summary)
+
+            val hourly = w.durationMs > HOURLY_FROM_MS
+            val segments = segments(spanPoints, if (hourly) 0L else CONTIGUOUS_SLACK_MS)
             val windShown = if (showWind && !hourly) wind.sortedBy { it.startEpochMs } else emptyList()
-            var shown = floored
+            val (shown, capped) = drawnEvents(floored, hourly, highlight, eventFloorDb)
+            val (hl, other) = shown.partition { it.dominantCategory == highlight }
+            return ChartModel(
+                window = w, nowMs = data.nowMs, hourly = hourly, points = spanPoints, segments = segments, gaps = spanGaps,
+                gridTicks = windows.gridTicks(w), axisLabels = windows.axisLabels(w),
+                yRange = yRange(spanPoints, shown + windShown), otherEvents = other, highlightedEvents = hl, eventsCapped = capped,
+                highlight = highlight, summary = summary, zone = zone, clipRefs = data.clipRefs, windEvents = windShown,
+                withDates = windows.crossesDates(w),
+            )
+        }
+
+        /**
+         * Hourly views draw only the highlighted category (a wall of grey dots says nothing), at
+         * least [HOURLY_EVENT_MIN_DB] loud and at most [HOURLY_EVENT_CAP] (the loudest). Oldest first.
+         */
+        private fun drawnEvents(floored: List<NoiseEvent>, hourly: Boolean, highlight: String, eventFloorDb: Double): Pair<List<NoiseEvent>, Boolean> {
+            if (!hourly) return floored.sortedBy { it.startEpochMs } to false
+            var shown = floored.filter { it.dominantCategory == highlight && it.lafMaxDb >= maxOf(eventFloorDb, HOURLY_EVENT_MIN_DB) }
             var capped = false
-            if (hourly) {
-                // Week: only the highlighted category is drawn (a wall of grey dots says nothing).
-                shown = floored.filter { it.dominantCategory == highlight && it.lafMaxDb >= maxOf(eventFloorDb, WEEK_EVENT_MIN_DB) }
-                if (shown.size > WEEK_EVENT_CAP) {
-                    capped = true
-                    shown = shown.sortedByDescending { it.lafMaxDb }.take(WEEK_EVENT_CAP)
+            if (shown.size > HOURLY_EVENT_CAP) {
+                capped = true
+                shown = shown.sortedByDescending { it.lafMaxDb }.take(HOURLY_EVENT_CAP)
+            }
+            return shown.sortedBy { it.startEpochMs } to capped
+        }
+
+        /** Milliseconds since 00:00 local time of [t]: its place on the «Tagesverlauf» axis. */
+        fun msOfDay(t: Long, zone: ZoneId): Long =
+            Instant.ofEpochMilli(t).atZone(zone).toLocalTime().toNanoOfDay() / 1_000_000
+
+        /**
+         * «Tagesverlauf»: every day of the measurement laid over one 0–24 h axis ([Windows.PROFILE_WINDOW],
+         * drawn in [Windows.PROFILE_ZONE] so that the axis reads local clock time). One point per
+         * hour of the day: LAeq is the energy mean of the valid minutes that started in that hour
+         * (any day), the band the median of their L90 and of their L10 (the typical hour, not the
+         * extremes); an hour with fewer than [MIN_VALID_MINUTES_PER_PROFILE_HOUR] valid minutes is
+         * a gap. Events sit at their clock time; drawn as in the hourly views (highlighted category,
+         * loud ones, capped); wind events are not drawn.
+         */
+        private fun profile(
+            data: ChartData, minutes: List<MinuteRecord>, floored: List<NoiseEvent>,
+            zone: ZoneId, highlight: String, eventFloorDb: Double, summary: WindowSummary,
+        ): ChartModel {
+            val pw = Windows.PROFILE_WINDOW
+            val points = profilePoints(minutes, zone)
+            val gaps = gaps(points.filter { it.valid }.map { Span(it.startMs, it.endMs) }, pw.startMs, pw.endMs)
+            fun moved(e: NoiseEvent) = e.copy(startEpochMs = msOfDay(e.startEpochMs, zone))
+            val (shown, capped) = drawnEvents(floored, hourly = true, highlight = highlight, eventFloorDb = eventFloorDb)
+            val movedShown = shown.map(::moved).sortedBy { it.startEpochMs }
+            val (hl, other) = movedShown.partition { it.dominantCategory == highlight }
+            val clipRefs = if (data.clipRefs.isEmpty()) emptyMap() else
+                shown.mapNotNull { e -> data.clipRefs[e.startEpochMs]?.let { msOfDay(e.startEpochMs, zone) to it } }.toMap()
+            val pz = Windows.PROFILE_ZONE
+            val pws = Windows(pz)
+            return ChartModel(
+                window = pw, nowMs = pw.endMs, hourly = true, points = points, segments = segments(points, 0L), gaps = gaps,
+                gridTicks = pws.gridTicks(pw), axisLabels = pws.axisLabels(pw),
+                yRange = yRange(points, movedShown), otherEvents = other, highlightedEvents = hl, eventsCapped = capped,
+                highlight = highlight, summary = summary, zone = pz, clipRefs = clipRefs, windEvents = emptyList(),
+                withDates = false,
+            )
+        }
+
+        /** The 24 points of the «Tagesverlauf» (see [profile]). */
+        fun profilePoints(minutes: List<MinuteRecord>, zone: ZoneId): List<SeriesPoint> {
+            val buckets = Array(24) { ArrayList<MinuteRecord>() }
+            for (m in minutes) buckets[Instant.ofEpochMilli(m.startEpochMs).atZone(zone).hour] += m
+            return (0 until 24).map { h ->
+                val s = h * Windows.HOUR_MS
+                val e = s + Windows.HOUR_MS
+                val valid = buckets[h].filter { isValid(it) }
+                if (valid.size < MIN_VALID_MINUTES_PER_PROFILE_HOUR) {
+                    SeriesPoint(s, e, Double.NaN, Double.NaN, Double.NaN, Double.NaN, false, buckets[h].all { it.calibrated }, 0.0, buckets[h].any { it.recalibrated })
+                } else {
+                    var energy = 0.0
+                    var secs = 0.0
+                    for (m in valid) { energy += 10.0.pow(m.laeqDb / 10) * m.validSeconds; secs += m.validSeconds }
+                    SeriesPoint(
+                        s, e,
+                        laeq = 10 * log10(energy / secs),
+                        l10 = median(valid.map { maxOf(it.l10Db, it.l90Db) }),
+                        l90 = median(valid.map { minOf(it.l10Db, it.l90Db) }),
+                        lafMax = valid.maxOf { it.lafMaxDb },
+                        valid = true, calibrated = valid.all { it.calibrated }, validSeconds = secs,
+                        recalibrated = valid.any { it.recalibrated },
+                    )
                 }
             }
-            shown = shown.sortedBy { it.startEpochMs }
-            val (hl, other) = shown.partition { it.dominantCategory == highlight }
+        }
 
-            val yRange = yRange(points, shown + windShown)
-            val summary = summary(data, minutes, floored, highlight, gaps, windows, dataEnd).copy(windCount = wind.size)
-            return ChartModel(
-                window = w, nowMs = data.nowMs, hourly = hourly, points = points, segments = segments, gaps = gaps,
-                nightSpans = windows.nightSpans(w), gridTicks = windows.gridTicks(w), axisLabels = windows.axisLabels(w),
-                yRange = yRange, otherEvents = other, highlightedEvents = hl, eventsCapped = capped,
-                highlight = highlight, summary = summary, zone = zone, clipRefs = data.clipRefs, windEvents = windShown,
-            )
+        private fun median(v: List<Double>): Double {
+            val d = v.filter { !it.isNaN() }.sorted()
+            if (d.isEmpty()) return Double.NaN
+            val n = d.size
+            return if (n % 2 == 1) d[n / 2] else (d[n / 2 - 1] + d[n / 2]) / 2
         }
 
         fun minutePoint(m: MinuteRecord): SeriesPoint {
@@ -247,7 +332,7 @@ class ChartModel(
         }
 
         /**
-         * Week view: one point per hour of the window up to now. LAeq is the energy mean over the
+         * Long measurements: one point per hour of the window up to now. LAeq is the energy mean over the
          * valid minutes weighted by their valid seconds; L10 is the maximum of the minute L10s and
          * L90 the minimum of the minute L90s (the band shows the hour's full range); an hour with
          * fewer than [MIN_VALID_MINUTES_PER_HOUR] valid minutes is a gap.
@@ -365,12 +450,12 @@ class ChartModel(
 
         /**
          * Gap descriptions. A gap at the start of the window is an interruption if there was data
-         * shortly before the window (then its real start is shown, e.g. «unterbrochen 20:54–23:54»
-         * for a night starting at 22:00), otherwise «Messung ab …». The same at the end.
+         * shortly before the window (then its real start is shown, e.g. «unterbrochen 20:54–23:54»),
+         * otherwise «Messung ab …». The same at the end.
          */
         private fun gapTexts(data: ChartData, gaps: List<Gap>, valid: List<MinuteRecord>, windows: Windows): List<String> {
             val w = data.window
-            val fmt = TimeFmt(windows.zone, w.mode == RangeMode.WEEK)
+            val fmt = TimeFmt(windows.zone, withWeekday = windows.crossesDates(w))
             val out = ArrayList<String>()
             for (g in gaps) {
                 var s = g.span.startMs

@@ -22,8 +22,8 @@ import java.util.zip.GZIPOutputStream
  * THE network code of the app. Nothing else in the public app opens a connection (PRIVACY.md →
  * «Messwerte teilen»; check with `grep -rn "HttpURLConnection\|Socket\|URL(" android/app/src/main`).
  *
- * One host ([baseUrl], from `BuildConfig.API_BASE`, default https://api.stadtlaerm.ch), the
- * five calls of server/DESIGN.md §4, JSON bodies always gzip-compressed, the device token as
+ * One host ([baseUrl], from `BuildConfig.API_BASE`, default https://api.lessnoise.ch), the
+ * six calls of server/DESIGN.md §4 (with the reports call of 0.6.0), JSON bodies always gzip-compressed, the device token as
  * `Authorization: Bearer …`. No redirects are followed (a redirect could point to another host),
  * no cookies, no cache, a fixed User-Agent without device details (Android's default one names
  * the phone model and build).
@@ -99,6 +99,12 @@ class UploadClient(
     fun postEvents(deviceId: String, token: String, events: JsonArray): Result {
         require(events.size <= MAX_EVENTS) { "at most $MAX_EVENTS events per request" }
         return parseResult(send("POST", "/v1/devices/${seg(deviceId)}/events", token, events, expect = setOf(200)))
+    }
+
+    /** `POST /v1/devices/{id}/reports` («Laut! Melden», app 0.6.0), at most 50 reports. */
+    fun postReports(deviceId: String, token: String, reports: JsonArray): Result {
+        require(reports.size <= MAX_REPORTS) { "at most $MAX_REPORTS reports per request" }
+        return parseResult(send("POST", "/v1/devices/${seg(deviceId)}/reports", token, reports, expect = setOf(200, 201)))
     }
 
     /** `DELETE /v1/devices/{id}` (§4.5). Returns only after the server answered 204 (rows gone). */
@@ -194,5 +200,6 @@ class UploadClient(
     companion object {
         const val MAX_MINUTES = 1440
         const val MAX_EVENTS = 2000
+        const val MAX_REPORTS = 50
     }
 }

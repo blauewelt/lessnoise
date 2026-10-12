@@ -13,8 +13,8 @@ class LaborBannerTest {
     @Test
     fun bannerNamesTheBuild() {
         when (BuildConfig.FLAVOR) {
-            "labor" -> assertEquals("LABOR-VERSION – kann Audio aufzeichnen", EditionUi.BANNER_TEXT)
-            "laborKarte" -> assertEquals("LABOR-VERSION mit Karte – kann Audio aufzeichnen", EditionUi.BANNER_TEXT)
+            "labor" -> assertEquals("WENIGER LÄRM LABOR – kann Audio aufzeichnen", EditionUi.BANNER_TEXT)
+            "laborKarte" -> assertEquals("WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen", EditionUi.BANNER_TEXT)
             else -> error("unexpected flavour ${BuildConfig.FLAVOR}")
         }
     }

@@ -1,6 +1,7 @@
 package ch.lessnoise.app.upload
 
 import ch.lessnoise.app.data.EventEntity
+import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.dsp.Iso
 import kotlinx.coroutines.runBlocking
@@ -34,6 +35,9 @@ class UploadTest {
 
     private val minuteRows = mutableListOf<MinuteEntity>()
     private val eventRows = mutableListOf<EventEntity>()
+    /** By default one shared measurement covering every record; tests add others. */
+    private val measurementRows = mutableListOf(MeasurementEntity(id = 1, startMs = 0, endMs = null, cell = "h26824_12473"))
+    private val reports = MemoryReportStore()
 
     private val source = object : UploadSource {
         override suspend fun minutesAfter(afterMs: Long, limit: Int) =
@@ -41,6 +45,8 @@ class UploadTest {
 
         override suspend fun eventsAfter(afterMs: Long, limit: Int) =
             eventRows.filter { it.startEpochMs > afterMs }.sortedWith(compareBy({ it.startEpochMs }, { it.id })).take(limit)
+
+        override suspend fun measurements() = measurementRows.toList()
 
         override suspend fun siteExtras() = SiteExtras("Pixel 8", "UNPROCESSED", calibrated = true, calibrationOffsetDb = 121.9)
     }
@@ -73,11 +79,11 @@ class UploadTest {
         repeat(n) { eventRows += event(first + it * 7_000L + 375) }
     }
 
-    private val site = SiteSettings(cell = "h26824_12473", placement = "open_window", floor = 3, streetFacing = true, note = "2. OG")
+    private val site = SiteSettings(placement = "open_window", floor = 3, streetFacing = true, note = "2. OG")
 
     private fun setup(enabled: Boolean = true): Pair<Uploader, MemoryUploadStore> {
         val store = MemoryUploadStore(UploadSnapshot(explanationSeen = true, site = site))
-        val up = Uploader(UploadClient(server.baseUrl), store, source, "0.4.0-dev", 9, clock = { now })
+        val up = Uploader(UploadClient(server.baseUrl), store, source, reports, "0.4.0-dev", 9, clock = { now })
         if (enabled) assertTrue(up.enable())
         return up to store
     }
@@ -113,7 +119,66 @@ class UploadTest {
     }
 
     @Test
-    fun siteBodyIsExactlyDesign42AndCarriesOnlyTheHectare() = runBlocking {
+    fun recordsOfAMeasurementWithoutCellAreNeverSentAndEachRecordCarriesItsOwnMeasurementsCell() = runBlocking {
+        // Three measurements: A shared (cell a), B not shared, C shared elsewhere (cell c); a gap
+        // after A's stop that belongs to no running measurement.
+        val t0 = now - 6 * 3_600_000L
+        val aEnd = t0 + 30 * 60_000L
+        val bStart = t0 + 60 * 60_000L
+        val cStart = t0 + 120 * 60_000L
+        measurementRows.clear()
+        measurementRows += MeasurementEntity(id = 1, startMs = t0, endMs = aEnd, cell = "h26824_12473")
+        measurementRows += MeasurementEntity(id = 2, startMs = bStart, endMs = bStart + 30 * 60_000L, cell = null)
+        measurementRows += MeasurementEntity(id = 3, startMs = cStart, endMs = null, cell = "h26833_12479")
+        for (i in 0 until 30) minuteRows += minute(t0 + i * 60_000L)              // A
+        minuteRows += minute(aEnd + 5 * 60_000L)                                    // after A's stop, before B: no measurement
+        for (i in 0 until 30) minuteRows += minute(bStart + i * 60_000L)          // B
+        for (i in 0 until 30) minuteRows += minute(cStart + i * 60_000L)          // C
+        eventRows += event(t0 + 1_000L); eventRows += event(bStart + 1_000L); eventRows += event(cStart + 1_000L)
+        val (up, store) = setup()
+        assertEquals(Uploader.Outcome.Done(minutes = 60, events = 2, refused = 0, more = false), up.run())
+        val id = store.state.value.deviceId!!
+        val sent = server.minutes[id]!!.values
+        assertEquals(30, sent.count { it["cell"]!!.jsonPrimitive.content == "h26824_12473" })
+        assertEquals(30, sent.count { it["cell"]!!.jsonPrimitive.content == "h26833_12479" })
+        assertEquals(listOf("h26824_12473", "h26833_12479"), server.events[id]!!.values.map { it["cell"]!!.jsonPrimitive.content }.sorted())
+        // The markers moved past the unshared records: they are never sent later either.
+        assertEquals(minuteRows.maxOf { it.startEpochMs }, store.state.value.minutesSentUpToMs)
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        // The site call carries the newest shared measurement's cell.
+        assertEquals("h26833_12479", server.sites[id]!!["cell"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun withoutAnySharedMeasurementNothingButTheRegistrationIsSent() = runBlocking {
+        measurementRows.clear()
+        measurementRows += MeasurementEntity(id = 1, startMs = 0, endMs = null, cell = null)
+        addMinutes(20); addEvents(3)
+        val (up, _) = setup()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(listOf("POST /v1/devices"), server.requests.map { "${it.method} ${it.path}" })
+    }
+
+    @Test
+    fun cellIndexFindsTheOwnerMeasurement() {
+        val idx = CellIndex(
+            listOf(
+                MeasurementEntity(id = 2, startMs = 10_000, endMs = 20_000, cell = null),
+                MeasurementEntity(id = 1, startMs = 0, endMs = 5_000, cell = "h1_1"),
+                MeasurementEntity(id = 3, startMs = 30_000, endMs = null, cell = "h3_3"),
+            )
+        )
+        assertNull(idx.cellAt(-10_000), "before the first measurement")
+        assertEquals("h1_1", idx.cellAt(-4_000), "first minute may start a few seconds before the recorded start")
+        assertEquals("h1_1", idx.cellAt(4_999))
+        assertNull(idx.cellAt(5_000), "after its stop")
+        assertNull(idx.cellAt(15_000), "not shared")
+        assertEquals("h3_3", idx.cellAt(10_000_000), "running")
+        assertEquals("h3_3", idx.latest)
+    }
+
+    @Test
+    fun siteBodyIsExactlyDesign42AndCarriesTheNewestMeasurementsCell() = runBlocking {
         val (up, store) = setup()
         up.run()
         val body = server.sites[store.state.value.deviceId]!!
@@ -142,10 +207,11 @@ class UploadTest {
             setOf(
                 "start", "duration_s", "valid_s", "coverage", "laeq_db", "lafmax_db", "lafmin_db", "l1_db", "l10_db", "l50_db",
                 "l90_db", "event_count", "dominant_category", "category_shares", "calibration_id", "calibration_offset_db",
-                "calibrated", "audio_source", "clock_corrections",
+                "calibrated", "audio_source", "clock_corrections", "cell",
             ),
             m.keys,
         )
+        assertEquals("h26824_12473", m["cell"]!!.jsonPrimitive.content, "the measurement's cell")
         assertEquals(JsonNull, m["laeq_db"], "NaN is sent as null, never as invalid JSON")
         assertEquals("61.0", m["lafmax_db"].toString(), "one decimal")
         assertEquals("0.992", m["coverage"].toString())
@@ -156,9 +222,10 @@ class UploadTest {
         val e = server.events[id]!!.values.single()
         assertEquals(
             setOf("start", "duration_s", "lafmax_db", "sel_db", "background_db", "threshold_db", "min_level_db", "category",
-                "category_score", "calibration_id", "calibrated"),
+                "category_score", "calibration_id", "calibrated", "cell"),
             e.keys,
         )
+        assertEquals("h26824_12473", e["cell"]!!.jsonPrimitive.content)
         assertEquals("unclassified", e["category"]!!.jsonPrimitive.content, "no category → unclassified")
         assertTrue(e["start"]!!.jsonPrimitive.content.contains("."), "event start with milliseconds")
         // Nothing of the raw classifier labels or the re-evaluation originals leaves the phone.
@@ -252,7 +319,7 @@ class UploadTest {
                 return source.minutesAfter(afterMs, limit)
             }
         }
-        val up2 = Uploader(UploadClient(server.baseUrl), store, failing, "0.4.0-dev", 9, clock = { now })
+        val up2 = Uploader(UploadClient(server.baseUrl), store, failing, reports, "0.4.0-dev", 9, clock = { now })
         val first = up2.run()
         assertIs<Uploader.Outcome.Retry>(first)
         val marker = store.state.value.minutesSentUpToMs
@@ -360,14 +427,16 @@ class UploadTest {
     }
 
     @Test
-    fun offByDefaultAndEnablingNeedsExplanationAndHectare() = runBlocking {
+    fun offByDefaultAndEnablingNeedsTheExplanation() = runBlocking {
         addMinutes(5)
         assertFalse(UploadSnapshot().enabled)
         assertTrue(UploadSnapshot().wifiOnly)
-        val bare = Uploader(UploadClient(server.baseUrl), MemoryUploadStore(), source, "x", 1, clock = { now })
-        assertFalse(bare.enable(), "no explanation, no hectare")
+        val bare = Uploader(UploadClient(server.baseUrl), MemoryUploadStore(), source, reports, "x", 1, clock = { now })
+        assertFalse(bare.enable(), "no explanation")
+        // Since 0.6.0 no hectare is needed to switch on: the cell comes with each measurement.
         val noSite = MemoryUploadStore(UploadSnapshot(explanationSeen = true))
-        assertFalse(Uploader(UploadClient(server.baseUrl), noSite, source, "x", 1, clock = { now }).enable())
+        assertTrue(Uploader(UploadClient(server.baseUrl), noSite, source, reports, "x", 1, clock = { now }).enable())
+        noSite.update { it.copy(enabled = false) }
         val (up, _) = setup(enabled = false)
         assertEquals(Uploader.Outcome.Disabled, up.run())
         assertTrue(server.requests.isEmpty(), "nothing at all is sent while sharing is off")
@@ -398,9 +467,14 @@ class UploadTest {
     fun aChangedSiteIsSentAgain() = runBlocking {
         val (up, store) = setup()
         up.run()
-        store.update { it.copy(site = it.site!!.copy(cell = "h26833_12479", placement = "balcony")) }
+        store.update { it.copy(site = it.site.copy(placement = "balcony")) }
         up.run()
         assertEquals(2, server.count("PUT", "/site"))
+        assertEquals("balcony", server.sites[store.state.value.deviceId]!!["placement"]!!.jsonPrimitive.content)
+        // A new shared measurement elsewhere: the site follows its cell.
+        measurementRows += MeasurementEntity(id = 2, startMs = now, endMs = null, cell = "h26833_12479")
+        up.run()
+        assertEquals(3, server.count("PUT", "/site"))
         assertEquals("h26833_12479", server.sites[store.state.value.deviceId]!!["cell"]!!.jsonPrimitive.content)
     }
 
@@ -422,16 +496,16 @@ class UploadTest {
     fun networkErrorIsRetried() = runBlocking {
         val store = MemoryUploadStore(UploadSnapshot(explanationSeen = true, site = site))
         server.close()
-        val up = Uploader(UploadClient(server.baseUrl, connectTimeoutMs = 2000), store, source, "x", 1, clock = { now })
+        val up = Uploader(UploadClient(server.baseUrl, connectTimeoutMs = 2000), store, source, reports, "x", 1, clock = { now })
         up.enable()
         assertIs<Uploader.Outcome.Retry>(up.run())
         assertTrue(store.state.value.lastError!!.startsWith("Keine Verbindung"))
     }
 
     @Test
-    fun aNightIsWellUnderATenthOfAMegabyteOnTheWire() = runBlocking {
-        // 8 h of minutes and 150 events, backing the settings screen's «weniger als 0,1 MB pro Nacht».
-        addMinutes(480); addEvents(150)
+    fun aDayIsWellUnderATenthOfAMegabyteOnTheWire() = runBlocking {
+        // 24 h of minutes and 450 events, backing the settings screen's «weniger als 0,1 MB pro Tag».
+        addMinutes(1440, endMs = now - 60_000); addEvents(450, endMs = now - 60_000)
         val (up, _) = setup()
         up.run()
         val bytes = server.requests.sumOf { it.rawSize }
@@ -440,11 +514,11 @@ class UploadTest {
 
     @Test
     fun theClientTalksOnlyHttpsExceptToLoopback() {
-        UploadClient("https://api.stadtlaerm.ch")
-        assertEquals("api.stadtlaerm.ch", UploadClient("https://api.stadtlaerm.ch/").host)
+        UploadClient("https://api.lessnoise.ch")
+        assertEquals("api.lessnoise.ch", UploadClient("https://api.lessnoise.ch/").host)
         UploadClient("http://127.0.0.1:8080")
-        assertFailsWith<IllegalArgumentException> { UploadClient("http://api.stadtlaerm.ch") }
-        assertFailsWith<IllegalArgumentException> { UploadClient("https://api.stadtlaerm.ch/v1") }
+        assertFailsWith<IllegalArgumentException> { UploadClient("http://api.lessnoise.ch") }
+        assertFailsWith<IllegalArgumentException> { UploadClient("https://api.lessnoise.ch/v1") }
     }
 
     @Test
@@ -460,7 +534,7 @@ class UploadTest {
         assertEquals(JsonNull, Payloads.level(Double.NaN))
         assertEquals(JsonNull, Payloads.level(Double.POSITIVE_INFINITY))
         assertEquals(JsonNull, Payloads.level(null))
-        val site = Payloads.site(SiteSettings("h26824_12473", note = "x".repeat(300)), SiteExtras("", "VOICE_RECOGNITION", false, 112.35))
+        val site = Payloads.site("h26824_12473", SiteSettings(note = "x".repeat(300)), SiteExtras("", "VOICE_RECOGNITION", false, 112.35))
         assertEquals(200, site["note"]!!.jsonPrimitive.content.length)
         assertEquals(JsonNull, site["device_model"])
         assertEquals(JsonNull, site["floor"])

@@ -128,22 +128,22 @@ object EditionClips {
 
 object EditionUi {
     /**
-     * First bullet of «Über Stadtlärm & Datenschutz»: what this edition does with audio. The public
+     * First bullet of «Über Weniger Lärm & Datenschutz»: what this edition does with audio. The public
      * text («Audio verlässt nie den Arbeitsspeicher …») would be false here. The internet bullet
      * that follows it comes from the shared about card (BuildConfig.UPLOAD_AVAILABLE).
      */
     val ABOUT_AUDIO: String =
-        "• Labor-Version: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
+        "• Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
             "gespeichert werden, dazu ein Protokoll der Erkennung. " +
             if (BuildConfig.UPLOAD_AVAILABLE)
                 "Nichts davon wird gesendet: «Messwerte teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
             else
                 "Nichts davon wird gesendet: diese Version hat keine Internet-Berechtigung."
 
-    /** Text of the red banner: the Labor-Version mit Karte says that it can share. */
+    /** Text of the red banner: the Labor edition with the map says that it can share. */
     val BANNER_TEXT: String =
-        if (BuildConfig.UPLOAD_AVAILABLE) "LABOR-VERSION mit Karte – kann Audio aufzeichnen"
-        else "LABOR-VERSION – kann Audio aufzeichnen"
+        if (BuildConfig.UPLOAD_AVAILABLE) "WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen"
+        else "WENIGER LÄRM LABOR – kann Audio aufzeichnen"
 
     /**
      * Hosted once at the app root: the clip player sheet. It is closed (and its MediaPlayer
@@ -261,7 +261,7 @@ object EditionUi {
                 }
             }
             Text(
-                "Pro Nacht (8 h): durchgehend etwa 230 MB (ca. 30 MB pro Stunde), dazu die Clips mit je etwa 0.4 MB " +
+                "Pro 8 h Messung: durchgehend etwa 230 MB (ca. 30 MB pro Stunde), dazu die Clips mit je etwa 0.4 MB " +
                     "(höchstens 2 MB) und das Klassifikator-Protokoll (jede Sekunde die erkannten Geräusche, ca. 1 MB pro Stunde). " +
                     "Ist der Speicher voll, stoppt nur die Aufnahme, die Messung läuft weiter. " +
                     "Änderungen gelten ab dem nächsten Start der Messung; Ausschalten stoppt eine laufende Aufnahme sofort.",
@@ -299,7 +299,7 @@ object EditionUi {
                 onDismissRequest = { confirmOn = false },
                 text = {
                     Text(
-                        "Die Labor-Version speichert dann Roh-Audio auf diesem Telefon, auch Stimmen in der Nähe. " +
+                        "Weniger Lärm Labor speichert dann Roh-Audio auf diesem Telefon, auch Stimmen in der Nähe. " +
                             "Die Dateien bleiben auf dem Telefon, bis du sie löschst."
                     )
                 },
@@ -370,7 +370,7 @@ object EditionUi {
                             zipBusy = false
                             if (zip == null) message = "ZIP konnte nicht erstellt werden (Speicher?)."
                             else try {
-                                shareFiles(context, listOf(zip), "application/zip", "Stadtlärm Labor – Aufnahmen")
+                                shareFiles(context, listOf(zip), "application/zip", "Weniger Lärm Labor – Aufnahmen")
                             } catch (e: Exception) {
                                 message = "Teilen nicht möglich: ${e.javaClass.simpleName}"
                             }

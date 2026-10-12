@@ -114,7 +114,7 @@ class RobustnessTest {
     }
 
     @Test
-    fun nightsDropLowCoverageMinutes() {
+    fun measurementsDropLowCoverageMinutes() {
         fun minute(t: Long, laeq: Double, valid: Double) = MinuteRecord(
             t, Iso.format(t, zone), 60.0, laeq, laeq, laeq, laeq, laeq, laeq, laeq, 0, null, emptyMap(), 0, null,
             112.35, "UNPROCESSED", false, validSeconds = valid,
@@ -125,11 +125,11 @@ class RobustnessTest {
             minute(ms(2026, 10, 2, 23, 2), -88.0, 10.0), // 17 % → dropped
             minute(ms(2026, 10, 2, 23, 3), Double.NaN, 0.0), // no valid audio
         )
-        val n = NightSummarizer.summarize(minutes, emptyList(), zone).single()
+        val n = MeasurementSummarizer.summarize(MeasurementSpan(ms(2026, 10, 2, 23, 0), ms(2026, 10, 2, 23, 4)), minutes, emptyList())
         assertEquals(100.0, n.measuredSeconds, 1e-9)
         assertEquals(50.0, n.laeqDb, 1e-9)
         assertEquals(2, n.excludedMinutes)
-        assertEquals(100.0 / (8 * 3600), n.coverage, 1e-12)
+        assertEquals(100.0 / (4 * 60), n.coverage, 1e-12)
     }
 
     // ---- 2. Timestamps ---------------------------------------------------------------------------
@@ -291,10 +291,10 @@ class RobustnessTest {
     }
 
     @Test
-    fun nightLengthFollowsDst() {
-        assertEquals(8 * 3600.0, NightSummarizer.nightLengthSeconds(LocalDate.of(2026, 10, 2), zone))
-        assertEquals(7 * 3600.0, NightSummarizer.nightLengthSeconds(LocalDate.of(2026, 3, 28), zone)) // spring forward
-        assertEquals(9 * 3600.0, NightSummarizer.nightLengthSeconds(LocalDate.of(2026, 10, 24), zone)) // fall back
+    fun measurementLengthIsWallClockTimeAcrossDst() {
+        // A measurement is start → stop in absolute time: 22:00 → 06:00 over the autumn DST change is 9 h.
+        val s = MeasurementSpan(ms(2026, 10, 24, 22, 0), ms(2026, 10, 25, 6, 0))
+        assertEquals(9 * 3_600_000L, s.durationMs)
     }
 
     @Suppress("unused")

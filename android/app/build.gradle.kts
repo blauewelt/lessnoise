@@ -75,12 +75,13 @@ android {
     }
 
     // Four editions (see PRIVACY.md → «Editions» and «Labor-Build»):
-    // - offline: the default download on stadtlaerm.ch («Offline-Version»). The public app WITHOUT
+    // - offline: the default download on wenigerlaerm.ch («Weniger Lärm»). The public app WITHOUT
     //            internet: its manifest removes INTERNET and ACCESS_NETWORK_STATE, «Messwerte teilen»
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
     //            (src/public/kotlin, see sourceSets below), so it contains no recording code either.
-    // - public:  the map edition («Karten-Version», stadtlaerm-karte.apk): INTERNET only for the
-    //            opt-in «Messwerte teilen» (src/public/AndroidManifest.xml).
+    // - public:  the map edition («Weniger Lärm · Karte», release asset stadtlaerm-karte.apk):
+    //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», location only
+    //            for one fix at «Start» of a shared measurement and per report (src/public/AndroidManifest.xml).
     //            offline and public share the applicationId ch.lessnoise.app and the release key:
     //            installing one over the other switches the edition and keeps the data.
     // - labor:   a diagnostics build that can record audio (event clips, continuous AAC) for
@@ -91,7 +92,7 @@ android {
     //            opt-in «Messwerte teilen» with INTERNET / ACCESS_NETWORK_STATE
     //            (src/laborKarte/AndroidManifest.xml). Same app id as labor, so it installs over a
     //            Labor install and keeps its measurements and recordings. Audio is never uploaded:
-    //            the upload code is the Karten-Version's (src/main/.../upload/), which reads only the
+    //            the upload code is the Karte edition's (src/main/.../upload/), which reads only the
     //            Room tables; UploadSourceIsolationTest fails if it touches files or the Labor code.
     flavorDimensions += "edition"
     productFlavors {

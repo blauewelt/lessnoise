@@ -157,12 +157,15 @@ class AppJvmTest {
             "`audioSource` TEXT NOT NULL, `calibrated` INTEGER NOT NULL)"
 
     @Test
-    fun v5CreateStatementsMatchRoomGeneratedSchema() {
+    fun v6CreateStatementsMatchRoomGeneratedSchema() {
         val dir = File(System.getProperty("stadtlaerm.generatedDb"))
         val impl = File(dir, "AppDatabase_Impl.kt").readText()
+        // v6 (app 0.6.0) added only the measurements table; minutes and events are as in v5.
         assertTrue(impl.contains(MigrationSql.CREATE_MINUTES_V5), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_EVENTS_V5), "Room schema changed: update MigrationSql")
-        assertTrue(impl.contains("RoomOpenHelper.Delegate(5)"), "Room schema version is not 5")
+        assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_V6), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_INDEX_V6), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains("RoomOpenHelper.Delegate(6)"), "Room schema version is not 6")
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_minutes_startEpochMs` ON `minutes` (`startEpochMs`)"))
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_events_startEpochMs` ON `events` (`startEpochMs`)"))
     }

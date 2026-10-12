@@ -94,7 +94,7 @@ fun DataScreen(modifier: Modifier = Modifier) {
                     val files = withContext(Dispatchers.IO) {
                         c.measurements.exportCsv(File(context.cacheDir, "exports"), c.categoryMapper.bucketIds)
                     }
-                    shareFiles(context, files, "text/csv", "Stadtlärm Messdaten")
+                    shareFiles(context, files, "text/csv", "Weniger Lärm Messdaten")
                 }
             }) { Text("CSV exportieren & teilen") }
         }
@@ -134,7 +134,7 @@ fun DataScreen(modifier: Modifier = Modifier) {
             }
         }
         SectionCard("Daten löschen") {
-            Text("Löscht alle Minutenwerte und Ereignisse. Kalibrierungen bleiben erhalten.", style = MaterialTheme.typography.bodySmall)
+            Text("Löscht alle Messungen auf dem Telefon. Kalibrierungen bleiben erhalten.", style = MaterialTheme.typography.bodySmall)
             Button(
                 onClick = { confirmClear = true },
                 enabled = !live.running && recal !is Recalibrator.State.Running,
@@ -207,7 +207,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 "Ein Ereignis beginnt, wenn der Pegel (LAF) den lokalen Hintergrund um diesen Wert übersteigt, dauert mindestens " +
                     "0.5 s und endet 3 dB darunter. Der lokale Hintergrund ist der Pegel, der in den letzten Sekunden 90 % der Zeit " +
                     "überschritten wurde (L90) – das stetige Rauschen, z. B. der Autobahn; während eines Ereignisses bleibt er fest. " +
-                    "Vorbeifahrten lagen in einer gemessenen Nacht mindestens 6.5 dB (Median 9 dB) darüber; Standard 6.5 dB.",
+                    "Vorbeifahrten lagen in einer Testmessung mindestens 6.5 dB (Median 9 dB) darüber; Standard 6.5 dB.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(8.dp))
@@ -261,7 +261,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 onValueChange = { v -> c.settings.update { it.copy(windFlutterMinDb = Math.round(v * 10) / 10.0) } },
             )
             Text(
-                "Standard 93 % bzw. 4.5 dB (an einer aufgenommenen Nacht mit 528 Ereignissen abgeglichen). Flattern: wie stark der Pegel unter 200 Hz " +
+                "Standard 93 % bzw. 4.5 dB (an einer Aufnahme mit 528 Ereignissen abgeglichen). Flattern: wie stark der Pegel unter 200 Hz " +
                     "innerhalb des Ereignisses schnell hin und her schwankt.",
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -285,7 +285,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             SwitchRow("Pegelanpassung für Klassifikator", s.classifierNormalize) { v -> c.settings.update { it.copy(classifierNormalize = v) } }
             Text(
                 "Ein: Jedes Erkennungsfenster (0.975 s) wird vor der Klassifikation auf einen RMS-Pegel von −30 dBFS angehoben – " +
-                    "höchstens um +40 dB, nie abgeschwächt, Spitzen auf ±1 begrenzt. Das hilft bei leisen Nachtgeräuschen, weil das Modell " +
+                    "höchstens um +40 dB, nie abgeschwächt, Spitzen auf ±1 begrenzt. Das hilft bei leisen Geräuschen, weil das Modell " +
                     "auf lauten YouTube-Aufnahmen trainiert wurde, kann aber auch leises Rauschen als Geräusch erkennen lassen. " +
                     "Aus: Das Modell sieht das unveränderte Signal. Pegel, Statistik und Ereignisse sind in beiden Fällen gleich. " +
                     "Wirkt ab dem nächsten Start der Messung.",
@@ -302,11 +302,10 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        SectionCard("Nachtmessung & Akku") {
+        SectionCard("Messung & Akku") {
             SwitchRow("CPU während der Messung wach halten (Wake-Lock)", s.wakeLock) { v -> c.settings.update { it.copy(wakeLock = v) } }
             Text(
-                "Empfohlen für Nachtmessungen. Kostet etwas Akku; das Telefon sollte nachts am Ladegerät hängen. " +
-                    "Zusätzlich hilft es, die Akku-Optimierung für Stadtlärm auszuschalten.",
+                "Empfohlen für lange Messungen; das Telefon sollte am Ladegerät hängen. Zusätzlich hilft es, die Akku-Optimierung auszuschalten.",
                 style = MaterialTheme.typography.bodySmall,
             )
             OutlinedButton(onClick = {
@@ -336,16 +335,15 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         if (BuildConfig.UPLOAD_AVAILABLE) ShareSettingsCard(onOpen = { showShare = true })
         EditionUi.SettingsSection()
         AppVersionCard()
-        SectionCard("Über Stadtlärm & Datenschutz") {
-            Text("Stadtlärm ${BuildConfig.VERSION_NAME} – offene Lärmmessung für Zürich. Lizenz: Apache-2.0.", style = MaterialTheme.typography.bodyMedium)
+        SectionCard("Über Weniger Lärm & Datenschutz") {
+            Text("Weniger Lärm ${BuildConfig.VERSION_NAME} – offene Lärmmessung. Lizenz: Apache-2.0.", style = MaterialTheme.typography.bodyMedium)
             Text(
                 // Edition-specific (public: audio never leaves the working memory; Labor: can store audio locally).
                 EditionUi.ABOUT_AUDIO + "\n" +
                     "• Gespeichert werden nur Kennwerte: Pegel, Statistik, Kategorie-Anteile, Ereignisse.\n" +
                     (if (BuildConfig.UPLOAD_AVAILABLE)
-                        "• Internet nutzt die App nur für «Messwerte teilen» (aus, bis du es einschaltest): Kennwerte und die Hektare an api.stadtlaerm.ch, sonst an keinen Server.\n" +
-                            "• Den Standort liest die App nur, wenn du bei «Messwerte teilen» auf «Standort bestimmen» tippst, einmal und nie im Hintergrund; " +
-                            "das Telefon berechnet daraus die Hektare, die Koordinaten werden weder gespeichert noch gesendet.\n" +
+                        "• Internet nutzt die App nur für «Messwerte teilen» und «Laut! Melden» (aus, bis du es einschaltest), an ${BuildConfig.API_BASE.removePrefix("https://")}.\n" +
+                            "• Den Standort liest die App nur beim Start einer geteilten Messung (behalten wird die 100-m-Zelle) und bei einer Meldung, nie im Hintergrund.\n" +
                             "• Sonst verlassen Daten das Telefon nur, wenn du sie selbst exportierst und teilst.\n"
                     else
                         "• Diese Version hat keine Internet- und keine Standort-Berechtigung. Daten verlassen das Telefon nur, wenn du sie selbst exportierst und teilst.\n") +

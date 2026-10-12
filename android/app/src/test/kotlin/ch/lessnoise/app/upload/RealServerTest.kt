@@ -60,11 +60,14 @@ class RealServerTest {
             override suspend fun minutesAfter(afterMs: Long, limit: Int) = all.filter { it.startEpochMs > afterMs }.take(limit)
             override suspend fun eventsAfter(afterMs: Long, limit: Int) = events.filter { it.startEpochMs > afterMs }.take(limit)
             override suspend fun siteExtras() = SiteExtras("Pixel 8", "UNPROCESSED", calibrated = false, calibrationOffsetDb = 112.35)
+            // One shared measurement covering everything (also the too-old minute).
+            override suspend fun measurements() =
+                listOf(ch.lessnoise.app.data.MeasurementEntity(id = 1, startMs = tooOld.startEpochMs, endMs = null, cell = "h26833_12479"))
         }
         val store = MemoryUploadStore(
-            UploadSnapshot(explanationSeen = true, site = SiteSettings("h26833_12479", "balcony", floor = 0, streetFacing = false, note = "Test"))
+            UploadSnapshot(explanationSeen = true, site = SiteSettings("balcony", floor = 0, streetFacing = false, note = "Test"))
         )
-        val up = Uploader(UploadClient(base!!), store, source, "0.4.0-dev", 9, minuteBatch = 50, eventBatch = 15)
+        val up = Uploader(UploadClient(base!!), store, source, MemoryReportStore(), "0.6.0-dev", 13, minuteBatch = 50, eventBatch = 15)
         up.enable()
         val o = up.run()
         assertEquals(Uploader.Outcome.Done(minutes = 120, events = 40, refused = 0, more = false), o, "the 8-day-old minute is not even sent")

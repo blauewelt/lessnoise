@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.6.0 — in preparation (versionCode 13; not published)
+
+The app is now called **«Weniger Lärm»**, nothing about nights is special any more, and in the map
+edition every shared measurement has its own place. There are no installs of 0.6.0 yet, so the
+breaking changes below need no transition.
+
+- **New name and app ids.** Launcher label «Weniger Lärm» (French «Moins de bruit», Italian «Meno
+  rumore», English «Less Noise»); Labor builds «Weniger Lärm Labor» (also localized, so that a
+  French, Italian or English phone does not show the public name). Editions shown to users:
+  «Weniger Lärm» (flavour `offline`) and «Weniger Lärm · Karte» (`public`); the internal flavour
+  names are unchanged. App ids `ch.lessnoise.app` (offline, public) and `ch.lessnoise.labor`
+  (labor, laborKarte), Kotlin packages and Gradle namespaces `ch.lessnoise.*` (moved with `git mv`).
+  Because the app id changed, 0.6.0 installs **next to** a 0.5.x «Stadtlärm», not over it, and
+  starts with empty storage. Same release key. CSV exports are named `wenigerlaerm-…`, the
+  calibration export `wenigerlaerm-kalibrierungen.json`.
+- **Server** `https://api.lessnoise.ch` (`BuildConfig.API_BASE`, formerly `STADTLAERM_API`; the
+  test override `-Pstadtlaerm.api=…` is unchanged). «Nach Update suchen» opens
+  `https://wenigerlaerm.ch/update.html`. User-Agent `LessNoise`.
+- **Measurements instead of nights.** The unit is a measurement: one run from «Start» to «Stopp», at
+  any time of day, possibly over several days. New Room table `measurements` (database v5 → v6):
+  «Start» stores a row (and, if shared, its 100 m cell), «Stopp» its end; minutes and events belong
+  to the measurement that started last before them. The migration keeps every minute and event and
+  derives measurements for older data from the stored minutes (a gap of more than 10 minutes
+  starts a new one). A measurement the system killed before «Stopp» ends with its last minute.
+- **«Messungen» tab** (was «Nächte»): the list of measurements, newest first, with start – end,
+  Dauer, Mittel, Grundrauschen and Lärmspitzen pro Stunde. Tapping one shows its chart: **Messung**
+  (its own time span; hourly values above 36 h) or **Tagesverlauf** (level by hour of day over all
+  days of the measurement). ‹ › step through the measurements. No night shading, no Nacht/Tag/Woche.
+  Summary tiles «Grundrauschen (L90)», «Lärmspitzen», «Lautestes».
+- **Texts without nights:** «Nachtmessung & Akku» → «Messung & Akku»; the expert texts no longer
+  speak of nights; Labor clip list «Diese Nacht» → «Letzte 24 h». Shorter texts in the sharing
+  screen, the location messages and the edition descriptions.
+- **Location per measurement** (Karte editions, with «Messwerte teilen» on): «Messung starten»
+  takes one precise location fix (the 0.5.1 `LocationFetcher`/`LocationPolicy`) and stores the 100 m
+  cell with the measurement; the coordinates are neither stored nor sent. If the fix fails, one
+  dialog: «Nochmals», «Koordinaten einfügen», «Ohne Teilen starten». The fixed hectare of
+  «Aufstellung» and the button «Standort bestimmen» are gone; placement, floor, street side and
+  note stay as optional, remembered fields.
+- **Upload contract:** every minute and event record carries `"cell"` of its measurement; records of
+  a measurement without a cell are never sent. The site call sends the placement details with the
+  cell of the newest shared measurement. Loud moments of a shared measurement thus appear on the
+  map (one sentence in the sharing explanation says so). Wind events stay excluded.
+- **«Laut! Melden»** (Karte editions, on «Messen» while no measurement runs): «Was war laut?» (Töff,
+  Auto, Lastwagen, Poser, anderes) → one precise fix (≤ 50 m, else «Nochmals») → «Meldung: …,
+  Uhrzeit, Standort ± n m – senden?». Sent to the new `POST /v1/devices/{id}/reports` (time of the
+  tap to the second with offset, latitude/longitude with 5 decimals, accuracy, category; ≤ 50 per
+  request) by the same WorkManager upload. The first report while sharing is off shows a short
+  consent and switches sharing on only with «Ja, einschalten». The exact coordinates stay on the
+  phone only until the server has the report; afterwards only category, time and cell are kept.
+  Switching sharing off or «Daten auf dem Server löschen» also drops unsent reports. A server
+  without the reports call (404) keeps them for later; other refusals drop the batch.
+- **Unchanged:** the offline and Labor editions have no location, no reports and no internet
+  (checked with `aapt2`); the detector, calibration, re-evaluation and CSV columns are unchanged.
+- **Tests:** migration 5 → 6 on SQLite, measurement rows → list, measurement splitting, cell per
+  record and unshared measurements in the upload, report body/queue/deletion of coordinates,
+  category ids, the report accuracy rule, the Room v6 schema.
+
 ## 0.5.1 — 2026-10-12 (versionCode 12; published on wenigerlaerm.ch)
 
 Also on the website with this release: the noise map covers all of Switzerland (zoom out to the
@@ -34,7 +91,7 @@ placement step now has a button that asks the phone for its location once.
   Einstellungen → App-Version: the Offline-Version is «ohne Internet- und ohne Standort-Berechtigung».
   PRIVACY.md, README.md, server/DESIGN.md §2.2, datenschutz.html and index.html («Welche Version?»)
   describe the location permission.
-- **Code and tests:** new package `ch.lessnoise.app.location` (`LocationPolicy.kt`, pure rules;
+- **Code and tests:** new package `ch.stadtlaerm.app.location` (`LocationPolicy.kt`, pure rules;
   `LocationFetcher.kt`, the only file using `android.location`). `LocationPolicyTest` (lat/lon →
   hectare for Zürich points, accuracy/«Ungefähr»/last-known rules, texts) and
   `LocationIsolationTest` (manifests per flavour; no logging, storage or network in the location
@@ -57,7 +114,7 @@ never shipped under that number. The server runs at api.stadtlaerm.ch; the websi
   users get it as their normal update, with no new permission.
 - **Karten-Version** (flavour `public`, `stadtlaerm-karte.apk`): the public app as described below,
   with the opt-in «Messwerte teilen».
-- Both have app id `ch.lessnoise.app`, version 0.5.0 / code 11 and the same key: installing one over
+- Both have app id `ch.stadtlaerm.app`, version 0.5.0 / code 11 and the same key: installing one over
   the other switches the edition and keeps the data. `BuildConfig.EDITION` (`offline` | `karte` |
   `labor`) is shown in Einstellungen → App-Version with a sentence on how to switch, and «Nach Update
   suchen» adds `&e=<edition>` so update.html offers the same edition. The Offline-Version, started
@@ -92,7 +149,7 @@ never shipped under that number. The server runs at api.stadtlaerm.ch; the websi
   files on the phone when switched on and never sends anything (no internet permission). The
   public text is unchanged.
 
-### Public app, Karten-Version (`ch.lessnoise.app`, version 0.5.0, code 11; not yet published)
+### Public app, Karten-Version (`ch.stadtlaerm.app`, version 0.5.0, code 11; not yet published)
 
 In short: an opt-in «Messwerte teilen» sends the measured levels to the shared noise map — off by
 default; the `INTERNET` permission is added for exactly this. The location is placed on the phone
@@ -119,7 +176,7 @@ to a 100 m × 100 m hectare square; «Meine Daten auf dem Server löschen» dele
 - Nothing in the measurement path changed by the sharing feature. The database schema stays at v5
   (detector v2); the sharing feature only adds read-only queries.
 
-### «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.5.0-labor`, never published)
+### «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.5.0-labor`, never published)
 
 - No functional change: no network permission (its manifest removes `INTERNET` and
   `ACCESS_NETWORK_STATE`), «Messwerte teilen» is not offered.
@@ -197,14 +254,14 @@ and the constant highway hum was mixed into the event figures.
 
 ## 0.3.4 — 2026-10-08
 
-### Public app (`ch.lessnoise.app`, not published)
+### Public app (`ch.stadtlaerm.app`, not published)
 
 - **No functional change.** Version 0.3.4 (code 8) only so that both flavours share one version.
   The chart gained optional, flavour-agnostic hooks for event clips (a clip reference per event,
   an `onPlayClip` callback); the public app passes none, so it draws and behaves exactly as in
   0.3.3. This build is not published; stadtlaerm.ch stays on 0.3.3.
 
-### «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.3.4-labor`, never published): listen to clips
+### «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.3.4-labor`, never published): listen to clips
 
 - **Chart:** events that have a clip get a thin ring around their dot (the dot colour keeps its
   meaning); their tooltip has an «Abspielen» button. The clip of an event is found through the
@@ -233,7 +290,7 @@ and the constant highway hum was mixed into the event figures.
 
 ## 0.3.3 — 2026-10-07
 
-### Public app (`ch.lessnoise.app`, published)
+### Public app (`ch.stadtlaerm.app`, published)
 
 - **Notification while measuring:** title «Mikrofon aktiv – Messung läuft», text with the current
   LAeq as before, «Stopp» button. The notification channel now has importance *default*, so the
@@ -253,7 +310,7 @@ and the constant highway hum was mixed into the event figures.
   recording code; how to check is described in PRIVACY.md → «Labor-Build». APK paths now include
   the flavour (`app/build/outputs/apk/public/release/app-public-release.apk`).
 
-### New: «Stadtlärm Labor» (`ch.lessnoise.labor`, `0.3.3-labor`, never published)
+### New: «Stadtlärm Labor» (`ch.stadtlaerm.labor`, `0.3.3-labor`, never published)
 
 A diagnostics build that can record audio to debug the event detector and the sound-source
 classifier, only after «Einstellungen → Labor → Audio während der Messung aufzeichnen» is

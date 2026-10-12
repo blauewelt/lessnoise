@@ -46,6 +46,11 @@ class FakeServer : AutoCloseable {
     val sites = java.util.concurrent.ConcurrentHashMap<String, JsonObject>()
     val minutes = java.util.concurrent.ConcurrentHashMap<String, MutableMap<String, JsonObject>>()
     val events = java.util.concurrent.ConcurrentHashMap<String, MutableMap<String, JsonObject>>()
+    /** «Laut! Melden» reports per device, keyed by time|category|lat|lon (idempotent like the records). */
+    val reports = java.util.concurrent.ConcurrentHashMap<String, MutableMap<String, JsonObject>>()
+
+    /** False: behave like a server without the reports call (404), as before app 0.6.0. */
+    @Volatile var reportsAvailable = true
 
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
@@ -121,7 +126,7 @@ class FakeServer : AutoCloseable {
                 tokens[id] = token
                 return reply(ex, 201, buildJsonObject { put("device_id", id); put("token", token) }.toString())
             }
-            val m = Regex("^/v1/devices/([^/]+)(/site|/minutes|/events)?$").matchEntire(path)
+            val m = Regex("^/v1/devices/([^/]+)(/site|/minutes|/events|/reports)?$").matchEntire(path)
                 ?: return reply(ex, 404, """{"detail":"not found"}""")
             val id = m.groupValues[1]
             val auth = headers["authorization"] ?: ""
@@ -130,8 +135,11 @@ class FakeServer : AutoCloseable {
                 "PUT" to "/site" -> { sites[id] = body!!.jsonObject; reply(ex, 204, null) }
                 "POST" to "/minutes" -> reply(ex, 200, upsert(minutes.getOrPut(id) { mutableMapOf() }, body!!.jsonArray, 1440))
                 "POST" to "/events" -> reply(ex, 200, upsert(events.getOrPut(id) { mutableMapOf() }, body!!.jsonArray, 2000))
+                "POST" to "/reports" ->
+                    if (!reportsAvailable) reply(ex, 404, """{"detail":"not found"}""")
+                    else reply(ex, 200, upsert(reports.getOrPut(id) { mutableMapOf() }, body!!.jsonArray, 50, ::reportKey))
                 "DELETE" to "" -> {
-                    tokens.remove(id); sites.remove(id); minutes.remove(id); events.remove(id)
+                    tokens.remove(id); sites.remove(id); minutes.remove(id); events.remove(id); reports.remove(id)
                     reply(ex, 204, null)
                 }
                 else -> reply(ex, 405, """{"detail":"method"}""")
@@ -141,15 +149,21 @@ class FakeServer : AutoCloseable {
         }
     }
 
-    private fun upsert(into: MutableMap<String, JsonObject>, arr: JsonArray, limit: Int): String {
+    private fun reportKey(o: JsonObject): String =
+        listOf("time", "category", "lat", "lon").joinToString("|") { o[it]!!.jsonPrimitive.content }
+
+    private fun upsert(
+        into: MutableMap<String, JsonObject>, arr: JsonArray, limit: Int,
+        key: (JsonObject) -> String = { it["start"]!!.jsonPrimitive.content },
+    ): String {
         if (arr.size > limit) return """{"detail":"at most $limit records per request"}"""
         var accepted = 0
         var duplicates = 0
         val rejected = buildJsonArray {
             arr.forEachIndexed { i, el ->
                 val o = el.jsonObject
-                val start = o["start"]!!.jsonPrimitive.content
-                if (start in refuseStarts) {
+                val start = key(o)
+                if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
                     add(buildJsonObject {
                         put("index", i); put("start", start)
                         put("reasons", buildJsonArray { add(buildJsonObject { put("field", "laeq_db"); put("reason", "out of range") }) })

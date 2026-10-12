@@ -42,9 +42,11 @@ import ch.lessnoise.dsp.classify.ClassifierResult
 import ch.lessnoise.dsp.classify.LabelScore
 import ch.lessnoise.dsp.classify.SoundClassifier
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -79,6 +81,8 @@ data class LiveState(
     val topLabels: List<LabelScore> = emptyList(),
     val lastMinute: MinuteRecord? = null,
     val classifierEnabled: Boolean = false,
+    /** The running measurement's 100 m cell if it is shared («Messwerte teilen»), else null. */
+    val cell: String? = null,
     /** The system currently silences the microphone (call, voice assistant): audio not evaluated. */
     val micSilenced: Boolean = false,
     /** Current audio is not evaluated (silenced, digital silence or 0.5 s recovery after it). */
@@ -87,8 +91,9 @@ data class LiveState(
 )
 
 /**
- * Foreground service (type "microphone") that runs the measurement so it continues overnight with
- * the screen off. Holds a partial wake lock while measuring (configurable): see README → Battery.
+ * Foreground service (type "microphone") that runs the measurement so it continues for hours with
+ * the screen off. Every start records a measurement row (MeasurementEntity) with the cell it was
+ * started with; «Stop» closes it. Holds a partial wake lock while measuring (configurable): see README → Battery.
  */
 class MeasurementService : Service() {
 
@@ -104,8 +109,13 @@ class MeasurementService : Service() {
         private const val TAG = "MeasurementService"
         private const val NOTIFICATION_ID = 1
 
-        fun start(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, MeasurementService::class.java).setAction(ACTION_START))
+        /** Extra of ACTION_START: the 100 m cell of a shared measurement (absent: not shared). */
+        const val EXTRA_CELL = "cell"
+
+        fun start(context: Context, cell: String? = null) {
+            val i = Intent(context, MeasurementService::class.java).setAction(ACTION_START)
+            if (cell != null) i.putExtra(EXTRA_CELL, cell)
+            ContextCompat.startForegroundService(context, i)
         }
 
         fun stop(context: Context) {
@@ -127,6 +137,8 @@ class MeasurementService : Service() {
     private var lastNotificationMs = 0L
     @Volatile private var stopping = false
     @Volatile private var normalizeClassifierInput = true
+    /** Row id of the running measurement, once its insert has finished (null if the insert failed). */
+    @Volatile private var measurementRow: Deferred<Long?>? = null
     /** Database inserts still running; a stop waits for them (briefly) before leaving the foreground. */
     private val dbJobs: MutableSet<Job> = java.util.Collections.synchronizedSet(HashSet())
 
@@ -148,12 +160,12 @@ class MeasurementService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopMeasurement(); return START_NOT_STICKY }
-            else -> startMeasurement()
+            else -> startMeasurement(intent?.getStringExtra(EXTRA_CELL))
         }
         return START_NOT_STICKY
     }
 
-    private fun startMeasurement() {
+    private fun startMeasurement(cell: String?) {
         val live = container.live
         createChannel()
         val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -189,7 +201,7 @@ class MeasurementService : Service() {
                 val mapper = if (settings.classifierEnabled) c.categoryMapper else null
                 if (settings.classifierEnabled) {
                     classifier = YamnetClassifier(this@MeasurementService, c.labels)
-                    inference = Executors.newSingleThreadExecutor { r -> Thread(r, "stadtlaerm-classifier") }
+                    inference = Executors.newSingleThreadExecutor { r -> Thread(r, "lessnoise-classifier") }
                 }
                 val config = EngineConfig(
                     calibrationOffsetDb = cal.offsetDb,
@@ -232,6 +244,15 @@ class MeasurementService : Service() {
                             container.live.update { it.copy(micSilenced = silenced) }
                         },
                     )
+                    val startedAt = System.currentTimeMillis()
+                    measurementRow = scope.async {
+                        try {
+                            container.measurements.beginMeasurement(startedAt, cell)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "measurement insert failed: ${e.javaClass.simpleName}")
+                            null
+                        }
+                    }
                     val info = cap.start(source)
                     capture = cap
                     t.onSessionStart(
@@ -251,7 +272,7 @@ class MeasurementService : Service() {
                         running = true, startedAtMs = System.currentTimeMillis(), audioSource = info.source,
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
-                        classifierEnabled = settings.classifierEnabled,
+                        classifierEnabled = settings.classifierEnabled, cell = cell,
                     )
                 }
             } catch (e: Exception) {
@@ -392,6 +413,11 @@ class MeasurementService : Service() {
         releaseWakeLock()
         val err = container.live.value.error
         container.live.value = LiveState(error = err, lastMinute = container.live.value.lastMinute)
+        // Close this measurement's row once its insert has finished. A new «Start» gets its own row.
+        val endAt = System.currentTimeMillis()
+        val row = measurementRow
+        measurementRow = null
+        if (row != null) persist("measurement end") { row.await()?.let { container.measurements.endMeasurement(it, endAt) } }
         // engine.stop() has just emitted the partial minute and the open event. Stay in the
         // foreground until they are in the database (at most 3 s): after the task was swiped away
         // the process may be killed as soon as the service is gone.
@@ -485,7 +511,7 @@ class MeasurementService : Service() {
         if (nm.getNotificationChannel(LEGACY_CHANNEL) != null) nm.deleteNotificationChannel(LEGACY_CHANNEL)
         if (nm.getNotificationChannel(CHANNEL) == null) {
             // DEFAULT: visible in the status bar. No sound or vibration (the notification is
-            // updated every 2 s and must never make a noise during a night measurement).
+            // updated every 2 s and must never make a noise during a measurement).
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL, getString(R.string.notif_channel_name), NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = getString(R.string.notif_channel_desc)

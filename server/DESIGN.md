@@ -105,7 +105,9 @@ The token is sent as `Authorization: Bearer <token>` on every later call for tha
 
 ### 4.2 Site (`PUT /v1/devices/{id}/site`)
 
-The sensor's placement. Sent at opt-in and whenever the contributor changes it.
+The sensor's placement. Sent at opt-in and whenever the contributor changes it. Since app 0.6.0
+`cell` is the cell of the newest shared measurement (each measurement has its own cell, carried
+by its minutes and events, §4.3/§4.4); the other fields are optional details the app remembers.
 
 ```json
 {
@@ -132,6 +134,7 @@ calibration id they were measured with — that is enough to reason about calibr
 ```json
 {
   "start": "2026-10-07T23:14:00+02:00",
+  "cell": "h26824_12473",
   "duration_s": 60.0,
   "valid_s": 59.5,
   "coverage": 0.992,
@@ -146,8 +149,12 @@ calibration id they were measured with — that is enough to reason about calibr
 }
 ```
 
+`cell` (since app 0.6.0): the 100 m cell (§3) of the measurement the minute belongs to, determined
+on the phone at the measurement's «Start». Minutes of a measurement without a cell (sharing was off
+or the person started it without sharing) are not sent at all.
+
 Response: `{ "accepted": n, "duplicates": m }`. A record whose `start` already exists for
-the device replaces the stored one (re-evaluation after a calibration sends the night again).
+the device replaces the stored one (re-evaluation after a calibration sends the last 7 days again).
 
 ### 4.4 Events (`POST /v1/devices/{id}/events`)
 
@@ -156,6 +163,7 @@ Array of up to 2 000 events:
 ```json
 {
   "start": "2026-10-07T23:14:12.375+02:00",
+  "cell": "h26824_12473",
   "duration_s": 2.75,
   "lafmax_db": 71.4,
   "sel_db": 74.0,
@@ -172,21 +180,45 @@ Array of up to 2 000 events:
 (detector v2) the excess over the local floor (L90 of the last 30 s; default 6.5 dB), before that
 the threshold over the 5-min background (default 10 dB). Events the app flags as wind on the
 microphone (detector v2) are not sent, just as the app leaves them out of its own counts; the
-minutes' `event_count` (§4.3) likewise counts events without wind.
+minutes' `event_count` (§4.3) likewise counts events without wind. `cell` (since app 0.6.0): as for
+minutes, the cell of the event's measurement; events of a measurement without a cell are not sent.
 
 Idempotent on `(device_id, start)`; same replace rule as minutes.
 
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
 
-Deletes the device, its site, minutes and events in one transaction. Response `204`.
+Deletes the device, its site, minutes, events and reports (§4.7) in one transaction. Response `204`.
 
 ### 4.6 Upload cadence in the app
 
-While «Messwerte teilen» is on: at the end of every full hour and when a measurement stops,
-the app sends all minutes and events newer than the last acknowledged `start`, in batches,
+While «Messwerte teilen» is on: at the end of every full hour, when a measurement stops and after a
+report, the app first sends waiting reports (§4.7), then all minutes and events of shared
+measurements newer than the last acknowledged `start`, in batches,
 over Wi-Fi or mobile data (setting «nur über WLAN», default on). Failures are retried with
 backoff; nothing is lost because the local database is the source of truth. The settings
 screen shows «Zuletzt gesendet: …» and the number of minutes still to send.
+
+### 4.7 Reports (`POST /v1/devices/{id}/reports`, app 0.6.0)
+
+«Laut! Melden»: a person reports a loud moment while out and about (no measurement running). Array
+of up to 50 reports, bearer auth as above:
+
+```json
+{
+  "time": "2026-10-12T16:05:03+02:00",
+  "lat": 47.37691,
+  "lon": 8.54169,
+  "accuracy_m": 12.3,
+  "category": "motorrad | auto | lastwagen | poser | andere"
+}
+```
+
+`time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
+publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
+This is the only request with exact coordinates. The app keeps them only until the server has
+answered for the report, then deletes them (it keeps category, time and cell). Response like
+minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
+as "server without reports yet" and retries later; any other `4xx` drops that batch.
 
 ## 5. Server storage (SQLite)
 

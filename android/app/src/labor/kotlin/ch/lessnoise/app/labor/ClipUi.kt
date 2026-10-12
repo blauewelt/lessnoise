@@ -77,8 +77,6 @@ import ch.lessnoise.app.ui.SwissLocale
 import ch.lessnoise.app.ui.categoryColor
 import ch.lessnoise.app.ui.categoryName
 import ch.lessnoise.app.ui.shareFiles
-import ch.lessnoise.chart.RangeMode
-import ch.lessnoise.chart.Windows
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -258,7 +256,7 @@ fun ClipPlayerSheet(request: PlayRequest, onDismiss: () -> Unit) {
                     val f = ClipLibrary.file(context, r)
                     if (!f.isFile) { toastClipNotFound(context); return@OutlinedButton }
                     try {
-                        shareFiles(context, listOf(f), "audio/wav", "Stadtlärm Labor – Clip ${f.name}")
+                        shareFiles(context, listOf(f), "audio/wav", "Weniger Lärm Labor – Clip ${f.name}")
                     } catch (e: Exception) {
                         Toast.makeText(context, "Teilen nicht möglich: ${e.javaClass.simpleName}", Toast.LENGTH_SHORT).show()
                     }
@@ -355,7 +353,7 @@ private fun ClipProgressBar(bar: ClipBar, fraction: Float, traceMarks: List<Floa
 }
 
 /**
- * Einstellungen → Labor → «Clips»: all clips newest first (or only the current night's), with
+ * Einstellungen → Labor → «Clips»: all clips newest first (or only those of the last 24 hours), with
  * category filter chips, count and total size. Tapping a clip opens the player; «‹» / «›» step
  * through the filtered list.
  */
@@ -365,9 +363,8 @@ fun ClipsListDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val version by Labor.filesVersion.collectAsStateWithLifecycle()
     val index by produceState<ClipIndex?>(null, version) { value = withContext(Dispatchers.IO) { ClipLibrary.index(context) } }
-    val zone = remember { ZoneId.systemDefault() }
-    val night = remember { Windows(zone).of(RangeMode.NIGHT, ClipNights.currentNightOf(System.currentTimeMillis(), zone)) }
-    var onlyNight by remember { mutableStateOf<Boolean?>(null) }
+    val now = remember { System.currentTimeMillis() }
+    var onlyRecent by remember { mutableStateOf<Boolean?>(null) }
     var category by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -382,16 +379,16 @@ fun ClipsListDialog(onDismiss: () -> Unit) {
                     Text("Lade …", Modifier.padding(16.dp))
                     return@Column
                 }
-                val inNight = all.entries.filter { e -> e.eventStartMs?.let { it in night } == true }
-                val nightOnly = onlyNight ?: inNight.isNotEmpty()
-                val scope = if (nightOnly) inNight else all.entries
+                val recent = all.entries.filter { e -> e.eventStartMs?.let { ClipRecent.isRecent(it, now) } == true }
+                val recentOnly = onlyRecent ?: recent.isNotEmpty()
+                val scope = if (recentOnly) recent else all.entries
                 val cats = scope.map { it.category }.distinct()
                 val shown = scope.filter { category == null || it.category == category }
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    SegmentedButton(selected = nightOnly, onClick = { onlyNight = true }, shape = SegmentedButtonDefaults.itemShape(0, 2)) {
-                        Text("Diese Nacht (${inNight.size})", maxLines = 1)
+                    SegmentedButton(selected = recentOnly, onClick = { onlyRecent = true }, shape = SegmentedButtonDefaults.itemShape(0, 2)) {
+                        Text("Letzte 24 h (${recent.size})", maxLines = 1)
                     }
-                    SegmentedButton(selected = !nightOnly, onClick = { onlyNight = false }, shape = SegmentedButtonDefaults.itemShape(1, 2)) {
+                    SegmentedButton(selected = !recentOnly, onClick = { onlyRecent = false }, shape = SegmentedButtonDefaults.itemShape(1, 2)) {
                         Text("Alle (${all.size})", maxLines = 1)
                     }
                 }

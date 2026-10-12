@@ -2,6 +2,7 @@ package ch.lessnoise.app.data
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import ch.lessnoise.dsp.MeasurementSplitter
 
 /**
  * SQL for schema migrations, kept free of Android types so it can be tested on the JVM against
@@ -33,7 +34,7 @@ object MigrationSql {
      * v1 → v2: level columns become nullable (minutes without valid audio), and validSeconds /
      * coverage / clockCorrections are added. v1 had no silence detection: a v1 minute whose LAeq
      * is below 0 dB(A) can only come from a silenced microphone, so it gets coverage 0 (and is
-     * left out of night summaries); all others are assumed fully valid.
+     * left out of summaries); all others are assumed fully valid.
      */
     val MIGRATE_1_2: List<String> = listOf(
         CREATE_MINUTES_V2.replace("`minutes`", "`minutes_v2`"),
@@ -114,6 +115,29 @@ object MigrationSql {
     const val CREATE_MINUTES_V5 = CREATE_MINUTES_V4_PREFIX +
         ", `local_floor_db` REAL, `wind_event_count` INTEGER NOT NULL DEFAULT 0)"
 
+    /** v6 `measurements` table and its index, exactly as Room generates them (verified by a unit test). */
+    const val CREATE_MEASUREMENTS_V6 =
+        "CREATE TABLE IF NOT EXISTS `measurements` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, " +
+            "`end_ms` INTEGER, `cell` TEXT)"
+    const val CREATE_MEASUREMENTS_INDEX_V6 =
+        "CREATE INDEX IF NOT EXISTS `index_measurements_start_ms` ON `measurements` (`start_ms`)"
+
+    /** The query the migration 5 → 6 reads the stored minutes with. */
+    const val SELECT_MINUTE_SPANS = "SELECT `startEpochMs`, `durationSeconds` FROM `minutes`"
+
+    /**
+     * v5 → v6 (app 0.6.0, «Messungen» instead of fixed 22–06 periods): the `measurements` table, filled from the
+     * minutes already stored: [minutes] (start, duration in seconds) are split where more than
+     * 10 minutes lie between two of them (MeasurementSplitter.split), each run becomes one
+     * finished measurement without a cell (nothing recorded before 0.6.0 is shared per measurement).
+     * Minutes and events themselves are not touched.
+     */
+    fun migrate5to6(minutes: List<Pair<Long, Double>>): List<String> =
+        listOf(CREATE_MEASUREMENTS_V6, CREATE_MEASUREMENTS_INDEX_V6) +
+            MeasurementSplitter.split(minutes).map { s ->
+                "INSERT INTO `measurements` (`start_ms`, `end_ms`, `cell`) VALUES (${s.startMs}, ${s.endMs}, NULL)"
+            }
+
     /** v5 `events` table, exactly as Room generates it (verified by a unit test). */
     const val CREATE_EVENTS_V5 = CREATE_EVENTS_V4_PREFIX +
         ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
@@ -149,5 +173,15 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
 val MIGRATION_4_5 = object : Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_4_5.forEach { db.execSQL(it) }
+    }
+}
+
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        val minutes = ArrayList<Pair<Long, Double>>()
+        db.query(MigrationSql.SELECT_MINUTE_SPANS).use { c ->
+            while (c.moveToNext()) minutes += c.getLong(0) to c.getDouble(1)
+        }
+        MigrationSql.migrate5to6(minutes).forEach { db.execSQL(it) }
     }
 }

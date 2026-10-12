@@ -24,7 +24,9 @@ data class SiteExtras(
 )
 
 /**
- * The exact request bodies of server/DESIGN.md §4.2–4.4, built from the app's stored records.
+ * The exact request bodies of server/DESIGN.md §4.2–4.4 and the reports call, built from the app's
+ * stored records. Since 0.6.0 every minute and event carries the `cell` of its measurement (the 100 m
+ * cell determined at «Start»); records of a measurement without a cell are not sent at all.
  *
  * Left out on purpose: the `orig_*` / `recalibrated_*` columns (§4.3), the events' top-3 raw
  * AudioSet labels (`topLabelsJson`, §2.1: fingerprinting surface for no gain), classifier frame
@@ -40,8 +42,9 @@ object Payloads {
     /** Category id the server stores for an event that has none (classifier was off). */
     const val NO_CATEGORY = "unclassified"
 
-    fun site(site: SiteSettings, extras: SiteExtras): JsonObject = buildJsonObject {
-        put("cell", site.cell)
+    /** The placement details, with the cell of the newest shared measurement ([cell]). */
+    fun site(cell: String, site: SiteSettings, extras: SiteExtras): JsonObject = buildJsonObject {
+        put("cell", cell)
         put("placement", site.placement)
         put("floor", site.floor?.let { JsonPrimitive(it) } ?: JsonNull)
         put("street_facing", site.streetFacing?.let { JsonPrimitive(it) } ?: JsonNull)
@@ -58,8 +61,9 @@ object Payloads {
      */
     fun isShared(e: EventEntity): Boolean = !e.wind
 
-    fun minute(m: MinuteEntity): JsonObject = buildJsonObject {
+    fun minute(m: MinuteEntity, cell: String): JsonObject = buildJsonObject {
         put("start", m.startIso)
+        put("cell", cell)
         put("duration_s", num(m.durationSeconds, 3))
         put("valid_s", num(m.validSeconds, 3))
         put("coverage", num(m.coverage, 3))
@@ -81,8 +85,9 @@ object Payloads {
         put("clock_corrections", m.clockCorrections)
     }
 
-    fun event(e: EventEntity): JsonObject = buildJsonObject {
+    fun event(e: EventEntity, cell: String): JsonObject = buildJsonObject {
         put("start", e.startIso)
+        put("cell", cell)
         put("duration_s", num(e.durationSeconds, 3))
         put("lafmax_db", level(e.lafMaxDb))
         put("sel_db", level(e.selDb))
@@ -93,6 +98,18 @@ object Payloads {
         put("category_score", num(e.dominantScore.toDouble(), 3))
         put("calibration_id", e.calibrationId?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
         put("calibrated", e.calibrated)
+    }
+
+    /**
+     * One «Laut! Melden» report: time of the tap (ISO-8601 with offset, seconds), the exact place
+     * (5 decimals ≈ 1 m), its accuracy and the category.
+     */
+    fun report(r: PendingReport): JsonObject = buildJsonObject {
+        put("time", r.timeIso)
+        put("lat", num(r.lat, 5))
+        put("lon", num(r.lon, 5))
+        put("accuracy_m", num(r.accuracyM, 1))
+        put("category", r.category)
     }
 
     /** One decimal; NaN/∞/null become JSON null (NaN is not valid JSON and would spoil the batch). */

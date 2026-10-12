@@ -19,6 +19,7 @@ import ch.lessnoise.app.container
 import ch.lessnoise.app.data.AppDatabase
 import ch.lessnoise.app.data.CalibrationRepository
 import ch.lessnoise.app.data.EventEntity
+import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.service.LiveState
@@ -58,7 +59,7 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 Log.w(TAG, "upload refused by server")
                 Result.failure()
             }
-            Uploader.Outcome.AuthFailed, Uploader.Outcome.Disabled, Uploader.Outcome.NotReady -> Result.success()
+            Uploader.Outcome.AuthFailed, Uploader.Outcome.Disabled -> Result.success()
         }
     }
 
@@ -79,6 +80,7 @@ private class RoomUploadSource(
 ) : UploadSource {
     override suspend fun minutesAfter(afterMs: Long, limit: Int): List<MinuteEntity> = db.measurements().minutesAfter(afterMs, limit)
     override suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity> = db.measurements().eventsAfter(afterMs, limit)
+    override suspend fun measurements(): List<MeasurementEntity> = db.measurements().allMeasurements()
 
     override suspend fun siteExtras(): SiteExtras {
         val source = AudioSourceSelector.select(context)
@@ -100,19 +102,22 @@ class UploadModule(
 ) {
     private val appContext = context.applicationContext
     val store: UploadState = UploadState(appContext)
+    /** «Laut! Melden» reports waiting to be sent (with coordinates) and the sent ones (without). */
+    val reports: ReportState = ReportState(appContext)
     val client: UploadClient = UploadClient(BuildConfig.API_BASE)
     val uploader: Uploader = Uploader(
         client = client,
         store = store,
         source = RoomUploadSource(appContext, db, calibrations),
+        reports = reports,
         appVersion = BuildConfig.VERSION_NAME,
         appBuild = BuildConfig.VERSION_CODE,
     )
     private val minutes = db.measurements()
 
-    /** Minutes not yet acknowledged by the server (settings screen). */
+    /** Minutes of shared measurements not yet acknowledged by the server (settings screen). */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val pendingMinutes: Flow<Int> = store.state.flatMapLatest { minutes.minuteCountAfter(uploader.minutesPendingAfterMs(it)) }
+    val pendingMinutes: Flow<Int> = store.state.flatMapLatest { minutes.sharedMinuteCountAfter(uploader.minutesPendingAfterMs(it)) }
 
     private val work: WorkManager get() = WorkManager.getInstance(appContext)
 
@@ -148,14 +153,14 @@ class UploadModule(
 
     /**
      * The editions without «Messwerte teilen» (UPLOAD_AVAILABLE = false, no INTERNET): the
-     * Offline-Version, and the Labor build installed over the «Labor-Version mit Karte» (same app
-     * id ch.lessnoise.labor). Shown here for the Offline-Version; the Labor case is the same.
-     * Someone who switches from the Karten-Version by installing the Offline-Version over it keeps
+     * offline edition «Weniger Lärm», and the Labor build installed over «Weniger Lärm Labor · Karte»
+     * (same app id ch.lessnoise.labor). Shown here for the offline edition; the Labor case is the same.
+     * Someone who switches from the Karten edition by installing the offline one over it keeps
      * the sharing state and WorkManager's scheduled upload jobs. If sharing was on, it is switched
      * off here and the jobs are cancelled: the jobs would do nothing in this edition (UploadWorker
-     * returns at once), and a later switch back to the Karten-Version must not send what was
+     * returns at once), and a later switch back to the Karten edition must not send what was
      * measured in between — [Uploader.enable] starts at "now" again once the person switches
-     * sharing back on. Device id and token are kept, so the Karten-Version can still delete the
+     * sharing back on. Device id and token are kept, so the Karten edition can still delete the
      * data on the server.
      */
     fun stopForOfflineEdition() {
@@ -168,7 +173,7 @@ class UploadModule(
         }
     }
 
-    /** One upload soon (after a measurement stopped, after switching on, after a site change). */
+    /** One upload soon (after a measurement stopped, after switching on, after a site change, after a report). */
     fun uploadSoon(delaySeconds: Long = 15) {
         if (!BuildConfig.UPLOAD_AVAILABLE || !store.state.value.enabled) return
         val req = OneTimeWorkRequestBuilder<UploadWorker>()

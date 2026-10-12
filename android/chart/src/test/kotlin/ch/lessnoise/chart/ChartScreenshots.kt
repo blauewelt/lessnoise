@@ -73,12 +73,12 @@ class ChartScreenshots {
         LessNoiseTheme(dark = dark) {
             Column(Modifier.fillMaxSize()) {
                 Text(
-                    "Nächte", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                    "Messungen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                 )
                 HistorySection(
                     window = data.window, data = data, zone = zone, highlight = highlight, eventFloorDb = floor,
-                    canGoNext = Windows(zone).canGoNext(data.window, data.nowMs), selection = selection, actions = NoActions,
+                    canGoNext = false, selection = selection, actions = NoActions,
                     onPlayClip = onPlayClip,
                 )
             }
@@ -87,26 +87,29 @@ class ChartScreenshots {
 
     private fun snap(name: String, content: @Composable () -> Unit) = paparazzi.snapshot(name) { content() }
 
-    @Test fun nachtSynthetic() {
+    @Test fun messungSynthetic() {
         val d = SyntheticData.fridayNight()
-        snap("nacht_synth_light") { Screen(d, dark = false) }
+        snap("messung_synth_light") { Screen(d, dark = false) }
     }
 
-    @Test fun nachtSyntheticDark() {
+    @Test fun messungSyntheticDark() {
         val d = SyntheticData.fridayNight()
-        snap("nacht_synth_dark") { Screen(d, dark = true) }
+        snap("messung_synth_dark") { Screen(d, dark = true) }
     }
 
-    @Test fun tagSynthetic() {
-        snap("tag_synth_light") { Screen(SyntheticData.dayData(), dark = false) }
+    @Test fun messung24hSynthetic() {
+        snap("messung_24h_synth_light") { Screen(SyntheticData.dayData(), dark = false) }
     }
 
-    @Test fun wocheSynthetic() {
-        snap("woche_synth_light") { Screen(SyntheticData.weekData(), dark = false) }
+    @Test fun messung7TageSynthetic() {
+        snap("messung_7tage_synth_light") { Screen(SyntheticData.weekData(), dark = false) }
     }
 
-    @Test fun wocheSyntheticDark() {
-        snap("woche_synth_dark") { Screen(SyntheticData.weekData(), dark = true) }
+    @Test fun tagesverlaufSynthetic() {
+        val d = SyntheticData.weekData()
+        val p = d.copy(window = TimeWindow.profile(d.window.startMs, d.window.endMs))
+        snap("tagesverlauf_synth_light") { Screen(p, dark = false) }
+        snap("tagesverlauf_synth_dark") { Screen(p, dark = true) }
     }
 
     @Test fun empty() {
@@ -151,8 +154,8 @@ class ChartScreenshots {
         )
     }
 
-    @Test fun nachtRecalibrated() {
-        snap("nacht_recal_light") { Screen(recalibratedNight(), dark = false, floor = 39.5) }
+    @Test fun messungRecalibrated() {
+        snap("messung_recal_light") { Screen(recalibratedNight(), dark = false, floor = 39.5) }
     }
 
     @Test fun minuteTooltipRecalibrated() {
@@ -161,32 +164,26 @@ class ChartScreenshots {
         snap("tooltip_minute_recal_dark") { Screen(d, dark = true, selection = Selection.Point(m), floor = 39.5) }
     }
 
-    // ---- The owner's first real night (skipped unless STADTLAERM_REAL_DATA is set) ------------
+    // ---- The owner's first real measurement (skipped unless STADTLAERM_REAL_DATA is set) -------
 
-    private fun real(mode: RangeMode, date: LocalDate): ChartData {
+    private fun real(mode: RangeMode, from: java.time.LocalDateTime, to: java.time.LocalDateTime): ChartData {
         val dir = CsvFixtures.realDataDir()
         assumeTrue("STADTLAERM_REAL_DATA not set", dir != null)
-        val w = Windows(zone).of(mode, date)
+        val w = TimeWindow(mode, SyntheticData.ms(from), SyntheticData.ms(to))
         return CsvFixtures.realData(dir!!, w, nowMs = SyntheticData.ms(LocalDate.of(2026, 10, 7).atTime(9, 0)))
     }
 
-    @Test fun realNight() {
-        val d = real(RangeMode.NIGHT, LocalDate.of(2026, 10, 6))
-        snap("real_nacht_light") { Screen(d, dark = false) }
+    private val realFrom = LocalDate.of(2026, 10, 6).atTime(22, 0)
+    private val realTo = LocalDate.of(2026, 10, 7).atTime(6, 0)
+
+    @Test fun realMeasurement() {
+        val d = real(RangeMode.SPAN, realFrom, realTo)
+        snap("real_messung_light") { Screen(d, dark = false) }
+        snap("real_messung_dark") { Screen(d, dark = true) }
     }
 
-    @Test fun realNightDark() {
-        val d = real(RangeMode.NIGHT, LocalDate.of(2026, 10, 6))
-        snap("real_nacht_dark") { Screen(d, dark = true) }
-    }
-
-    @Test fun realDay() {
-        val d = real(RangeMode.DAY, LocalDate.of(2026, 10, 6))
-        snap("real_tag_6_light") { Screen(d, dark = false, highlight = "voices") }
-    }
-
-    @Test fun realWeek() {
-        val d = real(RangeMode.WEEK, LocalDate.of(2026, 10, 6))
-        snap("real_woche_dark") { Screen(d, dark = true) }
+    @Test fun realProfile() {
+        val d = real(RangeMode.PROFILE, realFrom, realTo)
+        snap("real_tagesverlauf_light") { Screen(d, dark = false, highlight = "voices") }
     }
 }

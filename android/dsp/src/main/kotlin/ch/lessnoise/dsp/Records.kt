@@ -172,7 +172,7 @@ data class NoiseEvent(
 
     /**
      * Read-time filter with the *current* floor, so that events stored before the floor existed
-     * (or with a lower one) are treated the same way everywhere (night list, chart).
+     * (or with a lower one) are treated the same way everywhere (measurement list, chart).
      */
     fun reachesFloor(floorDb: Double): Boolean = lafMaxDb >= floorDb
 }

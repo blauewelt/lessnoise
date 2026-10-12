@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 /** The optional clip hooks (filled only by the Labor build): dot accent and «Abspielen» button. */
 class ClipHooksTest {
     private val zone = SyntheticData.zone
-    private val night = Windows(zone).of(RangeMode.NIGHT, LocalDate.of(2026, 10, 9))
+    private val night = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 6, 0)))
     private val after = night.endMs + 3 * 3_600_000L
 
     private fun at(h: Int, m: Int) = SyntheticData.ms(if (h >= 12) LocalDateTime.of(2026, 10, 9, h, m) else LocalDateTime.of(2026, 10, 10, h, m))

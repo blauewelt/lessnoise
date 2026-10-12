@@ -2,7 +2,6 @@ package ch.lessnoise.dsp
 
 import ch.lessnoise.dsp.classify.ClassifierPreprocessor
 import ch.lessnoise.dsp.classify.LabelScore
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.math.log10
@@ -11,7 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class NightsAndCsvTest {
+class MeasurementsAndCsvTest {
     private val zone = ZoneId.of("Europe/Zurich")
 
     private fun ms(y: Int, mo: Int, d: Int, h: Int, mi: Int) =
@@ -27,63 +26,97 @@ class NightsAndCsvTest {
         listOf(LabelScore("Motorcycle", 0.8f)), 2, 1L, "UNPROCESSED", true,
     )
 
-    @Test
-    fun nightAssignment() {
-        assertEquals(LocalDate.of(2026, 10, 2), NightSummarizer.nightOf(ms(2026, 10, 2, 22, 0), zone))
-        assertEquals(LocalDate.of(2026, 10, 2), NightSummarizer.nightOf(ms(2026, 10, 3, 5, 59), zone))
-        assertNull(NightSummarizer.nightOf(ms(2026, 10, 3, 6, 0), zone))
-        assertNull(NightSummarizer.nightOf(ms(2026, 10, 2, 21, 59), zone))
-    }
+    private fun span(from: Long, to: Long) = MeasurementSpan(from, to)
 
     @Test
-    fun nightSummary() {
+    fun measurementSummaryUsesOnlyItsOwnTimeSpanAtAnyTimeOfDay() {
+        // A daytime measurement 14:00–14:03 (nothing about nights is special) and a later one.
         val minutes = listOf(
-            minute(ms(2026, 10, 2, 21, 59), 70.0), // evening, not night
-            minute(ms(2026, 10, 2, 22, 0), 50.0),
-            minute(ms(2026, 10, 2, 22, 1), 60.0, mapOf("loud_vehicle" to 0.5, "unclassified" to 0.5)),
-            minute(ms(2026, 10, 3, 5, 59), 50.0),
-            minute(ms(2026, 10, 3, 22, 30), 40.0), // next night (Saturday)
+            minute(ms(2026, 10, 2, 13, 59), 70.0), // before the measurement
+            minute(ms(2026, 10, 2, 14, 0), 50.0),
+            minute(ms(2026, 10, 2, 14, 1), 60.0, mapOf("loud_vehicle" to 0.5, "unclassified" to 0.5)),
+            minute(ms(2026, 10, 2, 14, 2), 50.0),
+            minute(ms(2026, 10, 3, 22, 30), 40.0), // another measurement
         )
         val events = listOf(
-            event(ms(2026, 10, 2, 23, 10), 80.0, 50.0, "loud_vehicle"), // strong (≥ bg + 15)
-            event(ms(2026, 10, 3, 1, 0), 62.0, 50.0, "road_traffic"), // not strong
-            event(ms(2026, 10, 3, 12, 0), 99.0, 50.0, "music"), // daytime: ignored
+            event(ms(2026, 10, 2, 14, 0) + 10_000, 80.0, 50.0, "loud_vehicle"), // strong (≥ bg + 15)
+            event(ms(2026, 10, 2, 14, 2) + 5_000, 62.0, 50.0, "road_traffic"), // not strong
+            event(ms(2026, 10, 2, 13, 59) + 5_000, 99.0, 50.0, "music"), // before: ignored
         )
-        val nights = NightSummarizer.summarize(minutes, events, zone)
-        assertEquals(2, nights.size)
-        assertEquals(LocalDate.of(2026, 10, 3), nights[0].nightOf) // newest first
-        val fri = nights[1]
-        assertEquals(LocalDate.of(2026, 10, 2), fri.nightOf)
-        assertEquals(180.0, fri.measuredSeconds)
-        assertEquals(8 * 3600.0, fri.nominalSeconds)
+        val first = span(ms(2026, 10, 2, 14, 0), ms(2026, 10, 2, 14, 3))
+        val second = span(ms(2026, 10, 3, 22, 30), ms(2026, 10, 3, 22, 31))
+        val list = MeasurementSummarizer.summarizeAll(listOf(first, second), minutes, events)
+        assertEquals(listOf(second, first), list.map { it.span }) // newest first
+        val m = list[1]
+        assertEquals(180.0, m.measuredSeconds)
+        assertEquals(1.0, m.coverage, 1e-12)
         val expected = 10 * log10((1e5 + 1e6 + 1e5) / 3)
-        assertEquals(expected, fri.laeqDb, 1e-9)
-        assertEquals(2, fri.eventCount)
-        assertEquals(1, fri.strongEventCount)
-        assertEquals(80.0, fri.loudestEvent!!.lafMaxDb)
-        assertEquals(mapOf("loud_vehicle" to 1, "road_traffic" to 1), fri.eventsByCategory)
-        assertEquals(1.0 / 6, fri.categoryShares.getValue("loud_vehicle"), 1e-9)
-        assertTrue(fri.allCalibrated)
+        assertEquals(expected, m.laeqDb, 1e-9)
+        assertEquals(2, m.eventCount)
+        assertEquals(1, m.strongEventCount)
+        assertEquals(80.0, m.loudestEvent!!.lafMaxDb)
+        assertEquals(mapOf("loud_vehicle" to 1, "road_traffic" to 1), m.eventsByCategory)
+        assertEquals(1.0 / 6, m.categoryShares.getValue("loud_vehicle"), 1e-9)
+        assertEquals(2 / (180.0 / 3600), m.eventsPerHour, 1e-9)
+        assertTrue(m.allCalibrated)
+        // summarize() on one span gives the same as summarizeAll().
+        assertEquals(m, MeasurementSummarizer.summarize(first, minutes, events))
     }
 
     @Test
-    fun nightSummaryAppliesEventFloorAtReadTime() {
+    fun measurementSummaryAppliesEventFloorAtReadTime() {
         val minutes = listOf(minute(ms(2026, 10, 2, 23, 0), 30.0))
         val events = listOf(
             event(ms(2026, 10, 2, 23, 10), 38.0, 22.0, "unclassified"), // keystroke-like, old event (no floor stored)
             event(ms(2026, 10, 2, 23, 20), 45.0, 22.0, "voices"), // exactly at the floor: kept
             event(ms(2026, 10, 3, 1, 0), 72.0, 30.0, "loud_vehicle"),
         )
-        val all = NightSummarizer.summarize(minutes, events, zone).single()
+        val s = span(ms(2026, 10, 2, 23, 0), ms(2026, 10, 3, 2, 0))
+        val all = MeasurementSummarizer.summarize(s, minutes, events)
         assertEquals(3, all.eventCount)
-        val floored = NightSummarizer.summarize(minutes, events, zone, eventMinLevelDb = 45.0).single()
+        val floored = MeasurementSummarizer.summarize(s, minutes, events, eventMinLevelDb = 45.0)
         assertEquals(2, floored.eventCount)
         assertEquals(mapOf("voices" to 1, "loud_vehicle" to 1), floored.eventsByCategory)
         assertEquals(72.0, floored.loudestEvent!!.lafMaxDb)
-        // A night whose only events are below the floor still exists (it has minutes) with 0 events.
-        val high = NightSummarizer.summarize(minutes, events, zone, eventMinLevelDb = 80.0).single()
+        // Only events below the floor: 0 events, no loudest.
+        val high = MeasurementSummarizer.summarize(s, minutes, events, eventMinLevelDb = 80.0)
         assertEquals(0, high.eventCount)
         assertNull(high.loudestEvent)
+    }
+
+    @Test
+    fun splitStartsANewMeasurementAfterAGapOfMoreThanTenMinutes() {
+        val t0 = ms(2026, 10, 2, 9, 0)
+        val min = 60_000L
+        val minutes = listOf(
+            // 09:00–09:03 (three minutes), then 10 min gap exactly → still the same measurement
+            t0 to 60.0, t0 + min to 60.0, t0 + 2 * min to 60.0,
+            t0 + 13 * min to 60.0,
+            // 11 min gap → a new measurement, with a partial last minute
+            t0 + 25 * min to 60.0, t0 + 26 * min to 20.5,
+        ).shuffled(java.util.Random(1))
+        val spans = MeasurementSplitter.split(minutes)
+        assertEquals(
+            listOf(MeasurementSpan(t0, t0 + 14 * min), MeasurementSpan(t0 + 25 * min, t0 + 26 * min + 20_500)),
+            spans,
+        )
+        assertTrue(MeasurementSplitter.split(emptyList()).isEmpty())
+        // A measurement over midnight and several days stays one as long as the minutes continue.
+        val long = (0 until 3 * 1440).map { ms(2026, 10, 2, 20, 0) + it * min to 60.0 }
+        assertEquals(1, MeasurementSplitter.split(long).size)
+    }
+
+    @Test
+    fun ownerIndexFindsTheMeasurementARecordBelongsTo() {
+        val starts = longArrayOf(1_000_000L, 2_000_000L, 3_000_000L)
+        assertEquals(-1, MeasurementSplitter.ownerIndex(starts, 900_000L))
+        assertEquals(0, MeasurementSplitter.ownerIndex(starts, 1_000_000L))
+        // The first minute may carry a time a few seconds before the recorded start (clock anchor).
+        assertEquals(0, MeasurementSplitter.ownerIndex(starts, 1_000_000L - 4_000))
+        assertEquals(0, MeasurementSplitter.ownerIndex(starts, 1_999_000L - MeasurementSplitter.START_TOLERANCE_MS - 1))
+        assertEquals(1, MeasurementSplitter.ownerIndex(starts, 2_500_000L))
+        assertEquals(2, MeasurementSplitter.ownerIndex(starts, Long.MAX_VALUE / 2))
+        assertEquals(-1, MeasurementSplitter.ownerIndex(LongArray(0), 5L))
     }
 
     @Test
@@ -95,7 +128,7 @@ class NightsAndCsvTest {
         } + minute(base + 30 * 60_000L, 40.0).copy(validSeconds = 10.0) // < 50 %: not counted
         val events = (0 until 12).map { event(base + it * 120_000L, 60.0, 40.0, "road_traffic") } +
             event(base + 61_000L, 35.0, 30.0, "voices") // below the floor
-        val n = NightSummarizer.summarize(minutes, events, zone, eventMinLevelDb = 45.0).single()
+        val n = MeasurementSummarizer.summarize(span(base, base + 31 * 60_000L), minutes, events, eventMinLevelDb = 45.0)
         assertEquals(24.0, n.eventsPerHour, 1e-9) // 12 events in 0.5 h of valid measurement
         // Spreads: 2, 6, 10 each ten times → median 6.
         assertEquals(6.0, n.dynamicsDb, 1e-9)

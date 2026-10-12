@@ -115,7 +115,7 @@ object SyntheticData {
         Ev(fri(4, 15), 62.0, "road_traffic"),
         Ev(fri(4, 52), 65.0, "road_traffic"),
         Ev(fri(5, 20), 63.5, "rail_tram", 9.0),
-        // "Aircraft at 06:00": the night window is [22:00, 06:00), so it starts just before.
+        // "Aircraft at 06:00": the measurement is [22:00, 06:00), so it starts just before.
         Ev(fri(5, 59, 20), 67.0, "aircraft", 25.0),
         // A wind episode around 02:10 (not counted: 18 events stay 18).
         Ev(fri(2, 5, 10), 58.0, "unclassified", 0.6, wind = true),
@@ -142,7 +142,8 @@ object SyntheticData {
         val to = friday.plusDays(1).atTime(6, 30)
         val mins = minutes(from, to, ::fridayL90, fridayEvents, gaps = listOf(fridayGap), seed = 9)
         val evs = fridayEvents.map { event(it, fridayL90(it.at)) }
-        val w = Windows(zone).of(RangeMode.NIGHT, friday)
+        // A measurement started at 22:00 and stopped at 06:00 (data around it belongs to other measurements).
+        val w = TimeWindow.span(ms(friday.atTime(22, 0)), ms(friday.plusDays(1).atTime(6, 0)))
         return ChartData(w, mins.filter { it.startEpochMs in w }, evs.filter { it.startEpochMs in w }, nowMs = ms(friday.plusDays(1).atTime(9, 0)))
     }
 
@@ -187,7 +188,7 @@ object SyntheticData {
     fun dayData(): ChartData {
         val evs = dayEvents(day, 3)
         val mins = minutes(day.atStartOfDay(), day.plusDays(1).atStartOfDay(), { dayL90(it) }, evs, seed = 3)
-        val w = Windows(zone).of(RangeMode.DAY, day)
+        val w = TimeWindow.span(ms(day.atStartOfDay()), ms(day.plusDays(1).atStartOfDay()))
         return ChartData(w, mins, evs.map { event(it, dayL90(it.at)) }, nowMs = ms(day.plusDays(1).atTime(8, 0)))
     }
 
@@ -208,12 +209,12 @@ object SyntheticData {
             allMins += minutes(date.atStartOfDay(), date.plusDays(1).atStartOfDay(), l90, evs, gaps, seed = 100 + d)
             allEvents += evs.filter { e -> gaps.none { (a, b) -> e.at >= a && e.at < b } }.map { event(it, l90(it.at)) }
         }
-        val w = Windows(zone).of(RangeMode.WEEK, weekMonday)
+        val w = TimeWindow.span(ms(weekMonday.atStartOfDay()), ms(weekMonday.plusWeeks(1).atStartOfDay()))
         return ChartData(w, allMins, allEvents.sortedBy { it.startEpochMs }, nowMs = ms(weekMonday.plusDays(8).atTime(9, 0)))
     }
 
     fun emptyNight(): ChartData {
-        val w = Windows(zone).of(RangeMode.NIGHT, LocalDate.of(2026, 9, 20))
+        val w = TimeWindow.span(ms(LocalDate.of(2026, 9, 20).atTime(22, 0)), ms(LocalDate.of(2026, 9, 21).atTime(6, 0)))
         return ChartData(w, emptyList(), emptyList(), nowMs = ms(LocalDate.of(2026, 10, 7).atTime(12, 0)))
     }
 

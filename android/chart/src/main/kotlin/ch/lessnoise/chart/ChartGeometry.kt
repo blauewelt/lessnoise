@@ -66,7 +66,6 @@ class ChartGeometry(val model: ChartModel, val plot: PlotRect) {
 
     /** Gap rectangles as (left, right) pixel pairs. */
     val gaps: List<Pair<Float, Float>> = model.gaps.map { xOf(it.span.startMs) to xOf(it.span.endMs) }
-    val nights: List<Pair<Float, Float>> = model.nightSpans.map { xOf(it.startMs) to xOf(it.endMs) }
     val gridX: List<Float> = model.gridTicks.map { xOf(it) }
     val gridY: List<Pair<Double, Float>> = model.yRange.gridlines().map { it to yOf(it) }
     val labelsX: List<Pair<String, Float>> = model.axisLabels.map { it.text to xOf(it.ms) }

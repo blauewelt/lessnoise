@@ -366,7 +366,8 @@ class DetectorV2Test {
                 emptyList(), 1, null, "UNPROCESSED", false,
             ),
         )
-        val n = NightSummarizer.summarize(minutes, events, zone, eventMinLevelDb = 30.0).single()
+        val span = MeasurementSpan(ms(23, 0), ms(23, 3))
+        val n = MeasurementSummarizer.summarize(span, minutes, events, eventMinLevelDb = 30.0)
         assertEquals(3, n.eventCount)
         assertEquals(2, n.windEventCount)
         assertEquals(31.0, n.humDb) // median of the minute L90s
@@ -374,6 +375,6 @@ class DetectorV2Test {
         assertEquals(mapOf("road_traffic" to 2, "loud_vehicle" to 1), n.eventsByCategory)
         assertEquals(3 / (180.0 / 3600), n.eventsPerHour, 1e-9)
         // Wind below the floor is not counted anywhere.
-        assertEquals(1, NightSummarizer.summarize(minutes, events, zone, eventMinLevelDb = 45.0).single().windEventCount)
+        assertEquals(1, MeasurementSummarizer.summarize(span, minutes, events, eventMinLevelDb = 45.0).windEventCount)
     }
 }

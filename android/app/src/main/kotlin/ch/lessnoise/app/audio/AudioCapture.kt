@@ -120,7 +120,7 @@ class AudioCapture(
         running = true
         registerSilencingCallback(rec)
         val isFloat = encoding == AudioFormat.ENCODING_PCM_FLOAT
-        thread = Thread({ loop(rec, isFloat) }, "stadtlaerm-capture").apply { start() }
+        thread = Thread({ loop(rec, isFloat) }, "lessnoise-capture").apply { start() }
         return info
     }
 
@@ -140,7 +140,7 @@ class AudioCapture(
             }
         }
         try {
-            val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "stadtlaerm-silence") }
+            val exec = Executors.newSingleThreadExecutor { r -> Thread(r, "lessnoise-silence") }
             callbackExecutor = exec
             rec.registerAudioRecordingCallback(exec, cb)
             recordingCallback = cb

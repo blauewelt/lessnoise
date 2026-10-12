@@ -70,7 +70,6 @@ private class ChartColors(
     val label: Color,
     val text: Color,
     val surface: Color,
-    val night: Color,
     val gapFill: Color,
     val band: Color,
     val tooltipBg: Color,
@@ -82,13 +81,13 @@ private class ChartColors(
 )
 
 /**
- * The noise chart: background band (L90–L10), LAeq line, event dots, gaps, night shading, axes,
+ * The noise chart: background band (L90–L10), LAeq line, event dots, gaps, axes,
  * crosshair and tooltip. [selection] is hoisted so that it can be driven from outside (tests).
  *
  * Gestures: a tap (or a drag shorter than 15 % of the width) selects the nearest event (within
  * 16 dp) or minute and shows the tooltip, which stays until the tooltip itself or the area outside
  * the plot is tapped; while it is open, horizontal dragging moves the crosshair. With no tooltip
- * open, a horizontal drag of ≥ 15 % of the width or a fling moves one window earlier/later.
+ * open, a horizontal drag of ≥ 15 % of the width or a fling moves to the previous/next measurement.
  * Vertical drags are left to the scrolling list.
  *
  * [onPlayClip] (Labor build only; null in the public app): events with a clip reference get a ring
@@ -119,7 +118,6 @@ fun NoiseChart(
             label = scheme.onSurfaceVariant,
             text = scheme.onSurface,
             surface = surfaceColor,
-            night = scheme.surfaceVariant.copy(alpha = 0.55f),
             gapFill = scheme.onSurfaceVariant.copy(alpha = 0.10f),
             band = palette.series1.copy(alpha = palette.bandAlpha),
             tooltipBg = scheme.surface,
@@ -239,7 +237,6 @@ private class ChartLayout(
     val xLabels: List<Pair<TextLayoutResult, Float>>,
     val gapLabel: TextLayoutResult,
     val gapLabel2: TextLayoutResult,
-    val nightLabel: TextLayoutResult?,
     val bandPaths: List<Path>,
     val linePaths: List<Path>,
     val width: Float,
@@ -281,7 +278,6 @@ private class ChartLayout(
                 g, yLabels, xLabels,
                 gapLabel = measurer.measure("keine Messung", style),
                 gapLabel2 = measurer.measure("keine\nMessung", style.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center)),
-                nightLabel = if (model.window.mode == RangeMode.DAY) measurer.measure("Nacht", style) else null,
                 bandPaths = bandPaths, linePaths = linePaths, width = width, height = height,
             )
         }
@@ -291,13 +287,7 @@ private class ChartLayout(
 private fun DrawScope.drawChart(l: ChartLayout, c: ChartColors, d: ChartDims) {
     val g = l.geometry
     val p = g.plot
-    // Night shading (22–06), then gaps.
-    for ((x0, x1) in g.nights) drawRect(c.night, Offset(x0, p.top), Size(x1 - x0, p.height))
-    l.nightLabel?.let { lab ->
-        for ((x0, x1) in g.nights) {
-            if (x1 - x0 >= lab.size.width + d.gap8) drawText(lab, topLeft = Offset((x0 + x1 - lab.size.width) / 2, p.top + d.gap4))
-        }
-    }
+    // Gaps.
     for ((x0, x1) in g.gaps) {
         drawRect(c.gapFill, Offset(x0, p.top), Size(x1 - x0, p.height))
         val choice = GapLabel.choose(x1 - x0, l.gapLabel.size.width.toFloat(), l.gapLabel2.size.width.toFloat(), d.gap8)
@@ -444,8 +434,9 @@ fun tooltipPlayClip(s: Selection?, canPlay: Boolean): String? =
 
 /** Tooltip text for a selection. */
 fun tooltipLines(s: Selection, model: ChartModel): List<String> {
-    // Night: the time is enough. Day and week: weekday and date first («Sa 10.10. 23:40:30»).
-    val fmt = TimeFmt(model.zone, withWeekday = false, withDate = model.window.mode != RangeMode.NIGHT)
+    // Within one calendar date the time is enough; across dates weekday and date first
+    // («Sa 10.10. 23:40:30»). «Tagesverlauf»: clock time only.
+    val fmt = TimeFmt(model.zone, withWeekday = false, withDate = model.withDates)
     return when (s) {
         is Selection.Point -> {
             val p = s.point
