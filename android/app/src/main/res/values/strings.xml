@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">Stadtlärm</string>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="app_name">Weniger Lärm</string>
     <string name="notif_channel_name">Messung</string>
     <string name="notif_channel_desc">Laufende Lärmmessung</string>
 </resources>

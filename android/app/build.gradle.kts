@@ -34,24 +34,25 @@ val buildDate: String = (System.getenv("SOURCE_DATE_EPOCH")?.toLongOrNull()
     ?.let { Instant.ofEpochSecond(it).atZone(ZoneId.of("Europe/Zurich")).toLocalDate() }
     ?: LocalDate.now(ZoneId.of("Europe/Zurich"))).toString()
 
-// Base URL of the contribution server (server/DESIGN.md §8). One host, HTTPS only.
-val stadtlaermApi: String = (findProperty("stadtlaerm.api") as String?)?.trimEnd('/') ?: "https://api.stadtlaerm.ch"
+// Base URL of the contribution server (server/DESIGN.md §8). One host, HTTPS only. The Gradle
+// property keeps its old name (-Pstadtlaerm.api=…) so that existing test scripts still work.
+val apiBase: String = (findProperty("stadtlaerm.api") as String?)?.trimEnd('/') ?: "https://api.lessnoise.ch"
 
 android {
-    namespace = "ch.stadtlaerm.app"
+    namespace = "ch.lessnoise.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "ch.stadtlaerm.app"
+        applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.5.1"
+        versionCode = 13
+        versionName = "0.6.0"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
-        // app/src/main/kotlin/ch/stadtlaerm/app/upload/UploadClient.kt opens connections, and only
+        // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
         // to this base URL. Override for a local test server with -Pstadtlaerm.api=https://…
-        buildConfigField("String", "STADTLAERM_API", "\"$stadtlaermApi\"")
+        buildConfigField("String", "API_BASE", "\"$apiBase\"")
         // Whether this edition offers «Messwerte teilen» at all (public: yes; offline, labor: no).
         buildConfigField("boolean", "UPLOAD_AVAILABLE", "true")
         // Which edition this is: "offline" | "karte" | "labor" | "labor-karte" (set per flavour
@@ -74,13 +75,14 @@ android {
     }
 
     // Four editions (see PRIVACY.md → «Editions» and «Labor-Build»):
-    // - offline: the default download on stadtlaerm.ch («Offline-Version»). The public app WITHOUT
+    // - offline: the default download on wenigerlaerm.ch («Weniger Lärm»). The public app WITHOUT
     //            internet: its manifest removes INTERNET and ACCESS_NETWORK_STATE, «Messwerte teilen»
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
     //            (src/public/kotlin, see sourceSets below), so it contains no recording code either.
-    // - public:  the map edition («Karten-Version», stadtlaerm-karte.apk): INTERNET only for the
-    //            opt-in «Messwerte teilen» (src/public/AndroidManifest.xml).
-    //            offline and public share the applicationId ch.stadtlaerm.app and the release key:
+    // - public:  the map edition («Weniger Lärm · Karte», release asset stadtlaerm-karte.apk):
+    //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», location only
+    //            for one fix at «Start» of a shared measurement and per report (src/public/AndroidManifest.xml).
+    //            offline and public share the applicationId ch.lessnoise.app and the release key:
     //            installing one over the other switches the edition and keeps the data.
     // - labor:   a diagnostics build that can record audio (event clips, continuous AAC) for
     //            debugging the event detector and the classifier. All recording code lives in
@@ -90,7 +92,7 @@ android {
     //            opt-in «Messwerte teilen» with INTERNET / ACCESS_NETWORK_STATE
     //            (src/laborKarte/AndroidManifest.xml). Same app id as labor, so it installs over a
     //            Labor install and keeps its measurements and recordings. Audio is never uploaded:
-    //            the upload code is the Karten-Version's (src/main/.../upload/), which reads only the
+    //            the upload code is the Karte edition's (src/main/.../upload/), which reads only the
     //            Room tables; UploadSourceIsolationTest fails if it touches files or the Labor code.
     flavorDimensions += "edition"
     productFlavors {
@@ -109,7 +111,7 @@ android {
         }
         create("labor") {
             dimension = "edition"
-            applicationId = "ch.stadtlaerm.labor"
+            applicationId = "ch.lessnoise.labor"
             versionNameSuffix = "-labor"
             // Labor keeps no network access (its manifest removes INTERNET): no upload UI, no worker.
             buildConfigField("boolean", "UPLOAD_AVAILABLE", "false")
@@ -117,7 +119,7 @@ android {
         }
         create("laborKarte") {
             dimension = "edition"
-            applicationId = "ch.stadtlaerm.labor"
+            applicationId = "ch.lessnoise.labor"
             versionNameSuffix = "-labor-karte"
             // UPLOAD_AVAILABLE stays true (defaultConfig): «Messwerte teilen», off until switched on.
             buildConfigField("String", "EDITION", "\"labor-karte\"")
@@ -229,6 +231,6 @@ tasks.withType<Test>().configureEach {
     val variant = name.removePrefix("test").removeSuffix("UnitTest").replaceFirstChar { it.lowercase() }
     systemProperty(
         "stadtlaerm.generatedDb",
-        layout.buildDirectory.dir("generated/ksp/$variant/kotlin/ch/stadtlaerm/app/data").get().asFile.absolutePath,
+        layout.buildDirectory.dir("generated/ksp/$variant/kotlin/ch/lessnoise/app/data").get().asFile.absolutePath,
     )
 }

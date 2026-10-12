@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PUBLIC edition («Karten-Version», release asset stadtlaerm-karte.apk) only; NOT merged into
+<!-- PUBLIC edition («Weniger Lärm · Karte», release asset stadtlaerm-karte.apk) only; NOT merged into
      the offline edition, which shares the Kotlin sources of src/public/ but not this manifest.
      Network access for the opt-in upload «Messwerte teilen» (server/DESIGN.md §2, §4; PRIVACY.md). Used by exactly one class, upload/UploadClient.kt, for exactly one host
-     (BuildConfig.STADTLAERM_API, https://api.stadtlaerm.ch), and only after the person switched
+     (BuildConfig.API_BASE, https://api.lessnoise.ch), and only after the person switched
      sharing on. ACCESS_NETWORK_STATE: Android requires it for background jobs that wait for a
      network («nur über WLAN»); it shows whether a connection is up and metered, nothing else.
-     Location (from v0.5.1): ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION (Android 12+ needs both
-     in one request so that the person can choose «Genau» or «Ungefähr») for the button «Standort
-     bestimmen» in «Messwerte teilen» only: one current fix while the screen is open, turned into the
-     100 m hectare on the phone (location/LocationFetcher.kt); the coordinates are neither stored nor
-     sent. Never in the background: ACCESS_BACKGROUND_LOCATION is removed in src/main. The location
+     Location (0.6.0): ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION (Android 12+ needs both in
+     one request so that the person can choose «Genau» or «Ungefähr»), used only while the app is
+     open and only for (1) one fix at «Start» of a shared measurement, turned into the 100 m cell on
+     the phone (the coordinates are neither stored nor sent), and (2) one fix for «Laut! Melden»,
+     whose exact coordinates are sent with that report and deleted from the phone once the server
+     has it (location/LocationFetcher.kt, upload/Reports.kt). Never in the background:
+     ACCESS_BACKGROUND_LOCATION is removed in src/main. The location
      hardware is optional (pasting coordinates works without it). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:name="android.hardware.location" android:required="false" />
