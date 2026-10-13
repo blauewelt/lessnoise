@@ -101,6 +101,11 @@ class ChartScreenshots {
         snap("messung_24h_synth_light") { Screen(SyntheticData.dayData(), dark = false) }
     }
 
+    /** The website's picture (docs/img/messung-tag*.png, cropped to 1082 × 1850). */
+    @Test fun messung24hSyntheticDark() {
+        snap("messung_24h_synth_dark") { Screen(SyntheticData.dayData(), dark = true) }
+    }
+
     @Test fun messung7TageSynthetic() {
         snap("messung_7tage_synth_light") { Screen(SyntheticData.weekData(), dark = false) }
     }

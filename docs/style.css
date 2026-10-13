@@ -131,11 +131,11 @@ section {
   margin-top: 0.6rem;
 }
 
-/* The night: a render of the app's chart (synthetic example data) */
-.night {
+/* A render of the app's measurement chart (synthetic example data) */
+.shot {
   margin: 2.25rem 0 0;
 }
-.night img {
+.shot img {
   display: block;
   width: 412px;
   max-width: 100%;
@@ -143,7 +143,7 @@ section {
   border: 1px solid var(--grid);
   border-radius: 12px;
 }
-.night figcaption {
+.shot figcaption {
   color: var(--muted);
   font-size: 0.9375rem;
   margin-top: 0.75rem;
