@@ -923,9 +923,9 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `../docs/`. Optionally also attach both to a GitHub Release `vX.Y.Z` (a Claude session cannot
    create releases); `../scripts/download_stats.py` reads that release's download counts.
 5. Optionally tag the commit `vX.Y.Z`.
-6. Update `../docs/index.html`: version (button note, facts, «Stand des Projekts»), and for **each** APK the
-   size in MB with a German decimal comma (decimal MB, e.g. «18,7 MB») and the SHA-256 (in 0.5.0
-   0.5.0 the placeholders were `SIZE_OFFLINE`, `SHA256_OFFLINE`, `SIZE_KARTE`, `SHA256_KARTE`).
+6. Update the version on `../docs/index.html` (the line under the download buttons) and, in
+   `../docs/anleitung.html#pruefsummen`, the version and for **each** APK the size in MB with a
+   German decimal comma (decimal MB, e.g. «18,7 MB») and the SHA-256.
 7. Update `../docs/update.html`: `data-version` and `data-code` on `<main>`, and the static «Aktuelle Version: …»
    heading (shown before the script runs).
 8. If the inline script of `update.html` changed, recompute its CSP hash:

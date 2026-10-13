@@ -34,7 +34,7 @@
     <li>Die App wertet den Ton vom Mikrofon nur im Arbeitsspeicher aus, in Stücken von höchstens etwa einer Sekunde, die laufend überschrieben werden. Audio wird nie gespeichert oder gesendet.</li>
     <li>Gespeichert werden nur Zahlen, und nur auf Ihrem Telefon: Lärmpegel pro Minute, laute Ereignisse (Zeit, Dauer, Spitzenpegel, wahrscheinliche Quelle), Kalibrierungen sowie Beginn und Ende jeder Messung.</li>
     <li>Die Erkennung der Lärmquelle läuft auf dem Telefon. Sie hält fest, welche Art von Geräusch vorkam (etwa «Stimmen»), nicht was gesagt wurde.</li>
-    <li>Die App gibt es in zwei Ausführungen. <strong>«Weniger Lärm»</strong> hat weder eine Internet- noch eine Standort-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. <strong>«Weniger Lärm · Karte»</strong> nutzt das Internet und den Standort nur für «Messwerte teilen» und «Laut! Melden» (unten); beides ist aus, bis Sie es einschalten.</li>
+    <li>Die App gibt es in zwei Ausführungen. <strong>«Weniger Lärm»</strong> hat weder eine Internet- noch eine Standort-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. <strong>«Weniger Lärm · Karte»</strong> nutzt das Internet und den Standort nur für «Teilen» und «Laut! Melden» (unten); beides ist aus, bis Sie es einschalten.</li>
     <li>Sonst – und in «Weniger Lärm» überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst als CSV-Datei exportieren und weitergeben. Bedenken Sie: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
     <li>Keine Statistikdienste, keine Absturzberichte, keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
     <li>Löschen: in der App unter «Daten» oder durch Deinstallieren. «Stadtlärm» (bis Version 0.5.1) und «Weniger Lärm» (ab 0.6.0) sind getrennte Apps: Die Daten der alten App bleiben in ihr, bis Sie sie deinstallieren.</li>
@@ -43,10 +43,10 @@
 </section>
 
 <section id="teilen">
-  <h2>«Messwerte teilen» und «Laut! Melden»</h2>
+  <h2>«Teilen» und «Laut! Melden»</h2>
   <p>Nur in «Weniger Lärm · Karte».</p>
   <ul class="features">
-    <li><strong>Einschalten:</strong> «Messwerte teilen» ist aus, bis Sie es unter «Einstellungen → Messwerte teilen» nach der Erklärung einschalten oder bei einer Meldung, solange das Teilen aus ist, «Ja, einschalten» wählen. Ausschalten stoppt das Senden sofort; noch nicht gesendete Meldungen werden dabei samt Standort verworfen.</li>
+    <li><strong>Einschalten:</strong> Das Teilen ist aus, bis Sie im Tab «Teilen» nach der Erklärung «Auf die Karte senden» einschalten oder bei einer Meldung, solange das Teilen aus ist, «Ja, einschalten» wählen. Ausschalten stoppt das Senden sofort; noch nicht gesendete Meldungen werden dabei samt Standort verworfen.</li>
     <li><strong>Standort:</strong> Die App liest ihn nur, während sie offen ist, nie im Hintergrund, jeweils einmal über die Standortdienste von Android (GPS und Netzwerk), ohne Dienste von Google oder anderen Anbietern in der App – und nur in zwei Momenten:
       <br>Beim <strong>Start einer geteilten Messung</strong> rechnet das Telefon den Standort sofort in die Hektare (100&nbsp;×&nbsp;100&nbsp;m) um. Die Koordinaten werden weder gespeichert noch gesendet; die Messung behält nur ihre Hektare. Gelingt das nicht, können Sie es nochmals versuchen, Koordinaten einfügen (ebenso nur als Hektare verwendet) oder die Messung ohne Teilen starten.
       <br>Bei <strong>«Laut! Melden»</strong> sendet die App, nachdem Sie «Senden» getippt haben, die Zeit auf die Sekunde, den genauen Standort (auf etwa einen Meter), dessen Genauigkeit und die Art des Fahrzeugs. Sobald der Server die Meldung erhalten hat, löscht das Telefon die Koordinaten; es behält nur Art, Zeit und Hektare.</li>

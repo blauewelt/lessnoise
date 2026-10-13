@@ -38,9 +38,9 @@
     <dt>«Weniger Lärm»</dt>
     <dd>Ohne Internet und ohne Standort. Ihre Messwerte verlassen das Telefon nur, wenn Sie sie selbst exportieren.</dd>
     <dt>«Weniger Lärm · Karte»</dt>
-    <dd>Sendet erst, wenn Sie «Messwerte teilen» einschalten oder etwas melden – nie Ton. Was genau, steht im <a href="datenschutz.html#teilen">Datenschutz</a>.</dd>
+    <dd>Sendet erst, wenn Sie «Auf die Karte senden» einschalten oder etwas melden – nie Ton. Was genau, steht im <a href="datenschutz.html#teilen">Datenschutz</a>.</dd>
   </dl>
-  <p>Wechseln geht jederzeit: die andere App über die installierte installieren, die Messwerte bleiben. Wer zu «Weniger Lärm» wechselt, löscht seine Daten auf dem Server vorher in «Weniger Lärm · Karte» unter «Messwerte teilen»; sonst löscht der Server sie nach 60 Tagen selbst.</p>
+  <p>Wechseln geht jederzeit: die andere App über die installierte installieren, die Messwerte bleiben. Wer zu «Weniger Lärm» wechselt, löscht seine Daten auf dem Server vorher in «Weniger Lärm · Karte» im Tab «Teilen» mit «Vom Server löschen»; sonst löscht der Server sie nach 60 Tagen selbst.</p>
   <p class="downloads"><a class="button" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a>
      <a class="button button-secondary" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a></p>
 </section>
@@ -81,10 +81,10 @@
   <h2>Messen</h2>
   <ol class="steps">
     <li>Telefon ans Fenster oder auf den Balkon legen, das Mikrofon frei.</li>
-    <li>Im Tab «Messen» auf «Messung starten» tippen. Gemessen wird zu jeder Tageszeit, auch bei ausgeschaltetem Bildschirm, bis «Messung stoppen».</li>
+    <li>Im Tab «Messen» auf «Starten» tippen. Gemessen wird zu jeder Tageszeit, auch bei ausgeschaltetem Bildschirm, bis «Stoppen».</li>
     <li>Im Tab «Messungen» die Messung als Grafik ansehen, über ihre Dauer oder als Tagesverlauf. Jedes laute Ereignis ist ein Punkt, mit Uhrzeit, Spitzenpegel und wahrscheinlicher Quelle.</li>
   </ol>
-  <p>Für lange Messungen: Ladekabel einstecken und unter «Einstellungen» auf «Akku-Optimierung öffnen» tippen und die App davon ausnehmen. Sonst kann Android die Messung anhalten.</p>
+  <p>Für lange Messungen: Ladekabel einstecken und unter «Einstellungen» auf «Akku-Optimierung ausschalten» tippen und die App davon ausnehmen. Sonst kann Android die Messung anhalten.</p>
 </section>
 
 <section id="kalibrieren">
@@ -92,10 +92,10 @@
   <p>Jedes Telefon misst etwas anders, oft um mehrere Dezibel. Genau wird es erst nach einem Vergleich mit einem Schallpegelmesser der Klasse&nbsp;1 oder&nbsp;2:</p>
   <ol class="steps">
     <li>Telefon und Messgerät nebeneinander legen, die Mikrofone wenige Zentimeter auseinander.</li>
-    <li>Ein gleichmässiges Geräusch von mindestens 60&nbsp;dB(A) abspielen, etwa Rauschen aus einem Lautsprecher. Im Tab «Kalibrieren» die Messung starten und gleichzeitig gleich lang mit dem Messgerät messen.</li>
-    <li>Den Wert des Messgeräts (LAeq, den Mittelwert über die Messdauer) eintippen und «Kalibrierung übernehmen».</li>
+    <li>Ein gleichmässiges Geräusch von mindestens 60&nbsp;dB(A) abspielen, etwa Rauschen aus einem Lautsprecher. Unter «Einstellungen → Erweitert → Kalibrieren» bei «Mit Messgerät vergleichen» auf «Messen (30 s)» tippen und gleichzeitig 30 Sekunden mit dem Messgerät messen.</li>
+    <li>Den Wert des Messgeräts (LAeq, den Mittelwert über die Messdauer) eintippen und «Übernehmen».</li>
   </ol>
-  <p>Ohne Kalibrierung sind Messwerte in der App und im Export als «unkalibriert» markiert. Weitere Methoden: <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#calibration-step-by-step">ausführliche Anleitung</a> (Englisch).</p>
+  <p>Ohne Kalibrierung sind die Werte Richtwerte (±&nbsp;5&nbsp;dB). Weitere Methoden: <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#calibration-step-by-step">ausführliche Anleitung</a> (Englisch).</p>
   <p>Haben Sie Zugang zu einem Schallpegelmesser? Ihre Kalibrierung hilft allen mit demselben Telefonmodell – schreiben Sie uns über die <a href="https://github.com/blauewelt/lessnoise/issues">Rückmeldung auf GitHub</a>.</p>
 </section>
 
@@ -103,9 +103,9 @@
   <h2>Teilen und melden</h2>
   <p>Nur in «Weniger Lärm · Karte»; beides ist aus, bis Sie es einschalten.</p>
   <ul class="features">
-    <li><strong>Messwerte teilen:</strong> unter «Einstellungen» bei «Messwerte teilen» auf «Mehr erfahren &amp; einrichten» tippen, die Erklärung lesen und einschalten. Beim Start einer Messung bestimmt das Telefon einmal den Standort; gesendet wird nur die Hektare (100&nbsp;×&nbsp;100&nbsp;m). Gesendet wird nur über WLAN, solange «Nur über WLAN» eingeschaltet ist (so beim Einschalten).</li>
+    <li><strong>Messwerte teilen:</strong> im Tab «Teilen» die Erklärung lesen, «Weiter» und «Auf die Karte senden» einschalten. Beim Start einer Messung bestimmt das Telefon einmal den Standort; gesendet wird nur das 100-m-Quadrat (100&nbsp;×&nbsp;100&nbsp;m). Gesendet wird nur über WLAN, solange «Nur über WLAN» (unter «Weitere Angaben») eingeschaltet ist.</li>
     <li><strong>Laut! Melden:</strong> im Tab «Messen», wenn keine Messung läuft, auf «Laut! Melden» tippen, wählen, was laut war (Töff, Auto, Lastwagen, Poser oder anderes), und «Senden». Die Meldung erscheint auf der <a href="karte.html">Lärmkarte</a> als Punkt an dieser Stelle, mit der auf die volle Stunde abgerundeten Zeit, ohne Angabe, wer gemeldet hat.</li>
-    <li><strong>Löschen:</strong> «Daten auf dem Server löschen» entfernt sofort alles, was das Telefon gesendet hat, auch die Meldungen.</li>
+    <li><strong>Löschen:</strong> «Vom Server löschen» im Tab «Teilen» entfernt sofort alles, was das Telefon gesendet hat, auch die Meldungen.</li>
   </ul>
   <p>Was gesendet wird und was nie: <a href="datenschutz.html#teilen">Datenschutz</a>.</p>
 </section>
@@ -113,8 +113,8 @@
 <section id="daten">
   <h2>Daten exportieren und löschen</h2>
   <ul class="features">
-    <li><strong>Exportieren:</strong> im Tab «Daten» auf «CSV exportieren &amp; teilen» tippen. Sie erhalten zwei CSV-Dateien (Minutenwerte und Ereignisse), zum Beispiel für eine Tabellenkalkulation, und wählen im Teilen-Menü von Android, wohin sie gehen.</li>
-    <li><strong>Löschen:</strong> im Tab «Daten» mit «Alle Messdaten löschen» (die Kalibrierungen bleiben) oder indem Sie die App deinstallieren. Daten auf dem Server löschen Sie unter «Messwerte teilen» (oben).</li>
+    <li><strong>Exportieren:</strong> unter «Einstellungen → Deine Messungen» auf «Exportieren» tippen. Sie erhalten zwei CSV-Dateien (Minutenwerte und Ereignisse), zum Beispiel für eine Tabellenkalkulation, und wählen im Teilen-Menü von Android, wohin sie gehen.</li>
+    <li><strong>Löschen:</strong> unter «Einstellungen → Deine Messungen» mit «Alle löschen» (die Kalibrierungen bleiben) oder indem Sie die App deinstallieren. Daten auf dem Server löschen Sie im Tab «Teilen» (oben).</li>
   </ul>
 </section>
 

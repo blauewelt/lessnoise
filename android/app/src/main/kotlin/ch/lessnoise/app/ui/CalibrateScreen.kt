@@ -128,7 +128,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                     steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
                     onValueChange = { v -> c.settings.update { it.copy(eventExcessDb = EventFloor.roundToHalf(v.toDouble())) } },
                 )
-                Text("Kleiner = mehr Spitzen. Standard 6.5 dB.", style = MaterialTheme.typography.bodySmall)
+                Text("Kleiner = mehr Spitzen. Standard 6,5 dB.", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(8.dp))
                 StatRow("Lärmspitzen erst ab", "${Fmt.db(settings.eventMinLevelDb, 1)} dB(A)")
                 Slider(
