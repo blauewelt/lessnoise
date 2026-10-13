@@ -5,9 +5,13 @@
 // Installs before 0.6.0 are «Stadtlärm» (another app id): they must not be told that the update
 // installs over them. No request leaves localhost.
 "use strict";
+const fs = require("fs");
+const path = require("path");
 const { test, expect } = require("@playwright/test");
 
 const RELEASES = "download/";
+const SCREENSHOTS_PRESENT = ["app-messung.png", "app-messung-dark.png"]
+  .every((f) => fs.existsSync(path.join(__dirname, "..", "docs", "img", f)));
 let foreign;
 let consoleErrors;
 
@@ -18,7 +22,13 @@ test.beforeEach(async ({ page }) => {
     foreign.push(route.request().url());
     return route.abort();
   });
-  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    // The home page's screenshot (img/app-messung*.png) comes from a parallel branch; until it is
+    // in docs/img/ its 404 is expected (tests/pages.spec.js checks it once it is there).
+    if (/\/img\/app-messung(-dark)?\.png$/.test(m.location().url || "") && !SCREENSHOTS_PRESENT) return;
+    consoleErrors.push(m.text());
+  });
   page.on("pageerror", (e) => consoleErrors.push(String(e)));
 });
 
@@ -140,8 +150,13 @@ test("the home page links the same two release files as update.html", async ({ p
   await expect(page.locator("#download a.button").first()).toHaveText("Weniger Lärm herunterladen");
   await expect(page.locator("#download a.button-secondary")).toHaveAttribute("href", d.karte);
   await expect(page.locator("#download a.button-secondary")).toHaveText("Weniger Lärm · Karte herunterladen");
-  // Both version strings agree.
-  await expect(page.locator(".facts")).toContainText(d.version);
-  await expect(page.locator(".facts")).toContainText("stadtlaerm.apk");
-  await expect(page.locator(".facts")).toContainText("stadtlaerm-karte.apk");
+  // Both version strings agree; the home page shows only the version line, the facts are on anleitung.html.
+  await expect(page.locator("#download .release")).toHaveText(`Version ${d.version}, Android 8 oder neuer.`);
+  await expect(page.locator(".facts")).toHaveCount(0);
+  await page.goto("/anleitung.html");
+  const hrefs2 = await page.locator(`a[href^="${RELEASES}"]`).evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+  expect(new Set(hrefs2)).toEqual(new Set([d.offline, d.karte]));
+  await expect(page.locator("#pruefsummen .facts")).toContainText(d.version);
+  await expect(page.locator("#pruefsummen .facts")).toContainText("stadtlaerm.apk");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("stadtlaerm-karte.apk");
 });

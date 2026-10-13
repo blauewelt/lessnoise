@@ -1,11 +1,17 @@
-// Browser tests of the text pages (index.html, datenschutz.html, update.html) for app 0.6.0:
-// the name is «Weniger Lärm», nothing speaks of nights any more, «Stadtlärm» appears only where
-// a sentence is about the old app, links go to blauewelt/lessnoise, Swiss spelling, and the
-// anchors that other pages link to still exist. No request leaves localhost.
+// Browser tests of the text pages (index.html, anleitung.html, datenschutz.html, update.html) for
+// app 0.6.0: the name is «Weniger Lärm», nothing speaks of nights any more, «Stadtlärm» appears only
+// where a sentence is about the old app, links go to blauewelt/lessnoise, Swiss spelling, the home
+// page stays short and links the Anleitung, and every anchor that a page or the app links to exists.
+// No request leaves localhost.
 "use strict";
+const fs = require("fs");
+const path = require("path");
 const { test, expect } = require("@playwright/test");
 
-const PAGES = ["/", "/datenschutz.html", "/update.html"];
+const DOCS = path.join(__dirname, "..", "docs");
+const PAGES = ["/", "/anleitung.html", "/datenschutz.html", "/update.html"];
+// The anchors of anleitung.html that the app (0.6.1) opens; update.html and karte.html link some of them.
+const ANLEITUNG_ANCHORS = ["version", "installation", "pruefsummen", "messen", "kalibrieren", "teilen", "daten"];
 let foreign;
 
 test.beforeEach(async ({ page }) => {
@@ -60,23 +66,87 @@ for (const path of PAGES) {
   });
 }
 
-test("the home page keeps the anchors other pages link to", async ({ page }) => {
+test("the home page keeps the anchors other pages link to, and is short", async ({ page }) => {
   await page.goto("/");
-  // karte.html: ./#app, ./#version, ./#verein; update.html: ./#version, ./#download.
-  for (const id of ["app", "melden", "download", "version", "installation", "kalibrieren", "karte", "datenschutz", "verein"]) {
+  // Every page's footer links ./#verein; the two uses, the download and the sections stay addressable.
+  for (const id of ["app", "melden", "download", "version", "karte", "datenschutz", "verein"]) {
     await expect(page.locator("#" + id), "#" + id).toHaveCount(1);
   }
+  // Installation, calibration and the checksums live on anleitung.html now.
+  await expect(page.locator("details, .facts, .hash, ol.steps")).toHaveCount(0);
   // No screenshot of the old «Nächte» screen.
   await expect(page.locator('img[src*="nacht"], source[srcset*="nacht"]')).toHaveCount(0);
 });
 
-test("the home page: the Stadtlärm 0.5.x note and the two editions", async ({ page }) => {
+test("the home page: two buttons, which to choose, the version line and the link to the Anleitung", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("#download .note")).toContainText("deinstallieren");
-  await expect(page.locator("#download .note")).toContainText("CSV");
+  await expect(page.locator("#download a.button")).toHaveCount(2);
   await expect(page.locator("#version")).toContainText("«Weniger Lärm»");
   await expect(page.locator("#version")).toContainText("«Weniger Lärm · Karte»");
-  await expect(page.locator(".facts")).toContainText("0.6.0");
+  await expect(page.locator("#download .release")).toHaveText("Version 0.6.0, Android 8 oder neuer.");
+  await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
+  await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
+});
+
+test("the home page shows the app screenshot, light and dark", async ({ page }) => {
+  await page.goto("/");
+  const fig = page.locator("#download figure.shot");
+  await expect(fig.locator('source[media="(prefers-color-scheme: dark)"]')).toHaveAttribute("srcset", "img/app-messung-dark.png");
+  await expect(fig.locator("img")).toHaveAttribute("src", "img/app-messung.png");
+  expect((await fig.locator("img").getAttribute("alt")).length).toBeGreaterThan(40);
+  // The PNGs come from a parallel branch; until they are in docs/img/ only the markup is checked.
+  const files = ["app-messung.png", "app-messung-dark.png"];
+  const missing = files.filter((f) => !fs.existsSync(path.join(DOCS, "img", f)));
+  test.skip(missing.length > 0, `not yet in docs/img/: ${missing.join(", ")}`);
+  const ok = await fig.locator("img").evaluate((img) =>
+    img.decode().then(() => img.naturalWidth > 0, () => false));
+  expect(ok, "img/app-messung.png loads").toBe(true);
+});
+
+test("the Anleitung has the anchors the app and the other pages link to", async ({ page }) => {
+  await page.goto("/anleitung.html");
+  for (const id of ANLEITUNG_ANCHORS) {
+    await expect(page.locator("#" + id), "#" + id).toHaveCount(1);
+    await expect(page.locator(`nav.toc a[href="#${id}"]`), "toc → #" + id).toHaveCount(1);
+  }
+  await expect(page.locator("#installation .note")).toContainText("deinstallieren");
+  await expect(page.locator("#installation .note")).toContainText("CSV");
+  await expect(page.locator("#installation")).toContainText("«Dateien»");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.0");
+  await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
+  await expect(page.locator("#teilen")).toContainText("Laut! Melden");
+  await expect(page.locator("#daten")).toContainText("CSV");
+});
+
+test("every link to anleitung.html#… or ./#… on any page lands on an existing element", async ({ page }) => {
+  const targets = { "anleitung.html": new Set(), "./": new Set() };
+  for (const file of fs.readdirSync(DOCS).filter((f) => f.endsWith(".html"))) {
+    const html = fs.readFileSync(path.join(DOCS, file), "utf8");
+    for (const m of html.matchAll(/href="(anleitung\.html|\.\/)#([^"]+)"/g)) targets[m[1]].add(m[2]);
+  }
+  // update.html and karte.html point to the Anleitung for «Welche App?», the installation and how to measure.
+  expect([...targets["anleitung.html"]]).toEqual(expect.arrayContaining(["version", "installation", "messen"]));
+  for (const [pagePath, ids] of [["/anleitung.html", targets["anleitung.html"]], ["/", targets["./"]]]) {
+    await page.goto(pagePath);
+    for (const id of ids) await expect(page.locator("#" + id), `${pagePath}#${id}`).toHaveCount(1);
+  }
+});
+
+test("the Anleitung has the same Content-Security-Policy as the other static pages and loads nothing else", async ({ page }) => {
+  const csp = async (p) => {
+    await page.goto(p);
+    return page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
+  };
+  const home = await csp("/");
+  expect(await csp("/datenschutz.html")).toBe(home);
+  expect(await csp("/anleitung.html")).toBe(home);
+  expect(home).toContain("default-src 'none'");
+  expect(home).not.toContain("script-src");
+  await expect(page.locator("script")).toHaveCount(0);
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
+  const hosts = await page.evaluate(() =>
+    performance.getEntriesByType("resource").map((r) => new URL(r.name).host));
+  for (const h of hosts) expect(h).toMatch(/^(localhost|127\.0\.0\.1)(:\d+)?$/);
 });
 
 test("the privacy page names every data flow of 0.6.0", async ({ page }) => {

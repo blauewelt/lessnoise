@@ -1,4 +1,4 @@
-/* Stadtlärm website. System fonts only, no external resources (part of the privacy promise). */
+/* Weniger Lärm website. System fonts only, no external resources (part of the privacy promise). */
 
 :root {
   color-scheme: light dark;
@@ -115,7 +115,7 @@ section {
   margin-top: 0.5rem;
 }
 .button:hover { text-decoration: underline; text-decoration-thickness: 2px; }
-/* The second download (Karten-Version): same size, outlined, so the default stays obvious. */
+/* The second download («Weniger Lärm · Karte»): same size, outlined, so the default stays obvious. */
 .button-secondary {
   background: transparent;
   color: var(--blue);
@@ -125,17 +125,11 @@ section {
 .editions dd { margin: 0 0 0.75rem; }
 .downloads { display: flex; flex-wrap: wrap; gap: 0 0.75rem; align-items: baseline; }
 
-.button-note {
-  color: var(--muted);
-  font-size: 0.9375rem;
-  margin-top: 0.6rem;
+/* The app screenshot on the home page (img/app-messung.png, dark variant via <picture>) */
+.shot {
+  margin: 2rem 0 0;
 }
-
-/* The night: a render of the app's chart (synthetic example data) */
-.night {
-  margin: 2.25rem 0 0;
-}
-.night img {
+.shot img {
   display: block;
   width: 412px;
   max-width: 100%;
@@ -143,7 +137,7 @@ section {
   border: 1px solid var(--grid);
   border-radius: 12px;
 }
-.night figcaption {
+.shot figcaption {
   color: var(--muted);
   font-size: 0.9375rem;
   margin-top: 0.75rem;
@@ -183,6 +177,11 @@ section {
   font-family: var(--mono);
   font-size: 0.875em;
 }
+/* Phones: label above value, so the long labels do not squeeze the hashes into a narrow column. */
+@media (max-width: 30rem) {
+  .facts { grid-template-columns: 1fr; gap: 0; }
+  .facts dd { margin-bottom: 0.5rem; }
+}
 .facts .hash {
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -215,7 +214,7 @@ footer ul {
   gap: 0.4rem 1.5rem;
 }
 
-/* ---------- Privacy page ---------- */
+/* ---------- Sub-pages (Datenschutz, Anleitung, Update) ---------- */
 
 .page-head { padding-top: 2.5rem; padding-bottom: 1rem; }
 .page-head .home { font-weight: 650; text-decoration: none; }
@@ -225,6 +224,15 @@ footer ul {
   font-weight: 800;
   letter-spacing: -0.025em;
   margin-top: 1.25rem;
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
 }
 
 @media (min-width: 48rem) {

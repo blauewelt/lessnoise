@@ -4,11 +4,13 @@ Static files served by GitHub Pages (`CNAME`: wenigerlaerm.ch). No build step. G
 spelling (ss, never ß), «Sie», guillemets, system fonts, no third-party requests — except on the
 map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the offline app) and
 «Weniger Lärm · Karte» (the map edition), and of measurements, never of nights;
-`tests/pages.spec.js` checks that for index, datenschutz and update.
+`tests/pages.spec.js` checks that for index, anleitung, datenschutz and update. The home page stays short;
+longer material goes to `anleitung.html`, whose anchors the app links (see below).
 
 | File | What |
 |---|---|
-| `index.html`, `style.css` | Home page (promise, the two uses, download with version/size/SHA-256, installation and calibration as collapsed `<details>`, map, privacy in two lines, association) and the shared stylesheet (light/dark via CSS variables) |
+| `index.html`, `style.css` | Home page (promise, the two uses, download: two buttons, which to choose, version line and a link to the Anleitung; the app screenshot; map; privacy in two lines; association) and the shared stylesheet (light/dark via CSS variables) |
+| `anleitung.html` | «Anleitung»: which app (`#version`), installation incl. the «Dateien» tip and the note for Stadtlärm 0.5.x users (`#installation`), sizes, SHA-256 and signing certificate (`#pruefsummen`), `#messen`, `#kalibrieren`, `#teilen`, `#daten`. The app (from 0.6.1) and `update.html`/`karte.html` link these anchors — keep them |
 | `datenschutz.html` | Privacy page (mirrors [../PRIVACY.md](../PRIVACY.md)) |
 | `update.html` | Update check opened by the app (`#v=…&c=…&e=offline` or `karte`; one inline script, pinned by hash in its CSP — after editing it run `python3 android/tools/csp_hash.py --write docs/update.html`). Installs older than `data-first-code` (13 = 0.6.0) are «Stadtlärm», another app id: they are told to uninstall it first |
 | `karte.html` | The noise map ([../server/DESIGN.md](../server/DESIGN.md) §7) |
@@ -16,8 +18,8 @@ map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the o
 | `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
 | `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
-| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Weniger Lärm», `stadtlaerm-karte.apk` = «Weniger Lärm · Karte». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in version, size and SHA-256 in `index.html` (`.facts`) and `data-version`/`data-code` in `update.html` |
-| `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `chart-nacht*.png` show the old «Nächte» screen of 0.5.x and are no longer linked — a new app screenshot needs a phone |
+| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Weniger Lärm», `stadtlaerm-karte.apk` = «Weniger Lärm · Karte». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in the version line in `index.html`, version, size and SHA-256 in `anleitung.html` (`#pruefsummen`, `.facts`) and `data-version`/`data-code` in `update.html` |
+| `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `app-messung.png` / `app-messung-dark.png`, the app screenshot on the home page (light and dark, via `<picture>`) |
 
 ## The map page
 
