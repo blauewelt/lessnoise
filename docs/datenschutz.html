@@ -22,22 +22,22 @@
 
 <section id="website">
   <h2>Diese Website</h2>
-  <p>wenigerlaerm.ch besteht aus wenigen statischen Seiten. Sie setzt keine Cookies und lädt nichts von Dritten – keine Schriften, keine Skripte, keine Bilder, keine Statistik- oder Analysedienste –, mit einer Ausnahme, der Lärmkarte. Das Projekt erfährt nicht, wer die Seiten besucht.</p>
+  <p>wenigerlaerm.ch besteht aus wenigen statischen Seiten. Sie setzt keine Cookies und lädt nichts von Dritten – keine Schriften, Skripte, Bilder, Statistik- oder Analysedienste –, ausser auf der Lärmkarte. Das Projekt erfährt nicht, wer die Seiten besucht.</p>
   <p>Die Seite <a href="karte.html">«Lärmkarte»</a> lädt die Kartenbilder von swisstopo (Bundesamt für Landestopografie) und die Messwerte und Meldungen vom Server des Projekts (api.lessnoise.ch, nur falls dieser nicht erreichbar ist api.stadtlaerm.ch, derselbe Server), sonst nichts von anderen Servern. Beide erfahren dabei technisch bedingt Ihre IP-Adresse. Die Seite sendet keine Herkunftsadresse (Referrer) und setzt keine Cookies; der Server des Projekts führt kein Zugriffsprotokoll.</p>
-  <p>Die Seite <a href="update.html">«Update prüfen»</a> enthält ein kleines Skript. Die App öffnet sie im Browser und hängt die installierte Version und Ausführung nach einem # an die Adresse an. Diesen Teil sendet der Browser nicht an den Server; verglichen wird nur im Browser.</p>
+  <p>Die Seite <a href="update.html">«Update prüfen»</a> enthält ein kleines Skript. Die App öffnet sie im Browser und hängt die installierte Version und Ausführung nach einem # an die Adresse; diesen Teil sendet der Browser nicht an den Server, verglichen wird nur im Browser.</p>
   <p id="download">Die Website und die App-Dateien (APK) stellt GitHub Pages bereit (GitHub, Inc.). Beim Aufruf einer Seite und beim Herunterladen verarbeitet GitHub technisch bedingt Daten wie Ihre IP-Adresse, etwa für Betrieb und Sicherheit; es gilt das <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>, ebenso für Links auf github.com, etwa zum Quellcode. Das Projekt zählt die Downloads nicht und erfährt nichts darüber.</p>
 </section>
 
 <section id="app">
   <h2>Die App</h2>
   <ul class="features">
-    <li>Der Ton vom Mikrofon wird nur im Arbeitsspeicher ausgewertet, in kleinen Zwischenspeichern von höchstens etwa einer Sekunde, die laufend überschrieben werden. Es wird nie Audio gespeichert oder gesendet.</li>
+    <li>Die App wertet den Ton vom Mikrofon nur im Arbeitsspeicher aus, in Stücken von höchstens etwa einer Sekunde, die laufend überschrieben werden. Audio wird nie gespeichert oder gesendet.</li>
     <li>Gespeichert werden nur Zahlen, und nur auf Ihrem Telefon: Lärmpegel pro Minute, laute Ereignisse (Zeit, Dauer, Spitzenpegel, wahrscheinliche Quelle), Kalibrierungen sowie Beginn und Ende jeder Messung.</li>
     <li>Die Erkennung der Lärmquelle läuft auf dem Telefon. Sie hält fest, welche Art von Geräusch vorkam (etwa «Stimmen»), nicht was gesagt wurde.</li>
     <li>Die App gibt es in zwei Ausführungen. <strong>«Weniger Lärm»</strong> hat weder eine Internet- noch eine Standort-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. <strong>«Weniger Lärm · Karte»</strong> nutzt das Internet und den Standort nur für «Messwerte teilen» und «Laut! Melden» (unten); beides ist aus, bis Sie es einschalten.</li>
-    <li>Sonst – und in «Weniger Lärm» überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst exportieren (als CSV-Datei) und weitergeben. Bedenken Sie dabei: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
+    <li>Sonst – und in «Weniger Lärm» überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst als CSV-Datei exportieren und weitergeben. Bedenken Sie: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
     <li>Keine Statistikdienste, keine Absturzberichte, keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
-    <li>Löschen können Sie die Daten in der App unter «Daten» oder indem Sie die App deinstallieren. «Stadtlärm» (bis Version 0.5.1) und «Weniger Lärm» (ab 0.6.0) sind getrennte Apps: Die Daten der alten App bleiben in ihr, bis Sie sie deinstallieren.</li>
+    <li>Löschen: in der App unter «Daten» oder durch Deinstallieren. «Stadtlärm» (bis Version 0.5.1) und «Weniger Lärm» (ab 0.6.0) sind getrennte Apps: Die Daten der alten App bleiben in ihr, bis Sie sie deinstallieren.</li>
   </ul>
   <p>Wie der Quellcode diese Zusagen umsetzt und wie man sie nachprüft, steht in <a href="https://github.com/blauewelt/lessnoise/blob/main/PRIVACY.md">PRIVACY.md</a> (Englisch).</p>
 </section>
@@ -71,7 +71,7 @@
 
 <section id="statistik">
   <h2>Öffentliche Zahlen</h2>
-  <p>Ob die Lärmkarte genutzt wird, zeigt die öffentliche Datei <a href="https://api.lessnoise.ch/v1/map/stats.json">stats.json</a> des Servers, nur mit Summen über das ganze Projekt: wie viele Geräte angemeldet sind, eine Hektare angegeben, je Messwerte geteilt haben und in den letzten 7 und 30 Tagen aktiv waren, wie viele ihre Daten gelöscht haben und wie viele der Server nach 60 Tagen ohne Messwerte gelöscht hat, wie viele Hektaren auf der Karte sind, an wie vielen Tagen Geräte Messwerte geteilt haben, wie viele aktive Geräte welche App-Version angegeben haben und wie viele Geräte sich pro Kalenderwoche angemeldet haben. Keine Kennungen, keine Orte, keine IP-Adressen.</p>
+  <p>Ob die Lärmkarte genutzt wird, zeigt die öffentliche Datei <a href="https://api.lessnoise.ch/v1/map/stats.json">stats.json</a> des Servers, nur mit Summen über das ganze Projekt. Sie zählt Geräte: angemeldet, mit Hektare, je mit geteilten Messwerten, aktiv in den letzten 7 und 30 Tagen, selbst gelöscht, nach 60 Tagen ohne Messwerte vom Server gelöscht; dazu die Hektaren auf der Karte, die Tage, an denen Geräte Messwerte geteilt haben, die aktiven Geräte je angegebener App-Version und die Anmeldungen pro Kalenderwoche. Keine Kennungen, keine Orte, keine IP-Adressen.</p>
   <p>Über «Weniger Lärm» und über «Weniger Lärm · Karte» ohne Teilen erfährt das Projekt nichts, auch nicht über Downloads.</p>
 </section>
 
@@ -88,8 +88,8 @@
     <li>Ein Projekt des <a href="./#verein">Vereins Weniger Lärm</a>, Zürich</li>
     <li><a href="./">Startseite</a></li>
     <li><a href="karte.html">Lärmkarte</a></li>
-    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a></li>
-    <li>Lizenz: <a href="https://github.com/blauewelt/lessnoise/blob/main/LICENSE">Apache-2.0</a></li>
+    <li><a href="anleitung.html">Anleitung</a></li>
+    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a> (<a href="https://github.com/blauewelt/lessnoise/blob/main/LICENSE">Apache-2.0</a>)</li>
   </ul>
 </footer>
 

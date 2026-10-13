@@ -23,74 +23,43 @@
 
 <section id="app">
   <h2>Messen, wo es laut ist</h2>
-  <p>Telefon ans Fenster oder auf den Balkon legen und «Messung starten» – zu jeder Tageszeit, so lange Sie wollen, bis «Stopp». Die App hält jeden lauten Töff und jedes laute Auto mit Uhrzeit, Spitzenpegel und wahrscheinlicher Quelle fest und zeigt jede Messung als Grafik, auch als Tagesverlauf. Alle Werte lassen sich als CSV-Datei exportieren, zum Beispiel für eine Tabellenkalkulation.</p>
+  <p>Telefon ans Fenster oder auf den Balkon legen und «Messung starten» – zu jeder Tageszeit, so lange Sie wollen. Die App hält jeden lauten Töff und jedes laute Auto mit Uhrzeit und Spitzenpegel fest und zeigt die Messung als Grafik.</p>
 </section>
 
 <section id="melden">
   <h2>Unterwegs melden</h2>
-  <p>Ein lauter Töff fährt vorbei? In «Weniger Lärm · Karte» tippen Sie auf «Laut! Melden», wählen, was laut war, und senden die Meldung mit Uhrzeit und Standort. Sie erscheint als Punkt auf der <a href="karte.html">Lärmkarte</a>, mit der auf die volle Stunde abgerundeten Zeit und ohne Angabe, wer gemeldet hat.</p>
+  <p>Ein lauter Töff fährt vorbei? In «Weniger Lärm · Karte» auf «Laut! Melden» tippen, wählen, was laut war, senden. Die Meldung erscheint als Punkt auf der <a href="karte.html">Lärmkarte</a>, ohne Angabe, wer gemeldet hat.</p>
 </section>
 
 <section id="download">
   <h2>Herunterladen</h2>
   <!-- Release checklist: both APKs live in docs/download/ (stadtlaerm.apk = «Weniger Lärm», stadtlaerm-karte.apk = «Weniger Lärm · Karte»);
-       the release step fills in version, sizes and SHA-256 in .facts below and in update.html. -->
+       the release step updates the version line below, the sizes and SHA-256 in anleitung.html#pruefsummen and update.html. -->
   <p class="downloads">
     <a class="button" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a>
     <a class="button button-secondary" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a>
   </p>
-  <p id="version">Nur für sich messen: «Weniger Lärm», ohne Internet und ohne Standort. Auch zur Lärmkarte beitragen und unterwegs melden: «Weniger Lärm · Karte». Für Android 8 oder neuer.</p>
-  <p>Nach dem Download die Datei in der App «Dateien» öffnen (Ordner «Downloads»); der Download-Dialog des Browsers verweigert das Öffnen oft.</p>
+  <p id="version">Nur für sich messen: «Weniger Lärm», ohne Internet und ohne Standort. Auch zur Lärmkarte beitragen und unterwegs melden: «Weniger Lärm · Karte».</p>
+  <p class="small"><span class="release">Version 0.6.0, Android 8 oder neuer.</span> Installation, Prüfsummen und der Umstieg von «Stadtlärm» 0.5.x: <a href="anleitung.html">Anleitung</a></p>
 
-  <div class="note">
-    <p><strong>Haben Sie noch «Stadtlärm» (0.5.x)?</strong> Ab 0.6.0 ist Weniger Lärm eine neue App und installiert sich nicht über die alte. Exportieren Sie in Stadtlärm unter «Daten» Ihre Messwerte als CSV, wenn Sie sie behalten möchten; wer geteilt hat, löscht dort unter «Messwerte teilen» die Daten auf dem Server (sonst löscht der Server sie nach 60 Tagen). Dann Stadtlärm deinstallieren und Weniger Lärm installieren.</p>
-  </div>
-
-  <dl class="facts">
-    <dt>Version</dt><dd>0.6.0 (Testversion), Android 8.0 oder neuer</dd>
-    <dt>Weniger Lärm</dt><dd>stadtlaerm.apk, 18,7 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">a4f4554050e677e74dc34cf04ff91e96190e72ec6bfdaab72c1f60194dbf1e1f</code></dd>
-    <dt>Weniger Lärm · Karte</dt><dd>stadtlaerm-karte.apk, 18,7 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">1c47612bd276f93a7ce9e5a13fc08e1a86b6d413f2acfa89d6ed8b727a5eb1f8</code></dd>
-  </dl>
-  <p class="small">Die Dateien liegen auf dieser Website (GitHub Pages); Downloads werden nicht gezählt. Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist; wie man sie und die Signatur prüft, steht in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
-
-  <details id="installation">
-    <summary>Installation Schritt für Schritt</summary>
-    <p>Die App ist noch nicht im Play Store. Sie wird direkt als Datei (APK, die Installationsdatei von Android) installiert:</p>
-    <ol class="steps">
-      <li>«Weniger Lärm» oder «Weniger Lärm · Karte» herunterladen.</li>
-      <li>Die Datei in der App «Dateien» öffnen (Ordner «Downloads»).</li>
-      <li>Falls Android fragt: für diese App «Unbekannte Apps installieren» erlauben, dann zurück und installieren.</li>
-      <li>Falls Google Play Protect warnt: «Weitere Details» antippen, dann «Trotzdem installieren».</li>
-      <li>Weniger Lärm öffnen und Mikrofon und Benachrichtigungen erlauben. Die Benachrichtigung zeigt, dass gerade gemessen wird.</li>
-      <li>Für lange Messungen: Ladekabel einstecken und in der App unter «Einstellungen» auf «Akku-Optimierung öffnen» tippen und Weniger Lärm davon ausnehmen. Sonst kann Android die Messung anhalten.</li>
-    </ol>
-    <p>Updates ab 0.6.0 installieren sich über die installierte Version und behalten die Messwerte. Zwischen «Weniger Lärm» und «Weniger Lärm · Karte» wechseln Sie genauso: die andere über die installierte installieren. Wer zu «Weniger Lärm» wechselt und seine Daten auf dem Server sofort gelöscht haben möchte, tut das vorher in «Weniger Lärm · Karte» unter «Messwerte teilen».</p>
-  </details>
-
-  <details id="kalibrieren">
-    <summary>Kalibrieren</summary>
-    <p>Jedes Telefonmikrofon misst etwas anders, oft um mehrere Dezibel. Verlässlich ist der Pegel erst nach einem Vergleich mit einem Schallpegelmesser der Klasse&nbsp;1 oder&nbsp;2:</p>
-    <ol class="steps">
-      <li>Telefon und Schallpegelmesser nebeneinander legen, die Mikrofone wenige Zentimeter auseinander.</li>
-      <li>Ein gleichmässiges Geräusch von mindestens 60&nbsp;dB(A) erzeugen, zum Beispiel Rauschen aus einem Lautsprecher. In der App unter «Kalibrieren» die Messung starten und gleichzeitig auf dem Messgerät gleich lang messen.</li>
-      <li>Den Wert des Messgeräts (LAeq, den Mittelwert über die Messdauer) eintippen und «Kalibrierung übernehmen».</li>
-    </ol>
-    <p>Messwerte ohne Kalibrierung sind in der App und im Export als «unkalibriert» markiert. Andere Methoden stehen in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#calibration-step-by-step">ausführlichen Anleitung</a> (Englisch). Wer Zugang zu einem Schallpegelmesser hat, hilft besonders: Kalibrierwerte für ein Telefonmodell nützen allen mit demselben Modell.</p>
-  </details>
+  <figure class="shot">
+    <picture>
+      <source srcset="img/app-messung-dark.png" media="(prefers-color-scheme: dark)">
+      <img src="img/app-messung.png" alt="Bildschirm «Messungen» der App: der Lärmpegel einer Messung als Kurve über die Zeit, jedes laute Ereignis als Punkt mit seinem Spitzenpegel.">
+    </picture>
+    <figcaption>Eine Messung in der App: Jeder Punkt ist ein lautes Ereignis.</figcaption>
+  </figure>
 </section>
 
 <section id="karte">
   <h2>Lärmkarte</h2>
-  <p>Die gemeinsame Karte zeigt pro Hektare (100&nbsp;×&nbsp;100&nbsp;m) die Pegel und lauten Ereignisse der letzten 7 oder 30 Tage, dazu einen Tagesverlauf über 24 Stunden und die Meldungen als Punkte. Mit «Weniger Lärm · Karte» tragen Sie bei, sobald Sie «Messwerte teilen» einschalten.</p>
-  <p><a href="karte.html">Zur Lärmkarte</a></p>
+  <p>Die gemeinsame Karte zeigt pro Hektare (100&nbsp;×&nbsp;100&nbsp;m), wie laut es in den letzten 7 oder 30 Tagen war, und die Meldungen als Punkte. <a href="karte.html">Zur Lärmkarte</a></p>
 </section>
 
 <section id="datenschutz">
   <h2>Datenschutz</h2>
-  <p>Die App nimmt nie Ton auf: Sie wertet ihn nur im Arbeitsspeicher aus und behält Pegel und Ereignisse auf Ihrem Telefon.</p>
-  <p>Daten verlassen das Telefon nur, wenn Sie es wollen: wenn Sie sie exportieren und weitergeben, oder mit «Weniger Lärm · Karte», wenn Sie «Messwerte teilen» einschalten oder etwas melden – an den Server des Projekts in der Schweiz, jederzeit löschbar. <a href="datenschutz.html">Datenschutz im Detail</a></p>
+  <p>Die App nimmt nie Ton auf; Pegel und Ereignisse bleiben auf Ihrem Telefon.</p>
+  <p>Daten verlassen es nur, wenn Sie es wollen: als Export oder mit «Weniger Lärm · Karte», wenn Sie teilen oder melden – an den Server des Projekts in der Schweiz, jederzeit löschbar. <a href="datenschutz.html">Datenschutz im Detail</a></p>
 </section>
 
 <section id="verein">
@@ -107,11 +76,11 @@
   <ul>
     <li>Ein Projekt des <a href="./#verein">Vereins Weniger Lärm</a>, Zürich</li>
     <li><a href="karte.html">Lärmkarte</a></li>
+    <li><a href="anleitung.html">Anleitung</a></li>
     <li><a href="datenschutz.html">Datenschutz</a></li>
     <li><a href="update.html">Update prüfen</a></li>
-    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a></li>
+    <li><a href="https://github.com/blauewelt/lessnoise">Quellcode</a> (<a href="https://github.com/blauewelt/lessnoise/blob/main/LICENSE">Apache-2.0</a>)</li>
     <li><a href="https://github.com/blauewelt/lessnoise/issues">Rückmeldung</a></li>
-    <li>Lizenz: <a href="https://github.com/blauewelt/lessnoise/blob/main/LICENSE">Apache-2.0</a></li>
   </ul>
 </footer>
 
