@@ -49,7 +49,8 @@ val SwissLocale: Locale = Locale("de", "CH")
 
 object Fmt {
     fun db(v: Double?, decimals: Int = 1): String =
-        if (v == null || v.isNaN() || v.isInfinite()) "–" else String.format(SwissLocale, "%.${decimals}f", v)
+        // Decimal comma everywhere (as on the website): «45,1 dB(A)». de-CH would give «45.1».
+        if (v == null || v.isNaN() || v.isInfinite()) "–" else String.format(Locale.GERMANY, "%.${decimals}f", v)
 
     private val time = DateTimeFormatter.ofPattern("HH:mm:ss", SwissLocale)
     private val hm = DateTimeFormatter.ofPattern("HH:mm", SwissLocale)
@@ -60,7 +61,7 @@ object Fmt {
     fun dateTime(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(dateTime)
 
     fun duration(seconds: Double): String = when {
-        seconds < 60 -> String.format(SwissLocale, "%.1f s", seconds)
+        seconds < 60 -> String.format(Locale.GERMANY, "%.1f s", seconds)
         seconds < 3600 -> String.format(SwissLocale, "%d min %02d s", (seconds / 60).toInt(), (seconds % 60).toInt())
         else -> String.format(SwissLocale, "%d h %02d min", (seconds / 3600).toInt(), ((seconds % 3600) / 60).toInt())
     }

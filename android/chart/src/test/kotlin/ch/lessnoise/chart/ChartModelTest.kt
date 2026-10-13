@@ -302,10 +302,10 @@ class ChartModelTest {
         assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", lines[0])
         // Two lines: time and source, then peak and duration (0.6.1).
         assertEquals(2, lines.size, lines.toString())
-        assertTrue(lines[1].startsWith("85.0 dB(A) · "), lines.toString())
+        assertTrue(lines[1].startsWith("85,0 dB(A) · "), lines.toString())
         // The Labor build keeps the detector details.
         val detailed = tooltipLines(Selection.Event(e, true), m, detailed = true)
-        assertTrue("LAFmax 85.0 dB(A)" in detailed && "unkalibriert" in detailed, detailed.toString())
+        assertTrue("LAFmax 85,0 dB(A)" in detailed && "unkalibriert" in detailed, detailed.toString())
         val minute = tooltipLines(Selection.Point(m.points.first { it.valid }), m)
         assertEquals(2, minute.size, minute.toString())
         assertTrue(minute[1].startsWith("Mittel ") && minute[1].contains(" · Spitze "), minute.toString())
@@ -381,7 +381,7 @@ class ChartModelTest {
         val lines = tooltipLines(sel, m, detailed = true)
         assertTrue(lines[0].endsWith("· $WIND_LEGEND"), lines[0])
         assertTrue(tooltipLines(sel, m)[0].endsWith("· Wind"), tooltipLines(sel, m)[0])
-        assertTrue(lines.any { it.startsWith("Lokaler Hintergrund 38.0 dB(A) (+52.0 dB)") }, lines.toString())
+        assertTrue(lines.any { it.startsWith("Lokaler Hintergrund 38,0 dB(A) (+52,0 dB)") }, lines.toString())
         assertTrue(lines.any { it.startsWith("Tieftonanteil 98 %") }, lines.toString())
         assertEquals("Wind", ChartCategories.name(WindRule.CATEGORY))
         assertTrue(ChartCategories.all.none { it.first == WindRule.CATEGORY }) // not a highlight chip

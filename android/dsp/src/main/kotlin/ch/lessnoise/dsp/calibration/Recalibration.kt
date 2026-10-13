@@ -108,11 +108,11 @@ object EventFloor {
         return Adjustment(previousOffsetDb, newOffsetDb, floorDb, unclamped, unclamped.coerceIn(minDb, maxDb))
     }
 
-    /** "+9.6", "−3.2" (minus sign), "±0.0". */
+    /** "+9,6", "−3,2" (minus sign), "±0,0" — decimal comma, as everywhere in the app. */
     fun signed(deltaDb: Double, decimals: Int = 1): String {
-        val text = String.format(java.util.Locale.ROOT, "%.${decimals}f", abs(deltaDb))
+        val text = String.format(java.util.Locale.GERMANY, "%.${decimals}f", abs(deltaDb))
         return when {
-            text.trimStart('0', '.').isEmpty() -> "±$text"
+            text.trimStart('0', ',').isEmpty() -> "±$text"
             deltaDb > 0 -> "+$text"
             else -> "−$text"
         }

@@ -1,5 +1,6 @@
 package ch.lessnoise.app.labor
 
+import java.util.Locale
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -103,11 +104,11 @@ private fun mmss(ms: Long): String {
     return String.format(SwissLocale, "%d:%02d.%d", t / 60_000, (t / 1000) % 60, (t % 1000) / 100)
 }
 
-private fun db(v: Double?): String = if (v == null || v.isNaN()) "–" else String.format(SwissLocale, "%.1f", v)
+private fun db(v: Double?): String = if (v == null || v.isNaN()) "–" else String.format(Locale.GERMANY, "%.1f", v)
 private fun pct(v: Double): String = String.format(SwissLocale, "%.0f %%", v * 100)
 
 private fun eventDuration(e: ClipEntry?): String = e?.durationS?.let {
-    if (it < 60) String.format(SwissLocale, "%.1f s", it) else String.format(SwissLocale, "%d min %02d s", (it / 60).toInt(), (it % 60).toInt())
+    if (it < 60) String.format(Locale.GERMANY, "%.1f s", it) else String.format(SwissLocale, "%d min %02d s", (it / 60).toInt(), (it % 60).toInt())
 } ?: "–"
 
 /**
@@ -443,4 +444,4 @@ private fun ClipRow(context: Context, e: ClipEntry, onClick: () -> Unit) {
     }
 }
 
-private fun mb(bytes: Long): String = String.format(SwissLocale, "%.1f MB", bytes / 1e6)
+private fun mb(bytes: Long): String = String.format(Locale.GERMANY, "%.1f MB", bytes / 1e6)

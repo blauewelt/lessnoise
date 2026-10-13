@@ -499,12 +499,12 @@ class TimeFmt(val zone: ZoneId, private val withWeekday: Boolean, private val wi
     }
 }
 
-/** Number formatting as in the rest of the app (de-CH). */
+/** Number formatting as in the rest of the app: decimal comma («45,1»). */
 object ChartFmt {
-    private val locale = Locale("de", "CH")
+    private val locale = Locale.GERMANY
     fun db(v: Double, decimals: Int = 1): String =
         if (v.isNaN() || v.isInfinite()) "–" else String.format(locale, "%.${decimals}f", v)
-    /** «60», «62.5»: whole values without decimals (the event floor moves in 0.5 dB steps). */
+    /** «60», «62,5»: whole values without decimals (the event floor moves in 0.5 dB steps). */
     fun dbCompact(v: Double): String = db(v, if (v % 1.0 == 0.0) 0 else 1)
     fun percent(v: Double): String = String.format(locale, "%.0f %%", v * 100)
     /** German decimal comma («5,5»), for the dynamics figures. */

@@ -1,5 +1,6 @@
 package ch.lessnoise.app.edition
 
+import java.util.Locale
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -449,11 +450,11 @@ private fun LaborSwitch(label: String, checked: Boolean, enabled: Boolean = true
 }
 
 private fun gbLabel(gb: Double): String =
-    if (gb < 1) String.format(SwissLocale, "%.1f GB", gb) else String.format(SwissLocale, "%.0f GB", gb)
+    if (gb < 1) String.format(Locale.GERMANY, "%.1f GB", gb) else String.format(SwissLocale, "%.0f GB", gb)
 
 private fun mb(bytes: Long): String = when {
-    bytes >= 1_000_000_000L -> String.format(SwissLocale, "%.2f GB", bytes / 1e9)
-    else -> String.format(SwissLocale, "%.1f MB", bytes / 1e6)
+    bytes >= 1_000_000_000L -> String.format(Locale.GERMANY, "%.2f GB", bytes / 1e9)
+    else -> String.format(Locale.GERMANY, "%.1f MB", bytes / 1e6)
 }
 
 /** Tries to open the folder in DocumentsUI (blocked for Android/data on many Android 11+ devices). */

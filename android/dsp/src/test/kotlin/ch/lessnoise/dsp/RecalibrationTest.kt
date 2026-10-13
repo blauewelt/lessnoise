@@ -193,9 +193,9 @@ class RecalibrationTest {
 
     @Test
     fun signedDelta() {
-        assertEquals("+9.6", EventFloor.signed(9.6))
-        assertEquals("−3.2", EventFloor.signed(-3.2))
-        assertEquals("±0.0", EventFloor.signed(0.0))
-        assertEquals("±0.0", EventFloor.signed(-0.04))
+        assertEquals("+9,6", EventFloor.signed(9.6))
+        assertEquals("−3,2", EventFloor.signed(-3.2))
+        assertEquals("±0,0", EventFloor.signed(0.0))
+        assertEquals("±0,0", EventFloor.signed(-0.04))
     }
 }

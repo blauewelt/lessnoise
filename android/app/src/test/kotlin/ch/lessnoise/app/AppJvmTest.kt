@@ -493,8 +493,8 @@ class AppJvmTest {
     fun calibrationConfirmationText() {
         val d = Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
         // 0.6.1: one short line; the event floor still follows (EventFloor), silently.
-        assertEquals("Kalibrierung gespeichert (+9.6 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0)))
-        assertEquals("Kalibrierung gespeichert (±0.0 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, 118.0, 118.0, 20.0, 70.0)))
+        assertEquals("Kalibrierung gespeichert (+9,6 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0)))
+        assertEquals("Kalibrierung gespeichert (±0,0 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, 118.0, 118.0, 20.0, 70.0)))
         assertEquals(39.5, EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0).newFloorDb)
         assertEquals("Zurückgesetzt. Die Werte sind wieder Richtwerte.", CalibrationTexts.RESET)
         assertEquals("1 Minute wird mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben.", CalibrationTexts.recalScope(1))
