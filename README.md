@@ -100,7 +100,7 @@ What the project counts, and who counts it — totals over the whole project, al
   itself with «Standort bestimmen» (location permission, one fix on tap, coordinates neither stored
   nor sent); pasting coordinates remains as a second way. The Offline-Version is unchanged and has
   no location permission.
-- **Phone app v0.6.0 (in preparation, not published):** renamed to «Weniger Lärm» (app id
+- **Phone app v0.6.0 (published 2026-10-13, the current version):** renamed to «Weniger Lärm» (app id
   `ch.lessnoise.app`, Labor `ch.lessnoise.labor`; a new app id, so it does not install over 0.5.x).
   Nothing about nights is special any more: the unit is a measurement from Start to Stop, listed
   under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared

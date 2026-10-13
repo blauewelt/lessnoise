@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 — in preparation (versionCode 13; not published)
+## 0.6.0 — 2026-10-13 (versionCode 13; published on wenigerlaerm.ch)
 
 The app is now called **«Weniger Lärm»**, nothing about nights is special any more, and in the map
 edition every shared measurement has its own place. There are no installs of 0.6.0 yet, so the

@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.5.1 published, v0.6.0 in preparation)
+# Weniger Lärm — citizen noise measurement (Android; v0.6.0 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -613,7 +613,7 @@ the website's `lv95.js`.
 
 ## Status of v0.6.0, v0.5.x and v0.4.0
 
-v0.6.0 (versionCode 13) is **in preparation, not published**: the app is renamed «Weniger Lärm»
+v0.6.0 (versionCode 13) is **published (2026-10-13)**: the app is renamed «Weniger Lärm»
 with new app ids (`ch.lessnoise.app`, `ch.lessnoise.labor`) and Kotlin packages (`ch.lessnoise.*`),
 the server host is `api.lessnoise.ch`, nights are gone in favour of measurements (database v5 → v6,
 «Messungen» tab with the «Messung»/«Tagesverlauf» chart), and the Karte editions get a location fix
