@@ -83,7 +83,7 @@ test("the home page: two buttons, which to choose, the version line and the link
   await expect(page.locator("#download a.button")).toHaveCount(2);
   await expect(page.locator("#version")).toContainText("«Weniger Lärm»");
   await expect(page.locator("#version")).toContainText("«Weniger Lärm · Karte»");
-  await expect(page.locator("#download .release")).toHaveText("Version 0.6.0, Android 8 oder neuer.");
+  await expect(page.locator("#download .release")).toHaveText("Version 0.6.1, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
 });
@@ -112,7 +112,7 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
   await expect(page.locator("#installation .note")).toContainText("deinstallieren");
   await expect(page.locator("#installation .note")).toContainText("CSV");
   await expect(page.locator("#installation")).toContainText("«Dateien»");
-  await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.0");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.1");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
   await expect(page.locator("#teilen")).toContainText("Laut! Melden");
   await expect(page.locator("#daten")).toContainText("CSV");

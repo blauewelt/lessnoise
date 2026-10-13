@@ -97,17 +97,17 @@ What the project counts, and who counts it — totals over the whole project, al
   (without wind events) with a 100 m hectare (never audio, never coordinates) to the shared noise
   map; it is off until switched on, and that is the only use of the internet permission it adds.
   Both are downloaded from the website (`docs/download/`).
-- **Phone app v0.5.1 (published 2026-10-12, the current version):** the Karten-Version determines the hectare
+- **Phone app v0.5.1 (published 2026-10-12):** the Karten-Version determines the hectare
   itself with «Standort bestimmen» (location permission, one fix on tap, coordinates neither stored
   nor sent); pasting coordinates remains as a second way. The Offline-Version is unchanged and has
   no location permission.
-- **Phone app v0.6.0 (published 2026-10-13, the current version):** renamed to «Weniger Lärm» (app id
+- **Phone app v0.6.0 (published 2026-10-13):** renamed to «Weniger Lärm» (app id
   `ch.lessnoise.app`, Labor `ch.lessnoise.labor`; a new app id, so it does not install over 0.5.x).
   Nothing about nights is special any more: the unit is a measurement from Start to Stop, listed
   under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared
   measurement gets its own 100 m cell from one location fix at Start, and «Laut! Melden» reports a
   loud moment with its exact place. Server host `api.lessnoise.ch`.
-- **Phone app v0.6.1 (in preparation, branch `streamline-app`):** «weniger Text, weniger
+- **Phone app v0.6.1 (published 2026-10-13, the current version):** «weniger Text, weniger
   Optionen» — tabs Messen · Messungen · Einstellungen (plus «Teilen» in «Weniger Lärm · Karte»);
   Kalibrieren and the two remaining detector settings under Einstellungen › Erweitert; ten
   options removed and fixed at their former defaults (see [android/CHANGELOG.md](android/CHANGELOG.md));

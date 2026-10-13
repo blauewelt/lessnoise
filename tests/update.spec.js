@@ -64,11 +64,11 @@ test("without a hash: «Weniger Lärm», and a link to «Weniger Lärm · Karte�
   await expect(page.locator("h1, .home")).toHaveText(["Weniger Lärm", "Update prüfen"]);
 });
 
-test("0.6.0 is versionCode 13, the first of the new app id", async ({ page }) => {
+test("the current version is 0.6.1 (versionCode 14); 13 (0.6.0) was the first of the new app id", async ({ page }) => {
   await page.goto("/update.html");
   const d = await pageData(page);
-  expect(d.version).toBe("0.6.0");
-  expect(d.code).toBe(13);
+  expect(d.version).toBe("0.6.1");
+  expect(d.code).toBe(14);
   expect(d.firstCode).toBe(13);
 });
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.1 — not yet published (versionCode 14)
+## 0.6.1 — 2026-10-13 (versionCode 14)
 
 **Weniger Text, weniger Optionen.** Goal: nobody who opens the app for the first time should be put
 off by explanations and settings they do not need. The texts follow the reviewed proposal (app_texts.json, written for 0.5.1 and
