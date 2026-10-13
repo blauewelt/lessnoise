@@ -23,21 +23,22 @@ class EditionTextTest {
             // Labor can store clips and hour files locally; it has no internet permission.
             assertTrue(text.contains("Weniger Lärm Labor"), text)
             assertTrue(text.contains("keine Internet-Berechtigung"), text)
-            assertFalse(text.contains("verlässt nie den Arbeitsspeicher"), text)
+            assertFalse(text.contains("nie Audio"), text)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
         } else if (BuildConfig.FLAVOR == "laborKarte") {
             // Labor with «Messwerte teilen»: must not claim «no internet», must say audio is never sent.
             assertEquals(
-                "• Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
+                "Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
                     "gespeichert werden, dazu ein Protokoll der Erkennung. " +
-                    "Nichts davon wird gesendet: «Messwerte teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
+                    "Nichts davon wird gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
                 text,
             )
             assertFalse(text.contains("keine Internet-Berechtigung"), text)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
         } else {
-            assertEquals(
-                "• Audio verlässt nie den Arbeitsspeicher: höchstens ca. 1 s wird für die Erkennung gepuffert, nichts wird gespeichert, protokolliert oder gesendet.",
-                text,
-            )
+            // Public editions: the one plain audio promise, in Datenschutz and at the microphone line on «Messen».
+            assertEquals("Es wird nie Audio gespeichert oder gesendet.", text)
+            assertEquals("Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder gesendet.", EditionUi.MIC_LINE)
         }
     }
 
@@ -65,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.6.0-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.6.1-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -85,15 +86,17 @@ class EditionTextTest {
         assertTrue(EditionInfo.summary(EditionInfo.LABOR_KARTE).contains("Audio wird nie gesendet"))
         assertNotNull(EditionInfo.switchHint(EditionInfo.LABOR_KARTE))
         assertEquals("Weniger Lärm: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
-        assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Weniger Lärm · Karte: mit «Messwerte teilen»"))
+        assertEquals("Weniger Lärm · Karte: gesendet wird nur, wenn du «Teilen» einschaltest.", EditionInfo.summary(EditionInfo.KARTE))
         // Switching: install the other APK from wenigerlaerm.ch over this one, measurements are kept.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {
             val hint = assertNotNull(EditionInfo.switchHint(e))
-            assertTrue(hint.contains("wenigerlaerm.ch über diese App"), hint)
-            assertTrue(hint.contains("Messungen bleiben erhalten"), hint)
+            assertTrue(hint.contains("wenigerlaerm.ch"), hint)
+            assertTrue(hint.contains("Messungen bleiben"), hint)
         }
         assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("«Weniger Lärm · Karte»"))
-        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("«Weniger Lärm» ohne Internet"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("ohne Internet"))
+        // Before switching away from the map edition: delete on the server (impossible afterwards).
+        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("vorher unter «Teilen» löschen"))
         // The app's old name appears in no edition text.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE, EditionInfo.LABOR, EditionInfo.LABOR_KARTE)) {
             for (t in listOf(EditionInfo.label(e), EditionInfo.summary(e), EditionInfo.switchHint(e) ?: "")) {

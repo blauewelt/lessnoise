@@ -137,21 +137,21 @@ object LocationPolicy {
 
     internal fun roundUp(m: Double): Int = maxOf(1, ceil(m).toInt())
 
-    /** «Zelle h26833_12479 · ± 12 m». */
-    fun hectareLine(cell: String, accuracyM: Int): String = "Zelle $cell · ± $accuracyM m"
+    /** «Gefunden (± 12 m)»: the cell id means nothing to people (0.6.1). */
+    fun hectareLine(@Suppress("UNUSED_PARAMETER") cell: String, accuracyM: Int): String = "Gefunden (± $accuracyM m)"
 
     /** Shown while waiting for the fix. */
     const val PROGRESS_TEXT = "Standort wird bestimmt …"
 
-    /** Why there is no usable fix, one short sentence (Swiss spelling, «du»). */
+    /** Why there is no usable fix, one short sentence (Swiss spelling, «du»); the buttons say what to do. */
     fun message(o: Outcome): String = when (o) {
         is Outcome.Hectare -> hectareLine(o.cell, o.accuracyM)
-        Outcome.ApproximateOnly -> "Nur der ungefähre Standort ist erlaubt; die App braucht «Genauer Standort»."
+        Outcome.ApproximateOnly -> "Bitte «Genauer Standort» erlauben (App-Einstellungen)."
         is Outcome.TooInaccurate ->
-            if (o.accuracyM != null) "Der Standort ist nur auf ± ${o.accuracyM} m genau." else "Das Telefon hat keine Genauigkeit angegeben."
+            "Zu ungenau" + (o.accuracyM?.let { " (± $it m)" } ?: "") + " – am Fenster mit WLAN klappt es meist besser."
         is Outcome.OutsideSwitzerland -> o.message
-        Outcome.LocationOff -> "Die Standortdienste sind ausgeschaltet."
-        Outcome.NoFix -> "In ${TIMEOUT_MS / 1000} Sekunden kam kein Standort."
-        Outcome.PermissionDenied -> "Die App hat keine Standort-Berechtigung."
+        Outcome.LocationOff -> "Der Standort des Telefons ist ausgeschaltet."
+        Outcome.NoFix -> "Kein Standort gefunden – versuch es am Fenster nochmals."
+        Outcome.PermissionDenied -> "Ohne Erlaubnis für «Genauer Standort» geht es nicht."
     }
 }

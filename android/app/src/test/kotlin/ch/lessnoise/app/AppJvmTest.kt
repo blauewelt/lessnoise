@@ -350,22 +350,41 @@ class AppJvmTest {
 
     @Test
     fun legacyThresholdIsMigratedToTheExcess() {
-        assertEquals(SettingsMigration.Result(6.5, null), SettingsMigration.migrate(10.0)) // the old default: silently
-        val custom = SettingsMigration.migrate(7.0)
-        assertEquals(3.5, custom.excessDb)
-        assertEquals(
-            "Neue Ereigniserkennung (Version 0.4): Ereignisse werden jetzt über dem lokalen Hintergrund (L90 der letzten 30 s) " +
-                "erkannt statt über dem 5-Minuten-Hintergrund. Ihre Schwelle von 7 dB wurde auf 3.5 dB über dem lokalen " +
-                "Hintergrund umgerechnet (der lokale Hintergrund liegt rund 3.5 dB höher). Einstellbar unter Einstellungen → Ereigniserkennung.",
-            custom.notice,
-        )
-        assertEquals(3.0, SettingsMigration.migrate(5.0).excessDb)
-        assertEquals(SettingsMigration.Result(6.5, null), SettingsMigration.migrate(null)) // fresh install
+        assertEquals(6.5, SettingsMigration.migrate(10.0)) // the old default
+        assertEquals(3.5, SettingsMigration.migrate(7.0))
+        assertEquals(3.0, SettingsMigration.migrate(5.0))
+        assertEquals(6.5, SettingsMigration.migrate(null)) // fresh install
         assertEquals(6.5, AppSettings().eventExcessDb)
-        assertEquals(30, AppSettings().localFloorWindowSeconds)
-        assertEquals(0.93, AppSettings().windLfShareMin)
-        assertEquals(4.5, AppSettings().windFlutterMinDb)
-        assertTrue(AppSettings().showWindEvents)
+    }
+
+    // ---- 0.6.1: removed settings are fixed at their former defaults ------------------------------
+
+    @Test
+    fun removedSettingsAreFixedDefaults() {
+        // Whatever the remaining settings are, the removed ones never change (stored values of
+        // 0.6.0 are not read: SettingsStore.read() knows only the three keys below).
+        for (s in listOf(AppSettings(), AppSettings(eventExcessDb = 3.0, eventMinLevelDb = 45.0, chartHighlightCategory = "voices"))) {
+            assertEquals(30, s.localFloorWindowSeconds)
+            assertEquals(0.93, s.windLfShareMin)
+            assertEquals(4.5, s.windFlutterMinDb)
+            assertEquals(false, s.showWindEvents)
+            assertEquals(true, s.classifierEnabled)
+            assertEquals(1, s.classifierIntervalSeconds)
+            assertEquals(true, s.classifierNormalize)
+            assertEquals(true, s.wakeLock)
+            assertEquals(false, s.stopOnTaskRemoved)
+        }
+        // The engine defaults they mirror.
+        assertEquals(ch.lessnoise.dsp.EngineConfig.DEFAULT_LOCAL_FLOOR_WINDOW_SECONDS, AppSettings().localFloorWindowSeconds.toDouble())
+        assertEquals(ch.lessnoise.dsp.WindRule.DEFAULT_LF_SHARE, AppSettings().windLfShareMin)
+        assertEquals(ch.lessnoise.dsp.WindRule.DEFAULT_FLUTTER_DB, AppSettings().windFlutterMinDb)
+        // SettingsStore reads and writes only the remaining keys.
+        val src = java.io.File("src/main/kotlin/ch/lessnoise/app/data/Repositories.kt").readText()
+        val store = src.substring(src.indexOf("class SettingsStore"), src.indexOf("/** Calibration offsets"))
+        for (key in listOf("local_floor_window_s", "wind_lf_share_min", "wind_flutter_min_db", "show_wind_events", "classifier_enabled",
+            "classifier_interval_s", "classifier_normalize", "\"wake_lock\"", "stop_on_task_removed")) {
+            assertTrue(!store.substring(store.indexOf("private fun read()")).contains(key), "SettingsStore still reads $key")
+        }
     }
 
     // ---- Re-evaluation: scope, entity mapping --------------------------------------------------
@@ -471,31 +490,51 @@ class AppJvmTest {
     // ---- Event floor follows the calibration: confirmation text ---------------------------------
 
     @Test
-    fun floorConfirmationText() {
+    fun calibrationConfirmationText() {
         val d = Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
+        // 0.6.1: one short line; the event floor still follows (EventFloor), silently.
+        assertEquals("Kalibrierung gespeichert (+9.6 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0)))
+        assertEquals("Kalibrierung gespeichert (±0.0 dB).", CalibrationTexts.saved(EventFloor.adjust(30.0, 118.0, 118.0, 20.0, 70.0)))
+        assertEquals(39.5, EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0).newFloorDb)
+        assertEquals("Zurückgesetzt. Die Werte sind wieder Richtwerte.", CalibrationTexts.RESET)
+        assertEquals("1 Minute wird mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben.", CalibrationTexts.recalScope(1))
+        assertEquals("480 Minuten werden mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben.", CalibrationTexts.recalScope(480))
+        assertEquals("480 Minuten angepasst.", CalibrationTexts.recalDone(480))
+    }
+
+    // ---- 0.6.1: plain words, the «Mehr dazu» pages -----------------------------------------------
+
+    @Test
+    fun moreLinksPointToTheWebsiteSections() {
         assertEquals(
-            "Kalibrierung gespeichert. Offset +9.6 dB gegenüber vorher; der Mindestpegel für Ereignisse wurde von 30.0 auf 39.5 dB(A) angepasst.",
-            CalibrationTexts.floorFollowed("Kalibrierung gespeichert.", EventFloor.adjust(30.0, d, d + 9.6, 20.0, 70.0)),
+            listOf(
+                "https://wenigerlaerm.ch/anleitung.html#messen", "https://wenigerlaerm.ch/anleitung.html#kalibrieren",
+                "https://wenigerlaerm.ch/anleitung.html#teilen", "https://wenigerlaerm.ch/anleitung.html#daten",
+                "https://wenigerlaerm.ch/datenschutz.html",
+            ),
+            ch.lessnoise.app.ui.Links.all,
         )
-        assertEquals(
-            "Kalibrierung gespeichert. Offset +9.6 dB gegenüber vorher; der Mindestpegel für Ereignisse wurde von 65.0 auf 70.0 dB(A) " +
-                "angepasst (begrenzt auf den Einstellbereich 20–70 dB(A); rechnerisch 74.5 dB(A)).",
-            CalibrationTexts.floorFollowed("Kalibrierung gespeichert.", EventFloor.adjust(65.0, d, d + 9.6, 20.0, 70.0)),
-        )
-        assertEquals(
-            "Kalibrierung gespeichert. Offset ±0.0 dB gegenüber vorher; der Mindestpegel für Ereignisse bleibt bei 30.0 dB(A).",
-            CalibrationTexts.floorFollowed("Kalibrierung gespeichert.", EventFloor.adjust(30.0, 118.0, 118.0, 20.0, 70.0)),
-        )
-        assertEquals(
-            "Auf Standard-Offset zurückgesetzt (unkalibriert). Offset −9.6 dB gegenüber vorher; der Mindestpegel für Ereignisse " +
-                "wurde von 39.5 auf 30.0 dB(A) angepasst.",
-            CalibrationTexts.floorFollowed("Auf Standard-Offset zurückgesetzt (unkalibriert).", EventFloor.adjust(39.5, d + 9.6, d, 20.0, 70.0)),
-        )
-        assertEquals(
-            "Betrifft 1 Minute und 12 Ereignisse mit derselben Audioquelle, aufgenommen ohne oder mit einer anderen Kalibrierung. " +
-                "Die Originalwerte bleiben gespeichert.",
-            CalibrationTexts.recalScope(1, 12),
-        )
-        assertEquals("480 Minuten und 1 Ereignis", "${CalibrationTexts.minutes(480)} und ${CalibrationTexts.events(1)}")
+    }
+
+    /**
+     * The texts people see use plain words (Mittel, Grundrauschen, Lärmspitzen, 100-m-Quadrat,
+     * Korrektur), Swiss spelling and guillemets. Checks the string literals of the public UI code
+     * (interpolated code `${…}` removed); Labor-only code and the Labor tooltip details are not checked.
+     */
+    @Test
+    fun uiTextsUsePlainWords() {
+        val files = File("src/main/kotlin/ch/lessnoise/app/ui").listFiles()!!.toList() +
+            File("src/main/kotlin/ch/lessnoise/app/edition/EditionInfo.kt") + File("src/public/kotlin/ch/lessnoise/app/edition/Edition.kt") +
+            File("../chart/src/main/kotlin/ch/lessnoise/chart/HistorySection.kt")
+        assertTrue(files.size > 10, files.toString())
+        val banned = listOf("LAeq", "L90", "L10", "LAF", "Hektare", "Ereignis", "Messwerte teilen", "unkalibriert", "Offset", "ß", "„", "Ihre ", " Sie ")
+        val offenders = files.flatMap { f ->
+            f.readLines().filterNot { it.trimStart().startsWith("//") || it.trimStart().startsWith("*") }
+                .flatMap { line -> Regex("\"((?:[^\"\\\\]|\\\\.)*)\"").findAll(line).map { it.groupValues[1] }.toList() }
+                .map { it.replace(Regex("\\$\\{[^}]*\\}"), "") }
+                .filter { lit -> banned.any { it in lit } }
+                .map { "${f.name}: $it" }
+        }
+        assertTrue(offenders.isEmpty(), offenders.joinToString("\n"))
     }
 }

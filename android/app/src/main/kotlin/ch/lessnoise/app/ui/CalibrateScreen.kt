@@ -1,6 +1,7 @@
 package ch.lessnoise.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,6 +9,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.Slider
+import androidx.compose.material3.ButtonDefaults
+import kotlinx.coroutines.flow.flowOf
+import ch.lessnoise.app.data.AppSettings
+import ch.lessnoise.dsp.calibration.EventFloor
+import ch.lessnoise.dsp.calibration.Recalibration
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -47,30 +55,37 @@ import kotlinx.coroutines.launch
 private fun parseDb(s: String): Double? = s.trim().replace(',', '.').toDoubleOrNull()
 
 fun warningText(w: CalibrationWarning): String = when (w) {
-    CalibrationWarning.UNSTEADY -> "Pegel schwankte zu stark (Standardabweichung der 1-s-Pegel > 2 dB). Gleichmässigeres Geräusch verwenden."
-    CalibrationWarning.TOO_QUIET -> "Referenzpegel unter 50 dB(A): zu nah am Eigenrauschen des Telefons. Lauteres Geräusch verwenden."
-    CalibrationWarning.FREQUENCY_OFF -> "Dominante Frequenz ist nicht 1 kHz ± 5 %. Sitzt der Kalibrator richtig?"
+    CalibrationWarning.UNSTEADY -> "Zu unruhig. Nimm ein gleichmässigeres Geräusch."
+    CalibrationWarning.TOO_QUIET -> "Zu leise (unter 50 dB(A)). Nimm ein lauteres Geräusch."
+    CalibrationWarning.FREQUENCY_OFF -> "Kein 1-kHz-Ton. Sitzt der Kalibrator richtig?"
     CalibrationWarning.NOT_TONAL -> "Signal ist kein sauberer Ton (Ankopplung prüfen, Umgebung leiser)."
-    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Offset weicht > 20 dB vom Standard ab – vermutlich ein Fehler."
-    CalibrationWarning.CLIPPING -> "Signal übersteuert (digitaler Vollausschlag): gemessener Pegel zu tief, Offset unbrauchbar. Leiseres Signal verwenden (z. B. 94 statt 114 dB)."
+    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Korrektur über 20 dB – vermutlich ein Fehler."
+    CalibrationWarning.CLIPPING -> "Zu laut für das Telefon. Nimm 94 statt 114 dB."
 }
 
 fun methodName(m: String): String = when (m) {
-    CalibrationEntity.METHOD_REFERENCE -> "Referenz-Messgerät"
-    CalibrationEntity.METHOD_CALIBRATOR -> "Akustischer Kalibrator"
-    CalibrationEntity.METHOD_MANUAL -> "Manuell"
-    CalibrationEntity.METHOD_RESET -> "Standard (zurückgesetzt)"
+    CalibrationEntity.METHOD_REFERENCE -> "Messgerät"
+    CalibrationEntity.METHOD_CALIBRATOR -> "Kalibrator"
+    CalibrationEntity.METHOD_MANUAL -> "von Hand"
+    CalibrationEntity.METHOD_RESET -> "zurückgesetzt"
     else -> m
 }
 
+/**
+ * Einstellungen › «Erweitert» (0.6.1): the two remaining detector options («Lärmspitzen») and
+ * «Kalibrieren» (formerly its own tab), including «Alte Messungen anpassen» (formerly under «Daten»).
+ */
 @Composable
-fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = viewModel()) {
+fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: CalibrationViewModel = viewModel()) {
+    BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val c = context.container
+    val settings by c.settings.state.collectAsStateWithLifecycle()
     val state by vm.state.collectAsStateWithLifecycle()
     val active by vm.active.collectAsStateWithLifecycle()
     val history by vm.history.collectAsStateWithLifecycle()
     val recal by vm.recalibration.collectAsStateWithLifecycle()
-    val live by context.container.live.collectAsStateWithLifecycle()
+    val live by c.live.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
     val requestPermission = rememberMicPermissionLauncher { granted -> if (granted) pendingMode?.let { vm.start(it) } }
@@ -78,6 +93,7 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
         if (hasMicPermission(context)) vm.start(mode) else { pendingMode = mode; requestPermission() }
     }
     val busy = state.running != null
+    val measuring = live.running || live.starting
     // Calibration must happen in the foreground: abort (unsaveable) when the app is stopped.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -88,28 +104,65 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
 
     LazyColumn(modifier.fillMaxWidth()) {
         item {
+            TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) { Text("‹ Einstellungen") }
             Text(
-                "Kalibrieren", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                "Erweitert", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
             )
+            if (live.running) {
+                Text(
+                    "Gilt ab der nächsten Messung.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+        }
+
+        // Lärmspitzen: the two detector options left (hidden here since 0.6.1). ---------------
+        item {
+            SectionCard("Lärmspitzen") {
+                StatRow("Lärmspitze ab … über Grundrauschen", "${Fmt.db(settings.eventExcessDb, 1)} dB")
+                Slider(
+                    value = settings.eventExcessDb.toFloat(),
+                    valueRange = AppSettings.EVENT_EXCESS_MIN.toFloat()..AppSettings.EVENT_EXCESS_MAX.toFloat(),
+                    steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
+                    onValueChange = { v -> c.settings.update { it.copy(eventExcessDb = EventFloor.roundToHalf(v.toDouble())) } },
+                )
+                Text("Kleiner = mehr Spitzen. Standard 6.5 dB.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                StatRow("Lärmspitzen erst ab", "${Fmt.db(settings.eventMinLevelDb, 1)} dB(A)")
+                Slider(
+                    value = settings.eventMinLevelDb.toFloat(),
+                    valueRange = AppSettings.EVENT_MIN_LEVEL_MIN.toFloat()..AppSettings.EVENT_MIN_LEVEL_MAX.toFloat(),
+                    // 0.5 dB steps: the floor follows calibrations in 0.5 dB steps.
+                    steps = ((AppSettings.EVENT_MIN_LEVEL_MAX - AppSettings.EVENT_MIN_LEVEL_MIN) * 2).toInt() - 1,
+                    onValueChange = { v -> c.settings.update { it.copy(eventMinLevelDb = EventFloor.roundToHalf(v.toDouble())) } },
+                )
+                Text("Filtert Geräusche am Telefon selbst (Tippen, Atmen). Standard 30 dB(A).", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        // Kalibrieren ---------------------------------------------------------------------------
+        item {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+                Text("Kalibrieren", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Nur nötig, wenn du ein Messgerät hast. Ohne Kalibrierung sind die Werte Richtwerte.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                MoreLink(Links.CALIBRATE)
+            }
         }
         item {
-            SectionCard("Aktuell") {
+            SectionCard {
+                val a = active
+                Text(
+                    if (a == null || !a.isCalibrated) "Nicht kalibriert (Standardwert ${Fmt.db(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, 2)} dB)."
+                    else "Kalibriert am ${Fmt.dateTime(a.createdEpochMs)}: ${Fmt.db(a.offsetDb, 2)} dB (${methodName(a.method)})",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 StatRow("Gerät", vm.deviceModel)
                 StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source))
-                val a = active
-                if (a == null || !a.isCalibrated) {
-                    StatRow("Offset", "${Fmt.db(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, 2)} dB (CDD-Standard)")
-                    Text("Unkalibriert – alle Daten werden als „unkalibriert“ markiert.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                } else {
-                    StatRow("Offset", "${Fmt.db(a.offsetDb, 2)} dB (#${a.id})")
-                    StatRow("Methode", methodName(a.method))
-                    StatRow("Datum", Fmt.dateTime(a.createdEpochMs))
-                }
-                Text(
-                    "Kalibrierungen gelten pro Gerät und Audioquelle. Jede Minute speichert die verwendete Kalibrierungs-ID.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
             }
         }
         state.message?.let { msg ->
@@ -120,59 +173,80 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
                 }
             }
         }
-        if (recal !is Recalibrator.State.Idle) {
+        // «Alte Messungen anpassen» (re-evaluation with the active calibration).
+        val calibratedNow = active?.isCalibrated == true
+        if (calibratedNow || recal !is Recalibrator.State.Idle) {
             item {
-                SectionCard("Frühere Messungen neu bewerten") { RecalibrationStatus(recal) { vm.acknowledgeRecalibration() } }
+                val a = active?.takeIf { it.isCalibrated }
+                val target = a?.let { Recalibration.Target(it.id, it.offsetDb, vm.source) }
+                val counts by remember(target) { target?.let { c.recalibrator.counts(it) } ?: flowOf(0 to 0) }
+                    .collectAsStateWithLifecycle(0 to 0)
+                val (n, m) = counts
+                val runningRecal = recal is Recalibrator.State.Running
+                var confirm by remember { mutableStateOf(false) }
+                SectionCard("Alte Messungen anpassen") {
+                    if (target != null && recal is Recalibrator.State.Idle) {
+                        Text(
+                            when {
+                                n + m == 0 -> "Alle Messungen sind schon angepasst."
+                                measuring -> "Zuerst die Messung stoppen."
+                                else -> "${CalibrationTexts.minutes(n)} noch nicht angepasst."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (n + m > 0) {
+                            Button(onClick = { confirm = true }, enabled = !measuring && !runningRecal) { Text("Anpassen") }
+                        }
+                    }
+                    RecalibrationStatus(recal) { vm.acknowledgeRecalibration() }
+                }
+                if (confirm && target != null) {
+                    RecalibrationDialog(
+                        minutes = n, measuring = measuring,
+                        onConfirm = { confirm = false; c.recalibrator.start(target) },
+                        onDismiss = { confirm = false },
+                    )
+                }
             }
         }
         if (busy) {
             item {
-                SectionCard("Messung läuft …") {
-                    Text("App im Vordergrund lassen – beim Wechsel in den Hintergrund oder bei einem Anruf wird abgebrochen.", style = MaterialTheme.typography.bodySmall)
+                SectionCard("Misst …") {
+                    Text("App offen lassen, sonst bricht die Messung ab.", style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
-                    StatRow("Verbleibend", "${state.remainingSeconds} s")
-                    StatRow("Letzte Sekunde (aktueller Offset)", "${Fmt.db(state.currentDb)} dB(A)")
+                    StatRow("Noch", "${state.remainingSeconds} s")
+                    StatRow("Jetzt", "${Fmt.db(state.currentDb)} dB(A)")
                     OutlinedButton(onClick = { vm.cancel() }) { Text("Abbrechen") }
                 }
             }
         }
 
-        // 1. Reference meter ------------------------------------------------------------------
+        // 1. Reference meter (fixed 30 s since 0.6.1) ----------------------------------------
         item {
             var reading by remember { mutableStateOf("") }
             var notes by remember { mutableStateOf("") }
-            SectionCard("1 · Vergleich mit Schallpegelmesser (empfohlen)") {
+            SectionCard("Mit Messgerät vergleichen") {
                 Text(
-                    "1. Telefon-Mikrofon direkt neben das Mikrofon eines Klasse-1/2-Schallpegelmessers halten (wenige cm).\n" +
-                        "2. Beide einem gleichmässigen Geräusch aussetzen, z. B. Rosa Rauschen aus einem Lautsprecher (≥ 60 dB(A)) oder gleichmässiger Verkehr.\n" +
-                        "3. Gleichzeitig hier und am Messgerät eine LAeq-Messung über dasselbe Zeitfenster starten.\n" +
-                        "4. Den LAeq des Messgeräts unten eintragen.",
+                    "Telefon neben das Messgerät halten, beide gleichzeitig ${state.referenceWindowSeconds} s messen, Wert unten eintragen.",
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(30, 60).forEach { s ->
-                        FilterChip(selected = state.referenceWindowSeconds == s, onClick = { vm.setReferenceWindow(s) }, label = { Text("$s s") }, enabled = !busy)
-                    }
-                }
-                Button(onClick = { startMode(CalMode.REFERENCE) }, enabled = !busy) { Text("Messung starten (${state.referenceWindowSeconds} s)") }
+                Button(onClick = { startMode(CalMode.REFERENCE) }, enabled = !busy) { Text("Messen (${state.referenceWindowSeconds} s)") }
                 state.referenceResult?.let { r ->
                     HorizontalDivider()
-                    StatRow("Gemessen (roh, Offset 0)", "${Fmt.db(r.rawLaeqDb, 2)} dB")
-                    StatRow("Mit aktuellem Offset", "${Fmt.db(r.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB))} dB(A)")
-                    StatRow("Standardabweichung 1-s-Pegel", "${Fmt.db(r.stdDevDb, 2)} dB")
+                    StatRow("Telefon", "${Fmt.db(r.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB))} dB(A)")
                     OutlinedTextField(
                         value = reading, onValueChange = { reading = it },
-                        label = { Text("LAeq des Messgeräts [dB(A)]") },
+                        label = { Text("Wert am Messgerät (dB(A))") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notizen (Messgerät, Ort, Geräusch)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
                     val ref = parseDb(reading)
                     if (ref != null) {
-                        StatRow("Neuer Offset", "${Fmt.db(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), 2)} dB")
+                        StatRow("Korrektur", "${Fmt.db(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), 2)} dB")
                     }
                     vm.referenceWarnings(ref).forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { ref?.let { vm.saveReference(it, notes); reading = ""; notes = "" } }, enabled = ref != null) { Text("Kalibrierung übernehmen") }
+                    Button(onClick = { ref?.let { vm.saveReference(it, notes); reading = ""; notes = "" } }, enabled = ref != null) { Text("Übernehmen") }
                 }
             }
         }
@@ -180,29 +254,23 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
         // 2. Acoustic calibrator -------------------------------------------------------------
         item {
             var notes by remember { mutableStateOf("") }
-            SectionCard("2 · Akustischer Kalibrator (1 kHz)") {
-                Text(
-                    "Kalibrator (94 dB oder 114 dB bei 1 kHz) dicht auf das Telefon-Mikrofon setzen. Telefon-Mikrofone brauchen dafür " +
-                        "einen passenden Adapter (z. B. Gummi-Kuppler); ohne dichte Ankopplung ist das Ergebnis falsch. Messdauer 10 s.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            SectionCard("Mit Kalibrator (1 kHz)") {
+                Text("Kalibrator mit Adapter dicht aufs Mikrofon setzen.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(94.0, 114.0).forEach { v ->
                         FilterChip(selected = state.calibratorNominalDb == v, onClick = { vm.setCalibratorNominal(v) }, label = { Text("${v.toInt()} dB") }, enabled = !busy)
                     }
                 }
-                Button(onClick = { startMode(CalMode.CALIBRATOR) }, enabled = !busy) { Text("Kalibrator messen (10 s)") }
+                Button(onClick = { startMode(CalMode.CALIBRATOR) }, enabled = !busy) { Text("Messen (10 s)") }
                 state.calibratorResult?.let { r ->
                     HorizontalDivider()
                     StatRow("Frequenz", "${Fmt.db(r.toneFrequencyHz, 0)} Hz")
-                    StatRow("Tonalität", r.tonality?.let { Fmt.percent(it) } ?: "–")
-                    StatRow("Gemessen (roh)", "${Fmt.db(r.rawLaeqDb, 2)} dB")
-                    StatRow("Neuer Offset", "${Fmt.db(CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb), 2)} dB")
+                    StatRow("Korrektur", "${Fmt.db(CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb), 2)} dB")
                     val warnings = vm.calibratorWarnings()
                     warnings.forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     val blocking = CalibrationWarning.FREQUENCY_OFF in warnings || CalibrationWarning.NOT_TONAL in warnings
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notizen (Kalibrator, Adapter)") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { vm.saveCalibrator(notes); notes = "" }, enabled = !blocking) { Text("Kalibrierung übernehmen") }
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = { vm.saveCalibrator(notes); notes = "" }, enabled = !blocking) { Text("Übernehmen") }
                 }
             }
         }
@@ -211,32 +279,18 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
         item {
             var offset by remember { mutableStateOf("") }
             var notes by remember { mutableStateOf("") }
-            SectionCard("3 · Offset manuell eingeben") {
-                Text("Z. B. aus einer Kalibrierung mit einem anderen Gerät derselben Bauart oder aus einer früheren Export-Datei.", style = MaterialTheme.typography.bodySmall)
+            SectionCard("Korrektur von Hand") {
                 OutlinedTextField(
-                    value = offset, onValueChange = { offset = it }, label = { Text("Offset [dB]") },
+                    value = offset, onValueChange = { offset = it }, label = { Text("Korrektur (dB)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notizen / Herkunft") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
                 val v = parseDb(offset)
                 if (v != null && CalibrationMath.implausible(v)) {
                     Text("⚠ " + warningText(CalibrationWarning.IMPLAUSIBLE_OFFSET), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 Button(onClick = { v?.let { vm.saveManual(it, notes); offset = ""; notes = "" } }, enabled = v != null && !busy) { Text("Speichern") }
-            }
-        }
-
-        // Noise floor ------------------------------------------------------------------------
-        item {
-            SectionCard("Eigenrauschen prüfen") {
-                Text(
-                    "20 s am ruhigsten verfügbaren Ort messen. Das Ergebnis ist die untere Grenze dessen, was dieses Telefon messen kann; " +
-                        "Pegel in dieser Nähe sind nicht aussagekräftig.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Button(onClick = { startMode(CalMode.NOISE_FLOOR) }, enabled = !busy) { Text("Eigenrauschen messen (20 s)") }
-                state.noiseFloorDb?.let { StatRow("Eigenrauschen LAeq", "${Fmt.db(it)} dB(A)") }
             }
         }
 
@@ -246,8 +300,8 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
                         scope.launch { shareFiles(context, listOf(vm.exportHistory()), "application/json", "Weniger Lärm Kalibrierungen") }
-                    }) { Text("Als JSON exportieren") }
-                    TextButton(onClick = { vm.resetToDefault() }, enabled = !busy) { Text("Auf Standard") }
+                    }) { Text("Exportieren") }
+                    TextButton(onClick = { vm.resetToDefault() }, enabled = !busy) { Text("Zurücksetzen") }
                 }
                 if (history.isEmpty()) Text("Noch keine Kalibrierungen.", style = MaterialTheme.typography.bodySmall)
             }
@@ -255,8 +309,8 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
         items(history, key = { it.id }) { h ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                 Text(
-                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${Fmt.db(h.offsetDb, 2)} dB · ${h.audioSource}" +
-                        (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
+                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${Fmt.db(h.offsetDb, 2)} dB · " +
+                        AudioSourceSelector.labelDe(h.audioSource) + (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -266,7 +320,7 @@ fun CalibrateScreen(modifier: Modifier = Modifier, vm: CalibrationViewModel = vi
 
     state.recalOffer?.let { offer ->
         RecalibrationDialog(
-            minutes = offer.minutes, events = offer.events, measuring = live.running || live.starting,
+            minutes = offer.minutes, measuring = measuring,
             onConfirm = { vm.confirmRecalibration() }, onDismiss = { vm.dismissRecalibration() },
         )
     }

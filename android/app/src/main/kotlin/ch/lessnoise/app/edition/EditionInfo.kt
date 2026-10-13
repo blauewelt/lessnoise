@@ -33,28 +33,28 @@ object EditionInfo {
         else -> edition
     }
 
-    /** Line in Einstellungen → App-Version: which edition is installed. */
+    /** Line in Einstellungen › «Über die App»: which edition is installed. */
     fun summary(edition: String): String = when (edition) {
         OFFLINE -> "Weniger Lärm: ohne Internet und ohne Standort."
-        KARTE -> "Weniger Lärm · Karte: mit «Messwerte teilen» und «Melden» für die Lärmkarte (aus, bis du es einschaltest)."
+        KARTE -> "Weniger Lärm · Karte: gesendet wird nur, wenn du «Teilen» einschaltest."
         LABOR -> "Weniger Lärm Labor: kann Audio aufzeichnen, wird nicht veröffentlicht."
         LABOR_KARTE ->
-            "Weniger Lärm Labor · Karte: kann Audio aufzeichnen und hat «Messwerte teilen» (Audio wird nie gesendet). Wird nicht veröffentlicht."
+            "Weniger Lärm Labor · Karte: kann Audio aufzeichnen und hat «Teilen» (Audio wird nie gesendet). Wird nicht veröffentlicht."
         else -> edition
     }
 
     /**
-     * How to switch to the other published edition; null for Labor (it is a separate app), one
-     * short sentence for the Labor edition with the map.
+     * How to switch to the other published edition (install it over this one; the measurements
+     * stay); null for Labor (a separate app). For the Karte edition it keeps the one thing that
+     * cannot be done later: delete the server data first.
      */
     fun switchHint(edition: String): String? = when (edition) {
-        OFFLINE ->
-            "Für die Lärmkarte «Weniger Lärm · Karte» von wenigerlaerm.ch über diese App installieren; die Messungen bleiben erhalten."
+        OFFLINE -> "Für die Lärmkarte: «Weniger Lärm · Karte» von wenigerlaerm.ch installieren. Deine Messungen bleiben."
         KARTE ->
-            "Zurück zu «Weniger Lärm» ohne Internet: von wenigerlaerm.ch über diese App installieren; die Messungen bleiben erhalten. " +
-                "Deine Daten auf dem Server vorher unter «Messwerte teilen» löschen, sonst löscht sie der Server nach 60 Tagen ohne neue Werte."
+            "Version ohne Internet: auf wenigerlaerm.ch. Deine Messungen bleiben. " +
+                "Daten auf dem Server vorher unter «Teilen» löschen, sonst löscht sie der Server nach 60 Tagen."
         LABOR_KARTE ->
-            "Interne Testversion. «Weniger Lärm Labor» ohne Internet kann über diese App installiert werden; Messungen und Aufnahmen bleiben erhalten."
+            "Interne Testversion. «Weniger Lärm Labor» ohne Internet kann über diese App installiert werden; Messungen und Aufnahmen bleiben."
         else -> null
     }
 

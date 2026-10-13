@@ -30,9 +30,15 @@ object EditionClips {
 
 /** Edition-specific UI. Public: nothing. */
 object EditionUi {
-    /** First bullet of «Über Weniger Lärm & Datenschutz»: what this edition does with audio. */
-    const val ABOUT_AUDIO =
-        "• Audio verlässt nie den Arbeitsspeicher: höchstens ca. 1 s wird für die Erkennung gepuffert, nichts wird gespeichert, protokolliert oder gesendet."
+    /**
+     * First line of Einstellungen › «Datenschutz»: what this edition does with audio. (The details —
+     * at most about 1 s is buffered in working memory for the detection, nothing is stored, logged
+     * or sent — are in PRIVACY.md and on wenigerlaerm.ch/datenschutz.html.)
+     */
+    const val ABOUT_AUDIO = "Es wird nie Audio gespeichert oder gesendet."
+
+    /** The microphone line on «Messen» before the first start: the moment of the microphone consent. */
+    const val MIC_LINE = "Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder gesendet."
 
     /** Hosted once at the app root (Labor: the clip player). */
     @Composable
@@ -46,7 +52,7 @@ object EditionUi {
     @Composable
     fun SettingsSection() {}
 
-    /** Marker after an event in «Letzte Ereignisse» (Labor: a red dot if a clip exists, tap plays it). */
+    /** Marker after an event in «Letzte Lärmspitzen» (Labor: a red dot if a clip exists, tap plays it). */
     @Composable
     fun EventMarker(@Suppress("UNUSED_PARAMETER") eventId: Long) {}
 }

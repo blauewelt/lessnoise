@@ -33,6 +33,7 @@ data class CalUiState(
     /** Last 1 s level with the currently active offset (live feedback). */
     val currentDb: Double? = null,
     val referenceResult: CalibrationResult? = null,
+    /** Fixed at 30 s since 0.6.1 (was 30 | 60 s). */
     val referenceWindowSeconds: Int = 30,
     val calibratorResult: CalibrationResult? = null,
     val calibratorNominalDb: Double = 94.0,
@@ -45,10 +46,6 @@ data class CalUiState(
 data class RecalOffer(val target: Recalibration.Target, val minutes: Int, val events: Int)
 
 class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
-    private companion object {
-        const val SAVED = "Kalibrierung gespeichert."
-    }
-
     private val c = app.container
     val source: String = AudioSourceSelector.select(app)
     val deviceModel: String = ch.lessnoise.app.data.CalibrationRepository.deviceModel
@@ -66,13 +63,12 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
 
     private val activeOffset: Double get() = active.value?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
 
-    fun setReferenceWindow(seconds: Int) { _state.value = _state.value.copy(referenceWindowSeconds = seconds) }
     fun setCalibratorNominal(db: Double) { _state.value = _state.value.copy(calibratorNominalDb = db) }
 
     fun start(mode: CalMode) {
         if (_state.value.running != null) return
         if (c.live.value.running || c.live.value.starting) {
-            _state.value = _state.value.copy(message = "Bitte zuerst die laufende Messung stoppen.")
+            _state.value = _state.value.copy(message = "Zuerst die Messung stoppen.")
             return
         }
         val seconds = when (mode) {
@@ -106,7 +102,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (r.shouldStop) viewModelScope.launch { finish(mode) }
-        }, onError = { msg -> viewModelScope.launch { abort("Aufnahmefehler: $msg") } },
+        }, onError = { msg -> viewModelScope.launch { abort("Mikrofon-Fehler: $msg") } },
             onSilenced = { silenced ->
                 r.onMicSilenced(silenced)
                 if (r.shouldStop) viewModelScope.launch { finish(mode) }
@@ -178,9 +174,9 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * A calibration with [newOffset] has just become active (previously [previousOffset]): the
      * event floor follows it (see [EventFloor]); for a real calibration, offer to re-evaluate
-     * earlier measurements. [prefix] is the first sentence of the confirmation.
+     * earlier measurements.
      */
-    private suspend fun activated(prefix: String, id: Long, previousOffset: Double, newOffset: Double, calibrated: Boolean) {
+    private suspend fun activated(id: Long, previousOffset: Double, newOffset: Double, calibrated: Boolean) {
         var adjustment: EventFloor.Adjustment? = null
         c.settings.update { s ->
             val a = EventFloor.adjust(s.eventMinLevelDb, previousOffset, newOffset, AppSettings.EVENT_MIN_LEVEL_MIN, AppSettings.EVENT_MIN_LEVEL_MAX)
@@ -192,7 +188,8 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             val (minutes, events) = c.recalibrator.counts(target).first()
             if (minutes + events > 0) RecalOffer(target, minutes, events) else null
         } else null
-        _state.update { it.copy(message = CalibrationTexts.floorFollowed(prefix, adjustment!!), recalOffer = offer) }
+        val message = if (calibrated) CalibrationTexts.saved(adjustment!!) else CalibrationTexts.RESET
+        _state.update { it.copy(message = message, recalOffer = offer) }
     }
 
     fun saveReference(referenceDb: Double, notes: String) = viewModelScope.launch {
@@ -205,7 +202,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             durationSeconds = r.measuredSeconds, warnings = referenceWarnings(referenceDb).map { it.name },
         )
         _state.update { it.copy(referenceResult = null) }
-        activated(SAVED, id, previous, offset, calibrated = true)
+        activated(id, previous, offset, calibrated = true)
     }
 
     fun saveCalibrator(notes: String) = viewModelScope.launch {
@@ -220,7 +217,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             warnings = calibratorWarnings().map { it.name },
         )
         _state.update { it.copy(calibratorResult = null) }
-        activated(SAVED, id, previous, offset, calibrated = true)
+        activated(id, previous, offset, calibrated = true)
     }
 
     fun saveManual(offsetDb: Double, notes: String) = viewModelScope.launch {
@@ -229,15 +226,15 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             source, offsetDb, CalibrationEntity.METHOD_MANUAL, notes,
             warnings = if (CalibrationMath.implausible(offsetDb)) listOf(CalibrationWarning.IMPLAUSIBLE_OFFSET.name) else emptyList(),
         )
-        activated(SAVED, id, previous, offsetDb, calibrated = true)
+        activated(id, previous, offsetDb, calibrated = true)
     }
 
     fun resetToDefault() = viewModelScope.launch {
         val previous = currentOffset()
-        val id = c.calibrations.save(source, Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, CalibrationEntity.METHOD_RESET, "Zurückgesetzt auf CDD-Standard")
+        val id = c.calibrations.save(source, Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, CalibrationEntity.METHOD_RESET, "")
         // Back to uncalibrated: the floor follows, but nothing is re-evaluated (that would mark
         // uncalibrated data as calibrated).
-        activated("Auf Standard-Offset zurückgesetzt (unkalibriert).", id, previous, Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, calibrated = false)
+        activated(id, previous, Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, calibrated = false)
     }
 
     // ---- Re-evaluating earlier measurements ----------------------------------------------------

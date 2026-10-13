@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.6.1 — not yet published (versionCode 14)
+
+**Weniger Text, weniger Optionen.** Goal: nobody who opens the app for the first time should be put
+off by explanations and settings they do not need. The texts follow the reviewed proposal (app_texts.json, written for 0.5.1 and
+applied to 0.6.0 by meaning), about half the words of 0.6.0; nothing about what is measured, stored
+or sent changes.
+
+- **Tabs:** Messen · Messungen · Einstellungen, plus **Teilen** in «Weniger Lärm · Karte» (was a card
+  and a sub-screen in Einstellungen). «Kalibrieren» moved to **Einstellungen › Erweitert**, together
+  with «Alte Messungen anpassen» (was under «Daten») and the two remaining detector settings.
+  «Daten» became the card **«Deine Messungen»** (counts, «Exportieren», «Alle löschen»).
+- **Einstellungen:** «Lange messen» (button «Akku-Optimierung ausschalten»), «Deine Messungen»,
+  «Über die App» (version, edition, how to switch, «Update prüfen»), «Datenschutz», «Erweitert ›».
+- **Removed options, now fixed at their former defaults** (values stored by 0.6.0 are ignored):
+  «Lokaler Hintergrund: Fenster» (30 s); wind «Anteil 20–200 Hz mindestens» (93 %) and «Flattern
+  mindestens» (4.5 dB); «Wind-Ereignisse in der Grafik zeigen» (now never drawn; never counted, as
+  before); «Klassifikation (YAMNet)» (always on); classifier «Intervall» (1 s); «Pegelanpassung für
+  Klassifikator» (on); «CPU während der Messung wach halten (Wake-Lock)» (on); «Messung beenden,
+  wenn die App geschlossen wird» (off: keeps running); calibration comparison window 30 | 60 s (30 s).
+  The detector and classifier behave exactly as 0.6.0 with default settings.
+- **Hidden under Erweitert:** «Lärmspitze ab … über Grundrauschen» (6.5 dB) and «Lärmspitzen erst
+  ab» (30 dB(A), follows calibrations). Under «Teilen» › «Weitere Angaben»: «Nur über WLAN» (on),
+  «Noch zu senden»; under «Wo steht das Telefon?» › «Weitere Angaben»: Stockwerk, Notiz.
+- **Messen:** before the start one placement hint and one microphone line («Die App braucht das
+  Mikrofon. Es wird nie Audio gespeichert oder gesendet.»), «Starten»; while measuring «Jetzt»,
+  «Grundrauschen», «Klingt nach», «Stoppen», «Läuft seit … Der Bildschirm darf aus sein.», «Letzte
+  Lärmspitzen» (time, peak, source). Gone: the «kalibriert/unkalibriert» chip, the two other
+  background values, the AudioSet labels and percentages, the «Letzte volle Minute» card, the
+  measuring-chain line, the one-time notice of the 0.4 threshold migration.
+- **Messungen:** legend «Mittel pro Minute», «Schwankung», «andere Spitzen»; tiles «Grundrauschen»,
+  «Lärmspitzen … pro Stunde», «Lauteste»; one summary line «Mittel … · n Lärmspitzen, davon k … ·
+  p % gemessen» (no dynamics, no gap list); two-line tooltips (the Labor build keeps the detector
+  details); no «unkalibriert»/«nachträglich kalibriert» badges; «Tagesverlauf» offered only for
+  measurements of 24 h or more. «Unklassifiziert» → «Sonstiges».
+- **Plain words** everywhere: Mittel, Grundrauschen, Lärmspitzen, 100-m-Quadrat, Korrektur (for the
+  calibration offset); «du»; Swiss spelling. Notification «Letzte Minute: … dB(A)». Error messages
+  say what to do. «Mehr dazu» links open wenigerlaerm.ch/anleitung.html#messen, #kalibrieren,
+  #teilen, #daten and /datenschutz.html in the browser (no request by the app itself).
+- **Teilen:** «Auf die Lärmkarte», one sentence why, the explanation in short lists (what is sent,
+  location, never sent, where — now including that a 100 m square where nobody else measures shows
+  your values, server/DESIGN.md §2 rule 2 —, deleting), «Weiter», afterwards behind «Was gesendet
+  wird ▸». Switch «Auf die Karte senden». «Vom Server löschen»; «Neu starten» (was «Neue Kennung»)
+  only when the server no longer knows the phone. One message for every retried upload failure.
+  The first «Laut! Melden» consent also says that the point appears on the map and that reporting
+  often from the same spot makes it visible (DESIGN.md §2 rule 10).
+- **Tests:** removed settings fixed (and not read from storage), plain-word check on the UI string
+  literals, «Mehr dazu» link targets, the new texts. JVM screenshots for the website from synthetic
+  data: `docs/img/app-messung.png`, `app-messung-dark.png` (chart) and `app-messen.png` (Messen while
+  measuring; the app module now applies the Paparazzi plugin for this one test).
+
 ## 0.6.0 — 2026-10-13 (versionCode 13; published on wenigerlaerm.ch)
 
 The app is now called **«Weniger Lärm»**, nothing about nights is special any more, and in the map

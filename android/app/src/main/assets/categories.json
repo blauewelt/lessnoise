@@ -5,7 +5,7 @@
   "top1_threshold": 0.10,
   "category_threshold": 0.20,
   "tie_margin": 0.0,
-  "fallback": { "id": "unclassified", "name_de": "Sonstiges / unklassifiziert" },
+  "fallback": { "id": "unclassified", "name_de": "Sonstiges" },
   "categories": [
     {
       "id": "loud_vehicle",

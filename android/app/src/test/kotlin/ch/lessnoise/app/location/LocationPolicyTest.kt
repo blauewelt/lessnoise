@@ -89,7 +89,7 @@ class LocationPolicyTest {
 
     @Test
     fun textsAreShortSwissGermanAndTrue() {
-        assertEquals("Zelle h26828_12455 · ± 12 m", LocationPolicy.message(Outcome.Hectare("h26828_12455", 12)))
+        assertEquals("Gefunden (± 12 m)", LocationPolicy.message(Outcome.Hectare("h26828_12455", 12)))
         assertEquals("Standort wird bestimmt …", LocationPolicy.PROGRESS_TEXT)
         val outcomes = listOf(
             Outcome.Hectare("h26828_12455", 12), Outcome.ApproximateOnly, Outcome.TooInaccurate(140), Outcome.TooInaccurate(null),
@@ -106,7 +106,7 @@ class LocationPolicyTest {
         }
         assertTrue(LocationPolicy.message(Outcome.ApproximateOnly).contains("«Genauer Standort»"))
         assertTrue(LocationPolicy.message(Outcome.TooInaccurate(140)).contains("± 140 m"))
-        assertTrue(LocationPolicy.message(Outcome.NoFix).contains("30 Sekunden"))
+        assertTrue(LocationPolicy.message(Outcome.NoFix).contains("Kein Standort"))
         // The exact place leaves the phone only with a report; location is never read in the background.
         for (part in listOf("genauer Standort", "Meldung", "nie im Hintergrund")) assertTrue(LOCATION_NEVER_SENT.contains(part), part)
     }

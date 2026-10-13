@@ -1,44 +1,25 @@
 package ch.lessnoise.app.ui
 
-import ch.lessnoise.app.data.AppSettings
 import ch.lessnoise.dsp.calibration.EventFloor
-import java.util.Locale
 
 /** German UI texts around calibration changes (pure Kotlin, unit-tested). */
 object CalibrationTexts {
-    private fun one(v: Double): String = String.format(Locale.ROOT, "%.1f", v)
-    private fun whole(v: Double): String = String.format(Locale.ROOT, "%.0f", v)
-
     /**
-     * «Kalibrierung gespeichert. Offset +9.6 dB gegenüber vorher; der Mindestpegel für Ereignisse
-     * wurde von 30.0 auf 39.5 dB(A) angepasst.» [prefix] is the first sentence.
+     * After saving: «Kalibrierung gespeichert (+9.6 dB).» — the change of the correction against the
+     * previous one. The event floor follows silently (EventFloor); since 0.6.1 it is not reported.
      */
-    fun floorFollowed(prefix: String, a: EventFloor.Adjustment): String {
-        val offset = "Offset ${EventFloor.signed(a.deltaDb)} dB gegenüber vorher"
-        val floor = when {
-            !a.changed && a.clamped ->
-                "der Mindestpegel für Ereignisse bleibt bei ${one(a.newFloorDb)} dB(A) (Grenze des Einstellbereichs " +
-                    "${whole(AppSettings.EVENT_MIN_LEVEL_MIN)}–${whole(AppSettings.EVENT_MIN_LEVEL_MAX)} dB(A); rechnerisch ${one(a.unclampedFloorDb)} dB(A))"
-            !a.changed -> "der Mindestpegel für Ereignisse bleibt bei ${one(a.newFloorDb)} dB(A)"
-            a.clamped ->
-                "der Mindestpegel für Ereignisse wurde von ${one(a.oldFloorDb)} auf ${one(a.newFloorDb)} dB(A) angepasst " +
-                    "(begrenzt auf den Einstellbereich ${whole(AppSettings.EVENT_MIN_LEVEL_MIN)}–${whole(AppSettings.EVENT_MIN_LEVEL_MAX)} dB(A); " +
-                    "rechnerisch ${one(a.unclampedFloorDb)} dB(A))"
-            else -> "der Mindestpegel für Ereignisse wurde von ${one(a.oldFloorDb)} auf ${one(a.newFloorDb)} dB(A) angepasst"
-        }
-        return "$prefix $offset; $floor."
-    }
+    fun saved(a: EventFloor.Adjustment): String = "Kalibrierung gespeichert (${EventFloor.signed(a.deltaDb)} dB)."
+
+    /** After «Zurücksetzen». */
+    const val RESET = "Zurückgesetzt. Die Werte sind wieder Richtwerte."
 
     fun minutes(n: Int): String = if (n == 1) "1 Minute" else "$n Minuten"
-    fun events(n: Int): String = if (n == 1) "1 Ereignis" else "$n Ereignisse"
 
-    const val RECAL_QUESTION = "Frühere Messungen mit dieser Kalibrierung neu bewerten?"
+    const val RECAL_QUESTION = "Alte Messungen anpassen?"
 
-    /** «Betrifft n Minuten und m Ereignisse mit derselben Audioquelle, …» */
-    fun recalScope(minutes: Int, events: Int): String =
-        "Betrifft ${minutes(minutes)} und ${events(events)} mit derselben Audioquelle, aufgenommen ohne oder mit einer " +
-            "anderen Kalibrierung. Die Originalwerte bleiben gespeichert."
+    /** «n Minuten werden mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben.» */
+    fun recalScope(minutes: Int): String =
+        "${minutes(minutes)} ${if (minutes == 1) "wird" else "werden"} mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben."
 
-    fun recalDone(minutes: Int, events: Int, calibrationId: Long, offsetDb: Double): String =
-        "${minutes(minutes)} und ${events(events)} mit Kalibrierung #$calibrationId (Offset ${String.format(Locale.ROOT, "%.2f", offsetDb)} dB) neu bewertet."
+    fun recalDone(minutes: Int): String = "${minutes(minutes)} angepasst."
 }

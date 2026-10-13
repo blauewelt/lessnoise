@@ -34,6 +34,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.lessnoise.dsp.EventShape
+import ch.lessnoise.dsp.WindRule
 import kotlin.math.abs
 
 /** Pixel sizes of the chart, resolved from dp once per density. */
@@ -142,7 +143,7 @@ fun NoiseChart(
             ChartLayout.build(model, widthPx, heightPx, dims, measurer, labelStyle)
         }
         val tooltip = remember(selection, model, tipStyle, buttonStyle, canPlay) {
-            selection?.let { tooltipLines(it, model) }?.let { lines ->
+            selection?.let { tooltipLines(it, model, detailed = canPlay) }?.let { lines ->
                 val clipRef = tooltipPlayClip(selection, canPlay)
                 Tip(
                     lines.mapIndexed { i, s ->
@@ -432,13 +433,23 @@ const val PLAY_CLIP_LABEL = "Abspielen"
 fun tooltipPlayClip(s: Selection?, canPlay: Boolean): String? =
     if (canPlay && s is Selection.Event) s.clipRef else null
 
-/** Tooltip text for a selection. */
-fun tooltipLines(s: Selection, model: ChartModel): List<String> {
+/**
+ * Tooltip text for a selection: two lines (time, Mittel and Spitze; or time, source, peak and
+ * duration). [detailed]: the Labor build's detector diagnostics as before 0.6.1 (L10/L90, local
+ * floor, shape, rise, model label, calibration state).
+ */
+fun tooltipLines(s: Selection, model: ChartModel, detailed: Boolean = false): List<String> {
     // Within one calendar date the time is enough; across dates weekday and date first
     // («Sa 10.10. 23:40:30»). «Tagesverlauf»: clock time only.
     val fmt = TimeFmt(model.zone, withWeekday = false, withDate = model.withDates)
     return when (s) {
-        is Selection.Point -> {
+        is Selection.Point -> if (!detailed) {
+            val p = s.point
+            listOf(
+                if (model.hourly) "${fmt.hm(p.startMs)}–${TimeFmt(model.zone, false).hm(p.endMs)}" else fmt.hm(p.startMs),
+                "Mittel ${ChartFmt.db(p.laeq)} dB(A) · Spitze ${ChartFmt.db(p.lafMax)} dB(A)",
+            )
+        } else {
             val p = s.point
             buildList {
                 add(if (model.hourly) "${fmt.hm(p.startMs)}–${TimeFmt(model.zone, false).hm(p.endMs)}" else fmt.hm(p.startMs))
@@ -448,7 +459,13 @@ fun tooltipLines(s: Selection, model: ChartModel): List<String> {
                 if (!p.calibrated) add("unkalibriert") else if (p.recalibrated) add(RECALIBRATED)
             }
         }
-        is Selection.Event -> {
+        is Selection.Event -> if (!detailed) {
+            val e = s.event
+            listOf(
+                "${fmt.hms(e.startEpochMs)} · ${if (e.wind) WindRule.NAME_DE else ChartCategories.name(e.dominantCategory)}",
+                "${ChartFmt.db(e.lafMaxDb)} dB(A) · ${ChartFmt.duration(e.durationSeconds)}",
+            )
+        } else {
             val e = s.event
             val f = e.features
             buildList {

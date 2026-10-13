@@ -67,7 +67,7 @@ fun MeasurementsScreen(modifier: Modifier = Modifier, vm: HistoryViewModel = vie
         val w: TimeWindow? = window
         when {
             list == null -> item { Text("Lade …", Modifier.padding(16.dp)) }
-            list.isEmpty() || w == null -> item { Text("Noch keine Messungen.", Modifier.padding(16.dp)) }
+            list.isEmpty() || w == null -> item { Text("Noch keine Messung. Starte eine unter «Messen».", Modifier.padding(16.dp)) }
             else -> {
                 item {
                     HistorySection(
@@ -129,14 +129,11 @@ private fun MeasurementCard(item: MeasurementItem, selected: Boolean, onClick: (
             }
         }
         StatRow("Dauer", Fmt.hoursMinutes(m.span.durationMs))
-        StatRow("Mittel", "${Fmt.db(s.laeqDb)} dB(A)" + if (s.allCalibrated) "" else " (unkalibriert)")
+        StatRow("Mittel", "${Fmt.db(s.laeqDb)} dB(A)")
         StatRow("Grundrauschen", "${Fmt.db(s.humDb)} dB(A)")
         StatRow(
             "Lärmspitzen pro Stunde",
             if (s.eventsPerHour.isNaN()) "–" else ChartFmt.comma(s.eventsPerHour, if (s.eventsPerHour < 10) 1 else 0),
         )
-        if (s.anyRecalibrated) {
-            Text("nachträglich kalibriert", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }

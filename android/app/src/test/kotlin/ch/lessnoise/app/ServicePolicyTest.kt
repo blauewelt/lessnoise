@@ -14,7 +14,7 @@ import kotlin.test.assertNull
 class ServicePolicyTest {
 
     @Test
-    fun measurementKeepsRunningByDefaultWhenTheAppIsSwipedAway() {
+    fun measurementKeepsRunningWhenTheAppIsSwipedAway() {
         assertFalse(AppSettings().stopOnTaskRemoved)
         val default = AppSettings().stopOnTaskRemoved
         assertEquals(Action.KEEP_RUNNING, TaskRemovedPolicy.onTaskRemoved(default, running = true, starting = false))
@@ -32,11 +32,12 @@ class ServicePolicyTest {
     @Test
     fun notificationTexts() {
         assertEquals("Mikrofon aktiv – Messung läuft", MeasurementNotification.TITLE)
-        assertEquals("LAeq (1 min): 42,3 dB(A)", MeasurementNotification.text(42.26, calibrated = true, silenced = false))
-        assertEquals("LAeq (1 min): 42,3 dB(A) · unkalibriert", MeasurementNotification.text(42.26, calibrated = false, silenced = false))
+        assertEquals("Letzte Minute: 42,3 dB(A)", MeasurementNotification.text(42.26, calibrated = true, silenced = false))
+        // «unkalibriert» is no longer shown (0.6.1: «Richtwerte» is said once, in Datenschutz).
+        assertEquals("Letzte Minute: 42,3 dB(A)", MeasurementNotification.text(42.26, calibrated = false, silenced = false))
         assertEquals(MeasurementNotification.SILENCED, MeasurementNotification.text(42.0, calibrated = true, silenced = true))
         assertEquals(
-            "LAeq (1 min): 42,3 dB(A) · Aufnahme läuft",
+            "Letzte Minute: 42,3 dB(A) · Aufnahme läuft",
             MeasurementNotification.text(42.26, calibrated = true, silenced = false, note = "Aufnahme läuft"),
         )
     }

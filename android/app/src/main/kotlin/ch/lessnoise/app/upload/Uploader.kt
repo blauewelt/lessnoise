@@ -115,8 +115,9 @@ class Uploader(
         if (!s.canEnable) return false
         val now = clock()
         store.update {
-            // The very first time, the last 7 days are included (the explanation says so); after
-            // that, nothing measured while sharing was off is ever sent.
+            // The very first time, shared measurements of the last 7 days are included (normally
+            // none exist yet: a measurement is shared only if started while sharing was on); after
+            // that, nothing measured while sharing was off is ever sent (the explanation says so).
             val floor = if (it.sendFloorMs == 0L && !it.registered) now - MAX_AGE_MS else now
             it.copy(enabled = true, sendFloorMs = maxOf(it.sendFloorMs, floor), lastError = null)
         }
@@ -238,16 +239,16 @@ class Uploader(
             store.update { it.copy(authFailed = true, lastError = AUTH_FAILED_TEXT) }
             return Outcome.AuthFailed
         } catch (e: UploadClient.Failure.RateLimited) {
-            store.update { it.copy(lastError = "Server ausgelastet, später erneut.") }
+            store.update { it.copy(lastError = RETRY_TEXT) }
             return Outcome.Retry(e.message ?: "429")
         } catch (e: UploadClient.Failure.Rejected) {
             store.update { it.copy(lastError = "Vom Server abgelehnt (${e.status}).") }
             return Outcome.Failed(e.message ?: e.status.toString())
         } catch (e: UploadClient.Failure.Server) {
-            store.update { it.copy(lastError = "Serverfehler (${e.status}), später erneut.") }
+            store.update { it.copy(lastError = RETRY_TEXT) }
             return Outcome.Retry(e.message ?: e.status.toString())
         } catch (e: IOException) {
-            store.update { it.copy(lastError = "Keine Verbindung zum Server, später erneut.") }
+            store.update { it.copy(lastError = RETRY_TEXT) }
             return Outcome.Retry(e.javaClass.simpleName)
         }
     }
@@ -374,12 +375,13 @@ class Uploader(
         /**
          * Shown while the server refuses the token (401). The usual reason: the server deletes a
          * device's data after 60 days without uploads (server/DESIGN.md §2.9). No silent
-         * re-registration: the user chooses «Neue Kennung».
+         * re-registration: the user chooses «Neu starten» (a new random id, see [newIdentity]).
          */
         const val AUTH_FAILED_TEXT =
-            "Der Server kennt diese Kennung nicht mehr. Meist heisst das: 60 Tage lang sind von diesem Telefon " +
-                "keine Messwerte angekommen, darum hat der Server alle seine Daten gelöscht. " +
-                "«Neue Kennung» beginnt neu, unter einer neuen Kennung; gesendet wird dann, was du ab jetzt misst."
+            "Nach 60 Tagen ohne Werte hat der Server deine Daten gelöscht. Tippe auf «Neu starten», um wieder zu teilen."
+
+        /** One message for every failure that is retried by itself (429, 5xx, no connection): nothing to do. */
+        const val RETRY_TEXT = "Senden klappt gerade nicht. Neuer Versuch folgt."
 
         /** The server refuses records older than 7 days (DESIGN.md §8, `MAX_RECORD_AGE_DAYS`). */
         const val MAX_AGE_MS = 7L * 24 * 3600 * 1000

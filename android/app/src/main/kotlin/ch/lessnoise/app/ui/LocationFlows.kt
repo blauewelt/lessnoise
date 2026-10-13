@@ -50,7 +50,7 @@ private sealed interface StartStep {
 }
 
 /**
- * «Messung starten» with «Messwerte teilen» on: one precise location fix, turned into the 100 m
+ * «Starten» with «Teilen» on: one precise location fix, turned into the 100 m
  * cell that is stored with the measurement. If it fails, ONE dialog: «Nochmals», «Koordinaten
  * einfügen» or «Ohne Teilen starten». [start] gets the cell, or null for a measurement that is not shared.
  *
@@ -123,12 +123,13 @@ fun rememberSharedStart(start: (cell: String?) -> Unit): () -> Unit {
                 title = { Text("Koordinaten einfügen") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Z. B. aus einer Karten-App: Punkt lange drücken, Koordinaten kopieren.", style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(
                             value = text, onValueChange = { text = it }, singleLine = true,
-                            label = { Text("z. B. 47.3769, 8.5417") }, modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Koordinaten, z. B. 47.3769, 8.5417") }, modifier = Modifier.fillMaxWidth(),
                         )
                         when (parsed) {
-                            is CellInput.Parsed.Ok -> Text("Zelle ${parsed.cell}", style = MaterialTheme.typography.bodySmall)
+                            is CellInput.Parsed.Ok -> Text("100-m-Quadrat gefunden.", style = MaterialTheme.typography.bodySmall)
                             is CellInput.Parsed.Error -> Text(parsed.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             null -> Unit
                         }
@@ -157,8 +158,8 @@ private sealed interface ReportStep {
 }
 
 /**
- * «Laut! Melden» (Karten editions, while no measurement runs): consent (only while «Messwerte
- * teilen» is off) → «Was war laut?» → ONE precise fix (≤ 50 m) → «Meldung: …, Standort ± n m –
+ * «Laut! Melden» (Karten editions, while no measurement runs): consent (only while «Teilen» is
+ * off) → «Was war laut?» → ONE precise fix (≤ 50 m) → «Meldung: …, Standort ± n m –
  * Senden?» → queued and uploaded (UploadModule.uploadSoon). The time is the tap on the button,
  * to the second. [onQueued] is called after «Senden».
  *
@@ -282,10 +283,14 @@ fun rememberReportAction(onQueued: () -> Unit): () -> Unit {
     }
 }
 
-/** The short consent before the first report while «Messwerte teilen» is off. */
+/**
+ * The short consent before the first report while «Teilen» is off: what is sent, never audio, that
+ * the point is public (server/DESIGN.md §2 rule 10), and how to delete.
+ */
 const val REPORT_CONSENT_TEXT =
-    "Gesendet werden Zeit, genauer Standort dieser Meldung und Kategorie, nie Audio. " +
-        "Dafür wird «Messwerte teilen» eingeschaltet; löschen kannst du alles mit «Daten auf dem Server löschen»."
+    "Gesendet werden Zeit, genauer Standort und Art des Lärms, nie Audio. " +
+        "Der Punkt erscheint auf der Lärmkarte; wer oft vom gleichen Ort meldet, macht ihn sichtbar. " +
+        "Dafür wird «Teilen» eingeschaltet; löschen kannst du alles mit «Vom Server löschen»."
 
 /** «Meldung: Töff, 16:05, Standort ± 12 m – senden?» */
 fun reportConfirmText(category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault()): String {
@@ -299,7 +304,7 @@ private fun SettingsButton(context: Context, o: LocationPolicy.Outcome) {
         LocationPolicy.Outcome.ApproximateOnly, LocationPolicy.Outcome.PermissionDenied ->
             OutlinedButton(onClick = { openAppSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("App-Einstellungen") }
         LocationPolicy.Outcome.LocationOff ->
-            OutlinedButton(onClick = { openLocationSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("Standort-Einstellungen") }
+            OutlinedButton(onClick = { openLocationSettings(context) }, modifier = Modifier.fillMaxWidth()) { Text("Standort einschalten") }
         else -> Unit
     }
 }

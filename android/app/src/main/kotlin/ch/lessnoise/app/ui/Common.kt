@@ -3,7 +3,12 @@ package ch.lessnoise.app.ui
 import android.Manifest
 import android.content.ClipData
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -78,7 +83,8 @@ object Fmt {
 /** German display name of a category id. */
 fun categoryName(context: Context, id: String?): String = when (id) {
     null -> "–"
-    "n/a" -> "nicht klassifiziert (aus)"
+    // Old rows from when the classifier could be switched off (up to 0.6.0).
+    "n/a" -> "–"
     // Not a classifier category: the detector's wind flag (v0.4.0).
     WindRule.CATEGORY -> WindRule.NAME_DE
     else -> try { context.container.categoryMapper.nameDe(id) } catch (_: Exception) { id }
@@ -110,16 +116,42 @@ fun SectionCard(title: String? = null, modifier: Modifier = Modifier, content: @
     }
 }
 
-/** The one-time notice about the migrated event threshold (v0.4.0), until «OK». */
+/**
+ * The «Mehr dazu» pages on the website (0.6.1). The anchors are the sections of anleitung.html
+ * (messen, kalibrieren, teilen, daten); privacy questions go to datenschutz.html. Opening one is a
+ * plain browser link: the app itself makes no request (the offline edition has no INTERNET
+ * permission at all).
+ */
+object Links {
+    private const val GUIDE = "https://wenigerlaerm.ch/anleitung.html"
+    const val MEASURE = "$GUIDE#messen"
+    const val CALIBRATE = "$GUIDE#kalibrieren"
+    const val SHARE = "$GUIDE#teilen"
+    const val DATA = "$GUIDE#daten"
+    const val PRIVACY = "https://wenigerlaerm.ch/datenschutz.html"
+    val all = listOf(MEASURE, CALIBRATE, SHARE, DATA, PRIVACY)
+}
+
+/** Opens [url] in the browser; false if no app can open it. */
+fun openLink(context: Context, url: String): Boolean = try {
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+    true
+} catch (_: ActivityNotFoundException) {
+    false
+} catch (_: SecurityException) {
+    false
+}
+
+/** «Mehr dazu»: a small text button that opens [url] (snackbar «Kein Browser gefunden» otherwise). */
 @Composable
-fun MigrationNoticeCard() {
-    val c = LocalContext.current.container
-    val notice by c.settings.migrationNotice.collectAsStateWithLifecycle()
-    val text = notice ?: return
-    SectionCard("Neue Ereigniserkennung") {
-        Text(text, style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { c.settings.dismissMigrationNotice() }) { Text("OK") }
-    }
+fun MoreLink(url: String, label: String = "Mehr dazu") {
+    val context = LocalContext.current
+    val snackbar = LocalSnackbarHost.current
+    val scope = rememberCoroutineScope()
+    TextButton(
+        onClick = { if (!openLink(context, url)) scope.launch { snackbar.showSnackbar("Kein Browser gefunden") } },
+        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+    ) { Text(label) }
 }
 
 @Composable

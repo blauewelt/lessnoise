@@ -177,7 +177,7 @@ class ReportsTest {
     @Test
     fun textsAreShortAndSayWhatIsSent() {
         assertEquals("Meldung: Töff, 16:05, Standort ± 12 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, 12, zone))
-        for (part in listOf("Zeit", "genauer Standort", "Kategorie", "nie Audio", "«Daten auf dem Server löschen»")) {
+        for (part in listOf("Zeit", "genauer Standort", "Art des Lärms", "nie Audio", "Lärmkarte", "gleichen Ort", "«Vom Server löschen»")) {
             assertTrue(REPORT_CONSENT_TEXT.contains(part), part)
         }
         assertFalse(REPORT_CONSENT_TEXT.contains('ß'))

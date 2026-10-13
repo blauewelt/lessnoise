@@ -108,24 +108,21 @@ data class WindowSummary(
     /** Events (after the floor) flagged as wind on the microphone: in none of the counts above. */
     val windCount: Int = 0,
 ) {
-    /** «Ereignisse» tile: bursts per hour («12/h», «4,5/h»), «–» without valid time. */
+    /** «Lärmspitzen pro Stunde» tile: «12», «4,5», «–» without valid time. */
     val eventsPerHourText: String
-        get() = if (eventsPerHour.isNaN()) "–" else "${ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)}/h"
+        get() = if (eventsPerHour.isNaN()) "–" else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
 
     /**
-     * «LAeq 45,2 dB(A) · 48 Ereignisse (5 Töff & Poser) · Messung 76 % der Zeit · Dynamik L10−L90 5,5 dB · unterbrochen …»
-     * ([highlightName] null: without the highlighted category).
+     * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 Töff & Poser · 76 % gemessen» ([highlightName]
+     * null: without the highlighted category). The gaps are drawn in the chart, not listed (0.6.1);
+     * [gapTexts] and [dynamicsDb] stay for the tests and the CSV.
      */
-    fun line(maxGaps: Int = 2, highlightName: String? = null): String {
+    fun line(highlightName: String? = null): String {
         val parts = ArrayList<String>()
-        if (!laeqDb.isNaN()) parts += "LAeq ${ChartFmt.comma(laeqDb, 1)} dB(A)"
-        parts += "$eventCount ${if (eventCount == 1) "Ereignis" else "Ereignisse"}" +
-            (if (highlightName != null) " ($highlightCount $highlightName)" else "")
-        parts += "Messung ${ChartFmt.percent(coverage)} der Zeit"
-        if (!dynamicsDb.isNaN()) parts += "Dynamik L10−L90 ${ChartFmt.comma(dynamicsDb, 1)} dB"
-        parts += gapTexts.take(maxGaps)
-        val more = gapTexts.size - maxGaps
-        if (more == 1) parts += "1 weitere Lücke" else if (more > 1) parts += "$more weitere Lücken"
+        if (!laeqDb.isNaN()) parts += "Mittel ${ChartFmt.comma(laeqDb, 1)} dB(A)"
+        parts += "$eventCount ${if (eventCount == 1) "Lärmspitze" else "Lärmspitzen"}" +
+            (if (highlightName != null) ", davon $highlightCount $highlightName" else "")
+        parts += "${ChartFmt.percent(coverage)} gemessen"
         return parts.joinToString(" · ")
     }
 }
@@ -530,10 +527,11 @@ object ChartCategories {
         "voices" to "Stimmen",
         "music" to "Musik",
         "construction" to "Baustelle",
-        "unclassified" to "Unklassifiziert",
+        "unclassified" to "Sonstiges",
     )
     fun name(id: String?): String = when (id) {
-        null -> "nicht klassifiziert (aus)"
+        // Old rows from when the classifier could be switched off (up to 0.6.0).
+        null -> "–"
         WindRule.CATEGORY -> WindRule.NAME_DE // the detector's wind flag, not a chip
         else -> all.firstOrNull { it.first == id }?.second ?: id
     }

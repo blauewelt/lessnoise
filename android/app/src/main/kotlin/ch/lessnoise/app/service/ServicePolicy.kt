@@ -10,12 +10,12 @@ object TaskRemovedPolicy {
     enum class Action {
         /** Default: the measurement continues as a foreground service; the notification shows it. */
         KEEP_RUNNING,
-        /** «Messung beenden, wenn die App geschlossen wird»: stop exactly like «Stopp». */
+        /** Stop exactly like «Stopp» (only if [onTaskRemoved] is told to; since 0.6.1 the app never is). */
         STOP,
     }
 
     /**
-     * @param stopOnTaskRemoved the setting «Messung beenden, wenn die App geschlossen wird»
+     * @param stopOnTaskRemoved stop when swiped away; fixed false since 0.6.1 (AppSettings.stopOnTaskRemoved)
      * @param running a measurement is running
      * @param starting a measurement is starting (model loading); stopping cancels the start
      */
@@ -28,13 +28,14 @@ object MeasurementNotification {
     const val TITLE = "Mikrofon aktiv – Messung läuft"
     const val STARTING = "Messung startet …"
     const val NO_PERMISSION = "Mikrofon-Berechtigung fehlt"
-    const val SILENCED = "Mikrofon vom System stummgeschaltet – Zeit wird nicht gewertet"
+    const val SILENCED = "Mikrofon stumm (z. B. Anruf) – zählt nicht"
 
-    /** Content text: the running 1-min LAeq, as before 0.3.3; [note] is appended (Labor build). */
-    fun text(laeqDb: Double, calibrated: Boolean, silenced: Boolean, note: String? = null): String {
-        val base = if (silenced) SILENCED else String.format(
-            Locale.GERMANY, "LAeq (1 min): %.1f dB(A)%s", laeqDb, if (calibrated) "" else " · unkalibriert",
-        )
+    /**
+     * Content text: the running 1-min LAeq as «Letzte Minute»; [note] is appended (Labor build).
+     * [calibrated] is no longer shown (0.6.1: «Richtwerte» is said once, under Einstellungen › Datenschutz).
+     */
+    fun text(laeqDb: Double, @Suppress("UNUSED_PARAMETER") calibrated: Boolean, silenced: Boolean, note: String? = null): String {
+        val base = if (silenced) SILENCED else String.format(Locale.GERMANY, "Letzte Minute: %.1f dB(A)", laeqDb)
         return if (note.isNullOrEmpty()) base else "$base · $note"
     }
 }

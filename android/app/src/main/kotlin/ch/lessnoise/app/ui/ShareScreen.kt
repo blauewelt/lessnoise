@@ -1,6 +1,5 @@
 package ch.lessnoise.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,69 +47,63 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// «Einstellungen → Messwerte teilen» (server/DESIGN.md §2, §9). Off by default; switching on needs
-// the explanation (once; or the short consent of «Laut! Melden»). The cell comes from the location
-// fix at the start of each measurement. Everything network goes through upload/UploadClient.kt.
+// «Teilen» (tab of the Karten editions since 0.6.1; server/DESIGN.md §2, §9). Off by default;
+// switching on needs the explanation (once; or the short consent of «Laut! Melden»). The cell comes
+// from the location fix at the start of each measurement. Everything network goes through
+// upload/UploadClient.kt.
 
-/** Short German labels of the placement values (server/DESIGN.md §4.2). */
+/** Short German labels of the placement values (server/DESIGN.md §4.2), completing «Das Telefon liegt …». */
 fun placementLabel(p: String): String = when (p) {
-    SiteSettings.PLACEMENT_OPEN_WINDOW -> "Offenes Fenster"
-    SiteSettings.PLACEMENT_BALCONY -> "Balkon"
-    SiteSettings.PLACEMENT_BEHIND_GLASS -> "Hinter Glas"
-    else -> "Anderes"
+    SiteSettings.PLACEMENT_OPEN_WINDOW -> "am offenen Fenster"
+    SiteSettings.PLACEMENT_BALCONY -> "auf dem Balkon"
+    SiteSettings.PLACEMENT_BEHIND_GLASS -> "hinter Glas"
+    else -> "anderswo"
 }
 
 /**
- * The bullet about location in «Was nie gesendet wird». Shown only where «Messwerte teilen» exists
- * (the Karten editions), which are the editions with the location permission.
+ * The bullet about location in «Nie gesendet». Shown only where «Teilen» exists (the Karten
+ * editions), which are the editions with the location permission.
  */
-const val LOCATION_NEVER_SENT =
-    "Dein genauer Standort, ausser bei einer Meldung; die App liest ihn nie im Hintergrund."
+const val LOCATION_NEVER_SENT = "Dein genauer Standort (ausser bei einer Meldung); nie im Hintergrund gelesen."
 
-/** «Was gesendet wird» (app 0.6.0). */
+/** «Was gesendet wird» (app 0.6.1). */
 val SHARE_SENT_BULLETS: List<String> = listOf(
-    "Die Minutenwerte und Lärmspitzen deiner geteilten Messungen, jeweils mit der 100-m-Zelle, in der du die Messung gestartet hast.",
-    "Laute Momente einer geteilten Messung erscheinen so auf der Karte.",
-    "Meldungen («Laut! Melden»): Zeit, genauer Standort und Kategorie.",
-    "Telefonmodell, Audioquelle, Kalibrierung und deine Angaben zur Aufstellung.",
-    "Eine zufällige Kennung dieses Telefons, nie öffentlich.",
+    "Lärmwerte pro Minute und Lärmspitzen, mit Geräuschart (z. B. «Töff & Poser»).",
+    "Dein 100-m-Quadrat und wo das Telefon liegt.",
+    "Meldungen: Zeit, genauer Standort, Art des Lärms.",
+    "Telefonmodell, Audioquelle, Kalibrierung und eine zufällige Kennung.",
 )
 
-/** «Standort» (app 0.6.0). */
+/** «Standort» (app 0.6.1): read once at «Starten», kept only as the 100 m square; exact only for a report. */
 val SHARE_LOCATION_BULLETS: List<String> = listOf(
-    "Beim Start einer Messung bestimmt das Telefon einmal den Standort; behalten und gesendet wird nur die 100-m-Zelle.",
-    "Bei einer Meldung wird der genaue Standort gesendet und danach auf dem Telefon gelöscht.",
+    "Beim Starten liest das Telefon einmal den Standort; gesendet wird nur das 100-m-Quadrat.",
+    "Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht.",
 )
 
-/** One line for the settings overview. */
+/** «Wohin» (app 0.6.1), incl. the risk server/DESIGN.md §2 rule 2 asks the app to state. */
+val SHARE_WHERE_BULLETS: List<String> = listOf(
+    "An unseren Server in der Schweiz, an keinen anderen.",
+    "Öffentlich sind nur Werte pro 100-m-Quadrat und Meldungen, nie die Kennung oder Notiz.",
+    "Misst sonst niemand in deinem Quadrat, sind es deine Werte.",
+    "Was du bei ausgeschaltetem Teilen misst, wird nie gesendet.",
+)
+
+/** «Löschen» (app 0.6.1). */
+val SHARE_DELETE_BULLETS: List<String> = listOf(
+    "Ausschalten stoppt das Senden; «Vom Server löschen» entfernt alles, auch Meldungen.",
+    "Nach 60 Tagen ohne neue Werte löscht der Server alles.",
+)
+
+/** One status line («Ein · zuletzt gesendet …», «Aus – es wird nichts gesendet»). */
 fun shareSummary(s: UploadSnapshot): String = when {
-    s.enabled && s.authFailed ->
-        "Ein – der Server kennt diese Kennung nicht mehr, wohl weil 60 Tage lang nichts ankam (dann löscht er alle Daten). " +
-            "«Neue Kennung» wählen, um neu zu beginnen."
+    s.enabled && s.authFailed -> "Unterbrochen: Daten nach 60 Tagen gelöscht. «Neu starten» tippen."
     s.enabled -> "Ein" + (s.lastSuccessAtMs?.let { " · zuletzt gesendet ${Fmt.dateTime(it)}" } ?: "")
     else -> "Aus – es wird nichts gesendet"
 }
 
-/** The card in Einstellungen that opens the screen. */
-@Composable
-fun ShareSettingsCard(onOpen: () -> Unit) {
-    val c = LocalContext.current.container
-    val s by c.upload.store.state.collectAsStateWithLifecycle()
-    SectionCard("Messwerte teilen") {
-        Text(
-            "Freiwillig: Messwerte und Meldungen (nie Audio) für die Lärmkarte senden.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        StatRow("Status", if (s.enabled) "Ein" else "Aus")
-        Text(shareSummary(s), style = MaterialTheme.typography.bodySmall)
-        OutlinedButton(onClick = onOpen) { Text(if (s.enabled) "Einstellungen zum Teilen" else "Mehr erfahren & einrichten") }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    BackHandler(onBack = onBack)
+fun ShareScreen(modifier: Modifier = Modifier) {
     val c = LocalContext.current.container
     val module = c.upload
     val s by module.store.state.collectAsStateWithLifecycle()
@@ -120,55 +113,44 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     var confirmNewId by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<String?>(null) }
+    var showExplanation by rememberSaveable { mutableStateOf(false) }
+    var showMore by rememberSaveable { mutableStateOf(false) }
 
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        Row(Modifier.padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("‹ Einstellungen") }
-        }
         Text(
-            "Messwerte teilen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+            "Auf die Lärmkarte", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+        )
+        Text(
+            "Deine Messwerte erscheinen auf der Lärmkarte – als Wert für dein 100-m-Quadrat.",
+            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp),
         )
 
-        // 1. What is sent, what never, where, how to delete.
-        SectionCard("Was gesendet wird") { Bullets(*SHARE_SENT_BULLETS.toTypedArray()) }
-        SectionCard("Standort") { Bullets(*SHARE_LOCATION_BULLETS.toTypedArray()) }
-        SectionCard("Was nie gesendet wird") {
-            Bullets(
-                "Audio. Die App speichert gar keines.",
-                LOCATION_NEVER_SENT,
-                "Name, Telefonnummer, E-Mail oder ein Konto.",
-            )
-        }
-        SectionCard("Wohin") {
-            Bullets(
-                "An ${module.client.host}, den Server des Projekts in der Schweiz, an keinen anderen.",
-                "Öffentlich sind nur Werte pro Zelle auf der Lärmkarte (wenigerlaerm.ch/karte.html), nie die Kennung oder deine Notiz.",
-                "Was du misst, während das Teilen aus ist, wird nie gesendet.",
-            )
-        }
-        SectionCard("Löschen") {
-            Bullets(
-                "Ausschalten stoppt das Senden sofort.",
-                "«Daten auf dem Server löschen» (unten) entfernt alles von diesem Telefon, auch die Meldungen.",
-                "Kommen 60 Tage lang keine Werte an, löscht der Server alles von selbst.",
-            )
-            if (!s.explanationSeen) {
-                Button(onClick = { module.store.update { it.copy(explanationSeen = true) } }) { Text("Gelesen, weiter") }
+        // 1. What is sent, what never, where, how to delete (server/DESIGN.md §2 rule 3). Open until
+        // «Weiter»; afterwards one tap away.
+        if (!s.explanationSeen || showExplanation) {
+            SectionCard("Was gesendet wird") { Bullets(*SHARE_SENT_BULLETS.toTypedArray()) }
+            SectionCard("Standort") { Bullets(*SHARE_LOCATION_BULLETS.toTypedArray()) }
+            SectionCard("Nie gesendet") { Bullets("Audio, Name, Telefonnummer oder E-Mail.", LOCATION_NEVER_SENT) }
+            SectionCard("Wohin") { Bullets(*SHARE_WHERE_BULLETS.toTypedArray()) }
+            SectionCard("Löschen") {
+                Bullets(*SHARE_DELETE_BULLETS.toTypedArray())
+                MoreLink(Links.PRIVACY)
+                if (!s.explanationSeen) {
+                    Button(onClick = { module.store.update { it.copy(explanationSeen = true) } }) { Text("Weiter") }
+                }
+            }
+        } else {
+            TextButton(onClick = { showExplanation = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("Was gesendet wird ▸")
             }
         }
 
         if (s.explanationSeen) {
-            PlacementCard(s.site) { site ->
-                module.store.update { it.copy(site = site) }
-                module.uploadSoon()
-            }
-            ReportsCard()
-
-            // 3. The switches and the status.
-            SectionCard("Teilen") {
+            // 2. The switch and the status.
+            SectionCard {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Messwerte teilen", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text("Auf die Karte senden", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     Switch(
                         checked = s.enabled,
                         enabled = s.enabled || s.canEnable,
@@ -181,51 +163,48 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         },
                     )
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Nur über WLAN", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = s.wifiOnly, onCheckedChange = { v ->
-                        module.store.update { it.copy(wifiOnly = v) }
-                        module.applySchedule()
-                    })
-                }
-                Text(
-                    if (s.wifiOnly) "Gesendet wird nur über WLAN (genauer: über Verbindungen ohne Datenvolumen-Begrenzung)."
-                    else "Gesendet wird auch über mobile Daten (weniger als 0,1 MB pro Tag).",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                StatRow("Zuletzt gesendet", s.lastSuccessAtMs?.let { Fmt.dateTime(it) } ?: "noch nie")
-                StatRow("Noch zu senden", "$pending Minuten")
+                Text(shareSummary(s), style = MaterialTheme.typography.bodySmall)
                 if (s.refusedTotal > 0) {
-                    Text(
-                        "${s.refusedTotal} Werte hat der Server als ungültig abgelehnt (z. B. älter als 7 Tage); sie werden nicht erneut gesendet.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Text("${s.refusedTotal} Werte waren zu alt und wurden nicht übernommen.", style = MaterialTheme.typography.bodySmall)
                 }
                 // While the token is refused, always the current explanation (an older stored text may differ).
                 (if (s.authFailed) Uploader.AUTH_FAILED_TEXT else s.lastError)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
+                TextButton(onClick = { showMore = !showMore }) { Text(if (showMore) "Weitere Angaben ▾" else "Weitere Angaben ▸") }
+                if (showMore) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Nur über WLAN", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Switch(checked = s.wifiOnly, onCheckedChange = { v ->
+                            module.store.update { it.copy(wifiOnly = v) }
+                            module.applySchedule()
+                        })
+                    }
+                    if (!s.wifiOnly) Text("Weniger als 0,1 MB pro Tag.", style = MaterialTheme.typography.bodySmall)
+                    StatRow("Noch zu senden", "$pending Minuten")
+                }
             }
 
-            // 4. Server data.
+            PlacementCard(s.site) { site ->
+                module.store.update { it.copy(site = site) }
+                module.uploadSoon()
+            }
+            ReportsCard()
+
+            // 3. Server data.
             SectionCard("Deine Daten auf dem Server") {
-                Text(
-                    if (s.registered) "Dieses Telefon ist auf dem Server unter einer zufälligen Kennung eingetragen."
-                    else "Von diesem Telefon liegen keine Daten auf dem Server.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                if (!s.registered) {
+                    Text("Von diesem Telefon liegen keine Daten auf dem Server.", style = MaterialTheme.typography.bodySmall)
+                }
                 Button(
                     onClick = { confirmDelete = true },
                     enabled = s.registered && busy == null,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Text("Daten auf dem Server löschen") }
-                OutlinedButton(onClick = { confirmNewId = true }, enabled = (s.registered || s.authFailed) && busy == null) {
-                    Text("Neue Kennung")
+                ) { Text("Vom Server löschen") }
+                // «Neu starten» (a new random id): only when the server no longer knows this phone.
+                if (s.authFailed) {
+                    OutlinedButton(onClick = { confirmNewId = true }, enabled = busy == null) { Text("Neu starten") }
                 }
-                Text(
-                    "«Neue Kennung» löscht deine Daten auf dem Server und sendet künftig unter einer neuen Kennung; Messungen von vorher werden nicht erneut gesendet.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 busy?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall)
                     LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -237,7 +216,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     }
 
     fun runDelete(newIdentity: Boolean) {
-        busy = if (newIdentity) "Neue Kennung: Daten auf dem Server werden gelöscht …" else "Daten auf dem Server werden gelöscht …"
+        busy = "Wird gelöscht …"
         result = null
         scope.launch {
             val r = withContext(Dispatchers.IO) {
@@ -246,12 +225,9 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
             module.applySchedule()
             busy = null
             result = when (r) {
-                Uploader.DeleteOutcome.Deleted ->
-                    if (newIdentity) "Gelöscht. Ab dem nächsten Senden wird eine neue Kennung verwendet."
-                    else "Gelöscht: Der Server hat bestätigt, dass alle Daten dieses Telefons entfernt sind. Das Teilen ist ausgeschaltet."
-                Uploader.DeleteOutcome.UnknownToServer ->
-                    "Der Server kennt diese Kennung nicht (mehr), zum Beispiel weil er nach 60 Tagen ohne Messwerte alles gelöscht hat; dort liegt nichts mehr, das zu ihr gehört. Die Kennung wurde auf dem Telefon vergessen."
-                is Uploader.DeleteOutcome.Failed -> "Nicht gelöscht (${r.message}). Bitte mit Internetverbindung erneut versuchen."
+                Uploader.DeleteOutcome.Deleted -> if (newIdentity) "Neu gestartet." else "Vom Server gelöscht. Teilen ist aus."
+                Uploader.DeleteOutcome.UnknownToServer -> "Auf dem Server liegt nichts mehr von diesem Telefon."
+                is Uploader.DeleteOutcome.Failed -> "Nicht gelöscht. Bitte mit Internet nochmals versuchen."
             }
         }
     }
@@ -260,12 +236,7 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Daten auf dem Server löschen?") },
-            text = {
-                Text(
-                    "Alles, was dieses Telefon gesendet hat, auch Meldungen, wird sofort vom Server gelöscht. " +
-                        "Das Teilen wird ausgeschaltet; deine Messungen auf dem Telefon bleiben.",
-                )
-            },
+            text = { Text("Alles, was dieses Telefon gesendet hat, wird sofort gelöscht. Teilen wird ausgeschaltet. Auf dem Telefon bleibt alles.") },
             confirmButton = { TextButton(onClick = { confirmDelete = false; runDelete(newIdentity = false) }) { Text("Löschen") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } },
         )
@@ -273,9 +244,9 @@ fun ShareScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     if (confirmNewId) {
         AlertDialog(
             onDismissRequest = { confirmNewId = false },
-            title = { Text("Neue Kennung?") },
-            text = { Text("Deine Daten auf dem Server werden gelöscht, und künftig wird unter einer neuen, zufälligen Kennung gesendet.") },
-            confirmButton = { TextButton(onClick = { confirmNewId = false; runDelete(newIdentity = true) }) { Text("Neue Kennung") } },
+            title = { Text("Neu starten?") },
+            text = { Text("Deine alten Daten auf dem Server werden gelöscht; danach sendest du neu.") },
+            confirmButton = { TextButton(onClick = { confirmNewId = false; runDelete(newIdentity = true) }) { Text("Neu starten") } },
             dismissButton = { TextButton(onClick = { confirmNewId = false }) { Text("Abbrechen") } },
         )
     }
@@ -289,24 +260,27 @@ private fun Bullets(vararg lines: String) {
 }
 
 /**
- * «Aufstellung»: optional details about how the phone stands, remembered for the next measurements.
- * The place itself is the cell determined at the start of each measurement (LocationFlows.kt).
+ * «Wo steht das Telefon?»: optional details about how the phone stands, remembered for the next
+ * measurements. The place itself is the cell determined at the start of each measurement
+ * (LocationFlows.kt). Stockwerk and Notiz are under «Weitere Angaben».
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit) {
     var placement by rememberSaveable(current) { mutableStateOf(current.placement) }
     var floorText by rememberSaveable(current) { mutableStateOf(current.floor?.toString() ?: "") }
-    // 0 = Strassenseite, 1 = Hofseite, 2 = keine Angabe
+    // 0 = Strassenseite, 1 = Hofseite, 2 = weiss nicht
     var facing by rememberSaveable(current) {
         mutableStateOf(when (current.streetFacing) { true -> 0; false -> 1; null -> 2 })
     }
     var note by rememberSaveable(current) { mutableStateOf(current.note) }
     var saved by remember { mutableStateOf(false) }
+    var more by rememberSaveable { mutableStateOf(current.floor != null || current.note.isNotBlank()) }
     val floor = floorText.trim().toIntOrNull()
     val floorOk = floorText.isBlank() || (floor != null && floor in -3..100)
 
-    SectionCard("Aufstellung (freiwillig)") {
+    SectionCard("Wo steht das Telefon?") {
+        Text("Das Telefon liegt", style = MaterialTheme.typography.bodyMedium)
         val places = SiteSettings.PLACEMENTS
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             places.forEachIndexed { i, p ->
@@ -316,14 +290,8 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
                 ) { Text(placementLabel(p), maxLines = 2, style = MaterialTheme.typography.labelSmall) }
             }
         }
-        OutlinedTextField(
-            value = floorText, onValueChange = { floorText = it.filter { ch -> ch.isDigit() || ch == '-' }.take(3); saved = false },
-            label = { Text("Stockwerk (0 = Erdgeschoss)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            isError = !floorOk, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        )
-        Text("Mikrofon zeigt zur", style = MaterialTheme.typography.bodyMedium)
-        val sides = listOf("Strasse", "Hofseite", "keine Angabe")
+        Text("Richtung", style = MaterialTheme.typography.bodyMedium)
+        val sides = listOf("Strassenseite", "Hofseite", "weiss nicht")
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             sides.forEachIndexed { i, label ->
                 SegmentedButton(
@@ -332,12 +300,21 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
                 ) { Text(label, style = MaterialTheme.typography.labelSmall) }
             }
         }
-        OutlinedTextField(
-            value = note, onValueChange = { note = it.take(SiteSettings.NOTE_MAX); saved = false },
-            label = { Text("Notiz (wird nie veröffentlicht)") },
-            supportingText = { Text("${note.length}/${SiteSettings.NOTE_MAX}") },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        TextButton(onClick = { more = !more }) { Text(if (more) "Weitere Angaben ▾" else "Weitere Angaben ▸") }
+        if (more) {
+            OutlinedTextField(
+                value = floorText, onValueChange = { floorText = it.filter { ch -> ch.isDigit() || ch == '-' }.take(3); saved = false },
+                label = { Text("Stockwerk (freiwillig)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = !floorOk, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = note, onValueChange = { note = it.take(SiteSettings.NOTE_MAX); saved = false },
+                label = { Text("Notiz (freiwillig, nie öffentlich)") },
+                supportingText = { Text("${note.length}/${SiteSettings.NOTE_MAX}") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Button(
             enabled = floorOk,
             onClick = {
@@ -350,12 +327,12 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
                 )
                 saved = true
             },
-        ) { Text("Aufstellung speichern") }
+        ) { Text("Speichern") }
         if (saved) Text("Gespeichert.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
-/** «Meldungen»: waiting and sent reports (sent ones without coordinates: category, time, cell). */
+/** «Meldungen»: waiting and sent reports (sent ones without coordinates: category and time). */
 @Composable
 private fun ReportsCard() {
     val c = LocalContext.current.container
@@ -366,7 +343,7 @@ private fun ReportsCard() {
         StatRow("Gesendet", r.sent.size.toString())
         r.sent.takeLast(5).reversed().forEach { s ->
             Text(
-                "${Fmt.dateTime(s.epochMs)} · ${ReportCategory.fromId(s.category)?.label ?: s.category}" + (s.cell?.let { " · $it" } ?: ""),
+                "${Fmt.dateTime(s.epochMs)} · ${ReportCategory.fromId(s.category)?.label ?: s.category}",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

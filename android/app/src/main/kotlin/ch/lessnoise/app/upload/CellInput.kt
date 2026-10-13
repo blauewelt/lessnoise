@@ -35,7 +35,7 @@ object CellInput {
         // Swiss thousands separators (2'683'304) and spaces inside numbers are removed first.
         val cleaned = t.replace(Regex("(?<=\\d)['’ʼ\u2009\u202F](?=\\d)"), "")
         val nums = NUMBER.findAll(cleaned).map { it.value.replace(',', '.').toDouble() }.toList()
-        if (nums.size != 2) return Parsed.Error("Zwei Zahlen erwartet, z. B. «47.3769, 8.5417» oder «2'683'304, 1'247'925».")
+        if (nums.size != 2) return Parsed.Error("Zwei Zahlen, z. B. «47.3769, 8.5417».")
         val (a, b) = nums
         return when {
             // LV95 E, N (or N, E)
@@ -63,5 +63,5 @@ object CellInput {
     private fun isWgs84Switzerland(lat: Double, lon: Double): Boolean = lat in 45.0..48.5 && lon in 5.0..11.0
 
     private fun check(cell: String, how: String): Parsed =
-        if (Lv95.isInServerRange(cell)) Parsed.Ok(cell, how) else Parsed.Error("Diese Zelle liegt nicht in der Schweiz.")
+        if (Lv95.isInServerRange(cell)) Parsed.Ok(cell, how) else Parsed.Error("Dieser Ort liegt nicht in der Schweiz.")
 }

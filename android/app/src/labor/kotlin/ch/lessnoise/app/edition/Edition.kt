@@ -128,17 +128,20 @@ object EditionClips {
 
 object EditionUi {
     /**
-     * First bullet of «Über Weniger Lärm & Datenschutz»: what this edition does with audio. The public
-     * text («Audio verlässt nie den Arbeitsspeicher …») would be false here. The internet bullet
-     * that follows it comes from the shared about card (BuildConfig.UPLOAD_AVAILABLE).
+     * First line of Einstellungen › «Datenschutz»: what this edition does with audio. The public
+     * text («Es wird nie Audio gespeichert oder gesendet.») would be false here. The internet line
+     * that follows it comes from the shared card (BuildConfig.UPLOAD_AVAILABLE).
      */
     val ABOUT_AUDIO: String =
-        "• Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
+        "Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
             "gespeichert werden, dazu ein Protokoll der Erkennung. " +
             if (BuildConfig.UPLOAD_AVAILABLE)
-                "Nichts davon wird gesendet: «Messwerte teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
+                "Nichts davon wird gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
             else
                 "Nichts davon wird gesendet: diese Version hat keine Internet-Berechtigung."
+
+    /** The microphone line on «Messen»: the public «nie Audio» promise would be false here. */
+    const val MIC_LINE = "Die App braucht das Mikrofon. Labor: Audio wird nur gespeichert, wenn du es einschaltest."
 
     /** Text of the red banner: the Labor edition with the map says that it can share. */
     val BANNER_TEXT: String =

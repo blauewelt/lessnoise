@@ -8,7 +8,7 @@ wahrscheinlicher Quelle fest, zeigt jede Messung als Grafik (ihr Zeitraum und de
 und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
 Es gibt die App in zwei Ausführungen: «Weniger Lärm» (Standard) hat gar keine Internet- und keine
 Standort-Berechtigung. «Weniger Lärm · Karte» sendet nur dann etwas ins Internet, wenn man
-«Messwerte teilen» selbst einschaltet: dann Pegel und Lärmspitzen jeder geteilten Messung mit der
+unter «Teilen» (bis 0.6.0 «Messwerte teilen») selbst «Auf die Karte senden» einschaltet: dann Pegel und Lärmspitzen jeder geteilten Messung mit der
 100-m-Zelle, in der sie gestartet wurde (das Telefon bestimmt den Standort beim Start einmal und
 behält nur die Zelle), und Meldungen mit «Laut! Melden» (Zeit, genauer Standort dieser Meldung,
 Kategorie; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
@@ -22,7 +22,8 @@ A-weighted sound levels while a measurement runs (one run from Start to Stop, at
 possibly over several days), records loud single events (motorbikes, revving cars, …) with time,
 peak level and likely source, shows each measurement as a chart (its own time span and a 24-hour
 profile) and exports CSV. The data stays on the phone of the person who measured it, unless they use
-the map edition («Weniger Lärm · Karte») and switch on the opt-in «Messwerte teilen» to contribute
+the map edition («Weniger Lärm · Karte») and switch on the opt-in «Messwerte teilen» (since 0.6.1
+the tab «Teilen») to contribute
 the levels and events of their measurements, each at the 100 m cell where it was started, and
 reports made with «Laut! Melden», to a shared noise map. The default download, «Weniger Lärm», has
 no internet and no location permission at all.
@@ -106,6 +107,11 @@ What the project counts, and who counts it — totals over the whole project, al
   under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared
   measurement gets its own 100 m cell from one location fix at Start, and «Laut! Melden» reports a
   loud moment with its exact place. Server host `api.lessnoise.ch`.
+- **Phone app v0.6.1 (in preparation, branch `streamline-app`):** «weniger Text, weniger
+  Optionen» — tabs Messen · Messungen · Einstellungen (plus «Teilen» in «Weniger Lärm · Karte»);
+  Kalibrieren and the two remaining detector settings under Einstellungen › Erweitert; ten
+  options removed and fixed at their former defaults (see [android/CHANGELOG.md](android/CHANGELOG.md));
+  about half the words of 0.6.0. Nothing about what is stored or sent changes.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

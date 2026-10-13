@@ -76,7 +76,7 @@ fun HistorySection(
     actions: HistoryActions,
     modifier: Modifier = Modifier,
     onPlayClip: ((clipRef: String) -> Unit)? = null,
-    /** Setting «Wind-Ereignisse in der Grafik zeigen» (they are never counted). */
+    /** Draw wind events (never counted). Fixed off in the app since 0.6.1 (AppSettings.showWindEvents). */
     showWindEvents: Boolean = true,
     /** An older measurement exists («‹»). */
     canGoPrevious: Boolean = true,
@@ -92,15 +92,19 @@ fun HistorySection(
 
     val margin = 16.dp
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // 1. View and navigation (‹ › = previous / next measurement).
-        val modes = listOf(RangeMode.SPAN to "Messung", RangeMode.PROFILE to "Tagesverlauf")
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = margin)) {
-            modes.forEachIndexed { i, (m, label) ->
-                SegmentedButton(
-                    selected = window.mode == m,
-                    onClick = { actions.onMode(m) },
-                    shape = SegmentedButtonDefaults.itemShape(i, modes.size),
-                ) { Text(label) }
+        // 1. View and navigation (‹ › = previous / next measurement). «Tagesverlauf» only makes a
+        // difference for a measurement of a day or more: the choice is shown only then (or while
+        // that view is on, so it can be left).
+        if (showsModeChoice(window)) {
+            val modes = listOf(RangeMode.SPAN to "Messung", RangeMode.PROFILE to "Tagesverlauf")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = margin)) {
+                modes.forEachIndexed { i, (m, label) ->
+                    SegmentedButton(
+                        selected = window.mode == m,
+                        onClick = { actions.onMode(m) },
+                        shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                    ) { Text(label) }
+                }
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = margin), verticalAlignment = Alignment.CenterVertically) {
@@ -125,12 +129,11 @@ fun HistorySection(
             modifier = Modifier.fillMaxWidth().padding(horizontal = margin),
         ) {
             Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp)) {
-                Row(Modifier.fillMaxWidth().height(32.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (model?.isEmpty == false) "dB(A)" else "", style = MaterialTheme.typography.labelSmall,
                         color = scheme.onSurfaceVariant, modifier = Modifier.weight(1f),
                     )
-                    if (model?.anyUncalibrated == true) UncalibratedBadge()
                 }
                 val chartHeight = 248.dp
                 if (model == null || model.isEmpty) {
@@ -157,19 +160,19 @@ fun HistorySection(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    LegendItem(Swatch.Dot(palette.series2), "$highlightName (hervorgehoben)")
+                    LegendItem(Swatch.Dot(palette.series2), highlightName)
                     if (model?.hourly != true) {
-                        LegendItem(Swatch.Dot(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor), small = true), "andere Ereignisse")
+                        LegendItem(Swatch.Dot(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor), small = true), "andere Spitzen")
                     }
                     LegendItem(
                         Swatch.Line(palette.series1),
                         when {
-                            window.mode == RangeMode.PROFILE -> "LAeq je Tagesstunde"
-                            model?.hourly == true -> "LAeq pro Stunde"
-                            else -> "LAeq pro Minute"
+                            window.mode == RangeMode.PROFILE -> "Mittel je Tagesstunde"
+                            model?.hourly == true -> "Mittel pro Stunde"
+                            else -> "Mittel pro Minute"
                         },
                     )
-                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), "Hintergrund L90–L10")
+                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), "Schwankung")
                     if (model != null && model.windEvents.isNotEmpty()) {
                         LegendItem(Swatch.Hollow(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor)), WIND_LEGEND)
                     }
@@ -205,14 +208,11 @@ fun HistorySection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // The hum (steady background) and the bursts above it are separate quantities.
-            StatTile(
-                "Grundrauschen (L90)", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–",
-                if (s?.anyUncalibrated == true) "unkalibriert" else null, Modifier.weight(1f),
-            )
-            StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", s?.let { "${it.windCount} Wind ausgeschlossen" }, Modifier.weight(1f))
+            StatTile("Grundrauschen", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–", null, Modifier.weight(1f))
+            StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", "pro Stunde", Modifier.weight(1f))
             val loud = s?.loudest
             StatTile(
-                "Lautestes", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
+                "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
                 loud?.let { TimeFmt(zone, windows.crossesDates(window)).hm(it.startEpochMs) }, Modifier.weight(1f),
             )
         }
@@ -221,36 +221,23 @@ fun HistorySection(
                 s.line(highlightName = highlightName), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = margin),
             )
-            // Own line: appended to the summary line it could wrap with a leading «·».
-            if (s.anyRecalibrated) {
-                Text(
-                    "Pegel $RECALIBRATED (Kalibrierung nach der Messung)", style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = margin),
-                )
-            }
         }
     }
 }
 
-/** Note under an hourly chart: what the points are and which events are drawn. */
-fun hourlyNote(mode: RangeMode, capped: Boolean, eventFloorDb: Double): String {
-    val what = if (mode == RangeMode.PROFILE) "Alle Tage der Messung übereinander, Werte je Stunde" else "Stundenwerte"
-    val db = ChartFmt.dbCompact(maxOf(eventFloorDb, ChartModel.HOURLY_EVENT_MIN_DB))
-    return if (capped) "$what; gezeichnet sind nur die ${ChartModel.HOURLY_EVENT_CAP} lautesten Ereignisse der hervorgehobenen Kategorie ab $db dB(A)."
-    else "$what; gezeichnet sind nur Ereignisse der hervorgehobenen Kategorie ab $db dB(A)."
+/**
+ * Note under an hourly chart: what the points are and which events are drawn (only the
+ * highlighted category from [ChartModel.HOURLY_EVENT_MIN_DB] or the floor, at most
+ * [ChartModel.HOURLY_EVENT_CAP]).
+ */
+fun hourlyNote(mode: RangeMode, capped: Boolean, @Suppress("UNUSED_PARAMETER") eventFloorDb: Double): String {
+    val what = if (mode == RangeMode.PROFILE) "Alle Tage übereinander, pro Stunde" else "Pro Stunde"
+    return if (capped) "$what; nur die ${ChartModel.HOURLY_EVENT_CAP} lautesten Spitzen." else "$what; nur die markierte Geräuschart."
 }
 
-@Composable
-fun UncalibratedBadge() {
-    AssistChip(
-        onClick = {}, label = { Text("unkalibriert") },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            labelColor = MaterialTheme.colorScheme.onErrorContainer,
-        ),
-        border = null,
-    )
-}
+/** The «Messung | Tagesverlauf» choice: for measurements of at least a day, or while «Tagesverlauf» is on. */
+fun showsModeChoice(window: TimeWindow): Boolean =
+    window.mode == RangeMode.PROFILE || window.durationMs >= 24 * Windows.HOUR_MS
 
 private sealed interface Swatch {
     data class Dot(val color: Color, val small: Boolean = false) : Swatch

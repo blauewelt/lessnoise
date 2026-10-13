@@ -15,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -37,11 +35,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.rememberCoroutineScope
 import ch.lessnoise.app.BuildConfig
-import ch.lessnoise.app.audio.AudioSourceSelector
 import kotlinx.coroutines.launch
 import ch.lessnoise.app.container
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.edition.EditionUi
+import ch.lessnoise.app.service.LiveState
 import ch.lessnoise.app.service.MeasurementService
 
 @Composable
@@ -53,7 +51,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
-    // Karten editions with «Messwerte teilen» on: one location fix at «Start» (LocationFlows.kt).
+    // Karten editions with «Teilen» on: one location fix at «Starten» (LocationFlows.kt).
     val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { cell -> MeasurementService.start(context, cell) } else null
     fun startMeasurement() {
         val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
@@ -66,94 +64,86 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
         rememberReportAction { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } }
     } else null
 
+    MeasureContent(
+        live = live, events = events, calibrating = calibrating, modifier = modifier,
+        categoryName = { categoryName(context, it) },
+        onStart = { if (hasMicPermission(context)) startMeasurement() else requestPermission() },
+        onStop = { MeasurementService.stop(context) },
+        onReport = report,
+        updateLine = { UpdateReminderLine() },
+        eventMarker = { EditionUi.EventMarker(it) },
+    )
+}
+
+/**
+ * «Messen» without the app container (also rendered on the JVM for the website's screenshot).
+ * Before «Starten»: one placement hint, one microphone line, the button. While measuring: the
+ * level now, the Grundrauschen, what it sounds like, since when, and the last Lärmspitzen.
+ */
+@Composable
+fun MeasureContent(
+    live: LiveState,
+    events: List<EventEntity>,
+    calibrating: Boolean,
+    categoryName: (String?) -> String,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+    onReport: (() -> Unit)? = null,
+    updateLine: @Composable () -> Unit = {},
+    eventMarker: @Composable (Long) -> Unit = {},
+) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Messen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                if (live.running && !live.calibrated) {
-                    AssistChip(
-                        onClick = {}, label = { Text("unkalibriert") },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            labelColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
-                    )
-                } else if (live.running) {
-                    AssistChip(onClick = {}, label = { Text("kalibriert") })
+            Text(
+                "Messen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+            )
+        }
+
+        if (!live.running) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
+                    Text(EditionUi.MIC_LINE, style = MaterialTheme.typography.bodyMedium)
+                    MoreLink(Links.MEASURE)
                 }
             }
         }
-
-        item { MigrationNoticeCard() }
 
         if (live.running && (live.micSilenced || live.invalidAudio)) {
             item {
                 SectionCard {
                     Text(
-                        if (live.micSilenced) "Mikrofon vom System stummgeschaltet (Anruf oder Sprachassistent)."
-                        else "Kein gültiges Mikrofonsignal (digitale Stille).",
+                        if (live.micSilenced) "Mikrofon ist stumm (z. B. Anruf). Diese Zeit zählt nicht."
+                        else "Kein Mikrofonsignal. Diese Zeit zählt nicht.",
                         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium,
                     )
-                    Text("Diese Zeit wird nicht gewertet: keine Pegel, keine Ereignisse.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
 
-        item {
-            SectionCard {
-                Text("Momentanpegel LAF", style = MaterialTheme.typography.labelLarge)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
+        if (live.running) {
+            item {
+                SectionCard {
+                    Text("Jetzt", style = MaterialTheme.typography.labelLarge)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
+                    }
+                    LevelBar(live.lafDb)
+                    Spacer(Modifier.height(4.dp))
+                    StatRow("Grundrauschen", "${Fmt.db(live.backgroundDb)} dB(A)")
                 }
-                LevelBar(live.lafDb)
-                Spacer(Modifier.height(4.dp))
-                StatRow("LAeq letzte Minute (gleitend)", "${Fmt.db(live.laeq60sDb)} dB(A)")
-                StatRow("Lokaler Hintergrund L90 (Ereignis-Bezug)", "${Fmt.db(live.localFloorDb)} dB(A)")
-                StatRow("Hintergrund L90 (5 min)", "${Fmt.db(live.backgroundDb)} dB(A)")
             }
-        }
-
-        item {
-            SectionCard("Geräuschquelle") {
-                if (!live.running) {
-                    Text("–", style = MaterialTheme.typography.bodyMedium)
-                } else if (!live.classifierEnabled) {
-                    Text("Klassifikation ist ausgeschaltet (Einstellungen).", style = MaterialTheme.typography.bodyMedium)
-                } else {
+            item {
+                SectionCard("Klingt nach") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(14.dp).clip(CircleShape).background(categoryColor(live.dominantCategory)))
                         Spacer(Modifier.width(8.dp))
-                        Text(categoryName(context, live.dominantCategory), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                        Text(Fmt.percent(live.dominantScore.toDouble()), style = MaterialTheme.typography.titleMedium)
+                        Text(categoryName(live.dominantCategory), style = MaterialTheme.typography.titleLarge)
                     }
-                    if (live.topLabels.isNotEmpty()) {
-                        Text(
-                            "AudioSet: " + live.topLabels.joinToString(" · ") { "${it.label} ${Fmt.percent(it.score.toDouble())}" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            val m = live.lastMinute
-            SectionCard("Letzte volle Minute" + (m?.let { " (${Fmt.hm(it.startEpochMs)})" } ?: "")) {
-                StatRow("LAeq", "${Fmt.db(m?.laeqDb)} dB(A)")
-                StatRow("LAFmax", "${Fmt.db(m?.lafMaxDb)} dB(A)")
-                StatRow("L10", "${Fmt.db(m?.l10Db)} dB(A)")
-                StatRow("L50", "${Fmt.db(m?.l50Db)} dB(A)")
-                StatRow("L90", "${Fmt.db(m?.l90Db)} dB(A)")
-                if (m != null) {
-                    StatRow("Ereignisse", m.eventCount.toString())
-                    StatRow("Gültige Messzeit", "${Fmt.db(m.validSeconds, 0)} s (${Fmt.percent(m.coverage)})")
                 }
             }
         }
@@ -162,56 +152,48 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (live.running) {
                     Button(
-                        onClick = { MeasurementService.stop(context) },
+                        onClick = onStop,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) { Text("Messung stoppen", fontSize = 18.sp) }
+                    ) { Text("Stoppen", fontSize = 18.sp) }
+                    Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
+                    if (live.cell != null) Text("Wird auf die Lärmkarte geteilt.", style = MaterialTheme.typography.bodySmall)
                 } else {
                     Button(
-                        onClick = {
-                            if (hasMicPermission(context)) startMeasurement() else requestPermission()
-                        },
+                        onClick = onStart,
                         enabled = !live.starting && !calibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                    ) { Text(if (live.starting) "Startet …" else "Messung starten", fontSize = 18.sp) }
+                    ) { Text(if (live.starting) "Startet …" else "Starten", fontSize = 18.sp) }
                     // «Laut! Melden»: Karten editions only, while no measurement runs.
-                    if (report != null && !live.starting) {
-                        OutlinedButton(onClick = report, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
+                    if (onReport != null && !live.starting) {
+                        OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
                     }
                 }
-                if (calibrating) Text("Kalibrierung läuft – Messung erst danach möglich.", style = MaterialTheme.typography.bodySmall)
-                if (!live.running) UpdateReminderLine()
+                if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
+                if (!live.running) updateLine()
                 live.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                if (live.running) {
-                    Text(
-                        "Quelle: ${AudioSourceSelector.labelDe(live.audioSource ?: "")} · ${live.encoding} · " +
-                            "Offset ${Fmt.db(live.calibrationOffsetDb, 2)} dB" +
-                            (live.calibrationId?.let { " (Kalibrierung #$it)" } ?: " (Standard)"),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    if (live.effects.isNotEmpty()) {
-                        Text("Effekte: " + live.effects.joinToString(", "), style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text("Läuft seit ${Fmt.time(live.startedAtMs)} – auch bei ausgeschaltetem Bildschirm.", style = MaterialTheme.typography.bodySmall)
-                    live.cell?.let { Text("Wird für die Karte geteilt (Zelle $it).", style = MaterialTheme.typography.bodySmall) }
-                }
             }
         }
 
-        item {
-            Text(
-                "Letzte Ereignisse",
-                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+        if (live.running) {
+            item {
+                Text(
+                    "Letzte Lärmspitzen",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            if (events.isEmpty()) {
+                item { Text("Noch keine.", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium) }
+            }
+            items(events, key = { it.id }) { e -> EventRow(e, categoryName, eventMarker) }
         }
-        if (events.isEmpty()) {
-            item { Text("Noch keine Ereignisse.", modifier = Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium) }
-        }
-        items(events, key = { it.id }) { e -> EventRow(e) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
+
+/** The one placement hint on «Messen» (0.6.1). */
+const val PLACEMENT_HINT = "Leg das Telefon ans offene Fenster. Für lange Messungen: ans Ladegerät."
 
 @Composable
 fun LevelBar(db: Double?) {
@@ -241,23 +223,21 @@ fun LevelBar(db: Double?) {
 }
 
 @Composable
-fun EventRow(e: EventEntity) {
-    val context = LocalContext.current
+fun EventRow(e: EventEntity, categoryName: (String?) -> String, marker: @Composable (Long) -> Unit = {}) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(categoryColor(e.dominantCategory)))
             Spacer(Modifier.width(8.dp))
-            Text(Fmt.time(e.startEpochMs), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(76.dp))
+            Text(Fmt.hm(e.startEpochMs), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(56.dp))
             Text(
                 "${Fmt.db(e.lafMaxDb)} dB(A)", style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.width(92.dp),
             )
-            Text(Fmt.duration(e.durationSeconds), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(64.dp))
             Text(
-                categoryName(context, e.dominantCategory ?: "n/a"), style = MaterialTheme.typography.bodyMedium,
+                categoryName(e.dominantCategory ?: "n/a"), style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f), maxLines = 1,
             )
-            EditionUi.EventMarker(e.id)
+            marker(e.id)
         }
         HorizontalDivider(Modifier.padding(top = 6.dp), color = MaterialTheme.colorScheme.surfaceVariant)
     }

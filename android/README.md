@@ -82,20 +82,21 @@ the CSV stays as recorded.
 **Hum vs bursts.** At a window near a highway the night has two parts: a constant hum (the distant
 highway itself; it drops overnight and changes with the wind) and bursts above it (a car or a
 motorbike passing nearby, voices). The hum *is* the L90; the app reports it as its own quantity,
-«Hintergrund (L90)», and counts and characterises only the bursts above it, as «Ereignisse».
+«Grundrauschen», and counts and characterises only the bursts above it, as «Lärmspitzen» (in the
+code and the CSV: events).
 
 **Local floor and trigger.** Until v0.3 an event started 10 dB above the L90 of the last 5 minutes.
 Measured on one night with 528 recorded event clips (uncalibrated), that 5-minute L90 sat a median
 3.1 dB *below* the level right around an event, because the hum moves within minutes; a third of the
 events barely exceeded the local hum. Since v0.4.0 the reference is the **local floor**, the L90 of
-LAF over the last 30 s (setting «Lokaler Hintergrund: Fenster», 10–60 s), updated every 125 ms. An
-event starts when LAF ≥ floor + **excess** (setting «Ereignis-Schwelle über lokalem Hintergrund»,
-default 6.5 dB — vehicle passes in that night were ≥ 6.5 dB above it, median 9.1, p10 6.9), ends when
+LAF over the last 30 s (fixed since 0.6.1; until 0.6.0 the setting «Lokaler Hintergrund: Fenster»,
+10–60 s), updated every 125 ms. An event starts when LAF ≥ floor + **excess** (Einstellungen ›
+Erweitert › «Lärmspitze ab … über Grundrauschen», 3–20 dB, default 6.5 dB — vehicle passes in that night were ≥ 6.5 dB above it, median 9.1, p10 6.9), ends when
 LAF falls below floor + excess − 3 dB, needs ≥ 0.5 s and the absolute event floor, and is closed after
 300 s. The floor is frozen at the event's start (the 30 s window keeps filling meanwhile). Detection
 starts once 5 s of history exist. The excess in force is stored as `threshold_db`. Settings of v0.3
 are migrated once: a threshold *t* over the 5-min background becomes an excess of max(3, *t* − 3.5) dB
-(10 → 6.5, 7 → 3.5); if it had been changed, the app says so once.
+(10 → 6.5, 7 → 3.5); up to 0.6.0 the app said so once if it had been changed (the notice was removed in 0.6.1).
 
 **Features.** When an event is complete the app computes, from the 125 ms ticks (all O(1) per
 sample, no FFT, no audio kept; code: `dsp/.../EventFeatures.kt`):
@@ -110,7 +111,7 @@ sample, no FFT, no audio kept; code: `dsp/.../EventFeatures.kt`):
 | `mid_band_rise_db` | A-weighted level in 250 Hz–4.5 kHz (2nd-order Butterworth high-pass and low-pass) over the loudest 1 s of the event minus the same band over the 5 s before its start |
 | `lf_share` | unweighted energy 20–200 Hz / energy 20 Hz–8 kHz over the event (20 Hz high-pass, then a 200 Hz resp. 8 kHz low-pass, 2nd-order Butterworth) |
 | `lf_flutter_db` | RMS of the detrended 20–200 Hz level: the un-time-weighted 125 ms level of that band minus its centred running median over ±8 ticks (≈ 2.1 s; the window shrinks symmetrically towards the event's edges). The median follows slow trends and single steps (any on/offset), so what remains is the fast back-and-forth (≈ 0.5 Hz up to the 4 Hz the tick rate allows) of wind turbulence |
-| `wind` | `lf_share ≥ 0.93` **or** `lf_flutter_db ≥ 4.5` (thresholds under Einstellungen → Experten; fitted on a recorded night, see below) |
+| `wind` | `lf_share ≥ 0.93` **or** `lf_flutter_db ≥ 4.5` (fixed since 0.6.1, until then settings under Einstellungen → Experten; fitted on a recorded night, see below) |
 | `shape` | `long` (≥ 30 s), else `impulse` (rise < 0.35 s and ≤ 2 s), else `jagged` (jaggedness ≥ 0.3), else `hump`. Informational only, not a filter; thresholds provisional |
 
 **Wind on the microphone.** In the recorded night 14 % of the events were wind: almost all their
@@ -118,8 +119,8 @@ unweighted energy below 200 Hz, or a strongly fluttering low-frequency level, su
 multi-peak gusts, in episodes. A high-pass does not remove it. Wind events are stored (category
 «Wind», id `wind`, not part of the classifier mapping; the classifier's labels are kept) and exported
 with `wind = true`, but are left out of every count: events/h, the measurement's events, the categories,
-the loudest event, `event_count`. The chart draws them as small hollow grey dots («Wind
-(ausgeschlossen)»; can be hidden under Experten).
+the loudest event, `event_count`. Since 0.6.1 the chart does not draw them (until 0.6.0 small
+hollow grey dots «Wind (ausgeschlossen)», a setting under Experten); they stay in the CSV.
 
 **Validation on a recorded night** (Labor build, 7./8.10.2026, one phone, uncalibrated; audio not in
 the repository). The whole continuous recording (8.7 h) was replayed through the engine
@@ -154,14 +155,14 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
 `Canvas`, no chart library):
 
 - **Views:** **Messung** — the measurement's own time span, start to stop (a running one up to
-  now); **Tagesverlauf** — all days of the measurement laid over one 0–24 h axis, one point per hour
+  now); **Tagesverlauf** (the choice is shown only for measurements of 24 h or more, since 0.6.1) — all days of the measurement laid over one 0–24 h axis, one point per hour
   of the day (energy mean of all valid minutes that started in that hour on any day; the band is
   the median of their L90 and L10; an hour needs 10 valid minutes), events at their clock time.
   ‹ › or a sideways swipe on the chart (≥ 15 % of its width, or a fling) move to the older/newer
   measurement.
-- **Marks:** a band from L90 to L10 (the background), the LAeq line per minute, and every event
-  as a dot at (start, LAFmax); wind events as small hollow grey dots below the others (not in the
-  hourly views; setting «Wind-Ereignisse in der Grafik zeigen»). One category is highlighted in orange and drawn on top (default
+- **Marks:** a band from L90 to L10 (legend «Schwankung»), the LAeq line per minute (legend «Mittel
+  pro Minute»), and every event as a dot at (start, LAFmax) (legend «andere Spitzen»); wind events
+  are not drawn (since 0.6.1). One category is highlighted in orange and drawn on top (default
   Töff & Poser; chosen with the scrolling row of chips under the chart and remembered; the
   selected chip carries the same orange dot), all others as smaller grey dots. The y axis runs from the lowest L90 − 5 dB to the loudest shown event or
   LAeq + 5 dB (rounded to 5 dB, at least 30 dB).
@@ -172,16 +173,19 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
   values; an hour needs 30 valid minutes), and so is the Tagesverlauf. There only events of the
   highlighted category ≥ max(floor, 60 dB(A)) are drawn, at most the loudest 300; the event count
   in the summary still includes all events.
-- **Touch:** a tap shows a crosshair and a tooltip for the nearest minute (hour), or for an
-  event dot within 16 dp (with weekday and date if the measurement spans more than one calendar
-  date); while the tooltip is open, dragging sideways moves the crosshair.
+- **Touch:** a tap shows a crosshair and a two-line tooltip for the nearest minute (hour) — time,
+  «Mittel … · Spitze …» — or for an event dot within 16 dp — time and source, peak and duration —
+  (with weekday and date if the measurement spans more than one calendar date); the Labor build
+  keeps the detector details (L10/L90, local floor, shape, model label, calibration state). While
+  the tooltip is open, dragging sideways moves the crosshair.
   Tapping the tooltip (or outside the plot) closes it.
-- **Summary:** three tiles — **«Grundrauschen (L90)»**, the hum, **«Lärmspitzen»**, bursts per hour
-  of valid measurement without wind (below it «n Wind ausgeschlossen»), and **«Lautestes»**, the
-  loudest burst — and a line with the LAeq of the measurement, the number of events (and of the
-  highlighted category), the measured share of the time, the **dynamics** (median over the valid
-  minutes of L10 − L90: a few dB for steady traffic, more for a quiet street with bursts) and any
-  interruptions. The summary is the same in both views.
+- **Summary:** three tiles — **«Grundrauschen»**, the hum, **«Lärmspitzen» … «pro Stunde»**, bursts
+  per hour of valid measurement without wind, and **«Lauteste»**, the loudest burst — and one line
+  «Mittel 53,6 dB(A) · 67 Lärmspitzen, davon 9 Töff & Poser · 100 % gemessen». Since 0.6.1 the line
+  no longer lists the dynamics (median L10 − L90) and the interruptions (the chart draws the gaps);
+  both are still computed (`WindowSummary.dynamicsDb`, `gapTexts`). No «unkalibriert» badge (said
+  once under Einstellungen › Datenschutz: «Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB).»).
+  The summary is the same in both views.
 
 The chart code is in `chart/`: `Windows.kt` (axis arithmetic of the two views), `ChartModel.kt` (data → model:
 series, runs, gaps, y range, events, summary), `ChartGeometry.kt` (pixels, hit testing),
@@ -196,6 +200,19 @@ STADTLAERM_REAL_DATA=/path/to/export ./gradlew :chart:testDebugUnitTest --rerun
 
 The renders use synthetic data (`chart/src/test/.../SyntheticData.kt`); real exports are only
 read from the directory given in `STADTLAERM_REAL_DATA` and never belong in the repository.
+
+**Screenshots for the website** (since 0.6.1), also from synthetic data only, 1082 × 1700 px:
+`chart/.../WebsiteScreenshots.kt` renders the «Messungen» chart of an 8-hour measurement at a busy
+street (`SyntheticData.busyStreet()`) as `app-messung.png` and `app-messung-dark.png` into
+`chart/build/screenshots/website/`; `app/src/testOffline/.../ui/MeasureScreenshot.kt` renders
+«Messen» while measuring (`MeasureContent`, the screen without the app container) as
+`app-messen.png` into `app/build/screenshots/website/` (the app module applies the Paparazzi
+plugin for this one test). Copy them to `docs/img/` by hand:
+
+```sh
+./gradlew :chart:testDebugUnitTest --tests '*WebsiteScreenshots*' testOfflineDebugUnitTest --tests '*MeasureScreenshot*' --rerun
+cp chart/build/screenshots/website/app-messung*.png app/build/screenshots/website/app-messen.png ../docs/img/
+```
 
 ## Source categories
 
@@ -218,7 +235,7 @@ keep the category they were given when measured:
 | `construction` | Baustelle | Jackhammer; Drill; Power tool; Sawing; Hammer; Sanding; Chainsaw; Filing (rasp) |
 | `voices` | Stimmen | Speech; Conversation; Shout; Yell; Children shouting; Children playing; Crowd; Chatter; Laughter; Hubbub, speech noise, speech babble; Cheering |
 | `music` | Musik | Music; Pop/Rock/Hip hop/Electronic/Electronic dance/Dance/House music; Techno; Drum and bass; Disco; Reggae; Singing |
-| `unclassified` | Sonstiges / unklassifiziert | everything else (birds, wind, silence, …) |
+| `unclassified` | Sonstiges (until 0.6.0 «Sonstiges / unklassifiziert», in the chart «Unklassifiziert») | everything else (birds, wind, silence, …) |
 | `wind` | Wind | not a classifier category: the detector's wind flag (since v0.4.0, see [Event detection](#event-detection-detector-v2)) |
 
 A unit test fails the build if any name in the JSON does not exist exactly in the shipped label
@@ -245,8 +262,8 @@ so a better model can be swapped in without touching the measurement code.
 The two published editions share the app id and the release key, so installing one over the other
 switches the edition and keeps all measurements. (0.6.0 changed the app id from `ch.stadtlaerm.app`
 to `ch.lessnoise.app`, so it installs next to a 0.5.x install, not over it, and starts with empty
-storage; the signing key is unchanged.) **Einstellungen → App-Version** shows which edition is
-installed and how to switch; «Nach Update suchen» sends the edition to the update page
+storage; the signing key is unchanged.) **Einstellungen → Über die App** shows which edition is
+installed and how to switch; «Update prüfen» sends the edition to the update page
 (`&e=offline` / `&e=karte`; the Labor builds send no `e`). When the offline edition starts on a
 phone where the Karte edition had «Messwerte teilen» on, it switches sharing off, drops reports not
 yet sent and cancels the upload jobs (device id and token are kept, so the Karte edition can still
@@ -292,8 +309,8 @@ internet permission at all; in the Karte edition the internet is used only for �
 and «Laut! Melden», never for update checks).
 Instead:
 
-- **Einstellungen → App-Version** shows «Weniger Lärm 0.6.0 (Build vom 12.10.2026)» (the edition's
-  name) and a button **Nach Update suchen**. It opens
+- **Einstellungen → Über die App** shows «Weniger Lärm 0.6.1 vom 13.10.2026» (the edition's
+  name) and a button **Update prüfen**. It opens
   `https://wenigerlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>` in the browser
   (`e` since v0.5.0, `BuildConfig.EDITION` of the two published editions; the Labor builds send none). The page
   ([docs/update.html](../docs/update.html)) carries the published version as
@@ -305,8 +322,8 @@ Instead:
   «Kein Browser gefunden».
 - **Age reminder, fully offline:** `BuildConfig.BUILD_DATE` is the build date (ISO, Zürich
   calendar day of the Gradle build; `SOURCE_DATE_EPOCH` overrides it). From 30 days after it,
-  the top of Einstellungen and a line under «Messung starten» say «Diese App-Version ist n Tage
-  alt. Nach Update suchen?» (tap = same as the button). «Später» hides it for 14 days. If the
+  the top of Einstellungen and a line under «Starten» say «Neue Version? Jetzt prüfen» (tap = same
+  as the button; until 0.6.0 «Diese App-Version ist n Tage alt. Nach Update suchen?»). «Später» hides it for 14 days. If the
   phone's clock went backwards since «Später», the snooze is ignored. The logic is pure Kotlin
   (`app/.../update/UpdateCheck.kt`) with JVM tests.
 
@@ -317,37 +334,42 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Messung starten.** In «Weniger Lärm · Karte» with «Messwerte teilen» on, the phone
+3. **Messen → Starten.** In «Weniger Lärm · Karte» with «Teilen» on, the phone
    first takes one location fix for the measurement's 100 m cell (if that fails: «Nochmals»,
    «Koordinaten einfügen» or «Ohne Teilen starten»). While measuring, a persistent notification
-   «Mikrofon aktiv – Messung läuft» with the current LAeq and a «Stopp» button is shown (its icon
-   stays in the status bar); you can turn the screen off.
-4. When you are done — after an hour, a night or several days: **Messung stoppen** (or «Stopp» in
+   «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
+   «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
+   screen shows «Jetzt» (LAF), «Grundrauschen» (the 5-min L90), «Klingt nach» (the current
+   category), «Läuft seit …» and the «Letzte Lärmspitzen». Before the start it shows one placement
+   hint and one microphone line («Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder
+   gesendet.») instead.
+4. When you are done — after an hour, a night or several days: **Stoppen** (or «Stopp» in
    the notification), then look at **Messungen**.
 
-**Closing the app.** By default the measurement keeps running as a background service when the
-app is swiped away from the recent apps; the notification shows it and has the «Stopp» button.
-With **Einstellungen → Messung → «Messung beenden, wenn die App geschlossen wird»** (off by
-default) swiping the app away stops the measurement exactly like «Stopp»: the current, partial
-minute is still saved.
+**Closing the app.** The measurement keeps running as a background service when the app is swiped
+away from the recent apps; the notification shows it and has the «Stopp» button. (Until 0.6.0 the
+setting «Messung beenden, wenn die App geschlossen wird», off by default, could stop it instead;
+removed in 0.6.1.)
 
 ### Battery
 
 Measurement runs in a foreground service of type *microphone* so Android keeps it alive with the
-screen off. By default the app additionally holds a partial wake lock while measuring (setting
-"CPU wach halten"). The audio system already keeps the CPU partly awake while recording, so the
+screen off. The app additionally holds a partial wake lock while measuring (always since 0.6.1;
+until then the setting «CPU wach halten», on by default). The audio system already keeps the CPU partly awake while recording, so the
 extra cost should be small; not yet measured on a device — my estimate is a few % of battery
 per hour, plus one classifier inference per second (expected tens of milliseconds on a mid-range
 phone). The app keeps measuring on battery; nothing in it depends on the charger. Over many
 hours that estimate adds up to a noticeable share of the battery, so the charger is convenient,
-not required («Messung & Akku» in Einstellungen). For measuring on battery, exempt Weniger Lärm from
-battery optimisation (Einstellungen → Akku-Optimierung öffnen; on a Pixel: Settings → Apps → Weniger Lärm → App battery
+not required (the «Messen» screen says «Für lange Messungen: ans Ladegerät»). For measuring on
+battery, exempt Weniger Lärm from battery optimisation (Einstellungen → Lange messen →
+«Akku-Optimierung ausschalten»; on a Pixel: Settings → Apps → Weniger Lärm → App battery
 usage → Unrestricted). Phones with aggressive power management (Xiaomi, Huawei, Samsung "deep
 sleep") may need an extra exemption in the maker's own battery settings.
 
 ## Calibration (step by step)
 
-Phones differ by several dB, so for data you want to show to anyone, calibrate. Calibrations are
+Phones differ by several dB, so for data you want to show to anyone, calibrate (since 0.6.1 under
+**Einstellungen → Erweitert → Kalibrieren**; the screen calls the offset «Korrektur»). Calibrations are
 stored per **device model and audio source** with a full history; every minute record carries the
 id of the calibration that was active.
 
@@ -356,52 +378,53 @@ id of the calibration that was active.
 You need a Class 1 or Class 2 sound level meter that can show LAeq (borrow one: many
 environmental offices and universities lend them).
 
-1. Stop any running measurement. Open **Kalibrieren**.
+1. Stop any running measurement. Open **Einstellungen → Erweitert**.
 2. Put the phone's microphone (usually at the bottom edge) right next to the meter's microphone,
    a few centimetres apart, both pointing at the source.
 3. Create a **steady** noise of at least 60 dB(A): pink noise from a loudspeaker 1–2 m away is
    ideal; steady, dense traffic works too. Avoid speech or music.
-4. Choose 30 s or 60 s, tap **Messung starten**, and at the same moment start an LAeq measurement
-   of the same length on the meter.
-5. When the countdown ends, type the meter's LAeq into the field. The app shows the new offset
-   (`reference − measured`).
-6. Check the warnings: standard deviation of the 1 s levels > 2 dB means the noise was not steady
-   enough; a reference below 50 dB(A) is too close to the phone's own noise floor. Repeat if
-   warned.
-7. Tap **Kalibrierung übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB.
+4. Under «Mit Messgerät vergleichen» tap **Messen (30 s)** (fixed at 30 s since 0.6.1; 60 s is no
+   longer offered), and at the same moment start an LAeq measurement of the same length on the meter.
+5. When the countdown ends, type the meter's LAeq into «Wert am Messgerät». The app shows the
+   phone's level and the new «Korrektur» (`reference − measured`).
+6. Check the warnings: «Zu unruhig» (standard deviation of the 1 s levels > 2 dB: the noise was not
+   steady enough); «Zu leise (unter 50 dB(A))» (too close to the phone's own noise floor). Repeat
+   if warned.
+7. Tap **Übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB.
 
 ### Method 2 — acoustic calibrator
 
 1. Select 94 dB or 114 dB to match your calibrator (1 kHz).
 2. Couple the calibrator tightly to the phone's microphone port. Phone microphones need an
    adapter (a rubber coupler or a 3D-printed sleeve); without an airtight seal the result is wrong.
-3. Switch the calibrator on and tap **Kalibrator messen (10 s)**.
+3. Switch the calibrator on and tap **Messen (10 s)** under «Mit Kalibrator (1 kHz)».
 4. The app checks that the dominant frequency is 1 kHz ± 5 % and that the signal is a clean tone;
    otherwise saving is blocked. Offset = nominal − measured (A-weighting is 0 dB at 1 kHz).
 
 ### Method 3 — manual offset
 
-Enter an offset determined elsewhere (e.g. another phone of the same model calibrated with
-method 1). Use **Auf Standard** to return to the uncalibrated CDD default.
+«Korrektur von Hand»: enter an offset determined elsewhere (e.g. another phone of the same model
+calibrated with method 1). Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
+uncalibrated CDD default.
 
-### Noise floor check
+### Noise floor
 
-**Eigenrauschen messen** records 20 s in the quietest place you have and shows the resulting
-LAeq. Levels within ~5 dB of this value are dominated by the phone's own noise and are not
-meaningful. Many phones bottom out somewhere around 30–40 dB(A) (to be confirmed per model).
+Levels within ~5 dB of the phone's own noise are not meaningful; many phones bottom out somewhere
+around 30–40 dB(A) (to be confirmed per model). The in-app check «Eigenrauschen messen» was removed
+in 0.6.1 (the website explains the limit); the code path (`CalMode.NOISE_FLOOR`) is still there.
 
-The calibration history can be exported as JSON (Kalibrieren → Als JSON exportieren).
+The calibration history can be exported as JSON (Erweitert → Verlauf → Exportieren).
 
 The active calibration is always the most recent one for this device and audio source; there is no
 way to pick an older one from the history (save it again as a manual offset instead).
 
 ### The event floor follows the calibration
 
-The event floor («Mindestpegel», an absolute LAFmax) is chosen on the levels you see. Levels are
+The event floor («Lärmspitzen erst ab», until 0.6.0 «Mindestpegel»; an absolute LAFmax) is chosen on the levels you see. Levels are
 `raw + offset`, so a new offset shifts every level, and a floor tuned on uncalibrated data (default
 offset 112.35 dB) would filter a different set of sounds after calibrating (a real calibration
 typically moves the offset by +5 to +15 dB). Therefore, whenever a calibration is saved and becomes
-active for the current device and audio source (all three methods, and **Auf Standard**), the app
+active for the current device and audio source (all three methods, and **Zurücksetzen**), the app
 sets
 
 ```
@@ -409,10 +432,9 @@ floor_new = round_0.5(floor_old + (offset_new − offset_previous))     clamped 
 ```
 
 where `offset_previous` is the offset the measurement would have used until then (the default if no
-calibration was active). The calibration screen confirms it, e.g. «Kalibrierung gespeichert. Offset
-+9.6 dB gegenüber vorher; der Mindestpegel für Ereignisse wurde von 30.0 auf 39.5 dB(A)
-angepasst.»; if the range limit bites, the message says so and gives the unclamped value. The
-setting moves in 0.5 dB steps. The arithmetic is pure Kotlin (`EventFloor` in
+calibration was active). Since 0.6.1 the confirmation is only «Kalibrierung gespeichert (+9.6 dB).»
+(or «Zurückgesetzt. Die Werte sind wieder Richtwerte.»); the floor follows silently (until 0.6.0 the
+message reported it). The setting («Lärmspitzen erst ab», Einstellungen › Erweitert) moves in 0.5 dB steps. The arithmetic is pure Kotlin (`EventFloor` in
 `dsp/.../calibration/Recalibration.kt`) with unit tests.
 
 ### Re-evaluating old measurements («nachträglich kalibriert»)
@@ -421,10 +443,11 @@ For the same phone and the same audio source, a level stored with offset O1 corr
 new offset O2 to `level − O1 + O2`. So measurements made before a calibration (or with an older
 one) can be corrected afterwards:
 
-- After saving a calibration the app asks «Frühere Messungen mit dieser Kalibrierung neu bewerten?
-  Betrifft n Minuten und m Ereignisse …» (**Neu bewerten** / **Nicht jetzt**). The same action is in
-  **Daten → Alte Messungen neu bewerten** (disabled, with the reason, when no calibration is active,
-  nothing qualifies, or a measurement is running). Nothing happens automatically.
+- After saving a calibration the app asks «Alte Messungen anpassen? n Minuten werden mit der neuen
+  Kalibrierung umgerechnet. Die Originalwerte bleiben.» (**Anpassen** / **Nicht jetzt**). The same
+  action is the card **«Alte Messungen anpassen»** under Einstellungen → Erweitert (since 0.6.1;
+  before under «Daten»), shown only while a calibration is active; it says when nothing qualifies
+  or a measurement is running. Nothing happens automatically.
 - **Scope:** minutes and events with the same audio source (`UNPROCESSED` and `VOICE_RECOGNITION`
   are calibrated separately) whose `calibration_id` differs from the new calibration's (including
   data measured without a calibration). Measurements are only ever made on this phone, so the device
@@ -446,14 +469,14 @@ one) can be corrected afterwards:
   calibration (or the default).
 - It runs in the background with a progress bar, in one database transaction (all or nothing,
   in batches of 500 rows).
-- **Marking:** re-evaluated data counts as calibrated, so the «unkalibriert» badge disappears. The
-  measurement list and the chart summary show «nachträglich kalibriert» when any minute of the
-  measurement was re-evaluated, and the chart tooltip says «nachträglich kalibriert» instead of
-  «unkalibriert».
+- **Marking:** re-evaluated data counts as calibrated. Since 0.6.1 neither «unkalibriert» nor
+  «nachträglich kalibriert» is shown in the public app (the CSV keeps `recalibrated_from_id`; the
+  Labor build's chart tooltip still says it).
 
 ## Data export
 
-**Daten → CSV exportieren & teilen** creates two UTF-8 CSV files (minutes, events) with a
+**Einstellungen → Deine Messungen → Exportieren** (until 0.6.0 «Daten → CSV exportieren & teilen»)
+creates two UTF-8 CSV files (minutes, events) with a
 `.` decimal separator and ISO-8601 timestamps with zone offset, and hands them to the Android
 share sheet. Column names are in the first row (`laeq_db`, `lafmax_db`, `share_loud_vehicle`, …).
 Since v0.3.2 both files end with the re-evaluation columns (appended, the earlier columns keep
@@ -472,28 +495,36 @@ and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 Phones whose owners opt in send the minute and event records of their **shared measurements** to
 the project's server for the shared noise map ([../server/DESIGN.md](../server/DESIGN.md): §2
 privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! Melden» reports. Only in
-«Weniger Lärm · Karte» (and the internal Labor build with the map). **Einstellungen → Messwerte
-teilen**:
+«Weniger Lärm · Karte» (and the internal Labor build with the map). Since 0.6.1 the tab **«Teilen»**
+(screen title «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen):
 
-1. **Explanation** (shown until confirmed once): what is sent (the minute values and bursts of
-   shared measurements, each with the 100 m cell where the measurement was started — so loud
-   moments of a shared measurement appear on the map; reports with time, exact place and category;
-   phone model, audio source, calibration and the placement answers; a random id), what is never
-   sent (audio, the exact location except with a report, name or account), where it goes
-   (`api.lessnoise.ch`, Switzerland; only values per cell are public), how to delete.
-2. **Placement** («Aufstellung (freiwillig)»): placement (offenes Fenster / Balkon / hinter Glas /
-   anderes), floor, street or courtyard side, an optional note (≤ 200 characters, never
-   published); all optional, remembered for the next measurements. The fixed hectare of v0.5.x is
+1. **Explanation** (open until «Weiter», afterwards behind «Was gesendet wird ▸»): what is sent
+   (Lärmwerte pro Minute and Lärmspitzen with their category; the 100 m square and the placement
+   answers; reports with time, exact place and kind; phone model, audio source, calibration and a
+   random id), the location rule (one fix at «Starten», only the square kept and sent; a report's
+   exact place deleted after sending), what is never sent (audio, name, phone number, e-mail; the
+   exact location except with a report, never read in the background), where it goes (the
+   project's server in Switzerland; public only values per 100 m square and reports, never the id
+   or note; «Misst sonst niemand in deinem Quadrat, sind es deine Werte.» as DESIGN.md §2 rule 2
+   asks; nothing measured with sharing off), how to delete (switching off, «Vom Server löschen»,
+   60 days). «Mehr dazu» opens wenigerlaerm.ch/datenschutz.html.
+2. **Placement** («Wo steht das Telefon?»): «Das Telefon liegt» am offenen Fenster / auf dem Balkon /
+   hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under «Weitere
+   Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all optional,
+   remembered for the next measurements. The fixed hectare of v0.5.x is
    gone: the place is now chosen per measurement (below).
-3. **The switch** «Messwerte teilen» (off by default; needs 1), «Nur über WLAN» (default on: only
-   unmetered networks), «Zuletzt gesendet: …», «Noch zu senden: n Minuten» (of shared measurements),
-   the last error and the count of records the server refused for good; a «Meldungen» card with the
-   reports waiting and the last sent ones (category, time, cell).
-4. **«Daten auf dem Server löschen»** (confirms, waits for the server's answer, then switches
-   sharing off and drops unsent reports) and **«Neue Kennung»** (deletes the server data, then sends
-   under a fresh id).
+3. **The switch** «Auf die Karte senden» (off by default; needs 1) with one status line («Ein ·
+   zuletzt gesendet …» / «Aus – es wird nichts gesendet»), the count of records the server refused
+   for good and the last error (retried failures all read «Senden klappt gerade nicht. Neuer Versuch
+   folgt.»); under «Weitere Angaben ▸» «Nur über WLAN» (default on: only unmetered networks) and
+   «Noch zu senden: n Minuten». A «Meldungen» card lists the reports waiting and the last sent ones
+   (category, time).
+4. **«Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
+   then switches sharing off and drops unsent reports) and, only when the server no longer knows
+   the phone, **«Neu starten»** (until 0.6.0 «Neue Kennung», always shown: deletes the server data,
+   then sends under a fresh id).
 
-**Location per measurement (v0.6.0).** With sharing on, **Messung starten** first takes **one**
+**Location per measurement (v0.6.0).** With sharing on, **Starten** first takes **one**
 location fix (`ui/LocationFlows.kt` → `location/LocationFetcher.locate`): it requests
 `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` if needed (Activity Result API), then asks the
 platform `LocationManager` (no Google Play Services): GPS and network provider, whichever are
@@ -539,7 +570,7 @@ report batch drops it. The site call (`PUT …/site`) sends the placement detail
 the newest shared measurement. After «Alte Messungen neu bewerten» the last 7 days are sent again
 with the new levels. At most 24 requests per run (the server allows 60 per device and hour); a
 longer backlog continues 30 min later. Errors back off exponentially from 10 minutes; a refused
-token (401) stops uploads until «Neue Kennung». The local database stays the source of truth:
+token (401) stops uploads until «Neu starten». The local database stays the source of truth:
 nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
@@ -588,7 +619,7 @@ the website's `lv95.js`.
 - **YAMNet was trained on YouTube audio**, which is louder and closer-miked than a street at
   night. Measured with the real model, speech at −60 dBFS is already partly reported as
   "Silence". The app therefore amplifies quiet windows for classification only (up to +40 dB,
-  setting "Pegelanpassung"); levels are never affected. Classifications of distant sources stay
+  always on since 0.6.1, until then the setting «Pegelanpassung»); levels are never affected. Classifications of distant sources stay
   uncertain; motorcycles and cars are often confused, and the parent class "Vehicle" tends to
   dominate.
 - **Duration of events** is measured on the Fast-weighted level, so it includes the decay tail
@@ -786,7 +817,7 @@ was busy or the storage full).
 - **Einstellungen → Labor → «Clips anhören»:** all clips newest first, or «Letzte 24 h» (events of
   the last 24 hours; until v0.5.1 «Diese Nacht»); filter chips by category; count and total size on
   top. Tap a row to play it.
-- **Messen → «Letzte Ereignisse»:** tap the red dot after an event.
+- **Messen → «Letzte Lärmspitzen»:** tap the red dot after an event.
 
 The player plays the WAV through the media volume (use the volume keys; a hint appears if the
 media volume is 0 or the phone is on silent). The bar shows the whole clip: the 5 s pre-roll and
@@ -795,7 +826,7 @@ tap or drag the bar (or the slider) to seek. Below it: the classifier result for
 heard — top-3 AudioSet labels with scores, the category decision («ignoriert» for silenced/invalid
 audio), the input gain and LAF — taken from the clip's `classifierTrace` in the manifest. «‹
 Vorheriger» / «Nächster ›» step to the neighbouring clip by event time (from the chart: the clips of
-the chart window; from the list: the filtered list; from «Letzte Ereignisse»: all clips).
+the chart window; from the list: the filtered list; from «Letzte Lärmspitzen»: all clips).
 «Teilen» sends the single WAV. The player closes when a measurement starts or stops; playing
 while measuring works, but the speaker is then measured too (use headphones). A missing or broken
 file shows «Clip nicht gefunden».

@@ -213,6 +213,54 @@ object SyntheticData {
         return ChartData(w, allMins, allEvents.sortedBy { it.startEpochMs }, nowMs = ms(weekMonday.plusDays(8).atTime(9, 0)))
     }
 
+    // ---- Busy street, Saturday evening 10 → 11 October 2026 (website screenshot) -----------------
+
+    val saturday: LocalDate = LocalDate.of(2026, 10, 10)
+    private fun sat(h: Int, m: Int, s: Int = 0) =
+        if (h >= 12) saturday.atTime(h, m, s) else saturday.plusDays(1).atTime(h, m, s)
+
+    /** Grundrauschen of a busy street at an open window: ≈ 47 dB in the evening, ≈ 43 dB after midnight. */
+    fun busyStreetL90(t: LocalDateTime): Double {
+        val h = hoursSince(saturday.atTime(18, 30), t)
+        val trend = if (h < 4.5) 47.0 - 0.4 * h else 45.2 - 1.2 * (h - 4.5)
+        return trend + 1.2 * sin(h * 2.1)
+    }
+
+    /**
+     * An 8-hour measurement 18:30–02:30 at a busy street: frequent road traffic, buses and trams,
+     * voices around midnight and 9 Töff & Poser peaks of 74–88 dB(A), most of them 21:00–01:00.
+     */
+    fun busyStreetEvents(): List<Ev> {
+        val r = Random(42)
+        val out = ArrayList<Ev>()
+        repeat(46) {
+            val minute = r.nextInt(0, 8 * 60)
+            val at = saturday.atTime(18, 30).plusMinutes(minute.toLong()).plusSeconds(r.nextLong(0, 60))
+            out += Ev(at, 58.0 + r.nextDouble(0.0, 10.0) - (if (minute > 330) 3.0 else 0.0), "road_traffic", 2.5 + r.nextDouble(0.0, 3.0))
+        }
+        repeat(7) {
+            val at = saturday.atTime(18, 30).plusMinutes(r.nextLong(0, 7 * 60))
+            out += Ev(at, 64.0 + r.nextDouble(0.0, 5.0), "rail_tram", 8.0)
+        }
+        listOf(sat(23, 12), sat(23, 48), sat(0, 25), sat(0, 52), sat(1, 31)).forEach {
+            out += Ev(it, 59.0 + r.nextDouble(0.0, 6.0), "voices", 6.0)
+        }
+        listOf(
+            sat(19, 42) to 76.5, sat(21, 7) to 81.0, sat(21, 58) to 74.0, sat(22, 36, 20) to 88.0, sat(23, 21) to 79.5,
+            sat(23, 55) to 84.0, sat(0, 38) to 77.0, sat(1, 14) to 82.5, sat(2, 3) to 75.5,
+        ).forEach { (at, db) -> out += Ev(at, db, "loud_vehicle", 4.0 + r.nextDouble(0.0, 3.0), "Motorcycle") }
+        return out.sortedBy { it.at }
+    }
+
+    fun busyStreet(): ChartData {
+        val from = saturday.atTime(18, 30)
+        val to = saturday.plusDays(1).atTime(2, 30)
+        val evs = busyStreetEvents()
+        val mins = minutes(from, to, ::busyStreetL90, evs, seed = 10)
+        val w = TimeWindow.span(ms(from), ms(to))
+        return ChartData(w, mins, evs.map { event(it, busyStreetL90(it.at)) }, nowMs = ms(saturday.plusDays(1).atTime(9, 0)))
+    }
+
     fun emptyNight(): ChartData {
         val w = TimeWindow.span(ms(LocalDate.of(2026, 9, 20).atTime(22, 0)), ms(LocalDate.of(2026, 9, 21).atTime(6, 0)))
         return ChartData(w, emptyList(), emptyList(), nowMs = ms(LocalDate.of(2026, 10, 7).atTime(12, 0)))

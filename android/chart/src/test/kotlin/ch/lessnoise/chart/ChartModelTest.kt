@@ -300,7 +300,15 @@ class ChartModelTest {
         val lines = tooltipLines(Selection.Event(e, true), m)
         // Over midnight: weekday and date first.
         assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", lines[0])
-        assertTrue("LAFmax 85.0 dB(A)" in lines && "unkalibriert" in lines, lines.toString())
+        // Two lines: time and source, then peak and duration (0.6.1).
+        assertEquals(2, lines.size, lines.toString())
+        assertTrue(lines[1].startsWith("85.0 dB(A) · "), lines.toString())
+        // The Labor build keeps the detector details.
+        val detailed = tooltipLines(Selection.Event(e, true), m, detailed = true)
+        assertTrue("LAFmax 85.0 dB(A)" in detailed && "unkalibriert" in detailed, detailed.toString())
+        val minute = tooltipLines(Selection.Point(m.points.first { it.valid }), m)
+        assertEquals(2, minute.size, minute.toString())
+        assertTrue(minute[1].startsWith("Mittel ") && minute[1].contains(" · Spitze "), minute.toString())
         assertEquals(listOf("Sa 10.10. 03:20", "keine Messung"), tooltipLines(Selection.NoData(SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 3, 20))), m))
         // Within one date: the time is enough.
         val evening = ChartModel.build(d.copy(window = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 23, 59)))), zone, "loud_vehicle", 45.0)
@@ -320,17 +328,16 @@ class ChartModelTest {
         val m = build(ms, evs, floor = 30.0)
         assertEquals(48.0, m.summary.eventsPerHour, 1e-9)
         assertEquals(6.0, m.summary.dynamicsDb, 1e-9)
-        // Measurement 22–06 with data only 22–23: coverage 12.5 %, then the end of the data.
-        assertEquals("LAeq 40,0 dB(A) · 48 Ereignisse · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis Fr 23:00", m.summary.line())
-        assertEquals(
-            "LAeq 40,0 dB(A) · 48 Ereignisse (0 Töff & Poser) · Messung 13 % der Zeit · Dynamik L10−L90 6,0 dB · Messung bis Fr 23:00",
-            m.summary.line(highlightName = "Töff & Poser"),
-        )
-        assertEquals("48/h", m.summary.eventsPerHourText)
+        // Measurement 22–06 with data only 22–23: coverage 12.5 %. The gaps and the dynamics are no
+        // longer in the line (0.6.1), but still computed.
+        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen · 13 % gemessen", m.summary.line())
+        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen, davon 0 Töff & Poser · 13 % gemessen", m.summary.line(highlightName = "Töff & Poser"))
+        assertEquals(listOf("Messung bis Fr 23:00"), m.summary.gapTexts)
+        assertEquals("48", m.summary.eventsPerHourText)
         val few = build(ms, evs.take(5), floor = 30.0)
-        assertEquals("5,0/h", few.summary.eventsPerHourText)
-        assertTrue(few.summary.line().contains("5 Ereignisse"), few.summary.line())
-        assertTrue(build(ms, evs.take(1), floor = 30.0).summary.line().contains("1 Ereignis ·"))
+        assertEquals("5,0", few.summary.eventsPerHourText)
+        assertTrue(few.summary.line().contains("5 Lärmspitzen"), few.summary.line())
+        assertTrue(build(ms, evs.take(1), floor = 30.0).summary.line().contains("1 Lärmspitze ·"))
     }
 
     // ---- wind (detector v2) ---------------------------------------------------------------------
@@ -371,8 +378,9 @@ class ChartModelTest {
         val sel = g.hitTest(dot.x, dot.y, 20f)
         assertIs<Selection.Event>(sel)
         assertTrue(sel.event.wind)
-        val lines = tooltipLines(sel, m)
+        val lines = tooltipLines(sel, m, detailed = true)
         assertTrue(lines[0].endsWith("· $WIND_LEGEND"), lines[0])
+        assertTrue(tooltipLines(sel, m)[0].endsWith("· Wind"), tooltipLines(sel, m)[0])
         assertTrue(lines.any { it.startsWith("Lokaler Hintergrund 38.0 dB(A) (+52.0 dB)") }, lines.toString())
         assertTrue(lines.any { it.startsWith("Tieftonanteil 98 %") }, lines.toString())
         assertEquals("Wind", ChartCategories.name(WindRule.CATEGORY))

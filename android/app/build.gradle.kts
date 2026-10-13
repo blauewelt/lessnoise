@@ -8,6 +8,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+    id("app.cash.paparazzi")
 }
 
 // Release signing is optional so that anyone can build the public repository.
@@ -46,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.6.0"
+        versionCode = 14
+        versionName = "0.6.1"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -56,7 +57,7 @@ android {
         // Whether this edition offers «Messwerte teilen» at all (public: yes; offline, labor: no).
         buildConfigField("boolean", "UPLOAD_AVAILABLE", "true")
         // Which edition this is: "offline" | "karte" | "labor" | "labor-karte" (set per flavour
-        // below). Shown in Einstellungen → App-Version; the two published editions send it to
+        // below). Shown in Einstellungen → Über die App; the two published editions send it to
         // update.html as #…&e=<edition> (EditionInfo.updateEdition).
         buildConfigField("String", "EDITION", "\"karte\"")
     }

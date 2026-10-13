@@ -174,17 +174,17 @@ class MeasurementService : Service() {
         // kills the app. So promote first, and only then take any path that stops the service.
         val promotion = promoteToForeground(hasMic)
         if (promotion == Promotion.FAILED) {
-            live.value = live.value.copy(error = "Vordergrunddienst nicht erlaubt")
+            live.value = live.value.copy(error = "Android hat die Messung nicht erlaubt. Bitte nochmals starten.")
             stopSelf(); return
         }
         if (live.value.running || live.value.starting) return
         if (promotion == Promotion.SHORT_SERVICE && hasMic) {
-            live.value = LiveState(error = "Mikrofon-Messung im Vordergrund nicht erlaubt – App öffnen und erneut starten")
+            live.value = LiveState(error = "Bitte die App öffnen und nochmals starten.")
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf(); return
         }
         if (!hasMic) {
-            live.value = LiveState(error = "Mikrofon-Berechtigung fehlt")
+            live.value = LiveState(error = "Ohne Mikrofon kann die App nicht messen.")
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf(); return
         }
@@ -235,7 +235,7 @@ class MeasurementService : Service() {
                     val cap = AudioCapture(
                         this@MeasurementService, ::onBlock,
                         onError = { msg ->
-                            container.live.value = container.live.value.copy(error = "Aufnahmefehler: $msg")
+                            container.live.value = container.live.value.copy(error = "Mikrofon-Fehler: $msg")
                             // Called on the capture thread: stop from another thread so join() can complete.
                             scope.launch { stopMeasurement() }
                         },

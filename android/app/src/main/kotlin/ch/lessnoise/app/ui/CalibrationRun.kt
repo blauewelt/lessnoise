@@ -13,9 +13,9 @@ enum class CalMode { REFERENCE, CALIBRATOR, NOISE_FLOOR }
 class CalibrationRun(val mode: CalMode, val seconds: Int) {
     companion object {
         const val REASON_BACKGROUND =
-            "Kalibrierung abgebrochen: Die App war im Hintergrund. Bitte mit eingeschaltetem Bildschirm neu messen."
+            "Abgebrochen: App war im Hintergrund. Bitte nochmals."
         const val REASON_SILENCED =
-            "Kalibrierung abgebrochen: Das Mikrofon wurde vom System stummgeschaltet (Anruf, Sprachassistent). Bitte neu messen."
+            "Abgebrochen: Mikrofon war stumm (z. B. Anruf). Bitte nochmals."
         const val REASON_INCOMPLETE = "Kalibrierung abgebrochen."
     }
 

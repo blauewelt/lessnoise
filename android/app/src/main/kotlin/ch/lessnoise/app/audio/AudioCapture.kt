@@ -38,8 +38,8 @@ object AudioSourceSelector {
     }
 
     fun labelDe(name: String): String = when (name) {
-        UNPROCESSED -> "UNPROCESSED (unbearbeitet)"
-        VOICE_RECOGNITION -> "VOICE_RECOGNITION (Fallback)"
+        UNPROCESSED -> "unbearbeitet"
+        VOICE_RECOGNITION -> "Sprachmodus"
         else -> name
     }
 }
@@ -91,7 +91,7 @@ class AudioCapture(
         var rec = build(source, encoding)
         if (rec == null) {
             encoding = AudioFormat.ENCODING_PCM_16BIT
-            rec = build(source, encoding) ?: throw IllegalStateException("AudioRecord konnte nicht geöffnet werden")
+            rec = build(source, encoding) ?: throw IllegalStateException("Mikrofon nicht verfügbar")
         }
         record = rec
         val fx = disableEffects(rec.audioSessionId)
@@ -103,11 +103,11 @@ class AudioCapture(
         )
         try {
             if (rec.sampleRate != Acoustics.SAMPLE_RATE) {
-                throw IllegalStateException("Abtastrate ${rec.sampleRate} Hz statt 48 kHz")
+                throw IllegalStateException("Mikrofon nicht unterstützt (${rec.sampleRate} Hz)")
             }
             rec.startRecording()
             if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
-                throw IllegalStateException("Mikrofon ist belegt (Aufnahme startet nicht)")
+                throw IllegalStateException("Mikrofon ist belegt (andere App?)")
             }
         } catch (e: Exception) {
             // Release everything: the caller only keeps a reference after a successful start.
@@ -212,7 +212,7 @@ class AudioCapture(
                             for (i in filled until filled + maxOf(k, 0)) buf[i] = shorts[i] / 32768f
                         }
                     }
-                    if (n < 0) throw IllegalStateException("AudioRecord.read Fehler $n")
+                    if (n < 0) throw IllegalStateException("Mikrofon-Fehler $n")
                     filled += n
                 }
                 if (filled == BLOCK) onBlock(buf, BLOCK)

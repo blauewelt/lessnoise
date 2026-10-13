@@ -324,7 +324,7 @@ class UploadTest {
         assertIs<Uploader.Outcome.Retry>(first)
         val marker = store.state.value.minutesSentUpToMs
         assertEquals(minuteRows[1439].startEpochMs, marker, "marker = last start of the acknowledged batch")
-        assertTrue(store.state.value.lastError!!.contains("503"))
+        assertEquals(Uploader.RETRY_TEXT, store.state.value.lastError)
 
         val second = up.run()
         assertIs<Uploader.Outcome.Done>(second)
@@ -371,7 +371,7 @@ class UploadTest {
         minuteRows += minute(now - 1_800_000)
         assertEquals(Uploader.Outcome.AuthFailed, up.run())
         assertTrue(store.state.value.authFailed)
-        assertTrue(store.state.value.lastError!!.contains("Neue Kennung"))
+        assertTrue(store.state.value.lastError!!.contains("«Neu starten»"))
         assertTrue(store.state.value.lastError!!.contains("60 Tage"), "explains the likely reason: expiry on the server")
         val before = server.requests.size
         assertEquals(Uploader.Outcome.AuthFailed, up.run())
@@ -499,7 +499,7 @@ class UploadTest {
         val up = Uploader(UploadClient(server.baseUrl, connectTimeoutMs = 2000), store, source, reports, "x", 1, clock = { now })
         up.enable()
         assertIs<Uploader.Outcome.Retry>(up.run())
-        assertTrue(store.state.value.lastError!!.startsWith("Keine Verbindung"))
+        assertEquals(Uploader.RETRY_TEXT, store.state.value.lastError)
     }
 
     @Test

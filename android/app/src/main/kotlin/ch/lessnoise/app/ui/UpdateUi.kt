@@ -75,12 +75,12 @@ fun updateReminderAgeDays(): Long? {
 }
 
 /**
- * «Diese App-Version ist n Tage alt. Nach Update suchen?» as a tappable line with «Später».
- * Shows nothing unless the build is old enough and not snoozed.
+ * «Neue Version? Jetzt prüfen» as a tappable line with «Später». Shows nothing unless the build is
+ * old enough (UpdateCheck.shouldRemind) and not snoozed.
  */
 @Composable
 fun UpdateReminderLine(modifier: Modifier = Modifier) {
-    val days = updateReminderAgeDays() ?: return
+    updateReminderAgeDays() ?: return
     val store = LocalContext.current.container.updateReminder
     val open = rememberUpdateAction()
     Row(
@@ -89,32 +89,30 @@ fun UpdateReminderLine(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            "Diese App-Version ist $days Tage alt. Nach Update suchen?",
+            "Neue Version? Jetzt prüfen",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
             textDecoration = TextDecoration.Underline,
-            modifier = Modifier.weight(1f).clickable(onClickLabel = "Nach Update suchen") { open() },
+            modifier = Modifier.weight(1f).clickable(onClickLabel = "Update prüfen") { open() },
         )
         TextButton(onClick = { store.dismiss() }) { Text("Später") }
     }
 }
 
-/** Settings card «App-Version». */
+/** Settings card «Über die App»: version, edition, how to switch, update check, licence. */
 @Composable
-fun AppVersionCard() {
+fun AboutAppCard() {
     val open = rememberUpdateAction()
-    SectionCard("App-Version") {
+    SectionCard("Über die App") {
         Text(
-            "${EditionInfo.label(BuildConfig.EDITION)} ${BuildConfig.VERSION_NAME} (Build vom ${UpdateCheck.displayBuildDate(BuildConfig.BUILD_DATE)})",
+            "${EditionInfo.label(BuildConfig.EDITION)} ${BuildConfig.VERSION_NAME} vom ${UpdateCheck.displayBuildDate(BuildConfig.BUILD_DATE)}",
             style = MaterialTheme.typography.bodyMedium,
         )
         // Which edition is installed, and how to switch (install the other APK over this one).
-        Text(EditionInfo.summary(BuildConfig.EDITION), style = MaterialTheme.typography.bodyMedium)
+        Text(EditionInfo.summary(BuildConfig.EDITION), style = MaterialTheme.typography.bodySmall)
         EditionInfo.switchHint(BuildConfig.EDITION)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        OutlinedButton(onClick = open) { Text("Nach Update suchen") }
-        Text(
-            "Öffnet wenigerlaerm.ch im Browser; die App selbst fragt keinen Server.",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        OutlinedButton(onClick = open) { Text("Update prüfen") }
+        Text("Öffnet wenigerlaerm.ch im Browser.", style = MaterialTheme.typography.bodySmall)
+        Text("Offene Software (Apache-2.0) vom Verein Weniger Lärm.", style = MaterialTheme.typography.bodySmall)
     }
 }

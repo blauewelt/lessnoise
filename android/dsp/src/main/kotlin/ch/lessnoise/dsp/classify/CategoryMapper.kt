@@ -44,7 +44,7 @@ class CategoryMapper(
     val tieMargin: Float = 0.0f,
     /** Top-1 label threshold for rule (a) (`top1_threshold` in the JSON). */
     val top1Threshold: Float = DEFAULT_TOP1_THRESHOLD,
-    val fallbackNameDe: String = "Unklassifiziert",
+    val fallbackNameDe: String = "Sonstiges",
 ) {
     companion object {
         const val UNCLASSIFIED = "unclassified"
@@ -70,7 +70,7 @@ class CategoryMapper(
                     ?: DEFAULT_CATEGORY_THRESHOLD.toDouble()).toFloat(),
                 tieMargin = (root["tie_margin"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toFloat(),
                 top1Threshold = (root["top1_threshold"]?.jsonPrimitive?.doubleOrNull ?: DEFAULT_TOP1_THRESHOLD.toDouble()).toFloat(),
-                fallbackNameDe = fallback?.get("name_de")?.jsonPrimitive?.content ?: "Unklassifiziert",
+                fallbackNameDe = fallback?.get("name_de")?.jsonPrimitive?.content ?: "Sonstiges",
             )
         }
 
