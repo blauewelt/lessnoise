@@ -75,11 +75,11 @@ android {
     }
 
     // Four editions (see PRIVACY.md → «Editions» and «Labor-Build»):
-    // - offline: the default download on wenigerlaerm.ch («Weniger Lärm»). The public app WITHOUT
+    // - offline: the default download on wenigerlaerm.ch («Offline-Version»). The public app WITHOUT
     //            internet: its manifest removes INTERNET and ACCESS_NETWORK_STATE, «Messwerte teilen»
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
     //            (src/public/kotlin, see sourceSets below), so it contains no recording code either.
-    // - public:  the map edition («Weniger Lärm · Karte», release asset stadtlaerm-karte.apk):
+    // - public:  the «Online-Version» («Weniger Lärm» with the map, release asset stadtlaerm-karte.apk):
     //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», location only
     //            for one fix at «Start» of a shared measurement and per report (src/public/AndroidManifest.xml).
     //            offline and public share the applicationId ch.lessnoise.app and the release key:

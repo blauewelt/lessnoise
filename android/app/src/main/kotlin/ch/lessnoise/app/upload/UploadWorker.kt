@@ -153,9 +153,9 @@ class UploadModule(
 
     /**
      * The editions without «Messwerte teilen» (UPLOAD_AVAILABLE = false, no INTERNET): the
-     * offline edition «Weniger Lärm», and the Labor build installed over «Weniger Lärm Labor · Karte»
+     * offline edition («Offline-Version»), and the Labor build installed over «Weniger Lärm Labor · Karte»
      * (same app id ch.lessnoise.labor). Shown here for the offline edition; the Labor case is the same.
-     * Someone who switches from the Karten edition by installing the offline one over it keeps
+     * Someone who switches from the «Online-Version» by installing the offline one over it keeps
      * the sharing state and WorkManager's scheduled upload jobs. If sharing was on, it is switched
      * off here and the jobs are cancelled: the jobs would do nothing in this edition (UploadWorker
      * returns at once), and a later switch back to the Karten edition must not send what was

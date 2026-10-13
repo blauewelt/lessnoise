@@ -35,18 +35,18 @@
 
 <section id="melden">
   <h2>Unterwegs melden</h2>
-  <p>Ein lauter Töff fährt vorbei? In «Weniger Lärm · Karte» tippen Sie auf «Laut! Melden», wählen, was laut war, und senden die Meldung mit Uhrzeit und Standort. Sie erscheint als Punkt auf der <a href="karte.html">Lärmkarte</a>, mit der auf die volle Stunde abgerundeten Zeit und ohne Angabe, wer gemeldet hat.</p>
+  <p>Ein lauter Töff fährt vorbei? In der Online-Version tippen Sie auf «Laut! Melden», wählen, was laut war, und senden die Meldung mit Uhrzeit und Standort. Sie erscheint als Punkt auf der <a href="karte.html">Lärmkarte</a>, mit der auf die volle Stunde abgerundeten Zeit und ohne Angabe, wer gemeldet hat.</p>
 </section>
 
 <section id="download">
   <h2>Herunterladen</h2>
-  <!-- Release checklist: both APKs live in docs/download/ (stadtlaerm.apk = «Weniger Lärm», stadtlaerm-karte.apk = «Weniger Lärm · Karte»);
+  <!-- Release checklist: both APKs live in docs/download/ (stadtlaerm.apk = Offline-Version, stadtlaerm-karte.apk = Online-Version);
        the release step fills in version, sizes and SHA-256 in .facts below and in update.html. -->
   <p class="downloads">
-    <a class="button" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a>
-    <a class="button button-secondary" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a>
+    <a class="button" href="download/stadtlaerm.apk" type="application/vnd.android.package-archive">Offline-Version herunterladen</a>
+    <a class="button button-secondary" href="download/stadtlaerm-karte.apk" type="application/vnd.android.package-archive">Online-Version herunterladen</a>
   </p>
-  <p id="version">Nur für sich messen: «Weniger Lärm», ohne Internet und ohne Standort. Auch zur Lärmkarte beitragen und unterwegs melden: «Weniger Lärm · Karte». Für Android 8 oder neuer.</p>
+  <p id="version">Nur für sich messen: die Offline-Version, ohne Internet und ohne Standort. Auch zur Lärmkarte beitragen und unterwegs melden: die Online-Version. Für Android 8 oder neuer.</p>
   <p>Nach dem Download die Datei in der App «Dateien» öffnen (Ordner «Downloads»); der Download-Dialog des Browsers verweigert das Öffnen oft.</p>
 
   <div class="note">
@@ -55,9 +55,9 @@
 
   <dl class="facts">
     <dt>Version</dt><dd>0.6.0 (Testversion), Android 8.0 oder neuer</dd>
-    <dt>Weniger Lärm</dt><dd>stadtlaerm.apk, SIZE_OFFLINE</dd>
+    <dt>Offline-Version</dt><dd>stadtlaerm.apk, SIZE_OFFLINE</dd>
     <dt>SHA-256</dt><dd><code class="hash">SHA256_OFFLINE</code></dd>
-    <dt>Weniger Lärm · Karte</dt><dd>stadtlaerm-karte.apk, SIZE_KARTE</dd>
+    <dt>Online-Version</dt><dd>stadtlaerm-karte.apk, SIZE_KARTE</dd>
     <dt>SHA-256</dt><dd><code class="hash">SHA256_KARTE</code></dd>
   </dl>
   <p class="small">Die Dateien liegen auf dieser Website (GitHub Pages); Downloads werden nicht gezählt. Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist; wie man sie und die Signatur prüft, steht in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
@@ -66,14 +66,14 @@
     <summary>Installation Schritt für Schritt</summary>
     <p>Die App ist noch nicht im Play Store. Sie wird direkt als Datei (APK, die Installationsdatei von Android) installiert:</p>
     <ol class="steps">
-      <li>«Weniger Lärm» oder «Weniger Lärm · Karte» herunterladen.</li>
+      <li>Die Offline-Version oder die Online-Version herunterladen.</li>
       <li>Die Datei in der App «Dateien» öffnen (Ordner «Downloads»).</li>
       <li>Falls Android fragt: für diese App «Unbekannte Apps installieren» erlauben, dann zurück und installieren.</li>
       <li>Falls Google Play Protect warnt: «Weitere Details» antippen, dann «Trotzdem installieren».</li>
       <li>Weniger Lärm öffnen und Mikrofon und Benachrichtigungen erlauben. Die Benachrichtigung zeigt, dass gerade gemessen wird.</li>
       <li>Für lange Messungen: Ladekabel einstecken und in der App unter «Einstellungen» auf «Akku-Optimierung öffnen» tippen und Weniger Lärm davon ausnehmen. Sonst kann Android die Messung anhalten.</li>
     </ol>
-    <p>Updates ab 0.6.0 installieren sich über die installierte Version und behalten die Messwerte. Zwischen «Weniger Lärm» und «Weniger Lärm · Karte» wechseln Sie genauso: die andere über die installierte installieren. Wer zu «Weniger Lärm» wechselt und seine Daten auf dem Server sofort gelöscht haben möchte, tut das vorher in «Weniger Lärm · Karte» unter «Messwerte teilen».</p>
+    <p>Updates ab 0.6.0 installieren sich über die installierte Version und behalten die Messwerte. Zwischen der Offline-Version und der Online-Version wechseln Sie genauso: die andere über die installierte installieren. Wer zur Offline-Version wechselt und seine Daten auf dem Server sofort gelöscht haben möchte, tut das vorher in der Online-Version unter «Messwerte teilen».</p>
   </details>
 
   <details id="kalibrieren">
@@ -90,14 +90,14 @@
 
 <section id="karte">
   <h2>Lärmkarte</h2>
-  <p>Die gemeinsame Karte zeigt die Pegel und lauten Ereignisse der letzten 7 oder 30 Tage, zusammengefasst in Feldern von 100&nbsp;×&nbsp;100&nbsp;m, dazu einen Tagesverlauf über 24 Stunden und die Meldungen als Punkte. Mit «Weniger Lärm · Karte» tragen Sie bei, sobald Sie «Messwerte teilen» einschalten.</p>
+  <p>Die gemeinsame Karte zeigt die Pegel und lauten Ereignisse der letzten 7 oder 30 Tage, zusammengefasst in Feldern von 100&nbsp;×&nbsp;100&nbsp;m, dazu einen Tagesverlauf über 24 Stunden und die Meldungen als Punkte. Mit der Online-Version tragen Sie bei, sobald Sie «Messwerte teilen» einschalten.</p>
   <p><a href="karte.html">Zur Lärmkarte</a></p>
 </section>
 
 <section id="datenschutz">
   <h2>Datenschutz</h2>
   <p>Die App nimmt nie Ton auf: Sie wertet ihn nur im Arbeitsspeicher aus und behält Pegel und Ereignisse auf Ihrem Telefon.</p>
-  <p>Daten verlassen das Telefon nur, wenn Sie es wollen: wenn Sie sie exportieren und weitergeben, oder mit «Weniger Lärm · Karte», wenn Sie «Messwerte teilen» einschalten oder etwas melden – an den Server des Projekts in der Schweiz, jederzeit löschbar. Den Ort einer geteilten Messung verschiebt die App vor dem Senden zufällig, standardmässig um etwa 50&nbsp;m (in der App einstellbar); der genaue Messort verlässt das Telefon nie. Nur eine Meldung sendet den genauen Standort. <a href="datenschutz.html">Datenschutz im Detail</a></p>
+  <p>Daten verlassen das Telefon nur, wenn Sie es wollen: wenn Sie sie exportieren und weitergeben, oder mit der Online-Version, wenn Sie «Messwerte teilen» einschalten oder etwas melden – an den Server des Projekts in der Schweiz, jederzeit löschbar. Den Ort einer geteilten Messung verschiebt die App vor dem Senden zufällig, standardmässig um etwa 50&nbsp;m (in der App einstellbar); der genaue Messort verlässt das Telefon nie. Nur eine Meldung sendet den genauen Standort. <a href="datenschutz.html">Datenschutz im Detail</a></p>
 </section>
 
 <section id="verein">

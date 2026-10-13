@@ -2,8 +2,9 @@
 
 Static files served by GitHub Pages (`CNAME`: wenigerlaerm.ch). No build step. German, Swiss
 spelling (ss, never ß), «Sie», guillemets, system fonts, no third-party requests — except on the
-map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the offline app) and
-«Weniger Lärm · Karte» (the map edition), and of measurements, never of nights;
+map page, which says so. Since 0.6.0 the app is «Weniger Lärm», published in two editions that
+the site calls the «Offline-Version» (no internet, no location) and the «Online-Version» (sharing
+for the map and «Laut! Melden»); it speaks of measurements, never of nights;
 `tests/pages.spec.js` checks that for index, datenschutz and update.
 
 | File | What |
@@ -16,7 +17,7 @@ map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the o
 | `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
 | `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
-| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Weniger Lärm», `stadtlaerm-karte.apk` = «Weniger Lärm · Karte». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in version, size and SHA-256 in `index.html` (`.facts`) and `data-version`/`data-code` in `update.html` |
+| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Offline-Version», `stadtlaerm-karte.apk` = «Online-Version». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in version, size and SHA-256 in `index.html` (`.facts`) and `data-version`/`data-code` in `update.html` |
 | `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `messung-tag(-dark).png` (home page, a Paparazzi render of `ChartScreenshots.messung24h*`, synthetic data, cropped to 1082 × 1850); `chart-nacht*.png` show the old screen of 0.5.x and are no longer linked |
 
 ## The map page

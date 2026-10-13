@@ -5,7 +5,7 @@ core promise of the project, and this page explains how the code keeps it, so an
 
 Everything on this page is about the **public app** (`ch.lessnoise.app` since 0.6.0, before
 `ch.stadtlaerm.app`; the APKs linked from wenigerlaerm.ch). It is published in two editions,
-**«Weniger Lärm»** (no internet and no location permission at all) and **«Weniger Lärm · Karte»**
+the **«Offline-Version»** (no internet and no location permission at all) and the **«Online-Version»**
 (internet only for the opt-in «Messwerte teilen» and «Laut! Melden»; location only for one fix at
 the start of a shared measurement and for a report), see [Editions](#editions). Since v0.3.3 the
 repository can also build a separate diagnostics app that *can* record audio; it is a different
@@ -14,7 +14,7 @@ app, is never published, and neither published edition contains any of its code.
 
 ## Editions
 
-| | «Weniger Lärm» (offline) | «Weniger Lärm · Karte» |
+| | «Offline-Version» | «Online-Version» |
 |---|---|---|
 | File (on the website, `docs/download/`) | `stadtlaerm.apk` — the default download | `stadtlaerm-karte.apk` |
 | Gradle flavour | `offline` | `public` |
@@ -47,7 +47,7 @@ after the last upload (see «Silent devices are deleted» below).
 1. **Raw audio never touches disk.** No code path writes samples to a file, a database, the
    cache, shared preferences or the clipboard.
 2. **Raw audio never leaves the app process.** There is no code that sends audio anywhere. Up to
-   v0.4.0, and in the offline edition «Weniger Lärm» from v0.5.0, the manifest has no `INTERNET`
+   v0.4.0, and in the offline edition («Offline-Version») from v0.5.0, the manifest has no `INTERNET`
    permission at all. **From v0.5.0** the Karte edition has `INTERNET` for exactly one purpose:
    the opt-in upload «Messwerte teilen» (since 0.6.0 including «Laut! Melden»; see
    [«Messwerte teilen»](#messwerte-teilen-opt-in-upload-from-v050) below), which is **off until you
@@ -98,11 +98,11 @@ accordingly before you share them.
 ## How to verify
 
 - `aapt2 dump permissions <apk>` (Android SDK build-tools) lists exactly:
-  - **`stadtlaerm.apk`** (offline edition «Weniger Lärm», and every version up to v0.4.0):
+  - **`stadtlaerm.apk`** (offline edition, «Offline-Version», and every version up to v0.4.0):
     `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`,
     `WAKE_LOCK` (plus AndroidX's internal `ch.lessnoise.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`).
     No `INTERNET`, no `ACCESS_NETWORK_STATE`, no `ACCESS_FINE_LOCATION`, no `ACCESS_COARSE_LOCATION`.
-  - **`stadtlaerm-karte.apk`** («Weniger Lärm · Karte», from v0.5.0): the same plus `INTERNET` and
+  - **`stadtlaerm-karte.apk`** («Online-Version», from v0.5.0): the same plus `INTERNET` and
     `ACCESS_NETWORK_STATE`, both only for «Messwerte teilen» and «Laut! Melden» (below), and
     `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, only for the two location uses (below).
   - Neither has `ACCESS_BACKGROUND_LOCATION` (removed in `app/src/main/AndroidManifest.xml`) or a
@@ -307,7 +307,7 @@ technical reasons, see the
 The German privacy page is [docs/datenschutz.html](docs/datenschutz.html).
 
 **Downloads.** Both APKs are served from the website itself (`docs/download/stadtlaerm.apk` =
-«Weniger Lärm», `docs/download/stadtlaerm-karte.apk` = «Weniger Lärm · Karte»), i.e. by GitHub Pages like
+«Offline-Version», `docs/download/stadtlaerm-karte.apk` = «Online-Version»), i.e. by GitHub Pages like
 every page of the site. GitHub sees the requesting IP address as for any page view; the project
 counts nothing. (`scripts/download_stats.py` reads GitHub Release download counts and only has
 something to report if a version is ever also attached to a GitHub Release.)

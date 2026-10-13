@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PUBLIC edition («Weniger Lärm · Karte», release asset stadtlaerm-karte.apk) only; NOT merged into
+<!-- PUBLIC edition («Online-Version», release asset stadtlaerm-karte.apk) only; NOT merged into
      the offline edition, which shares the Kotlin sources of src/public/ but not this manifest.
      Network access for the opt-in upload «Messwerte teilen» (server/DESIGN.md §2, §4; PRIVACY.md). Used by exactly one class, upload/UploadClient.kt, for exactly one host
      (BuildConfig.API_BASE, https://api.lessnoise.ch), and only after the person switched

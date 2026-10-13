@@ -2,16 +2,17 @@
 
 ## 0.6.0 — in preparation (versionCode 13; not published)
 
-The app is now called **«Weniger Lärm»**, nothing about nights is special any more, and in the map
-edition every shared measurement has its own place. There are no installs of 0.6.0 yet, so the
+The app is now called **«Weniger Lärm»**, nothing about nights is special any more, and in the
+«Online-Version» every shared measurement has its own place. There are no installs of 0.6.0 yet, so the
 breaking changes below need no transition.
 
 - **New name and app ids.** Launcher label «Weniger Lärm» (French «Moins de bruit», Italian «Meno
   rumore», English «Less Noise»); Labor builds «Weniger Lärm Labor» (also localized, so that a
-  French, Italian or English phone does not show the public name). Editions shown to users:
-  «Weniger Lärm» (flavour `offline`) and «Weniger Lärm · Karte» (`public`); the internal flavour
-  names are unchanged. App ids `ch.lessnoise.app` (offline, public) and `ch.lessnoise.labor`
-  (labor, laborKarte), Kotlin packages and Gradle namespaces `ch.lessnoise.*` (moved with `git mv`).
+  French, Italian or English phone does not show the public name). Editions shown to users
+  (Einstellungen → App-Version, website): «Offline-Version» (flavour `offline`) and «Online-Version»
+  (`public`); both have the launcher label «Weniger Lärm»; the internal flavour names are
+  unchanged. App ids `ch.lessnoise.app` (offline, public) and `ch.lessnoise.labor` (labor,
+  laborKarte), Kotlin packages and Gradle namespaces `ch.lessnoise.*` (moved with `git mv`).
   Because the app id changed, 0.6.0 installs **next to** a 0.5.x «Stadtlärm», not over it, and
   starts with empty storage. Same release key. CSV exports are named `wenigerlaerm-…`, the
   calibration export `wenigerlaerm-kalibrierungen.json`.

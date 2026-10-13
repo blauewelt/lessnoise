@@ -3,13 +3,13 @@
      the Labor build plus the opt-in upload «Messwerte teilen». This variant compiles the Kotlin and
      resources of src/labor/ but NOT src/labor/AndroidManifest.xml (which removes these two
      permissions); the plain Labor build keeps no network access.
-     Network access exactly as in «Weniger Lärm · Karte» (src/public/AndroidManifest.xml): used by one
+     Network access exactly as in the «Online-Version» (src/public/AndroidManifest.xml): used by one
      class, upload/UploadClient.kt, for one host (BuildConfig.API_BASE,
      https://api.lessnoise.ch), only after the person switched sharing on. It sends the same
-     measurement values and reports as «Weniger Lärm · Karte», never audio: the upload code reads only the Room
+     measurement values and reports as the «Online-Version», never audio: the upload code reads only the Room
      tables (UploadSourceIsolationTest). ACCESS_NETWORK_STATE: needed by Android for background jobs
      that wait for a network («nur über WLAN»).
-     Location (0.6.0) exactly as in «Weniger Lärm · Karte»: ACCESS_FINE_LOCATION +
+     Location (0.6.0) exactly as in the «Online-Version»: ACCESS_FINE_LOCATION +
      ACCESS_COARSE_LOCATION only for one fix at «Start» of a shared measurement (turned into a point
      moved at random on the phone; only that point is sent) and for «Laut! Melden» (exact place sent with the report, then deleted
      from the phone); only while the app is open, never in the

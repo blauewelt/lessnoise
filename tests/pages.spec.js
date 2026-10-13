@@ -74,8 +74,8 @@ test("the home page: the Stadtlärm 0.5.x note and the two editions", async ({ p
   await page.goto("/");
   await expect(page.locator("#download .note")).toContainText("deinstallieren");
   await expect(page.locator("#download .note")).toContainText("CSV");
-  await expect(page.locator("#version")).toContainText("«Weniger Lärm»");
-  await expect(page.locator("#version")).toContainText("«Weniger Lärm · Karte»");
+  await expect(page.locator("#version")).toContainText("die Offline-Version, ohne Internet und ohne Standort");
+  await expect(page.locator("#version")).toContainText("die Online-Version");
   await expect(page.locator(".facts")).toContainText("0.6.0");
 });
 
@@ -83,7 +83,7 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
   for (const fact of [
-    "Weniger Lärm · Karte",            // the edition with internet and location
+    "Online-Version",                  // the edition with internet and location
     "Laut! Melden",                    // reports
     "auf die volle Stunde abgerundeten Zeit",
     "zufällig, standardmässig um etwa 50",  // the point at Start is moved (location noise)

@@ -577,7 +577,7 @@ device (§2.4, §2.9); what remains is +1 on an anonymous counter, which cannot 
 device. So §2 is not weakened. No breakdown finer than the fields above may be added without
 changing this section first. The app's Offline-Version has no internet permission and
 contributes nothing to this file; only devices that switched on «Messwerte teilen» in the
-Karten-Version are counted.
+Online-Version (0.5.x: «Karten-Version») are counted.
 
 ## 7. The map page (`docs/karte.html`)
 
@@ -659,8 +659,8 @@ reason).
 ## 9. App changes (public flavour)
 
 (Since 0.5.0 the public app is published in two editions with the same app id: the
-**Karten-Version**, Gradle flavour `public`, which has everything below, and the
-**Offline-Version**, flavour `offline`, which has no `INTERNET` permission and no
+**Online-Version** (0.5.x: «Karten-Version»), Gradle flavour `public`, which has everything
+below, and the **Offline-Version**, flavour `offline`, which has no `INTERNET` permission and no
 «Messwerte teilen» at all. See PRIVACY.md.)
 
 - Manifest gains `INTERNET` (the `tools:node="remove"` goes); `PRIVACY.md`, `README.md`

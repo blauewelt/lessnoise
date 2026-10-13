@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Datenschutz – Weniger Lärm</title>
-<meta name="description" content="Datenschutzerklärung für die Website wenigerlaerm.ch, die Apps «Weniger Lärm» und «Weniger Lärm · Karte» und die Lärmkarte.">
+<meta name="description" content="Datenschutzerklärung für die Website wenigerlaerm.ch, die App «Weniger Lärm» (Offline-Version und Online-Version) und die Lärmkarte.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -34,8 +34,8 @@
     <li>Der Ton vom Mikrofon wird nur im Arbeitsspeicher ausgewertet, in kleinen Zwischenspeichern von höchstens etwa einer Sekunde, die laufend überschrieben werden. Es wird nie Audio gespeichert oder gesendet.</li>
     <li>Gespeichert werden nur Zahlen, und nur auf Ihrem Telefon: Lärmpegel pro Minute, laute Ereignisse (Zeit, Dauer, Spitzenpegel, wahrscheinliche Quelle), Kalibrierungen sowie Beginn und Ende jeder Messung.</li>
     <li>Die Erkennung der Lärmquelle läuft auf dem Telefon. Sie hält fest, welche Art von Geräusch vorkam (etwa «Stimmen»), nicht was gesagt wurde.</li>
-    <li>Die App gibt es in zwei Ausführungen. <strong>«Weniger Lärm»</strong> hat weder eine Internet- noch eine Standort-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. <strong>«Weniger Lärm · Karte»</strong> nutzt das Internet und den Standort nur für «Messwerte teilen» und «Laut! Melden» (unten); beides ist aus, bis Sie es einschalten.</li>
-    <li>Sonst – und in «Weniger Lärm» überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst exportieren (als CSV-Datei) und weitergeben. Bedenken Sie dabei: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
+    <li>Die App gibt es in zwei Versionen. Die <strong>Offline-Version</strong> hat weder eine Internet- noch eine Standort-Berechtigung: Sie kann nichts senden, auch keine Nutzungsstatistik. Die <strong>Online-Version</strong> nutzt das Internet und den Standort nur für «Messwerte teilen» und «Laut! Melden» (unten); beides ist aus, bis Sie es einschalten.</li>
+    <li>Sonst – und in der Offline-Version überhaupt – verlassen Daten das Telefon nur, wenn Sie sie selbst exportieren (als CSV-Datei) und weitergeben. Bedenken Sie dabei: Ein Eintrag wie «Stimmen, 23:41» verrät, dass um diese Zeit in der Nähe gesprochen wurde.</li>
     <li>Keine Statistikdienste, keine Absturzberichte, keine Sicherung in die Cloud. «Nach Update suchen» öffnet nur die Seite «Update prüfen» im Browser.</li>
     <li>Löschen können Sie die Daten in der App unter «Daten» oder indem Sie die App deinstallieren. «Stadtlärm» (bis Version 0.5.1) und «Weniger Lärm» (ab 0.6.0) sind getrennte Apps: Die Daten der alten App bleiben in ihr, bis Sie sie deinstallieren.</li>
   </ul>
@@ -44,7 +44,7 @@
 
 <section id="teilen">
   <h2>«Messwerte teilen» und «Laut! Melden»</h2>
-  <p>Nur in «Weniger Lärm · Karte».</p>
+  <p>Nur in der Online-Version.</p>
   <ul class="features">
     <li><strong>Einschalten:</strong> «Messwerte teilen» ist aus, bis Sie es unter «Einstellungen → Messwerte teilen» nach der Erklärung einschalten oder bei einer Meldung, solange das Teilen aus ist, «Ja, einschalten» wählen. Ausschalten stoppt das Senden sofort; noch nicht gesendete Meldungen werden dabei samt Standort verworfen.</li>
     <li><strong>Standort:</strong> Die App liest ihn nur, während sie offen ist, nie im Hintergrund, jeweils einmal über die Standortdienste von Android (GPS und Netzwerk), ohne Dienste von Google oder anderen Anbietern in der App – und nur in zwei Momenten:
@@ -54,7 +54,7 @@
     <li><strong>Nie gesendet</strong> werden Audio, die Rohbezeichnungen des Klassifikators, der genaue Standort beim Start einer Messung, die Verschiebung selbst und der geheime Schlüssel, aus dem die App sie berechnet, Name, Konto, Telefonnummer oder Werbe-Kennung.</li>
     <li><strong>Wohin und wann:</strong> nur an den Server des Projekts in der Schweiz, api.lessnoise.ch (Stadtlärm bis 0.5.1: api.stadtlaerm.ch, derselbe Server), verschlüsselt (HTTPS); nach jeder vollen Stunde, nach dem Stopp einer Messung und nach einer Meldung; solange «Nur über WLAN» eingeschaltet ist (so beim Einschalten), nur über WLAN.</li>
     <li><strong>Kennung:</strong> Das Gerät erhält eine zufällige Kennung ohne Bezug zu Ihrer Person; sie erscheint nie auf der Karte. «Neue Kennung» löscht die Daten auf dem Server und beginnt neu.</li>
-    <li><strong>Löschen:</strong> «Daten auf dem Server löschen» löscht sofort alle Daten des Geräts, auch die Meldungen. Kommt 60 Tage lang nichts mehr vom Gerät – etwa weil Sie zu «Weniger Lärm» gewechselt, die App deinstalliert oder das Teilen ausgeschaltet haben –, löscht der Server alles ebenso von selbst. In beiden Fällen steigt nur ein Zähler um eins.</li>
+    <li><strong>Löschen:</strong> «Daten auf dem Server löschen» löscht sofort alle Daten des Geräts, auch die Meldungen. Kommt 60 Tage lang nichts mehr vom Gerät – etwa weil Sie zur Offline-Version gewechselt, die App deinstalliert oder das Teilen ausgeschaltet haben –, löscht der Server alles ebenso von selbst. In beiden Fällen steigt nur ein Zähler um eins.</li>
     <li><strong>Ältere App:</strong> Die Karten-Version von «Stadtlärm» (0.5.x) sendet, wenn das Teilen eingeschaltet ist, dieselben Pegel und Ereignisse mit der einen Hektare, die Sie dort festgelegt haben («Standort bestimmen» ab 0.5.1 oder eingefügte Koordinaten; Genaueres als diese Hektare speichert und sendet die alte App vom Ort nicht, verschiebt ihn aber auch nicht). Meldungen kennt sie nicht. Löschen und die 60-Tage-Regel gelten gleich.</li>
   </ul>
 </section>
@@ -72,7 +72,7 @@
 <section id="statistik">
   <h2>Öffentliche Zahlen</h2>
   <p>Ob die Lärmkarte genutzt wird, zeigt die öffentliche Datei <a href="https://api.lessnoise.ch/v1/map/stats.json">stats.json</a> des Servers, nur mit Summen über das ganze Projekt: wie viele Geräte angemeldet sind, einen Ort angegeben, je Messwerte geteilt haben und in den letzten 7 und 30 Tagen aktiv waren, wie viele ihre Daten gelöscht haben und wie viele der Server nach 60 Tagen ohne Messwerte gelöscht hat, wie viele Felder auf der Karte sind, an wie vielen Tagen Geräte Messwerte geteilt haben, wie viele aktive Geräte welche App-Version angegeben haben und wie viele Geräte sich pro Kalenderwoche angemeldet haben. Keine Kennungen, keine Orte, keine IP-Adressen.</p>
-  <p>Über «Weniger Lärm» und über «Weniger Lärm · Karte» ohne Teilen erfährt das Projekt nichts, auch nicht über Downloads.</p>
+  <p>Über die Offline-Version und über die Online-Version ohne Teilen erfährt das Projekt nichts, auch nicht über Downloads.</p>
 </section>
 
 <section id="kontakt">

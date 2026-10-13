@@ -8,8 +8,8 @@ each with its likely source using an on-device sound classifier, and summarises 
 (since v0.6.0; before, the app summarised nights 22:00–06:00).
 
 **Privacy by construction:** no audio is ever stored or sent. The app comes in
-[two editions](#editions): **«Weniger Lärm»** (the default download) has no internet and no location
-permission at all; **«Weniger Lärm · Karte»** uses the internet only for the opt-in upload
+[two editions](#editions): the **«Offline-Version»** (the default download) has no internet and no location
+permission at all; the **«Online-Version»** uses the internet only for the opt-in upload
 [«Messwerte teilen»](#messwerte-teilen-opt-in-upload) and for «Laut! Melden» reports (off until
 switched on, one host, one network class, no third-party SDK), and the location only for one fix at
 the start of a shared measurement and one per report. See [PRIVACY.md](../PRIVACY.md). (A separate,
@@ -230,7 +230,7 @@ so a better model can be swapped in without touching the measurement code.
 
 ## Editions
 
-| | «Weniger Lärm» | «Weniger Lärm · Karte» | «Weniger Lärm Labor» | «Weniger Lärm Labor · Karte» (internal) |
+| | «Offline-Version» | «Online-Version» | «Weniger Lärm Labor» | «Weniger Lärm Labor · Karte» (internal) |
 |---|---|---|---|---|
 | Gradle flavour | `offline` (default variant) | `public` | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` | `"labor-karte"` |
@@ -258,8 +258,8 @@ delete the server data). The upload classes are compiled into the offline editio
 ## Install (sideload)
 
 The signed release APKs are on the website under fixed names:
-`wenigerlaerm.ch/download/stadtlaerm.apk` («Weniger Lärm») and
-`wenigerlaerm.ch/download/stadtlaerm-karte.apk` («Weniger Lärm · Karte»);
+`wenigerlaerm.ch/download/stadtlaerm.apk` («Offline-Version») and
+`wenigerlaerm.ch/download/stadtlaerm-karte.apk` («Online-Version»);
 [wenigerlaerm.ch](https://wenigerlaerm.ch) links both and shows the current version and each file's
 SHA-256.
 A German step-by-step guide is on the website.
@@ -293,8 +293,8 @@ internet permission at all; in the Karte edition the internet is used only for �
 and «Laut! Melden», never for update checks).
 Instead:
 
-- **Einstellungen → App-Version** shows «Weniger Lärm 0.6.0 (Build vom 12.10.2026)» (the edition's
-  name) and a button **Nach Update suchen**. It opens
+- **Einstellungen → App-Version** shows «Offline-Version 0.6.0 (Build vom 12.10.2026)» (the edition's
+  name; «Online-Version …» in the edition with the map; the launcher label of both is «Weniger Lärm») and a button **Nach Update suchen**. It opens
   `https://wenigerlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>` in the browser
   (`e` since v0.5.0, `BuildConfig.EDITION` of the two published editions; the Labor builds send none). The page
   ([docs/update.html](../docs/update.html)) carries the published version as
@@ -318,7 +318,7 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Messung starten.** In «Weniger Lärm · Karte» with «Messwerte teilen» on, the phone
+3. **Messen → Messung starten.** In the «Online-Version» with «Messwerte teilen» on, the phone
    first takes one location fix for the measurement's place, moved at random on the phone (if that fails: «Nochmals»,
    «Koordinaten einfügen» or «Ohne Teilen starten»). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with the current LAeq and a «Stopp» button is shown (its icon
@@ -473,7 +473,7 @@ and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 Phones whose owners opt in send the minute and event records of their **shared measurements** to
 the project's server for the shared noise map ([../server/DESIGN.md](../server/DESIGN.md): §2
 privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! Melden» reports. Only in
-«Weniger Lärm · Karte» (and the internal Labor build with the map). **Einstellungen → Messwerte
+the «Online-Version» (and the internal Labor build with the map). **Einstellungen → Messwerte
 teilen**:
 
 1. **Explanation** (shown until confirmed once): what is sent (the minute values and bursts of
@@ -827,14 +827,14 @@ covers its last second, so its trace is complete. If they fall behind, data is d
 ```sh
 export ANDROID_HOME=/path/to/android-sdk   # platform 35, build-tools 35.0.0
 ./gradlew test assembleDebug
-# APKs: app/build/outputs/apk/offline/debug/app-offline-debug.apk  («Weniger Lärm»)
-#       app/build/outputs/apk/public/debug/app-public-debug.apk    («Weniger Lärm · Karte»)
+# APKs: app/build/outputs/apk/offline/debug/app-offline-debug.apk  («Offline-Version»)
+#       app/build/outputs/apk/public/debug/app-public-debug.apk    («Online-Version»)
 #       app/build/outputs/apk/labor/debug/app-labor-debug.apk      (Labor build, see below)
 #       app/build/outputs/apk/laborKarte/debug/app-laborKarte-debug.apk («Weniger Lärm Labor · Karte», internal)
 ```
 
 The app module has four product flavours (dimension `edition`, see [Editions](#editions)):
-**`offline`** and **`public`**, the two published editions («Weniger Lärm» and «Weniger Lärm · Karte»),
+**`offline`** and **`public`**, the two published editions («Offline-Version» and «Online-Version»),
 **`labor`**, the unpublished diagnostics build, and **`laborKarte`**, the internal Labor build with
 «Messwerte teilen». Tasks are named per variant, e.g. `assembleOfflineDebug`, `assemblePublicDebug`,
 `assembleLaborKarteDebug`, `testOfflineDebugUnitTest`, `testLaborDebugUnitTest`,
@@ -897,8 +897,8 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    PRIVACY.md → «How to verify» (offline **without** `INTERNET`, `ACCESS_NETWORK_STATE`,
    `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, public with all four; neither with
    `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).
-3. Name the files: `app-offline-release.apk` → **`stadtlaerm.apk`** («Weniger Lärm»),
-   `app-public-release.apk` → **`stadtlaerm-karte.apk`** («Weniger Lärm · Karte»). Note size (bytes) and
+3. Name the files: `app-offline-release.apk` → **`stadtlaerm.apk`** («Offline-Version»),
+   `app-public-release.apk` → **`stadtlaerm-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
 4. Copy them to `../docs/download/stadtlaerm.apk` and `../docs/download/stadtlaerm-karte.apk`
    (GitHub Pages serves them; downloads are not counted). **Never** copy a Labor APK anywhere into
@@ -948,7 +948,7 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
                 location/: the one-fix location code; data/: Room incl. the measurements table)
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
-  src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Weniger Lärm»)
+  src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
                 (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
   src/laborKarte/ AndroidManifest.xml only: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»

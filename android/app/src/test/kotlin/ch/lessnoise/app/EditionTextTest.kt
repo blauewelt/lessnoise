@@ -78,22 +78,22 @@ class EditionTextTest {
 
     @Test
     fun editionTexts() {
-        assertEquals("Weniger Lärm", EditionInfo.label(EditionInfo.OFFLINE))
-        assertEquals("Weniger Lärm · Karte", EditionInfo.label(EditionInfo.KARTE))
+        assertEquals("Offline-Version", EditionInfo.label(EditionInfo.OFFLINE))
+        assertEquals("Online-Version", EditionInfo.label(EditionInfo.KARTE))
         assertEquals("Weniger Lärm Labor", EditionInfo.label(EditionInfo.LABOR))
         assertEquals("Weniger Lärm Labor · Karte", EditionInfo.label(EditionInfo.LABOR_KARTE))
         assertTrue(EditionInfo.summary(EditionInfo.LABOR_KARTE).contains("Audio wird nie gesendet"))
         assertNotNull(EditionInfo.switchHint(EditionInfo.LABOR_KARTE))
-        assertEquals("Weniger Lärm: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
-        assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Weniger Lärm · Karte: mit «Messwerte teilen»"))
+        assertEquals("Offline-Version: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
+        assertTrue(EditionInfo.summary(EditionInfo.KARTE).startsWith("Online-Version: mit «Messwerte teilen»"))
         // Switching: install the other APK from wenigerlaerm.ch over this one, measurements are kept.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {
             val hint = assertNotNull(EditionInfo.switchHint(e))
             assertTrue(hint.contains("wenigerlaerm.ch über diese App"), hint)
             assertTrue(hint.contains("Messungen bleiben erhalten"), hint)
         }
-        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("«Weniger Lärm · Karte»"))
-        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("«Weniger Lärm» ohne Internet"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("die Online-Version"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("Offline-Version ohne Internet"))
         // The app's old name appears in no edition text.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE, EditionInfo.LABOR, EditionInfo.LABOR_KARTE)) {
             for (t in listOf(EditionInfo.label(e), EditionInfo.summary(e), EditionInfo.switchHint(e) ?: "")) {

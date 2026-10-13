@@ -6,8 +6,8 @@ Schallpegel, solange eine Messung läuft – von «Start» bis «Stopp», zu jed
 mehrere Tage –, hält laute Einzelereignisse (z. B. Töffs, Poser) mit Zeit, Spitzenpegel und
 wahrscheinlicher Quelle fest, zeigt jede Messung als Grafik (ihr Zeitraum und der Tagesverlauf)
 und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
-Es gibt die App in zwei Ausführungen: «Weniger Lärm» (Standard) hat gar keine Internet- und keine
-Standort-Berechtigung. «Weniger Lärm · Karte» sendet nur dann etwas ins Internet, wenn man
+Es gibt die App in zwei Versionen: Die Offline-Version (Standard) hat gar keine Internet- und keine
+Standort-Berechtigung. Die Online-Version sendet nur dann etwas ins Internet, wenn man
 «Messwerte teilen» selbst einschaltet: dann Pegel und Lärmspitzen jeder geteilten Messung mit dem
 Ort, an dem sie gestartet wurde – zufällig verschoben, standardmässig um etwa 50 m (in der App
 einstellbar); das Telefon bestimmt den Standort beim Start einmal und behält und sendet nur den
@@ -23,18 +23,18 @@ A-weighted sound levels while a measurement runs (one run from Start to Stop, at
 possibly over several days), records loud single events (motorbikes, revving cars, …) with time,
 peak level and likely source, shows each measurement as a chart (its own time span and a 24-hour
 profile) and exports CSV. The data stays on the phone of the person who measured it, unless they use
-the map edition («Weniger Lärm · Karte») and switch on the opt-in «Messwerte teilen» to contribute
+the «Online-Version» (the edition with the map) and switch on the opt-in «Messwerte teilen» to contribute
 the levels and events of their measurements, each at the place where it was started, moved at
 random on the phone by about 50 m by default (adjustable), and
-reports made with «Laut! Melden», to a shared noise map. The default download, «Weniger Lärm», has
+reports made with «Laut! Melden», to a shared noise map. The default download, the «Offline-Version», has
 no internet and no location permission at all.
 
 ## Privacy
 
 No audio is ever stored or transmitted; sound source classification runs on the phone and only
 levels and statistics are kept. Up to v0.4.0 the app had no internet permission at all, and neither
-has the default edition **«Weniger Lärm»** (`stadtlaerm.apk`; app id `ch.lessnoise.app` since
-0.6.0). **«Weniger Lärm · Karte»** (`stadtlaerm-karte.apk`, same app id, installs over the other
+has the default edition, the **«Offline-Version»** (`stadtlaerm.apk`; app id `ch.lessnoise.app` since
+0.6.0). The **«Online-Version»** (`stadtlaerm-karte.apk`, same app id, installs over the other
 and keeps the data) uses the internet only for the opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until switched on; minute and event numbers of
 shared measurements, each with the point of its measurement moved at random on the phone by a
@@ -108,7 +108,7 @@ What the project counts, and who counts it — totals over the whole project, al
 - **Phone app v0.6.0 (in preparation, not published):** renamed to «Weniger Lärm» (app id
   `ch.lessnoise.app`, Labor `ch.lessnoise.labor`; a new app id, so it does not install over 0.5.x).
   Nothing about nights is special any more: the unit is a measurement from Start to Stop, listed
-  under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared
+  under «Messungen» with its own chart and a 24-hour profile. In the «Online-Version» every shared
   measurement gets its own place from one location fix at Start, moved at random on the phone
 (Gaussian location noise, σ 50 m by default, setting «Standort verschieben»), and «Laut! Melden» reports a
   loud moment with its exact place. Server host `api.lessnoise.ch`.
