@@ -1,6 +1,7 @@
 package ch.lessnoise.app.location
 
 import ch.lessnoise.app.upload.CellInput
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlin.math.ceil
 
 /**
@@ -8,8 +9,10 @@ import kotlin.math.ceil
  * them (LocationPolicyTest). The Android side, which asks the LocationManager for one fix, is
  * [LocationFetcher]. Two uses since 0.6.0:
  *
- * 1. At «Start» of a shared measurement: [decide] turns the fix into the 100 m cell; what leaves
- *    this object is an [Outcome], which holds at most the cell id and the accuracy in metres.
+ * 1. At «Start» of a shared measurement: [decide] turns the fix into the LV95 point and moves it at
+ *    once by the location noise ([LocationNoise.shift], server/DESIGN.md §2 rule 2); what leaves
+ *    this object is an [Outcome], which holds at most the **shifted** point and the accuracy in
+ *    metres. Pasted coordinates go the same way ([fromPasted]).
  * 2. «Laut! Melden»: [decideReport] keeps the coordinates in a [ReportOutcome.Fix], the ONE result
  *    that carries them. The report screen puts it into the report queue (upload/Reports.kt), which
  *    deletes the coordinates once the server has the report.
@@ -18,7 +21,10 @@ import kotlin.math.ceil
  */
 object LocationPolicy {
 
-    /** Worst accepted accuracy (Android's 68 % radius). A 100 m hectare needs better than this. */
+    /**
+     * Worst accepted accuracy (Android's 68 % radius) at «Start». Kept from the hectare era: the
+     * shifted point should be off by the noise the contributor chose, not by a poor fix on top.
+     */
     const val MAX_ACCURACY_M = 75.0
 
     /** Worst accepted accuracy of a «Laut! Melden» report. */
@@ -49,15 +55,28 @@ object LocationPolicy {
         else -> Permission.DENIED
     }
 
-    /** The result of the fix at «Start»: the cell, or why there is none. Holds no coordinates. */
+    /**
+     * The phone's location-noise secret (NoiseSecret, never sent) and the setting «Standort
+     * verschieben» (σ in metres): what [decide] and [fromPasted] need to move the point.
+     */
+    class Noise(val secret: ByteArray, val sigmaM: Int) {
+        init {
+            require(secret.size == LocationNoise.SECRET_BYTES && LocationNoise.isSigma(sigmaM))
+        }
+    }
+
+    /** The result of the fix at «Start»: the shifted point, or why there is none. Holds no true coordinates. */
     sealed interface Outcome {
-        /** Accepted: the hectare to use and the fix's accuracy in whole metres (rounded up). */
-        data class Hectare(val cell: String, val accuracyM: Int) : Outcome
+        /**
+         * Accepted: the point to send, already moved by the location noise, and the fix's accuracy
+         * in whole metres (rounded up; null for pasted coordinates).
+         */
+        data class Shifted(val point: LocationNoise.Point, val accuracyM: Int?) : Outcome
 
         /** Only «Ungefähr» was allowed: a fix would be off by up to ~2 km; none was requested. */
         data object ApproximateOnly : Outcome
 
-        /** The fix was too inaccurate for a 100 m hectare; [accuracyM] null = the phone gave none. */
+        /** The fix was too inaccurate (over [MAX_ACCURACY_M]); [accuracyM] null = the phone gave none. */
         data class TooInaccurate(val accuracyM: Int?) : Outcome
 
         /** The fix is not in Switzerland (or the hectare is outside the server's range). */
@@ -99,19 +118,26 @@ object LocationPolicy {
     }
 
     /**
-     * The decision for one fix. The hectare is set only with «Genauer Standort» and an accuracy of
+     * The decision for one fix. A point is produced only with «Genauer Standort» and an accuracy of
      * at most [MAX_ACCURACY_M]; otherwise the screen explains why and offers the alternatives.
-     * [accuracyM] null = the fix reports no accuracy (treated as too inaccurate).
+     * [accuracyM] null = the fix reports no accuracy (treated as too inaccurate). The true point
+     * exists only inside this function; the result holds the shifted one.
      */
-    fun decide(lat: Double, lon: Double, accuracyM: Double?, precise: Boolean): Outcome {
+    fun decide(lat: Double, lon: Double, accuracyM: Double?, precise: Boolean, noise: Noise): Outcome {
         if (!precise) return Outcome.ApproximateOnly
         val acc = accuracyM?.takeIf { !it.isNaN() && it >= 0 }
         if (acc == null || acc > MAX_ACCURACY_M) return Outcome.TooInaccurate(acc?.let { roundUp(it) })
         return when (val p = CellInput.fromLatLon(lat, lon, how = "Standort")) {
-            is CellInput.Parsed.Ok -> Outcome.Hectare(p.cell, roundUp(acc))
+            is CellInput.Parsed.Ok -> Outcome.Shifted(shift(p, noise), roundUp(acc))
             is CellInput.Parsed.Error -> Outcome.OutsideSwitzerland(p.message)
         }
     }
+
+    /** «Koordinaten einfügen»: the pasted place, moved by the location noise like a fix. */
+    fun fromPasted(parsed: CellInput.Parsed.Ok, noise: Noise): Outcome.Shifted = Outcome.Shifted(shift(parsed, noise), null)
+
+    private fun shift(p: CellInput.Parsed.Ok, noise: Noise): LocationNoise.Point =
+        LocationNoise.shift(noise.secret, p.e, p.n, noise.sigmaM)
 
     /** The result of the fix for a report: the coordinates, or why there are none. */
     sealed interface ReportOutcome {
@@ -120,7 +146,7 @@ object LocationPolicy {
             val accuracyText: Int get() = roundUp(accuracyM)
         }
 
-        /** No usable fix; [outcome] says why (never [Outcome.Hectare]). */
+        /** No usable fix; [outcome] says why (never [Outcome.Shifted]). */
         data class Problem(val outcome: Outcome) : ReportOutcome
     }
 
@@ -137,15 +163,16 @@ object LocationPolicy {
 
     internal fun roundUp(m: Double): Int = maxOf(1, ceil(m).toInt())
 
-    /** «Gefunden (± 12 m)»: the cell id means nothing to people (0.6.1). */
-    fun hectareLine(@Suppress("UNUSED_PARAMETER") cell: String, accuracyM: Int): String = "Gefunden (± $accuracyM m)"
+    /** «Gefunden (± 12 m), verschoben um etwa 50 m»; no cell id, it means nothing to people (0.6.1). */
+    fun shiftedLine(o: Outcome.Shifted): String =
+        (o.accuracyM?.let { "Gefunden (± $it m)" } ?: "Erkannt") + ", verschoben um etwa ${o.point.sigmaM} m"
 
     /** Shown while waiting for the fix. */
     const val PROGRESS_TEXT = "Standort wird bestimmt …"
 
     /** Why there is no usable fix, one short sentence (Swiss spelling, «du»); the buttons say what to do. */
     fun message(o: Outcome): String = when (o) {
-        is Outcome.Hectare -> hectareLine(o.cell, o.accuracyM)
+        is Outcome.Shifted -> shiftedLine(o)
         Outcome.ApproximateOnly -> "Bitte «Genauer Standort» erlauben (App-Einstellungen)."
         is Outcome.TooInaccurate ->
             "Zu ungenau" + (o.accuracyM?.let { " (± $it m)" } ?: "") + " – am Fenster mit WLAN klappt es meist besser."

@@ -1,7 +1,7 @@
 # Weniger Lärm – shared noise map: data model, contribution API, map
 
 Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
-reports) 2026-10-12. This document is the contract between the three parts that make the
+reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
@@ -25,19 +25,46 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
    surface for no gain.
-2. **Measurements carry a hectare, never coordinates.** A measurement is placed on a **Swiss
-   hectare cell** (the 100 m × 100 m grid of the national LV95 coordinate system, the same
-   grid the Federal Statistical Office publishes population on, §3). The app turns any
-   location into the cell id on the phone *before* anything is sent; for measurements the
-   server never receives coordinates, only cell ids: the cell of the site (§4.2) and, from
-   schema v3, optionally a cell per minute or event record (§4.3, §4.4) for a contributor who
-   measures in more than one place. How and when the app reads the location for this is the
-   app's part and is described in PRIVACY.md and android/README.md; the server's guarantee is
-   that a measurement row holds at most a hectare id. A contributor who measures in several
-   places appears on the map in several hectares, each with its own days and hours, never
-   linked to each other (no device id is published) — but with `MIN_DEVICES_PER_CELL = 1` a
-   reader who knows that one person measures in a sparse area could follow that person's
-   hectares day by day. The app must say this before the first upload with record cells.
+2. **Measurements carry a shifted point, never the true location.** Since app 0.6.2 (schema v4)
+   the app moves the place of a shared measurement on the phone *before* anything is sent. From
+   the one location fix at «Start» (or from pasted coordinates) it computes the true point in the
+   national LV95 coordinate system (§3) and adds a random offset: two independent normal draws
+   N(0, σ²), one east, one north, where σ is the contributor's setting «Standort verschieben»
+   (25, **50 (default)**, 100 or 200 m). Only the shifted point, rounded to whole metres, and σ are
+   sent (`point`, §4.2–§4.4). The true coordinates are neither stored nor sent, and the offset is
+   not stored either. **The offset is the same every time for the same place:** the two draws
+   come from HMAC-SHA256 (a keyed hash) of the true hectare id and σ under a random 32-byte secret
+   that is created on the phone and never leaves it (`android/dsp/…/geo/LocationNoise.kt`).
+   This is on purpose: with a fresh offset per measurement, anyone holding many measurements made
+   at one home could average them and find the home (the error of the mean shrinks as σ/√n);
+   with a fixed offset the average ends at the shifted point. Another hectare gets an
+   independent offset. «Neu starten» (until 0.6.0 «Neue Kennung») and «Vom Server löschen» make a new secret,
+   so afterwards every place gets a new offset. The server stores the point with the record and
+   shows the record in its **display cell**, the 100 m hectare that contains the shifted point
+   (§3); the 100 m grid of the map is a display grid, not the privacy protection. Points and σ of
+   measurements are never published. What remains:
+   - someone who knows σ knows that the true point is usually near the shifted one: within σ in
+     about 39 % of cases, within 2σ in about 86 %, within 3σ in about 99 % (with the default
+     50 m: usually within 100 m). The noise hides the exact address, not the neighbourhood;
+   - with `MIN_DEVICES_PER_CELL = 1` a lone contributor's display cell is shown on its own and
+     still lies near their home: with the default 50 m it is mostly the home's own hectare or a
+     neighbouring one;
+   - a home close to a hectare border can produce fixes on both sides, i.e. two independent
+     offsets; averaging two offsets only shrinks them by √2. The same holds across a new secret
+     («Neu starten»): someone who kept both the old and the new data could combine two offsets;
+   - the server (and whoever operates it) holds each device's shifted points, linked by the device
+     id; it cannot remove the offset, which needs the phone's secret;
+   - a contributor who measures in several places appears in several display cells, never linked
+     to each other (no device id is published) — but a reader who knows that one person measures
+     in a sparse area could follow that person's cells day by day.
+   The app's «Teilen» tab says, before the first upload, that the point is moved by
+   about σ, that it is moved the same way at the same place, that the true place is usually within
+   2σ and that a lone contributor's field lies near them (`ui/ShareTexts.kt`); datenschutz.html
+   says the same and that a lone contributor's fields can be followed day by day.
+   Apps up to 0.5.1 send no point and no record cell; their records count for the site's hectare,
+   which the contributor picked and the app snapped to the 100 m grid — for them the hectare is
+   still the protection, as before. Records with a `cell` and no point (schema v3; apps 0.6.0 and
+   0.6.1, which snapped the place to its hectare) are stored and shown in that hectare as before.
 3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»),
    off until the contributor switches it on in a screen that lists exactly what leaves the
    phone, what never does, and where it goes. Switching it off stops uploads at once.
@@ -51,8 +78,8 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
 6. **Measurements are public only as aggregates.** The website never fetches per-device rows.
    The server publishes per-cell, per-day aggregates (section 6). The minimum number of devices
    per shown cell is a server parameter `MIN_DEVICES_PER_CELL`, **default 1**: a lone
-   contributor who opted in, snapped to a hectare with dozens of households, is showing their
-   own street's noise, which is the point of the project. Raise it later if the network grows
+   contributor who opted in, whose place was moved by about σ before it was sent (rule 2), is
+   showing their own street's noise, which is the point of the project. Raise it later if the network grows
    and the map becomes dense enough that it would not go blank. Manual reports are the one
    exception and have their own rule (10).
 7. **Swiss hosting.** The server runs in Switzerland (see section 8), under two host names
@@ -114,6 +141,11 @@ against each other on a fixture of Zürich points. No agent needs to look anythi
 the reference. The approximate formulas were checked against all five on 2026-10-08: worst
 case 2.2 m at Genève, the rest under 0.5 m.)
 
+**Display cell (schema v4).** A record that carries a shifted point (§4.3) is shown in the
+hectare that contains that point: `h` + ⌊E/100⌋ + `_` + ⌊N/100⌋, the same arithmetic as for a
+WGS84 point. The hectare is only the grid the map draws; the protection of the place is the
+noise added on the phone (§2 rule 2).
+
 Cell → polygon for display: the four corners (E, N), (E+100, N), (E+100, N+100), (E, N+100)
 converted to WGS84; drawn as a quadrilateral (it is not quite a square in Web Mercator and
 that is fine).
@@ -134,13 +166,15 @@ The token is sent as `Authorization: Bearer <token>` on every later call for tha
 
 ### 4.2 Site (`PUT /v1/devices/{id}/site`)
 
-The sensor's placement. Sent at opt-in and whenever the contributor changes it. Since app 0.6.0
-`cell` is the cell of the newest shared measurement (each measurement has its own cell, carried
-by its minutes and events, §4.3/§4.4); the other fields are optional details the app remembers.
+The sensor's placement. Sent at opt-in and whenever the contributor changes it. Exactly one of
+`cell` (apps up to 0.5.1: the hectare the contributor picked) and `point` (app 0.6.2, schema v4:
+the shifted point of the newest shared measurement; each measurement has its own point, carried
+by its minutes and events, §4.3/§4.4). The server stores the site's display cell (§3) in `cell`.
+The other fields are optional details the app remembers.
 
 ```json
 {
-  "cell": "h26824_12473",
+  "point": { "e": 2682437, "n": 1247391, "sigma_m": 50 },   // or (apps ≤ 0.5.1) "cell": "h26824_12473"
   "placement": "open_window | balcony | behind_glass | other",
   "floor": 3,                      // 0 = ground floor; null = not given
   "street_facing": true,           // mic faces the street (vs courtyard)
@@ -163,7 +197,7 @@ calibration id they were measured with — that is enough to reason about calibr
 ```json
 {
   "start": "2026-10-07T23:14:00+02:00",
-  "cell": "h26824_12473",          // optional (schema v3): the hectare this minute was measured in
+  "point": { "e": 2682437, "n": 1247391, "sigma_m": 50 },   // optional (schema v4), see below
   "duration_s": 60.0,
   "valid_s": 59.5,
   "coverage": 0.992,
@@ -178,21 +212,32 @@ calibration id they were measured with — that is enough to reason about calibr
 }
 ```
 
-**`cell`** (optional, from schema v3): the hectare id of §3, same format as the site's `cell`
-(`^h\d{5}_\d{5}$`), inside the LV95 box used for site cells (E 2 480 000–2 840 000,
-N 1 070 000–1 300 000). If present it determines the record's cell and is stored with the
-row; if absent (apps up to 0.5.1) the record counts for the device's **current** site cell
-when the map is built. A record with a malformed or out-of-range cell is rejected
-(`{field: "cell", reason}`); the other records of the batch are stored. A device without a
-site may send records that all carry a cell; records with neither are stored but not shown.
+**`point`** (optional, from schema v4): where the minute was measured, as the app sends it
+since 0.6.2 — the **shifted** LV95 point of its measurement (§2 rule 2): `e` and `n` are JSON
+integers in metres inside the LV95 box of Switzerland used for cells (E 2 480 000–2 839 999,
+N 1 070 000–1 299 999, inclusive), `sigma_m` is the σ of the noise, one of 25, 50, 100, 200.
+The server stores `point_e`, `point_n`, `sigma_m` with the row and sets the row's cell to the
+display cell (§3), the hectare containing the point; aggregation and publication use only that
+cell. The point and σ are never published.
+
+**`cell`** (optional, from schema v3): a hectare id of §3 (`^h\d{5}_\d{5}$`) inside the same
+box. Sent by apps 0.6.0 and 0.6.1 (before schema v4); still accepted and stored as before.
+
+A record carries at most one of the two: both → rejected (`{field: "point", reason: "send either
+cell or point, not both"}`). With neither (apps up to 0.5.1) the record counts for the device's
+**current** site cell when the map is built. A record with a malformed or out-of-range cell or
+point, or a σ that is not one of the four, is rejected with the field and the reason; the other
+records of the batch are stored. A device without a site may send records that all carry a point
+or a cell; records with neither are stored but not shown.
 
 Response: `{ "accepted": n, "duplicates": m, "rejected": [ {index, start, reasons}, … ] }`.
-A record whose `start` already exists for the device replaces the stored one, its cell
+A record whose `start` already exists for the device replaces the stored one, its point and cell
 included (re-evaluation after a calibration sends the day again).
 
-The app (0.6.0 and later) sends a cell with every minute and event of a shared measurement,
-determined on the phone at the measurement's «Start»; minutes of a measurement without a cell are
-not sent at all.
+The app (0.6.2 and later; 0.6.0 and 0.6.1 sent the `cell` of the measurement) sends a `point` with every minute and event of a shared measurement,
+determined on the phone at the measurement's «Start» (the same point for all records of one
+measurement); minutes of a measurement without a point are not sent at all. It never sends the
+true hectare.
 
 ### 4.4 Events (`POST /v1/devices/{id}/events`)
 
@@ -201,7 +246,7 @@ Array of up to 2 000 events:
 ```json
 {
   "start": "2026-10-07T23:14:12.375+02:00",
-  "cell": "h26824_12473",          // optional (schema v3), as for minutes
+  "point": { "e": 2682437, "n": 1247391, "sigma_m": 50 },   // optional (schema v4), as for minutes
   "duration_s": 2.75,
   "lafmax_db": 71.4,
   "sel_db": 74.0,
@@ -218,10 +263,11 @@ Array of up to 2 000 events:
 (detector v2) the excess over the local floor (L90 of the last 30 s; default 6.5 dB), before that
 the threshold over the 5-min background (default 10 dB). Events the app flags as wind on the
 microphone (detector v2) are not sent, just as the app leaves them out of its own counts; the
-minutes' `event_count` (§4.3) likewise counts events without wind. `cell` (since app 0.6.0): as for
-minutes, the cell of the event's measurement; events of a measurement without a cell are not sent.
+minutes' `event_count` (§4.3) likewise counts events without wind. `point` (since app 0.6.2): as for
+minutes, the shifted point of the event's measurement; events of a measurement without a point are
+not sent.
 
-`cell` follows the rule of §4.3. Idempotent on `(device_id, start)`; same replace rule as
+`point` and `cell` follow the rules of §4.3. Idempotent on `(device_id, start)`; same replace rule as
 minutes.
 
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
@@ -287,7 +333,8 @@ of up to 50 reports, bearer auth as above:
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
 This is the only request with exact coordinates. The app keeps them only until the server has
-answered for the report, then deletes them (it keeps category, time and cell). Response like
+answered for the report, then deletes them (it keeps category, time and cell). Reports are not
+shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
 
@@ -297,12 +344,15 @@ as "server without reports yet" and retries later; any other `4xx` drops that ba
 devices(id TEXT PK, token_hash TEXT, app_version TEXT, app_build INT, created_at, last_seen_at, hidden INT DEFAULT 0)
 sites(device_id PK→devices, cell TEXT, placement TEXT, floor INT, street_facing INT,
       device_model TEXT, audio_source TEXT, calibrated INT, calibration_offset_db REAL,
-      note TEXT, updated_at)
+      note TEXT, updated_at,
+      point_e INT NULL, point_n INT NULL, sigma_m INT NULL)   -- v4; cell = the point's display cell
 minutes(device_id, start_utc INT, start_iso TEXT, … all fields of 4.3 …, received_at,
         cell TEXT NULL,                    -- v3; NULL = the device's site cell
+        point_e INT NULL, point_n INT NULL, sigma_m INT NULL,  -- v4; then cell = display cell
         PRIMARY KEY(device_id, start_utc))
 events(device_id, start_utc INT, start_iso TEXT, … all fields of 4.4 …, received_at,
        cell TEXT NULL,                     -- v3; NULL = the device's site cell
+       point_e INT NULL, point_n INT NULL, sigma_m INT NULL,   -- v4; then cell = display cell
        PRIMARY KEY(device_id, start_utc))
 hourly(device_id, hour_utc INT, cell TEXT DEFAULT '', valid_s, valid_minutes, laeq_db, l90_db,
        l10_db, dynamics_db, events TEXT, loudest_db, calibrated,
@@ -321,6 +371,12 @@ deleting the data (it is still deletable by its owner). Indexes on `minutes(star
 COLUMN cell` (existing rows: NULL, i.e. the site cell, exactly what they meant before);
 `hourly` is rebuilt with `cell` in its primary key (a `WITHOUT ROWID` key cannot be altered),
 existing rows copied with `cell = ''`; new table `reports`. No row is lost or changed.
+
+**Migration v3 → v4** (runs at startup, one transaction): `ALTER TABLE minutes/events/sites ADD
+COLUMN point_e, point_n, sigma_m` (INTEGER). Existing rows get NULL and keep their cell, i.e. they
+are shown exactly where they were before. No row is lost or changed. Points are never read by the
+aggregation; the retention job's hourly rows keep only the cell, so a point is gone with its raw
+row after 2 years at the latest.
 
 Retention: raw minutes and events are kept for 2 years (`RETENTION_DAYS`), then reduced to
 per-device hourly rows (one per device, UTC hour and hectare; the arithmetic of
@@ -354,7 +410,8 @@ these. Times are Europe/Zurich local time with offset.
 
 **Days, not nights.** The unit is the **calendar day in local time** (Europe/Zurich): 00:00 to
 00:00, so 24 h, or 23 h / 25 h on the days the clocks change, all hours. A record belongs to
-the day its start falls in, and to its cell (its own, else the site's, §4.3); a measurement
+the day its start falls in, and to its cell (its display cell or own cell, else the site's,
+§3, §4.3); a measurement
 over midnight counts for both days, each with its own minutes. The newest day is **today**
 (still running; the files are rebuilt every 10 minutes), so a contributor sees today's data on
 the map within minutes.
@@ -520,7 +577,7 @@ device (§2.4, §2.9); what remains is +1 on an anonymous counter, which cannot 
 device. So §2 is not weakened. No breakdown finer than the fields above may be added without
 changing this section first. The app's Offline-Version has no internet permission and
 contributes nothing to this file; only devices that switched on «Messwerte teilen» in the
-Karten-Version are counted.
+Online-Version (0.5.x: «Karten-Version») are counted.
 
 ## 7. The map page (`docs/karte.html`)
 
@@ -595,8 +652,9 @@ with the SQLite file on a mounted volume — the container does not change. Depl
 
 Abuse limits: 10 device registrations per IP per day, 60 requests per device per hour (reports
 included), request body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage
-outside 0–1, starts or report times more than 7 days old or in the future, cells or report
-points outside Switzerland are rejected with the reason).
+outside 0–1, starts or report times more than 7 days old or in the future, cells, measurement
+points or report points outside Switzerland, a σ other than 25/50/100/200 m are rejected with the
+reason).
 
 ## 9. App changes (public flavour)
 

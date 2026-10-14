@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- PUBLIC edition («Weniger Lärm · Karte», release asset lessnoise-karte.apk) only; NOT merged into
+<!-- PUBLIC edition («Online-Version», release asset lessnoise-karte.apk) only; NOT merged into
      the offline edition, which shares the Kotlin sources of src/public/ but not this manifest.
      Network access for the opt-in upload «Messwerte teilen» (server/DESIGN.md §2, §4; PRIVACY.md). Used by exactly one class, upload/UploadClient.kt, for exactly one host
      (BuildConfig.API_BASE, https://api.lessnoise.ch), and only after the person switched
@@ -7,8 +7,9 @@
      network («nur über WLAN»); it shows whether a connection is up and metered, nothing else.
      Location (0.6.0): ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION (Android 12+ needs both in
      one request so that the person can choose «Genau» or «Ungefähr»), used only while the app is
-     open and only for (1) one fix at «Start» of a shared measurement, turned into the 100 m cell on
-     the phone (the coordinates are neither stored nor sent), and (2) one fix for «Laut! Melden»,
+     open and only for (1) one fix at «Start» of a shared measurement, turned into a point that is
+     moved at random by the location noise on the phone (only the shifted point is stored and sent,
+     never the coordinates of the fix), and (2) one fix for «Laut! Melden»,
      whose exact coordinates are sent with that report and deleted from the phone once the server
      has it (location/LocationFetcher.kt, upload/Reports.kt). Never in the background:
      ACCESS_BACKGROUND_LOCATION is removed in src/main. The location

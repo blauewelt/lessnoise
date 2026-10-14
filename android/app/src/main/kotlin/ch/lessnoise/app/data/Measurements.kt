@@ -2,16 +2,20 @@ package ch.lessnoise.app.data
 
 import ch.lessnoise.dsp.MeasurementSpan
 import ch.lessnoise.dsp.MeasurementSplitter
+import ch.lessnoise.dsp.geo.LocationNoise
 
 /** A measurement as the «Messungen» screen shows it: its stored row with a resolved end. */
 data class Measurement(
     val id: Long,
     val span: MeasurementSpan,
-    /** The 100 m cell if this measurement is shared, else null. */
-    val cell: String?,
+    /** The shifted point that is sent if this measurement is shared, else null. */
+    val point: LocationNoise.Point?,
     /** The measurement that is running right now (its end is "now"). */
     val running: Boolean,
-)
+) {
+    /** The hectare the map shows this measurement in, if it is shared. */
+    val cell: String? get() = point?.cell
+}
 
 /** Pure rules for turning stored rows into measurements (unit-tested on the JVM). */
 object MeasurementList {
@@ -46,7 +50,7 @@ object MeasurementList {
                 isRunning -> nowMs
                 else -> lastEnd[i]
             }
-            out += Measurement(r.id, MeasurementSpan(r.startMs, maxOf(end, r.startMs + 1)), r.cell, isRunning)
+            out += Measurement(r.id, MeasurementSpan(r.startMs, maxOf(end, r.startMs + 1)), r.sharedPoint(), isRunning)
         }
         return out
     }

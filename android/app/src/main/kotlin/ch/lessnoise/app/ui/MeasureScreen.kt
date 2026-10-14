@@ -52,7 +52,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
     // Karten editions with «Teilen» on: one location fix at «Starten» (LocationFlows.kt).
-    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { cell -> MeasurementService.start(context, cell) } else null
+    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { point -> MeasurementService.start(context, point) } else null
     fun startMeasurement() {
         val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
         if (sharing && sharedStart != null) sharedStart() else MeasurementService.start(context)
@@ -157,7 +157,7 @@ fun MeasureContent(
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
-                    if (live.cell != null) Text("Wird auf die Lärmkarte geteilt.", style = MaterialTheme.typography.bodySmall)
+                    live.sharedPoint?.let { Text(sharedMeasurementLine(it.sigmaM), style = MaterialTheme.typography.bodySmall) }
                 } else {
                     Button(
                         onClick = onStart,

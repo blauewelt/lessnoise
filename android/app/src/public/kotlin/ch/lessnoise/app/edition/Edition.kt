@@ -8,7 +8,7 @@ import ch.lessnoise.app.data.EventEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-// The PUBLIC editions: compiled into «Weniger Lärm · Karte» (flavour `public`) AND the offline «Weniger Lärm»
+// The PUBLIC editions: compiled into the «Online-Version» (flavour `public`) AND the «Offline-Version»
 // (flavour `offline`, which adds this directory as a source dir in app/build.gradle.kts). This
 // source set (app/src/public/kotlin) and app/src/main/ contain no code that writes audio; the Labor
 // edition's recorder exists only in app/src/labor/. See PRIVACY.md.

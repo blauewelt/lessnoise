@@ -43,14 +43,15 @@ import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.SiteSettings
 import ch.lessnoise.app.upload.UploadSnapshot
 import ch.lessnoise.app.upload.Uploader
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // «Teilen» (tab of the Karten editions since 0.6.1; server/DESIGN.md §2, §9). Off by default;
-// switching on needs the explanation (once; or the short consent of «Laut! Melden»). The cell comes
-// from the location fix at the start of each measurement. Everything network goes through
-// upload/UploadClient.kt.
+// switching on needs the explanation (once; or the short consent of «Laut! Melden»). The place comes
+// from the location fix at the start of each measurement, moved on the phone by the location noise
+// («Standort verschieben», ShareTexts.kt). Everything network goes through upload/UploadClient.kt.
 
 /** Short German labels of the placement values (server/DESIGN.md §4.2), completing «Das Telefon liegt …». */
 fun placementLabel(p: String): String = when (p) {
@@ -59,40 +60,6 @@ fun placementLabel(p: String): String = when (p) {
     SiteSettings.PLACEMENT_BEHIND_GLASS -> "hinter Glas"
     else -> "anderswo"
 }
-
-/**
- * The bullet about location in «Nie gesendet». Shown only where «Teilen» exists (the Karten
- * editions), which are the editions with the location permission.
- */
-const val LOCATION_NEVER_SENT = "Dein genauer Standort (ausser bei einer Meldung); nie im Hintergrund gelesen."
-
-/** «Was gesendet wird» (app 0.6.1). */
-val SHARE_SENT_BULLETS: List<String> = listOf(
-    "Lärmwerte pro Minute und Lärmspitzen, mit Geräuschart (z. B. «Töff & Poser»).",
-    "Dein 100-m-Quadrat und wo das Telefon liegt.",
-    "Meldungen: Zeit, genauer Standort, Art des Lärms.",
-    "Telefonmodell, Audioquelle, Kalibrierung und eine zufällige Kennung.",
-)
-
-/** «Standort» (app 0.6.1): read once at «Starten», kept only as the 100 m square; exact only for a report. */
-val SHARE_LOCATION_BULLETS: List<String> = listOf(
-    "Beim Starten liest das Telefon einmal den Standort; gesendet wird nur das 100-m-Quadrat.",
-    "Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht.",
-)
-
-/** «Wohin» (app 0.6.1), incl. the risk server/DESIGN.md §2 rule 2 asks the app to state. */
-val SHARE_WHERE_BULLETS: List<String> = listOf(
-    "An unseren Server in der Schweiz, an keinen anderen.",
-    "Öffentlich sind nur Werte pro 100-m-Quadrat und Meldungen, nie die Kennung oder Notiz.",
-    "Misst sonst niemand in deinem Quadrat, sind es deine Werte.",
-    "Was du bei ausgeschaltetem Teilen misst, wird nie gesendet.",
-)
-
-/** «Löschen» (app 0.6.1). */
-val SHARE_DELETE_BULLETS: List<String> = listOf(
-    "Ausschalten stoppt das Senden; «Vom Server löschen» entfernt alles, auch Meldungen.",
-    "Nach 60 Tagen ohne neue Werte löscht der Server alles.",
-)
 
 /** One status line («Ein · zuletzt gesendet …», «Aus – es wird nichts gesendet»). */
 fun shareSummary(s: UploadSnapshot): String = when {
@@ -122,7 +89,7 @@ fun ShareScreen(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
         )
         Text(
-            "Deine Messwerte erscheinen auf der Lärmkarte – als Wert für dein 100-m-Quadrat.",
+            SHARE_INTRO,
             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp),
         )
 
@@ -130,7 +97,7 @@ fun ShareScreen(modifier: Modifier = Modifier) {
         // «Weiter»; afterwards one tap away.
         if (!s.explanationSeen || showExplanation) {
             SectionCard("Was gesendet wird") { Bullets(*SHARE_SENT_BULLETS.toTypedArray()) }
-            SectionCard("Standort") { Bullets(*SHARE_LOCATION_BULLETS.toTypedArray()) }
+            SectionCard("Standort") { Bullets(*shareLocationBullets(s.sigmaM).toTypedArray()) }
             SectionCard("Nie gesendet") { Bullets("Audio, Name, Telefonnummer oder E-Mail.", LOCATION_NEVER_SENT) }
             SectionCard("Wohin") { Bullets(*SHARE_WHERE_BULLETS.toTypedArray()) }
             SectionCard("Löschen") {
@@ -182,6 +149,7 @@ fun ShareScreen(modifier: Modifier = Modifier) {
                     }
                     if (!s.wifiOnly) Text("Weniger als 0,1 MB pro Tag.", style = MaterialTheme.typography.bodySmall)
                     StatRow("Noch zu senden", "$pending Minuten")
+                    SigmaSetting(s.sigmaM) { v -> module.store.update { it.copy(sigmaM = v) } }
                 }
             }
 
@@ -261,7 +229,7 @@ private fun Bullets(vararg lines: String) {
 
 /**
  * «Wo steht das Telefon?»: optional details about how the phone stands, remembered for the next
- * measurements. The place itself is the cell determined at the start of each measurement
+ * measurements. The place itself is the shifted point determined at the start of each measurement
  * (LocationFlows.kt). Stockwerk and Notiz are under «Weitere Angaben».
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -330,6 +298,27 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
         ) { Text("Speichern") }
         if (saved) Text("Gespeichert.", style = MaterialTheme.typography.bodySmall)
     }
+}
+
+/**
+ * «Standort verschieben»: σ of the location noise (server/DESIGN.md §2 rule 2), 25 / 50 (default) /
+ * 100 / 200 m, under «Weitere Angaben» of the switch card. No «exact» choice: an exact place is sent
+ * only with «Laut! Melden». Applies from the next «Starten».
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SigmaSetting(current: Int, onChange: (Int) -> Unit) {
+    Text(SIGMA_LABEL, style = MaterialTheme.typography.bodyMedium)
+    val choices = LocationNoise.SIGMAS_M
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        choices.forEachIndexed { i, v ->
+            SegmentedButton(
+                selected = current == v, onClick = { onChange(v) },
+                shape = SegmentedButtonDefaults.itemShape(i, choices.size),
+            ) { Text(sigmaChoice(v), style = MaterialTheme.typography.labelSmall) }
+        }
+    }
+    Text(SIGMA_EXPLANATION, style = MaterialTheme.typography.bodySmall)
 }
 
 /** «Meldungen»: waiting and sent reports (sent ones without coordinates: category and time). */

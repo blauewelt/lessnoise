@@ -62,11 +62,13 @@ class UploadSourceIsolationTest {
         "ch.lessnoise.app.data.AppDatabase",
         "ch.lessnoise.app.data.CalibrationRepository",
         "ch.lessnoise.app.data.EventEntity",
-        "ch.lessnoise.app.data.MeasurementEntity", // start, end and 100 m cell of a measurement (Room row), no audio
+        "ch.lessnoise.app.data.MeasurementEntity", // start, end and shifted point of a measurement (Room row), no audio
+        "ch.lessnoise.app.data.sharedPoint", // MeasurementEntity → its shifted point, pure
         "ch.lessnoise.app.data.MinuteEntity",
         "ch.lessnoise.app.data.Recalibrator",
         "ch.lessnoise.app.service.LiveState",
         "ch.lessnoise.dsp.geo.Lv95",
+        "ch.lessnoise.dsp.geo.LocationNoise", // pure math of the location noise (shifted point, secret), no I/O
         "ch.lessnoise.dsp.MeasurementSplitter", // pure function: which measurement a record belongs to
     )
 

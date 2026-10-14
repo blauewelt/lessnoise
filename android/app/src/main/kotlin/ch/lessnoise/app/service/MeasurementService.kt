@@ -41,6 +41,7 @@ import ch.lessnoise.dsp.classify.ClassifierPreprocessor
 import ch.lessnoise.dsp.classify.ClassifierResult
 import ch.lessnoise.dsp.classify.LabelScore
 import ch.lessnoise.dsp.classify.SoundClassifier
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -81,8 +82,8 @@ data class LiveState(
     val topLabels: List<LabelScore> = emptyList(),
     val lastMinute: MinuteRecord? = null,
     val classifierEnabled: Boolean = false,
-    /** The running measurement's 100 m cell if it is shared («Messwerte teilen»), else null. */
-    val cell: String? = null,
+    /** The running measurement's shifted point if it is shared («Messwerte teilen»), else null. */
+    val sharedPoint: LocationNoise.Point? = null,
     /** The system currently silences the microphone (call, voice assistant): audio not evaluated. */
     val micSilenced: Boolean = false,
     /** Current audio is not evaluated (silenced, digital silence or 0.5 s recovery after it). */
@@ -92,8 +93,8 @@ data class LiveState(
 
 /**
  * Foreground service (type "microphone") that runs the measurement so it continues for hours with
- * the screen off. Every start records a measurement row (MeasurementEntity) with the cell it was
- * started with; «Stop» closes it. Holds a partial wake lock while measuring (configurable): see README → Battery.
+ * the screen off. Every start records a measurement row (MeasurementEntity) with the shifted point
+ * it was started with; «Stop» closes it. Holds a partial wake lock while measuring (configurable): see README → Battery.
  */
 class MeasurementService : Service() {
 
@@ -109,13 +110,25 @@ class MeasurementService : Service() {
         private const val TAG = "MeasurementService"
         private const val NOTIFICATION_ID = 1
 
-        /** Extra of ACTION_START: the 100 m cell of a shared measurement (absent: not shared). */
-        const val EXTRA_CELL = "cell"
+        /** Extras of ACTION_START: the shifted point of a shared measurement (absent: not shared). */
+        const val EXTRA_POINT_E = "point_e"
+        const val EXTRA_POINT_N = "point_n"
+        const val EXTRA_SIGMA_M = "sigma_m"
 
-        fun start(context: Context, cell: String? = null) {
+        fun start(context: Context, point: LocationNoise.Point? = null) {
             val i = Intent(context, MeasurementService::class.java).setAction(ACTION_START)
-            if (cell != null) i.putExtra(EXTRA_CELL, cell)
+            if (point != null) {
+                i.putExtra(EXTRA_POINT_E, point.e).putExtra(EXTRA_POINT_N, point.n).putExtra(EXTRA_SIGMA_M, point.sigmaM)
+            }
             ContextCompat.startForegroundService(context, i)
+        }
+
+        /** The shifted point of an ACTION_START intent, or null (not shared, or incomplete). */
+        private fun pointOf(intent: Intent?): LocationNoise.Point? {
+            if (intent == null || !intent.hasExtra(EXTRA_POINT_E) || !intent.hasExtra(EXTRA_POINT_N)) return null
+            val sigma = intent.getIntExtra(EXTRA_SIGMA_M, 0)
+            if (!LocationNoise.isSigma(sigma)) return null
+            return LocationNoise.Point(intent.getIntExtra(EXTRA_POINT_E, 0), intent.getIntExtra(EXTRA_POINT_N, 0), sigma)
         }
 
         fun stop(context: Context) {
@@ -160,12 +173,12 @@ class MeasurementService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopMeasurement(); return START_NOT_STICKY }
-            else -> startMeasurement(intent?.getStringExtra(EXTRA_CELL))
+            else -> startMeasurement(pointOf(intent))
         }
         return START_NOT_STICKY
     }
 
-    private fun startMeasurement(cell: String?) {
+    private fun startMeasurement(point: LocationNoise.Point?) {
         val live = container.live
         createChannel()
         val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -247,7 +260,7 @@ class MeasurementService : Service() {
                     val startedAt = System.currentTimeMillis()
                     measurementRow = scope.async {
                         try {
-                            container.measurements.beginMeasurement(startedAt, cell)
+                            container.measurements.beginMeasurement(startedAt, point)
                         } catch (e: Exception) {
                             Log.w(TAG, "measurement insert failed: ${e.javaClass.simpleName}")
                             null
@@ -272,7 +285,7 @@ class MeasurementService : Service() {
                         running = true, startedAtMs = System.currentTimeMillis(), audioSource = info.source,
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
-                        classifierEnabled = settings.classifierEnabled, cell = cell,
+                        classifierEnabled = settings.classifierEnabled, sharedPoint = point,
                     )
                 }
             } catch (e: Exception) {

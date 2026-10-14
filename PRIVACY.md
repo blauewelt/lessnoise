@@ -5,26 +5,27 @@ core promise of the project, and this page explains how the code keeps it, so an
 
 Everything on this page is about the **public app** (`ch.lessnoise.app` since 0.6.0, before
 `ch.stadtlaerm.app`; the APKs linked from wenigerlaerm.ch). It is published in two editions,
-**«Weniger Lärm»** (no internet and no location permission at all) and **«Weniger Lärm · Karte»**
-(internet only for the opt-in «Messwerte teilen» and «Laut! Melden»; location only for one fix at
-the start of a shared measurement and for a report), see [Editions](#editions). Since v0.3.3 the
+the **«Online-Version»**, the default download since 0.6.2 (internet only for the opt-in «Messwerte
+teilen» and «Laut! Melden»; location only for one fix at the start of a shared measurement and for a
+report), and the **«Offline-Version»** for even more privacy (no internet and no location permission
+at all, therefore no map and no reports), see [Editions](#editions). Since v0.3.3 the
 repository can also build a separate diagnostics app that *can* record audio; it is a different
 app, is never published, and neither published edition contains any of its code. See
 [Labor-Build](#labor-build) below.
 
 ## Editions
 
-| | «Weniger Lärm» (offline) | «Weniger Lärm · Karte» |
+| | «Online-Version» | «Offline-Version» |
 |---|---|---|
-| File (on the website, `docs/download/`) | `lessnoise.apk` — the default download | `lessnoise-karte.apk` |
-| Gradle flavour | `offline` | `public` |
-| App id, signing key | `ch.lessnoise.app` (0.6.0; before `ch.stadtlaerm.app`), release key | the same |
-| `INTERNET`, `ACCESS_NETWORK_STATE` | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only for «Messwerte teilen» and «Laut! Melden» |
-| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only while the app is open: one fix at «Start» of a shared measurement (turned into the 100 m cell on the phone; coordinates neither stored nor sent) and one fix per «Laut! Melden» report (sent with that report, then deleted from the phone) |
-| `ACCESS_BACKGROUND_LOCATION` | no | **no** — location is never read in the background |
-| «Messwerte teilen», «Laut! Melden» | do not exist (`BuildConfig.UPLOAD_AVAILABLE = false`) | off until you switch it on |
-| Data leaves the phone | only when *you* export it (CSV; calibrations as JSON) and share it | the same, plus the opt-in upload |
-| Can report anything (usage, crashes, versions) | **no** — it has no way to | only what «Messwerte teilen» sends, below |
+| File (on the website, `docs/download/`) | `lessnoise-karte.apk` — the default download since 0.6.2 | `lessnoise.apk` — for even more privacy (the default download until 0.6.1) |
+| Gradle flavour | `public` | `offline` |
+| App id, signing key | the same | `ch.lessnoise.app` (0.6.0; before `ch.stadtlaerm.app`), release key |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | yes, only for «Messwerte teilen» and «Laut! Melden» | **no** (removed in `app/src/offline/AndroidManifest.xml`) |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, only while the app is open: one fix at «Start» of a shared measurement (moved at random on the phone by the location noise, about 50 m by default; only the shifted point is stored and sent, never the fix) and one fix per «Laut! Melden» report (sent with that report, then deleted from the phone) | **no** (removed in `app/src/offline/AndroidManifest.xml`) |
+| `ACCESS_BACKGROUND_LOCATION` | **no** — location is never read in the background | no |
+| «Messwerte teilen», «Laut! Melden» | off until you switch it on | do not exist (`BuildConfig.UPLOAD_AVAILABLE = false`) |
+| Data leaves the phone | the same, plus the opt-in upload | only when *you* export it (CSV; calibrations as JSON) and share it |
+| Can report anything (usage, crashes, versions) | only what «Messwerte teilen» sends, below | **no** — it has no way to |
 
 Both editions are built from the same Kotlin sources (`app/src/main` and `app/src/public/kotlin`)
 and contain no recording code. Because they share the app id and the key, installing one over the
@@ -35,10 +36,10 @@ upload and location classes (shared code), but they can never run: every entry p
 `UPLOAD_AVAILABLE` is false, neither the settings card nor the «Laut! Melden» button exists, without
 `INTERNET` Android would refuse the socket, and without `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION`
 in its manifest Android would deny the permission without asking. When the offline edition is
-installed over a Karte edition that had sharing on, it switches sharing off, drops reports not yet
+installed over the Online-Version with sharing on, it switches sharing off, drops reports not yet
 sent (with their coordinates) and cancels the scheduled upload jobs at its first start
-(`UploadModule.stopForOfflineEdition`); it keeps the device id and token so that the Karte edition
-can still delete the data on the server later. Delete your server data in the Karte edition
+(`UploadModule.stopForOfflineEdition`); it keeps the device id and token so that the Online-Version
+can still delete the data on the server later. Delete your server data in the Online-Version
 *before* switching if you want it gone at once; otherwise the server deletes it by itself 60 days
 after the last upload (see «Silent devices are deleted» below).
 
@@ -47,8 +48,8 @@ after the last upload (see «Silent devices are deleted» below).
 1. **Raw audio never touches disk.** No code path writes samples to a file, a database, the
    cache, shared preferences or the clipboard.
 2. **Raw audio never leaves the app process.** There is no code that sends audio anywhere. Up to
-   v0.4.0, and in the offline edition «Weniger Lärm» from v0.5.0, the manifest has no `INTERNET`
-   permission at all. **From v0.5.0** the Karte edition has `INTERNET` for exactly one purpose:
+   v0.4.0, and in the offline edition («Offline-Version») from v0.5.0, the manifest has no `INTERNET`
+   permission at all. **From v0.5.0** the map edition (since 0.6.2 «Online-Version») has `INTERNET` for exactly one purpose:
    the opt-in upload «Messwerte teilen» (since 0.6.0 including «Laut! Melden»; see
    [«Messwerte teilen»](#messwerte-teilen-opt-in-upload-from-v050) below), which is **off until you
    switch it on**, sends only the numbers and reports listed there, to one host
@@ -65,8 +66,8 @@ after the last upload (see «Silent devices are deleted» below).
 5. **Only aggregates are stored:** levels (LAeq, LAFmax, LAFmin, L1/L10/L50/L90), event
    statistics (start, duration, LAFmax, SEL, background level), classifier category shares,
    the top-3 AudioSet label *names and scores* per event, calibration records, and (0.6.0) the
-   start, stop and — for a shared measurement — the 100 m cell of each measurement. None of these
-   can be turned back into audio.
+   start, stop and — for a shared measurement — the shifted point of each measurement (see
+   «Location noise» below). None of these can be turned back into audio.
 6. **No analytics, no crash reporting, no cloud backup.** `android:allowBackup="false"`, and
    the data-extraction rules exclude everything from cloud backup and device transfer. No
    third-party SDK talks to the network: the upload uses Android's own `HttpURLConnection`.
@@ -99,11 +100,11 @@ accordingly before you share them.
 ## How to verify
 
 - `aapt2 dump permissions <apk>` (Android SDK build-tools) lists exactly:
-  - **`lessnoise.apk`** (offline edition «Weniger Lärm»; until 0.6.1 named `stadtlaerm.apk`, which up to v0.4.0 was the only edition):
+  - **`lessnoise.apk`** (offline edition, «Offline-Version»; until 0.6.1 named `stadtlaerm.apk`, which up to v0.4.0 was the only edition):
     `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`,
     `WAKE_LOCK` (plus AndroidX's internal `ch.lessnoise.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`).
     No `INTERNET`, no `ACCESS_NETWORK_STATE`, no `ACCESS_FINE_LOCATION`, no `ACCESS_COARSE_LOCATION`.
-  - **`lessnoise-karte.apk`** («Weniger Lärm · Karte», from v0.5.0): the same plus `INTERNET` and
+  - **`lessnoise-karte.apk`** («Online-Version», from v0.5.0): the same plus `INTERNET` and
     `ACCESS_NETWORK_STATE`, both only for «Messwerte teilen» and «Laut! Melden» (below), and
     `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, only for the two location uses (below).
   - Neither has `ACCESS_BACKGROUND_LOCATION` (removed in `app/src/main/AndroidManifest.xml`) or a
@@ -125,16 +126,17 @@ and each shared measurement has its own place. The rules, and where the code kee
 
 | Rule | How |
 |---|---|
-| **Off by default**, one explicit opt-in | `UploadSnapshot.enabled = false`; the switch is enabled only after the explanation screen was read (`Uploader.enable()`, `ui/ShareScreen.kt`), or after you say yes to the short consent that the first «Laut! Melden» shows while sharing is off (time, exact place and kind of noise; the point appears on the map, and reporting often from the same spot makes that spot visible; never audio; deletable with «Vom Server löschen»). The explanation lists what is sent, the location rule, what is never sent, where it goes (including that a 100 m square where nobody else measures shows your values) and how to delete; after «Weiter» it stays one tap away («Was gesendet wird ▸»). Switching off cancels every scheduled job at once (`UploadModule.applySchedule()`), drops reports not yet sent (with their coordinates), and a running upload stops before its next request. |
-| **Place per measurement** (0.6.0) | With sharing on, «Messung starten» takes **one** location fix and turns it into the 100 m cell (LV95 hectare id, e.g. `h26833_12479`) on the phone; the measurement row stores only that cell (`data/Database.kt` → `MeasurementEntity.cell`). If the fix fails, the app asks once: try again, paste coordinates (turned into the cell the same way, `upload/CellInput.kt`), or start this measurement without sharing. A measurement without a cell is never sent: neither its minutes nor its events. Measurements recorded before 0.6.0 or while sharing was off have no cell. |
-| **What is sent** | The minute records (levels, percentiles, valid time, event count, category shares, calibration id/offset, audio source, clock corrections) and event records (start, duration, LAFmax, SEL, background, threshold, floor, category and its score, calibration) of `upload/Payloads.kt`, **each with the `cell` of its measurement** (0.6.0) — so the loud moments of a shared measurement appear on the map at that cell; plus the placement of §4.2 (the cell of the newest shared measurement, placement, floor, street side, phone model, audio source, calibration, optional note); plus «Laut! Melden» reports (below). Exactly the bodies of DESIGN.md §4. Events flagged as wind on the microphone are not sent (the app leaves them out of its own counts too), and a minute's event count is the count without wind. |
-| **«Laut! Melden»** (0.6.0, only while no measurement runs) | You pick what was loud (Töff, Auto, Lastwagen, Poser, anderes); the app takes **one** precise fix (accuracy ≤ 50 m, else it says so and offers another try) and shows «Meldung: …, Uhrzeit, Standort ± n m – senden?». Only after «Senden» is the report queued: time of the tap (to the second, with the phone's UTC offset), **exact latitude/longitude (5 decimals, about 1 m)**, the accuracy in metres and the category, sent to `POST /v1/devices/{id}/reports`. This is the one case where the app sends exact coordinates. They exist on the phone only in the pending queue (a private SharedPreferences file, excluded from backup, `upload/Reports.kt`) until the server has answered for that report; then they are deleted, and only category, time and cell stay in a local list of sent reports. The server rounds the time for publication (DESIGN.md §4). |
-| **What is never sent** | Audio (none exists). The top-3 raw AudioSet labels of events (`topLabelsJson` is not read by `Payloads`). The `orig_*`/re-evaluation columns. The detector-v2 features of events and minutes (local floor, excess, rise/decay, LF share and flutter, shape, wind flag, wind event count). The coordinates of the fix at «Start» or of pasted coordinates: only the cell is kept and sent. Exact coordinates only with a report you confirmed. No name, account, phone number, advertising id or Android id. |
-| **Location** | Only the Karte edition (and the internal `laborKarte`) has `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`; it asks for them only at «Starten» (until 0.6.0 «Messung starten») with sharing on, or at «Laut! Melden». Each time it gets **one** fix from Android's own `LocationManager` (no Google Play Services; GPS and network provider, whichever are on; `getCurrentLocation`, on Android 8–10 one update; at most 30 s, cancellable; a last-known location only if younger than 2 min and accurate to ≤ 50 m) while the app is open. At «Start» the fix becomes the cell at once (`location/LocationPolicy.decide` → `CellInput.fromLatLon` → `Lv95.cellId`) and is accepted only with «Genauer Standort» and an accuracy of ≤ 75 m; its coordinates live only in local variables of `location/LocationFetcher.kt` and `LocationPolicy.decide`: not in the settings, not in the database, not in a log, not in the upload. For a report (`LocationPolicy.decideReport`, ≤ 50 m) the coordinates go into the report queue described above. Never in the background: no `ACCESS_BACKGROUND_LOCATION`, no location request outside these two moments. The offline edition and the Labor build have no location permission (removed in their manifests). |
+| **Off by default**, one explicit opt-in | `UploadSnapshot.enabled = false`; the switch is enabled only after the explanation screen was read (`Uploader.enable()`, `ui/ShareScreen.kt`), or after you say yes to the short consent that the first «Laut! Melden» shows while sharing is off (time, exact place and kind of noise; the point appears on the map, and reporting often from the same spot makes that spot visible; never audio; deletable with «Vom Server löschen»). The explanation lists what is sent, the location rule (including the location noise and what it does not hide), what is never sent, where it goes (including that a 100 m square where nobody else measures shows your values, near your home) and how to delete; after «Weiter» it stays one tap away («Was gesendet wird ▸»). Switching off cancels every scheduled job at once (`UploadModule.applySchedule()`), drops reports not yet sent (with their coordinates), and a running upload stops before its next request. |
+| **Place per measurement** (0.6.0; shifted since 0.6.2) | With sharing on, «Starten» takes **one** location fix, turns it into a point of the Swiss LV95 grid and moves it at once by the location noise (next row); the measurement row stores only the shifted point, its σ and the 100 m display cell that contains it (`data/Database.kt` → `MeasurementEntity.pointE/pointN/sigmaM/cell`). If the fix fails, the app asks once: try again, paste coordinates (moved the same way, `upload/CellInput.kt` → `LocationPolicy.fromPasted`), or start this measurement without sharing. A measurement without a point is never sent: neither its minutes nor its events. Measurements recorded before 0.6.0 or while sharing was off have no point; neither do measurements made with 0.6.0 or 0.6.1 (they kept only the 100 m cell; after the update to 0.6.2 nothing more of them is sent, what was sent before stays on the server until deleted). |
+| **Location noise** (0.6.2) | The point that is sent is the true point plus a random offset: two independent normal draws N(0, σ²) east and north, σ from the setting **«Standort verschieben»** («Teilen» › «Weitere Angaben») — 25, **50 (default)**, 100 or 200 m; there is no «exact» choice. The offset is **the same every time for the same place**: it is derived from HMAC-SHA256 (a keyed hash) of the true 100 m hectare and σ under a secret of 32 random bytes made on the phone at the first shared «Starten» (`upload/NoiseSecret.kt`; stored like the token, encrypted with a key in the Android Keystore; never sent). So averaging many measurements made at the same home ends at the shifted point, not at the home; another hectare gets an independent offset. «Neu starten» and «Vom Server löschen» drop the secret, so afterwards every place gets a new offset. The math is one pure, unit-tested function, `android/dsp/src/main/kotlin/ch/lessnoise/dsp/geo/LocationNoise.kt`. Neither the true point nor the offset is stored. What it does not hide: whoever knows σ knows that the true point is usually within 2σ of the shifted one (about 86 % of cases; with 50 m: within 100 m); a lone contributor's 100 m square on the map is still near their home. |
+| **What is sent** | The minute records (levels, percentiles, valid time, event count, category shares, calibration id/offset, audio source, clock corrections) and event records (start, duration, LAFmax, SEL, background, threshold, floor, category and its score, calibration) of `upload/Payloads.kt`, **each with the shifted `point` of its measurement** (0.6.2: LV95 easting/northing in whole metres and σ, e.g. `{"e": 2682437, "n": 1247391, "sigma_m": 50}`; 0.6.0–0.6.1 sent the `cell`) — so the loud moments of a shared measurement appear on the map in the 100 m square that contains that point; plus the placement of §4.2 (the shifted point of the newest shared measurement, placement, floor, street side, phone model, audio source, calibration, optional note); plus «Laut! Melden» reports (below). Exactly the bodies of DESIGN.md §4. Events flagged as wind on the microphone are not sent (the app leaves them out of its own counts too), and a minute's event count is the count without wind. |
+| **«Laut! Melden»** (0.6.0, only while no measurement runs) | You pick what was loud (Töff, Auto, Lastwagen, Poser, anderes); the app takes **one** precise fix (accuracy ≤ 50 m, else it says so and offers another try) and shows «Meldung: …, Uhrzeit, Standort ± n m – senden?». Only after «Senden» is the report queued: time of the tap (to the second, with the phone's UTC offset), **exact latitude/longitude (5 decimals, about 1 m)**, the accuracy in metres and the category, sent to `POST /v1/devices/{id}/reports`. This is the one case where the app sends exact coordinates. They exist on the phone only in the pending queue (a private SharedPreferences file, excluded from backup, `upload/Reports.kt`) until the server has answered for that report; then they are deleted, and only category, time and the 100 m cell (the approximate place, «ungefährer Ort») stay in a local list of sent reports. The server rounds the time for publication (DESIGN.md §4). |
+| **What is never sent** | Audio (none exists). The top-3 raw AudioSet labels of events (`topLabelsJson` is not read by `Payloads`). The `orig_*`/re-evaluation columns. The detector-v2 features of events and minutes (local floor, excess, rise/decay, LF share and flutter, shape, wind flag, wind event count). The coordinates of the fix at «Starten» or of pasted coordinates, the true hectare, the offset and the noise secret: only the shifted point is kept and sent. Exact coordinates only with a report you confirmed. No name, account, phone number, advertising id or Android id. |
+| **Location** | Only the Online-Version (and the internal `laborKarte`) has `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`; it asks for them only at «Starten» (until 0.6.0 «Messung starten») with sharing on, or at «Laut! Melden». Each time it gets **one** fix from Android's own `LocationManager` (no Google Play Services; GPS and network provider, whichever are on; `getCurrentLocation`, on Android 8–10 one update; at most 30 s, cancellable; a last-known location only if younger than 2 min and accurate to ≤ 50 m) while the app is open. At «Starten» the fix becomes the shifted point at once (`location/LocationPolicy.decide` → `CellInput.fromLatLon` → `LocationNoise.shift`) and is accepted only with «Genauer Standort» and an accuracy of ≤ 75 m; its coordinates live only in local variables of `location/LocationFetcher.kt` and `LocationPolicy.decide`: not in the settings, not in the database, not in a log, not in the upload. For a report (`LocationPolicy.decideReport`, ≤ 50 m) the coordinates go into the report queue described above. Never in the background: no `ACCESS_BACKGROUND_LOCATION`, no location request outside these two moments. The offline edition and the Labor build have no location permission (removed in their manifests). |
 | **Where it goes** | One host, `BuildConfig.API_BASE` = `https://api.lessnoise.ch` (0.6.0; before `https://api.stadtlaerm.ch`; the project's server in Switzerland, DESIGN.md §8). HTTPS only (`UploadClient` refuses any other base URL except a loopback test server), redirects are not followed, no cookies, and the User-Agent is just `LessNoise` (no phone model or Android build). |
 | **When** | After every full hour, shortly after a measurement stops and shortly after a report (WorkManager), only over Wi-Fi/unmetered networks unless «Nur über WLAN» is switched off (since 0.6.1 under «Teilen» › «Weitere Angaben», still on by default). At the first opt-in the shared measurements of the last 7 days are included (normally there are none yet: a measurement is shared only if it was started while sharing was on); afterwards nothing measured while sharing was off is ever sent. The explanation says the latter («Was du bei ausgeschaltetem Teilen misst, wird nie gesendet.»). |
-| **Identity** | At the first upload the server issues a random device id and a secret token (DESIGN.md §4.1). The token is stored encrypted with a key held in the Android Keystore; the id is never shown on the public map. «Vom Server löschen» forgets id and token, so switching on again starts with a fresh id; «Neu starten» (until 0.6.0 «Neue Kennung», since 0.6.1 shown only when the server no longer knows the id) deletes the server data and continues under a fresh id. |
-| **Delete means delete** | «Vom Server löschen» (until 0.6.0 «Daten auf dem Server löschen»; the confirmation still asks «Daten auf dem Server löschen?») sends `DELETE /v1/devices/{id}` and waits for the server's `204` (sent only after every row is gone — minutes, events, site and reports —, DESIGN.md §2.4); only then are id and token forgotten on the phone, reports not yet sent are dropped, and sharing is switched off. On an error nothing changes and the screen says so. |
+| **Identity** | At the first upload the server issues a random device id and a secret token (DESIGN.md §4.1). The token is stored encrypted with a key held in the Android Keystore; the id is never shown on the public map. «Vom Server löschen» forgets id, token and the location-noise secret, so switching on again starts with a fresh id and new offsets; «Neu starten» (until 0.6.0 «Neue Kennung», since 0.6.1 shown only when the server no longer knows the id) deletes the server data and continues under a fresh id and a new location-noise secret. |
+| **Delete means delete** | «Vom Server löschen» (until 0.6.0 «Daten auf dem Server löschen»; the confirmation still asks «Daten auf dem Server löschen?») sends `DELETE /v1/devices/{id}` and waits for the server's `204` (sent only after every row is gone — minutes, events, site and reports —, DESIGN.md §2.4); only then are id, token and the location-noise secret forgotten on the phone, reports not yet sent are dropped, and sharing is switched off. On an error nothing changes and the screen says so. |
 | **Silent devices are deleted** | If the server receives nothing from a device for **60 days** (no upload, no other authenticated request), it deletes every row of that device exactly as «Löschen» does, and the map is rebuilt without it (DESIGN.md §2.9, §5; `retention.expire_inactive`, setting `INACTIVE_DELETE_DAYS`). This covers phones that switched to the offline edition, uninstalled the app, or stopped sharing without deleting. Only an anonymous counter (`devices_expired`) goes up by one. If such a phone shares again, the server answers `401`; the app says why and offers «Neu starten», which starts over under a fresh id (it does not re-register silently). |
 
 `ACCESS_NETWORK_STATE` is required by Android for background jobs that wait for a network (and
@@ -144,19 +146,25 @@ manifest.
 
 **How to verify:** the grep above (one network file); `android/app/src/test/.../upload/UploadTest.kt`
 checks the exact request bodies against a local fake server (no labels, no originals, no
-coordinates, the measurement's `cell` on every minute and event, nothing from a measurement
-without a cell, gzip, bearer token, the fixed User-Agent, nothing sent while off);
+coordinates and no hectare, the measurement's shifted `point` on every minute and event, nothing
+from a measurement without a point, gzip, bearer token, the fixed User-Agent, nothing sent while
+off, the noise secret dropped by «Vom Server löschen» and «Neu starten»);
+`android/dsp/src/test/.../geo/LocationNoiseTest.kt` checks the location noise (values computed
+independently in Python, the same offset for the same hectare and σ, independent offsets
+elsewhere, the sample standard deviation over 20 000 secrets ≈ σ, no NaN at edge bytes, the point
+kept inside the server's box);
 `android/app/src/test/.../upload/ReportsTest.kt` checks the exact report body and that a report's
 coordinates are gone from the phone once the server answered (also when sharing is switched off or
 the server data is deleted); `android/app/src/test/.../location/LocationIsolationTest.kt` checks
 that only `public` and `laborKarte` declare the location permissions (`offline` and `labor` remove
 them, background location is removed everywhere) and that the location code logs, stores and
 sends nothing, with `android.location` used in exactly one file; `LocationPolicyTest.kt` checks
-the lat/lon → cell path and when a fix is accepted; and on a phone, Android's per-app data usage
+the lat/lon → shifted point path (also for pasted coordinates), that the point is stable for a
+place, and when a fix is accepted; and on a phone, Android's per-app data usage
 (on a Pixel: *Settings → Apps → Weniger Lärm → Mobile data & Wi-Fi*) shows the app's traffic,
 which stays at zero while sharing is off.
 
-## On the server: what is stored and what the map publishes (schema v3, from 2026-10-12)
+## On the server: what is stored and what the map publishes (schema v4, from 0.6.2)
 
 This part is about the server ([server/DESIGN.md](server/DESIGN.md) §2, §4–§6), whichever app
 version sends. The app's side (when it reads the location, what its screens say) is described
@@ -164,7 +172,7 @@ above and in [android/README.md](android/README.md).
 
 | | Stored on the server | Published on the map |
 |---|---|---|
-| **Minutes and events** (levels, events) | Each row with the hectare it was measured in, if the app sent one (`"cell"`, an LV95 hectare id, §4.3), else none — then it counts for the device's site hectare. Never coordinates. A hectare outside Switzerland is refused. | Per hectare and **calendar day** (all hours, Europe/Zurich), the 7- and 30-day means, and a 24-hour profile (mean per clock hour over 30 days). No device id; device models only as counts over the whole network. With `MIN_DEVICES_PER_CELL = 1` a single contributor's hectare is shown; a contributor who measures in several hectares appears in each of them, not linked to each other. |
+| **Minutes and events** (levels, events) | Each row with the **shifted point** the app sent (`"point"`: LV95 whole metres and σ, §4.3; app 0.6.0) and its display cell, the 100 m hectare that contains that point; or, from older apps, a hectare id (`"cell"`), or nothing — then it counts for the device's site hectare. Never the true location: the app moved the point before sending (above). A point or hectare outside Switzerland, or a σ other than 25/50/100/200 m, is refused. | Per 100 m field (display cell) and **calendar day** (all hours, Europe/Zurich), the 7- and 30-day means, and a 24-hour profile (mean per clock hour over 30 days). Never the points or σ, no device id; device models only as counts over the whole network. With `MIN_DEVICES_PER_CELL = 1` a single contributor's field is shown, and it lies near their home; a contributor who measures in several places appears in several fields, not linked to each other. |
 | **Manual reports** (§4.7) | Time as sent, point (latitude/longitude rounded to 5 decimals, ≈ 1 m), location accuracy, category. A point outside Switzerland or an accuracy over 200 m is refused. | `reports.json`: the reports of the last 30 days, each with the **exact reported point**, the category and the time **rounded down to the full hour** — nothing else: no device id, no exact time, no accuracy; within an hour sorted by place, so the order says nothing about who reported what or in which order. Reports are published at the reported point because the person explicitly reported that place; whoever reports often from the same spot makes that spot visible as a cluster of points. |
 | **Deletion** | «Löschen» and the 60-day expiry delete every row of the device, reports included. Raw minutes and events are reduced to hourly figures after 2 years; raw reports are deleted after 2 years. | Rebuilt within 10 minutes without the deleted rows. |
 
@@ -238,7 +246,7 @@ the commands below use the second name, run them on each):
    `ch.lessnoise.app.labor` in 0.6.0; use that name for 0.6.0 and later).
 3. `aapt2 dump permissions` lists the permissions of «How to verify» above for each published APK;
    for the Labor APK the offline edition's set (no `INTERNET`, no `ACCESS_NETWORK_STATE`, no
-   location); for the internal `laborKarte` APK the Karte edition's set (with `INTERNET`,
+   location); for the internal `laborKarte` APK the Online-Version's set (with `INTERNET`,
    `ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`), package `ch.lessnoise.labor`.
 
 **What the Labor build records** (only after «Einstellungen → Labor → Audio während der Messung
@@ -263,15 +271,15 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   branch, not in `docs/`. Same app id as the Labor build (`ch.lessnoise.labor`, version name
   `<version>-labor-karte`, e.g. `0.6.0-labor-karte`), so it installs over a Labor install and keeps its measurements and
   recordings; installing the plain Labor build over it switches «Messwerte teilen» off and cancels
-  the upload jobs (as the offline edition does after the Karte edition), and from then on the
+  the upload jobs (as the offline edition does after the Online-Version), and from then on the
   phone has no internet permission again.
 - **Internet only for the opt-in upload**: its manifest (`app/src/laborKarte/AndroidManifest.xml`)
   declares `INTERNET` and `ACCESS_NETWORK_STATE`, and `ACCESS_FINE_LOCATION` and
-  `ACCESS_COARSE_LOCATION` for the fix at «Start» and «Laut! Melden», exactly like the Karte edition; it does not use
+  `ACCESS_COARSE_LOCATION` for the fix at «Start» and «Laut! Melden», exactly like the Online-Version; it does not use
   `app/src/labor/AndroidManifest.xml`. «Messwerte teilen» is off until switched on. As in the
-  Karte edition, the very first switch-on also sends the measurement values of the last 7 days,
+  Online-Version, the very first switch-on also sends the measurement values of the last 7 days,
   here only of shared measurements, i.e. those started with sharing on (values only, never audio).
-- **Same upload code as the Karte edition**: `app/src/main/kotlin/ch/lessnoise/app/upload/`, one
+- **Same upload code as the Online-Version**: `app/src/main/kotlin/ch/lessnoise/app/upload/`, one
   host (api.lessnoise.ch), the same measurement values (§2 of server/DESIGN.md). No flavour has
   its own upload classes.
 - **Audio is never sent.** The upload reads only the Room tables (minutes, events, measurements, the
@@ -303,15 +311,15 @@ technical reasons, see the
 Since 0.6.1 the app's «Mehr dazu» links open `anleitung.html#messen`, `#kalibrieren`, `#teilen`,
 `#daten` and `datenschutz.html` in the browser: plain links, nothing appended. The German privacy page is [docs/datenschutz.html](docs/datenschutz.html).
 
-**Downloads.** Both APKs are served from the website itself (`docs/download/lessnoise.apk` =
-«Weniger Lärm», `docs/download/lessnoise-karte.apk` = «Weniger Lärm · Karte»), i.e. by GitHub Pages like
+**Downloads.** Both APKs are served from the website itself (`docs/download/lessnoise-karte.apk` =
+«Online-Version», `docs/download/lessnoise.apk` = «Offline-Version»), i.e. by GitHub Pages like
 every page of the site. GitHub sees the requesting IP address as for any page view; the project
 counts nothing. (`scripts/download_stats.py` reads GitHub Release download counts and only has
 something to report if a version is ever also attached to a GitHub Release.)
 
 **The map page is the one exception.** `docs/karte.html` (the shared noise map, see
 [server/DESIGN.md](server/DESIGN.md) §7) loads map tiles from swisstopo
-(`wmts.geo.admin.ch`) and the published per-hectare aggregates and reports from the project's
+(`wmts.geo.admin.ch`) and the published aggregates per 100 m field and the reports from the project's
 own API server (`api.lessnoise.ch`; only if that host cannot be reached, `api.stadtlaerm.ch`,
 the same server under its old name), and nothing else; its Content-Security-Policy allows
 exactly these hosts (`img-src` and `connect-src`) and scripts only from the site itself
@@ -330,15 +338,15 @@ attached to a GitHub Release.)
 
 1. **Sharing**, from the server's own data: `https://api.lessnoise.ch/v1/map/stats.json`
    ([server/DESIGN.md](server/DESIGN.md) §6.5), rebuilt with the map — how many devices are
-   registered, have set a hectare, ever shared, were active in the last 7/30 days, deleted their
-   data (one counter), were deleted by the server after 60 days without uploads (one counter), how many hectares are on the map, how many device-days were shared, how
+   registered, have sent a place for their site, ever shared, were active in the last 7/30 days, deleted their
+   data (one counter), were deleted by the server after 60 days without uploads (one counter), how many 100 m fields are on the map, how many device-days were shared, how
    many active devices reported which app version at registration, and registrations per ISO week.
    Counts only: no device ids, no cells or places, no IP addresses (the server stores none, and
    neither Caddy nor the app server keeps an access log). Nothing new is collected for it; the only
    numbers kept just for it are the two deletion counters, one integer each.
 
 **Not counted:** downloads, and anything about the offline edition — it has no internet
-permission and cannot report anything, by design; the Karte edition with sharing switched off;
+permission and cannot report anything, by design; the Online-Version with sharing switched off;
 app starts, measurements, crashes or versions of apps that do not share; downloads of
 `docs/download/lessnoise.apk`. `scripts/usage_report.py` combines both sources into one short
 text report.

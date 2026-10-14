@@ -2,7 +2,8 @@
 
 swisstopo's approximate formulas (≈ 1 m inside Switzerland), the same arithmetic as
 `docs/map/lv95.js` and the app's `geo/Lv95.kt`. The server needs it for the points of manual
-reports (§4.7), which arrive as WGS84 coordinates; cells arrive as ids.
+reports (§4.7), which arrive as WGS84 coordinates, and for the shifted LV95 points of shared
+measurements (§4.3, schema v4), whose display cell is the hectare that contains them.
 """
 
 from __future__ import annotations
@@ -30,9 +31,24 @@ def wgs84_to_lv95(lat: float, lon: float) -> tuple[float, float]:
     return e, n
 
 
+# The same box in whole metres, for the shifted points of measurements (§4.3): E 2 480 000–2 839 999,
+# N 1 070 000–1 299 999 — exactly the points whose hectare passes `cell_in_switzerland`.
+POINT_E_RANGE = (CELL_E_RANGE[0] * 100, CELL_E_RANGE[1] * 100 - 1)
+POINT_N_RANGE = (CELL_N_RANGE[0] * 100, CELL_N_RANGE[1] * 100 - 1)
+
+
+def lv95_cell(e: float, n: float) -> str:
+    """LV95 (E, N) in metres → id of the hectare that contains the point."""
+    return f"h{math.floor(e / 100)}_{math.floor(n / 100)}"
+
+
+def lv95_point_in_switzerland(e: int, n: int) -> bool:
+    return POINT_E_RANGE[0] <= e <= POINT_E_RANGE[1] and POINT_N_RANGE[0] <= n <= POINT_N_RANGE[1]
+
+
 def cell_of(lat: float, lon: float) -> str:
     e, n = wgs84_to_lv95(lat, lon)
-    return f"h{math.floor(e / 100)}_{math.floor(n / 100)}"
+    return lv95_cell(e, n)
 
 
 def cell_in_switzerland(cell: str) -> bool:

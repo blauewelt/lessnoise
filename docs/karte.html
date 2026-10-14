@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Lärmkarte – Weniger Lärm</title>
-<meta name="description" content="Strassenlärm in der Schweiz, gemessen und gemeldet von Anwohnerinnen und Anwohnern: mittlerer Pegel, Hintergrund, Dynamik und laute Einzelereignisse pro Hektare.">
+<meta name="description" content="Strassenlärm in der Schweiz, gemessen und gemeldet von Anwohnerinnen und Anwohnern: mittlerer Pegel, Hintergrund, Dynamik und laute Einzelereignisse pro 100-m-Feld.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css?v=3bd7f49e">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=a7837102">
@@ -15,14 +15,14 @@
 <script src="vendor/leaflet/leaflet.js?v=db49d009" defer></script>
 <script src="map/lv95.js?v=ca0eeb2b" defer></script>
 <script src="map/model.js?v=1422bcd1" defer></script>
-<script src="map/karte.js?v=1c535b7b" defer></script>
+<script src="map/karte.js?v=fa00e731" defer></script>
 </head>
 <body class="karte-page">
 
 <header class="wrap wide page-head">
   <a class="home" href="./">Weniger Lärm</a>
   <h1>Lärmkarte</h1>
-  <p class="lead">Strassenlärm in der Schweiz, gemessen von Anwohnerinnen und Anwohnern mit der App von Weniger Lärm – zu jeder Tageszeit, wann immer jemand misst. Jedes Feld ist eine Hektare (100&nbsp;×&nbsp;100&nbsp;m); genauer wird kein Messort gezeigt. Die Punkte sind Meldungen: Dort hat jemand eine laute Vorbeifahrt gemeldet.</p>
+  <p class="lead">Strassenlärm in der Schweiz, gemessen von Anwohnerinnen und Anwohnern mit der App von Weniger Lärm – zu jeder Tageszeit, wann immer jemand misst. Die Karte fasst die Messungen in Feldern von 100&nbsp;×&nbsp;100&nbsp;m zusammen. Seit Version 0.6.2 verschiebt die App jeden Messort vorher zufällig, standardmässig um etwa 50&nbsp;m (in der App einstellbar); der genaue Messort verlässt das Telefon nie. (Ältere Versionen senden das Feld, in dem gemessen wurde.) Die Punkte sind Meldungen: Dort hat jemand eine laute Vorbeifahrt gemeldet.</p>
   <p class="small" id="quellen">Diese Seite lädt die Kartenbilder von swisstopo und die Messwerte und Meldungen vom Server des Projekts (api.lessnoise.ch, übergangsweise api.stadtlaerm.ch), sonst nichts von anderen Servern.</p>
 </header>
 
@@ -62,7 +62,7 @@
 
   <aside id="card" class="card" hidden aria-labelledby="card-title" tabindex="-1">
     <div class="card-head">
-      <h2 id="card-title">Hektare</h2>
+      <h2 id="card-title">Feld</h2>
       <button type="button" class="card-close" id="card-close" aria-label="Karte schliessen">×</button>
     </div>
     <div class="card-body" id="card-body"></div>
@@ -82,7 +82,7 @@
 </div>
 
 <details class="celllist" id="celllist">
-  <summary>Alle Hektaren dieses Zeitraums als Liste</summary>
+  <summary>Alle Felder dieses Zeitraums als Liste</summary>
   <ol id="celllist-items"></ol>
 </details>
 
@@ -94,7 +94,7 @@
     <dt>Zeitraum</dt>
     <dd>Die Farben zeigen die letzten 7 oder 30 Tage bis zum gewählten Tag; mit ‹ und › verschieben Sie den Zeitraum um einen Tag. Gemessen wird zu jeder Tageszeit: Jeder Tag zählt mit den Stunden, in denen gemessen wurde, und jeder Tag mit Messung zählt im Zeitraum gleich viel.</dd>
     <dt>Mittlerer Pegel</dt>
-    <dd>Der energetisch gemittelte Schallpegel (LAeq) über die gemessene Zeit, in dB(A). Mehrere Geräte in derselben Hektare werden energetisch gemittelt.</dd>
+    <dd>Der energetisch gemittelte Schallpegel (LAeq) über die gemessene Zeit, in dB(A). Mehrere Geräte im selben Feld werden energetisch gemittelt.</dd>
     <dt>Hintergrund</dt>
     <dd>Der Pegel, der in 90 % der Zeit überschritten wird (L90): das, was bleibt, wenn gerade nichts vorbeifährt.</dd>
     <dt>Dynamik</dt>
@@ -108,10 +108,10 @@
     <dt>Meldungen</dt>
     <dd>Punkte, an denen jemand mit der App eine laute Vorbeifahrt gemeldet hat, mit der Art des Fahrzeugs. Der Ort ist so genau, wie er gemeldet wurde; die Zeit ist auf die volle Stunde abgerundet. Wer gemeldet hat, steht nirgends.</dd>
     <dt>unkalibriert</dt>
-    <dd>Mindestens ein Telefon in der Hektare wurde nicht mit einem Schallpegelmesser verglichen. Seine Pegel können um mehrere Dezibel daneben liegen; die Zahl der Ereignisse ist davon weniger betroffen.</dd>
+    <dd>Mindestens ein Telefon im Feld wurde nicht mit einem Schallpegelmesser verglichen. Seine Pegel können um mehrere Dezibel daneben liegen; die Zahl der Ereignisse ist davon weniger betroffen.</dd>
   </dl>
   <p>Die Werte stammen von Telefonen am Fenster, auf dem Balkon oder unterwegs, nicht von amtlichen Messstationen. Wie gemessen wird, steht in der <a href="anleitung.html#messen">Anleitung</a> und auf <a href="https://github.com/blauewelt/lessnoise">GitHub</a>.</p>
-  <p>Mitmachen können Sie mit «Weniger Lärm · Karte»: im Tab «Teilen» «Auf die Karte senden» einschalten oder unterwegs «Laut! Melden». «Weniger Lärm» sendet nichts und trägt deshalb nicht zur Karte bei. <a href="anleitung.html#version">Welche App?</a></p>
+  <p>Mitmachen können Sie mit der Online-Version: im Tab «Teilen» «Auf die Karte senden» einschalten oder unterwegs «Laut! Melden». Die Offline-Version sendet nichts und trägt deshalb nicht zur Karte bei. <a href="anleitung.html#version">Welche Version?</a></p>
 </section>
 
 </main>

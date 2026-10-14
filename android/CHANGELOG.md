@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.6.2 — 2026-10-14 (versionCode 15)
+
+Built on 0.6.1. Four changes; the detector, the CSV columns and everything the offline edition does
+are unchanged.
+
+- **Location noise instead of hectare snapping** («Online-Version»): the place of a shared
+  measurement is no longer snapped to the 100 m hectare. At «Starten» the app turns the one location
+  fix (or pasted coordinates) into the true LV95 point and moves it at once by a Gaussian offset
+  (independent N(0, σ²) east and north); only the shifted point is stored and sent. σ is the new
+  setting **«Standort verschieben»** under «Teilen» › «Weitere Angaben»: 25, 50 (default), 100 or
+  200 m, with one line «Mehr verbirgt deine genaue Adresse besser, macht die Karte aber ungenauer;
+  gilt ab der nächsten Messung.» The offset is fixed per place — HMAC-SHA256 of the true hectare and
+  σ under a 32-byte secret made on the phone (`dsp/geo/LocationNoise.kt`, `upload/NoiseSecret.kt`,
+  stored encrypted like the token, never sent) — so averaging many measurements does not remove it;
+  «Neu starten» and «Vom Server löschen» make a new secret. Room v6 → v7 adds `point_e`, `point_n`,
+  `sigma_m` to `measurements`; rows of 0.6.0/0.6.1 keep their cell but are no longer sent. The
+  «Teilen» explanation says how far the point is moved, that it is moved the same way at the same
+  place, that the true place is usually (86 of 100) within 2σ and that a lone contributor's square
+  lies near them. «Laut! Melden» is unchanged (exact place).
+- **Upload contract (server schema v4):** every minute and event record and the site carry
+  `"point": {"e", "n", "sigma_m"}` instead of `"cell"`; the server derives the display cell (the
+  hectare containing the point), stores the point, never publishes it, and still accepts `cell`
+  from older apps. Needs the server with schema v4 (an older server refuses `point`).
+- **Editions renamed «Offline-Version» and «Online-Version»** (were «Weniger Lärm» and «Weniger
+  Lärm · Karte») in Einstellungen › «Über die App» (name, summary, how to switch), on the website
+  (download buttons, «Welche Version?», checksum table, update check, privacy page, map page) and
+  in the docs. The launcher label of both stays «Weniger Lärm»; app id, flavours, file names
+  (`lessnoise.apk`, `lessnoise-karte.apk`) and the `&e=offline|karte` of the update check are
+  unchanged.
+- **The Online-Version is the default download** and is listed first everywhere: the filled button
+  on the home page and in the Anleitung, the one-line choice («Die Online-Version misst, teilt auf
+  Wunsch mit der Lärmkarte und meldet unterwegs. Wer noch mehr Privatsphäre möchte, nimmt die
+  Offline-Version: ohne Internet und ohne Standort, dafür ohne Karte und Meldungen.»), the checksum
+  table, the privacy page and the docs. The Offline-Version is the alternative for even more privacy,
+  with fewer features. update.html offers the Online-Version first to a visitor without a version;
+  an installed app still gets its own edition first (an app without `&e=` counts as offline, as
+  before). In the app, «Über die App» of the Online-Version now reads «Noch mehr Privatsphäre: die
+  Offline-Version ohne Internet von wenigerlaerm.ch installieren. …».
+- **Privacy texts:** a sent report keeps «Art, Zeit und den ungefähren Ort» (was «Hektare»);
+  datenschutz.html, PRIVACY.md, README.md, DESIGN.md §2 rule 2 describe the location noise and what
+  it does not hide.
+- **Tests:** migration 6 → 7 on SQLite, the shifted point per record and unshared rows (also
+  cell-only rows) in the upload, the location noise (reference values computed in Python,
+  determinism per place, σ, sample spread, edge bytes, server box), the «Teilen» texts, the edition
+  names; server: v3 → v4 migration, `point` validation, site with a point.
+
 ## 0.6.1 — 2026-10-13 (versionCode 14)
 
 **Weniger Text, weniger Optionen.** Goal: nobody who opens the app for the first time should be put

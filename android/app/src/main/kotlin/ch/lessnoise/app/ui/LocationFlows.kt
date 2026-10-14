@@ -31,9 +31,11 @@ import ch.lessnoise.app.container
 import ch.lessnoise.app.location.LocationFetcher
 import ch.lessnoise.app.location.LocationPolicy
 import ch.lessnoise.app.upload.CellInput
+import ch.lessnoise.app.upload.NoiseSecret
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.ReportQueue
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.ZoneId
@@ -50,25 +52,32 @@ private sealed interface StartStep {
 }
 
 /**
- * «Starten» with «Teilen» on: one precise location fix, turned into the 100 m
- * cell that is stored with the measurement. If it fails, ONE dialog: «Nochmals», «Koordinaten
- * einfügen» or «Ohne Teilen starten». [start] gets the cell, or null for a measurement that is not shared.
+ * «Starten» with «Teilen» on: one precise location fix, turned into an LV95 point
+ * and moved at once by the location noise (σ = the setting «Standort verschieben», the offset
+ * fixed per place by the phone's secret; server/DESIGN.md §2 rule 2). Only the shifted point is
+ * stored with the measurement and sent. If the fix fails, ONE dialog: «Nochmals», «Koordinaten
+ * einfügen» or «Ohne Teilen starten». [start] gets the shifted point, or null for a measurement
+ * that is not shared.
  *
  * Returns the action for the start button.
  */
 @Composable
-fun rememberSharedStart(start: (cell: String?) -> Unit): () -> Unit {
+fun rememberSharedStart(start: (point: LocationNoise.Point?) -> Unit): () -> Unit {
     val context = LocalContext.current
+    val store = context.container.upload.store
     val scope = rememberCoroutineScope()
     var step by remember { mutableStateOf<StartStep?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }
+
+    /** The phone's noise secret (made on first use) and the current σ. */
+    fun noise() = LocationPolicy.Noise(NoiseSecret.getOrCreate(store), store.state.value.sigmaM)
 
     fun locate() {
         step = StartStep.Locating
         job?.cancel()
         job = scope.launch {
-            when (val o = LocationFetcher.locate(context)) {
-                is LocationPolicy.Outcome.Hectare -> { step = null; start(o.cell) }
+            when (val o = LocationFetcher.locate(context, noise())) {
+                is LocationPolicy.Outcome.Shifted -> { step = null; start(o.point) }
                 else -> step = StartStep.Failed(o)
             }
         }
@@ -129,7 +138,10 @@ fun rememberSharedStart(start: (cell: String?) -> Unit): () -> Unit {
                             label = { Text("Koordinaten, z. B. 47.3769, 8.5417") }, modifier = Modifier.fillMaxWidth(),
                         )
                         when (parsed) {
-                            is CellInput.Parsed.Ok -> Text("100-m-Quadrat gefunden.", style = MaterialTheme.typography.bodySmall)
+                            is CellInput.Parsed.Ok -> Text(
+                                pastedText(store.state.value.sigmaM),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                             is CellInput.Parsed.Error -> Text(parsed.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             null -> Unit
                         }
@@ -138,7 +150,7 @@ fun rememberSharedStart(start: (cell: String?) -> Unit): () -> Unit {
                 confirmButton = {
                     TextButton(
                         enabled = parsed is CellInput.Parsed.Ok,
-                        onClick = { (parsed as? CellInput.Parsed.Ok)?.let { step = null; start(it.cell) } },
+                        onClick = { (parsed as? CellInput.Parsed.Ok)?.let { step = null; start(LocationPolicy.fromPasted(it, noise()).point) } },
                     ) { Text("Starten") }
                 },
                 dismissButton = { TextButton(onClick = { step = null }) { Text("Abbrechen") } },

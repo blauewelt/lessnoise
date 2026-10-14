@@ -59,6 +59,9 @@ class LocationIsolationTest {
         assertEquals(BuildConfig.UPLOAD_AVAILABLE, own[fine] == false, "${BuildConfig.FLAVOR}: $own")
     }
 
+    /** Pure helpers the location code may use: lat/lon → LV95, and the location noise (both store nothing). */
+    private val allowedLocationImports = setOf("ch.lessnoise.app.upload.CellInput", "ch.lessnoise.dsp.geo.LocationNoise")
+
     @Test
     fun coordinatesStayInTheLocationCode() {
         val main = File(appDir, "src/main/kotlin/ch/lessnoise/app")
@@ -78,8 +81,8 @@ class LocationIsolationTest {
             for ((what, re) in forbidden) {
                 re.findAll(src.code).forEach { m -> problems += "location/${f.name}:${src.lineOf(m.range.first)}: $what («${m.value}»)" }
             }
-            src.imports.filter { it.startsWith("ch.lessnoise.") && it != "ch.lessnoise.app.upload.CellInput" }
-                .forEach { problems += "location/${f.name}: project import $it (only CellInput)" }
+            src.imports.filter { it.startsWith("ch.lessnoise.") && it !in allowedLocationImports }
+                .forEach { problems += "location/${f.name}: project import $it (only $allowedLocationImports)" }
         }
 
         // 2. android.location is used only by LocationFetcher; the upload never sees a Location.

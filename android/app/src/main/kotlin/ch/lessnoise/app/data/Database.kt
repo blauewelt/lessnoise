@@ -18,6 +18,7 @@ import ch.lessnoise.dsp.MinuteLevels
 import ch.lessnoise.dsp.MinuteRecord
 import ch.lessnoise.dsp.NoiseEvent
 import ch.lessnoise.dsp.classify.LabelScore
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
@@ -131,12 +132,24 @@ data class MeasurementEntity(
     /** Null while running, or if the app was killed before «Stop» (then the last minute ends it). */
     @ColumnInfo(name = "end_ms") val endMs: Long? = null,
     /**
-     * The 100 m cell (LV95 hectare id, e.g. "h26833_12479") determined on the phone at «Start»
-     * (Karten editions with «Messwerte teilen» on). Null: this measurement is not shared; its
-     * minutes and events are never sent. Never coordinates.
+     * The hectare the map shows this measurement in (LV95 hectare id, e.g. "h26833_12479"): since v7
+     * the hectare that contains the shifted point below. Null: not shared. (Rows of apps 0.6.0
+     * and 0.6.1, before v7, hold the hectare of the fix itself and no point; they are no longer sent.)
      */
     @ColumnInfo(name = "cell") val cell: String? = null,
+    /**
+     * v7: the shifted LV95 point of a shared measurement, in whole metres, and the σ it was moved
+     * with (dsp geo/LocationNoise.kt, server/DESIGN.md §2 rule 2) — exactly what is sent. Null: not
+     * shared. The true coordinates and the offset are never stored.
+     */
+    @ColumnInfo(name = "point_e") val pointE: Int? = null,
+    @ColumnInfo(name = "point_n") val pointN: Int? = null,
+    @ColumnInfo(name = "sigma_m") val sigmaM: Int? = null,
 )
+
+/** The shifted point of a shared measurement (v7), or null if it is not shared. */
+fun MeasurementEntity.sharedPoint(): LocationNoise.Point? =
+    if (pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
 
 @Entity(tableName = "calibrations", indices = [Index(value = ["deviceModel", "audioSource"])])
 data class CalibrationEntity(
@@ -238,10 +251,10 @@ interface MeasurementDao {
     @Query("SELECT * FROM events WHERE startEpochMs > :afterMs ORDER BY startEpochMs ASC, id ASC LIMIT :limit")
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
-    /** Minutes after the marker that belong to a shared measurement (a cell), i.e. that will be sent. */
+    /** Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent. */
     @Query(
         "SELECT COUNT(*) FROM minutes AS m WHERE m.startEpochMs > :afterMs AND " +
-            "(SELECT cell FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
+            "(SELECT point_e FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
     )
     fun sharedMinuteCountAfter(afterMs: Long): Flow<Int>
 
@@ -264,10 +277,6 @@ interface MeasurementDao {
     /** End (ms) of the last minute starting in [fromMs, toMs), or null. */
     @Query("SELECT MAX(startEpochMs + CAST(durationSeconds * 1000 AS INTEGER)) FROM minutes WHERE startEpochMs >= :fromMs AND startEpochMs < :toMs")
     suspend fun lastMinuteEnd(fromMs: Long, toMs: Long): Long?
-
-    /** The cell of the newest shared measurement (for the site call), or null. */
-    @Query("SELECT cell FROM measurements WHERE cell IS NOT NULL ORDER BY start_ms DESC LIMIT 1")
-    suspend fun latestCell(): String?
 
     @Query("DELETE FROM measurements") suspend fun clearMeasurements()
 }
@@ -294,7 +303,7 @@ interface CalibrationDao {
 
 @Database(
     entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class],
-    version = 6, exportSchema = false,
+    version = 7, exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
@@ -303,7 +312,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
     }
 }

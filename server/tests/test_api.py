@@ -270,7 +270,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(3,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(4,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx
@@ -309,6 +309,86 @@ def test_record_cell_is_stored_and_validated(client, settings):
     client.app.state.publish_once()
     shown = {c["cell"] for c in json.loads((settings.map_dir / "cells.json").read_text())["cells"]}
     assert shown == {"h26900_12500", "h26901_12500", SITE["cell"]}
+
+
+POINT = {"e": 2682437, "n": 1247391, "sigma_m": 50}  # a shifted point (§4.3); its display cell is h26824_12473
+
+
+def test_record_point_is_stored_and_shown_in_its_display_cell(client, settings):
+    """App 0.6.0 sends a shifted LV95 point instead of a cell (§2 rule 2, §4.3, schema v4)."""
+    dev, auth = register(client)
+    t = [recent(30 - i) for i in range(12)]
+    good = [
+        {**minute(t[0]), "point": POINT},
+        {**minute(t[1]), "point": {"e": 2690099, "n": 1250000, "sigma_m": 200}},
+        minute(t[2]),  # neither: an older app (the site cell, here none)
+    ]
+    bad = [
+        {**minute(t[3]), "point": {**POINT, "sigma_m": 30}},
+        {**minute(t[4]), "point": {**POINT, "sigma_m": "50"}},
+        {**minute(t[5]), "point": {**POINT, "e": 2682437.5}},
+        {**minute(t[6]), "point": {**POINT, "e": 2479999}},  # 1 m west of the box
+        {**minute(t[7]), "point": {**POINT, "n": 1300000}},  # 1 m north of the box
+        {**minute(t[8]), "point": POINT, "cell": "h26824_12473"},  # both
+        {**minute(t[9]), "point": {"e": 2682437, "n": 1247391}},  # no sigma
+        {**minute(t[10]), "point": {**POINT, "lat": 47.3}},  # unknown field
+        {**minute(t[11]), "point": {**POINT, "n": True}},
+    ]
+    body = client.post(f"/v1/devices/{dev}/minutes", json=good + bad, headers=auth).json()
+    assert body["accepted"] == 3
+    assert [x["index"] for x in body["rejected"]] == list(range(3, 12))
+    assert all(x["reasons"][0]["field"].startswith("point") for x in body["rejected"]), body["rejected"]
+    reasons = [x["reasons"][0]["reason"] for x in body["rejected"]]
+    assert reasons[0] == "sigma_m must be one of 25, 50, 100, 200"
+    assert reasons[3] == reasons[4] == "point is not in the LV95 box of Switzerland"
+    assert reasons[5] == "send either cell or point, not both"
+    assert rows(settings, "SELECT cell, point_e, point_n, sigma_m FROM minutes ORDER BY start_utc") == [
+        ("h26824_12473", 2682437, 1247391, 50),
+        ("h26900_12500", 2690099, 1250000, 200),
+        (None, None, None, None),
+    ]
+
+    # The box edges themselves are inside.
+    edge = [{**event(t[0]), "point": {"e": 2480000, "n": 1299999, "sigma_m": 25}}, {**event(t[1]), "point": POINT}]
+    body = client.post(f"/v1/devices/{dev}/events", json=edge, headers=auth).json()
+    assert body["accepted"] == 2 and body["rejected"] == []
+    assert rows(settings, "SELECT cell, point_e, point_n, sigma_m FROM events ORDER BY start_utc") == [
+        ("h24800_12999", 2480000, 1299999, 25),
+        ("h26824_12473", 2682437, 1247391, 50),
+    ]
+
+    # Re-sending a minute replaces its point; a re-sent cell-only record clears it.
+    moved = {**good[0], "point": {**POINT, "e": 2682537}}
+    client.post(f"/v1/devices/{dev}/minutes", json=[moved], headers=auth)
+    assert rows(settings, "SELECT cell, point_e FROM minutes WHERE point_n = 1247391") == [("h26825_12473", 2682537)]
+
+    # The map shows the display cells and never the points or σ.
+    client.app.state.publish_once()
+    shown = {c["cell"] for c in json.loads((settings.map_dir / "cells.json").read_text())["cells"]}
+    assert shown == {"h26825_12473", "h26900_12500"}  # a cell needs minutes; events alone do not make one
+    published = "".join(f.read_text() for f in settings.map_dir.rglob("*.json"))
+    for secret in ("2682537", "1247391", "2690099", "point", "sigma"):
+        assert secret not in published, secret
+
+
+def test_site_with_point(client, settings):
+    dev, auth = register(client)
+    site = {k: v for k, v in SITE.items() if k != "cell"}
+    assert client.put(f"/v1/devices/{dev}/site", json={**site, "point": POINT}, headers=auth).status_code == 204
+    assert rows(settings, "SELECT cell, point_e, point_n, sigma_m FROM sites") == [
+        ("h26824_12473", 2682437, 1247391, 50)
+    ]
+    # Back to a cell (an older app on the same id): the point is cleared.
+    assert client.put(f"/v1/devices/{dev}/site", json=SITE, headers=auth).status_code == 204
+    assert rows(settings, "SELECT cell, point_e, sigma_m FROM sites") == [("h26824_12473", None, None)]
+    for bad in (site, {**SITE, "point": POINT}, {**site, "point": {**POINT, "sigma_m": 10}}):
+        assert client.put(f"/v1/devices/{dev}/site", json=bad, headers=auth).status_code == 422, bad
+    # A record without a place of its own counts for the site's display cell.
+    client.put(f"/v1/devices/{dev}/site", json={**site, "point": {**POINT, "e": 2700001}}, headers=auth)
+    client.post(f"/v1/devices/{dev}/minutes", json=[minute(recent(15))], headers=auth)
+    client.app.state.publish_once()
+    shown = {c["cell"] for c in json.loads((settings.map_dir / "cells.json").read_text())["cells"]}
+    assert shown == {"h27000_12473"}
 
 
 def test_reports_round_trip_and_validation(client, settings):

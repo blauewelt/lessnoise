@@ -33,7 +33,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *    leaving the screen) cancels the requests.
  *
  * [locate]: the coordinates exist only in local variables here and in [LocationPolicy.decide]; the
- * result is an [LocationPolicy.Outcome] (cell id and accuracy). [locateForReport]: the coordinates
+ * result is an [LocationPolicy.Outcome] (the point already moved by the location noise, and the
+ * accuracy). [locateForReport]: the coordinates
  * leave in a [LocationPolicy.ReportOutcome.Fix] for the report queue. Nothing is stored or logged here.
  */
 object LocationFetcher {
@@ -52,11 +53,14 @@ object LocationFetcher {
     private fun granted(context: Context, p: String): Boolean =
         ContextCompat.checkSelfPermission(context, p) == PackageManager.PERMISSION_GRANTED
 
-    /** The cell at «Start». Must be called on the main thread (the API 26–29 listener runs on the main looper). */
-    suspend fun locate(context: Context): LocationPolicy.Outcome {
+    /**
+     * The shifted point at «Start» ([noise]: the phone's secret and σ). Must be called on the main
+     * thread (the API 26–29 listener runs on the main looper).
+     */
+    suspend fun locate(context: Context, noise: LocationPolicy.Noise): LocationPolicy.Outcome {
         val f = fix(context)
         if (f !is Fix.Ok) return (f as Fix.Failed).outcome
-        return LocationPolicy.decide(f.location.latitude, f.location.longitude, accuracyOf(f.location), precise = true)
+        return LocationPolicy.decide(f.location.latitude, f.location.longitude, accuracyOf(f.location), precise = true, noise = noise)
     }
 
     /** The exact place of a «Laut! Melden» report. Main thread, like [locate]. */

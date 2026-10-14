@@ -46,7 +46,7 @@ class EditionTextTest {
     fun buildConfigMatchesTheFlavour() {
         when (BuildConfig.FLAVOR) {
             "offline" -> {
-                // The default download: no «Messwerte teilen» (and no INTERNET, checked with aapt2).
+                // The edition for even more privacy (since 0.6.2 not the default download): no «Messwerte teilen» (and no INTERNET, checked with aapt2).
                 assertEquals(EditionInfo.OFFLINE, BuildConfig.EDITION)
                 assertFalse(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.app", BuildConfig.APPLICATION_ID)
@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.6.1-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.6.2-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -79,22 +79,27 @@ class EditionTextTest {
 
     @Test
     fun editionTexts() {
-        assertEquals("Weniger Lärm", EditionInfo.label(EditionInfo.OFFLINE))
-        assertEquals("Weniger Lärm · Karte", EditionInfo.label(EditionInfo.KARTE))
+        assertEquals("Offline-Version", EditionInfo.label(EditionInfo.OFFLINE))
+        assertEquals("Online-Version", EditionInfo.label(EditionInfo.KARTE))
         assertEquals("Weniger Lärm Labor", EditionInfo.label(EditionInfo.LABOR))
         assertEquals("Weniger Lärm Labor · Karte", EditionInfo.label(EditionInfo.LABOR_KARTE))
         assertTrue(EditionInfo.summary(EditionInfo.LABOR_KARTE).contains("Audio wird nie gesendet"))
         assertNotNull(EditionInfo.switchHint(EditionInfo.LABOR_KARTE))
-        assertEquals("Weniger Lärm: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
-        assertEquals("Weniger Lärm · Karte: gesendet wird nur, wenn du «Teilen» einschaltest.", EditionInfo.summary(EditionInfo.KARTE))
+        assertEquals("Offline-Version: ohne Internet und ohne Standort.", EditionInfo.summary(EditionInfo.OFFLINE))
+        assertEquals("Online-Version: gesendet wird nur, wenn du «Teilen» einschaltest.", EditionInfo.summary(EditionInfo.KARTE))
         // Switching: install the other APK from wenigerlaerm.ch over this one, measurements are kept.
         for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {
             val hint = assertNotNull(EditionInfo.switchHint(e))
             assertTrue(hint.contains("wenigerlaerm.ch"), hint)
             assertTrue(hint.contains("Messungen bleiben"), hint)
         }
-        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("«Weniger Lärm · Karte»"))
+        assertTrue(EditionInfo.switchHint(EditionInfo.OFFLINE)!!.contains("die Online-Version"))
         assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("ohne Internet"))
+        // Since 0.6.2 the Online-Version is the default; the Offline-Version is the more private alternative, never «empfohlen».
+        assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.startsWith("Noch mehr Privatsphäre"))
+        for (e in listOf(EditionInfo.OFFLINE, EditionInfo.KARTE)) {
+            for (t in listOf(EditionInfo.summary(e), EditionInfo.switchHint(e)!!)) assertFalse(t.contains("empfohlen") || t.contains("Standard"), t)
+        }
         // Before switching away from the map edition: delete on the server (impossible afterwards).
         assertTrue(EditionInfo.switchHint(EditionInfo.KARTE)!!.contains("vorher unter «Teilen» löschen"))
         // The app's old name appears in no edition text.

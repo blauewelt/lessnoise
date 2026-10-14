@@ -7,7 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Anleitung – Weniger Lärm</title>
-<meta name="description" content="Welche App, Installation, Prüfsummen, Messen, Kalibrieren, Teilen und Melden, Daten exportieren und löschen: die Anleitung zu «Weniger Lärm» und «Weniger Lärm · Karte».">
+<meta name="description" content="Welche Version, Installation, Prüfsummen, Messen, Kalibrieren, Teilen und Melden, Daten exportieren und löschen: die Anleitung zur App «Weniger Lärm» (Online-Version und Offline-Version).">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -18,7 +18,7 @@
   <h1>Anleitung</h1>
   <nav class="toc" aria-label="Inhalt">
     <ul>
-      <li><a href="#version">Welche App?</a></li>
+      <li><a href="#version">Welche Version?</a></li>
       <li><a href="#installation">Installieren</a></li>
       <li><a href="#pruefsummen">Prüfsummen</a></li>
       <li><a href="#messen">Messen</a></li>
@@ -32,24 +32,24 @@
 <main class="wrap">
 
 <section id="version">
-  <h2>Welche App?</h2>
-  <p>Beide Apps messen gleich. «Weniger Lärm · Karte» kann zusätzlich Messwerte für die Lärmkarte teilen und unterwegs melden.</p>
+  <h2>Welche Version?</h2>
+  <p>Beide Versionen messen gleich. Die Online-Version kann zusätzlich Messwerte für die Lärmkarte teilen und unterwegs melden; die Offline-Version ist für alle, die noch mehr Privatsphäre möchten und dafür auf Karte und Meldungen verzichten.</p>
   <dl class="editions">
-    <dt>«Weniger Lärm»</dt>
-    <dd>Ohne Internet und ohne Standort. Ihre Messwerte verlassen das Telefon nur, wenn Sie sie selbst exportieren.</dd>
-    <dt>«Weniger Lärm · Karte»</dt>
+    <dt>Online-Version</dt>
     <dd>Sendet erst, wenn Sie «Auf die Karte senden» einschalten oder etwas melden – nie Ton. Was genau, steht im <a href="datenschutz.html#teilen">Datenschutz</a>.</dd>
+    <dt>Offline-Version</dt>
+    <dd>Ohne Internet und ohne Standort. Ihre Messwerte verlassen das Telefon nur, wenn Sie sie selbst exportieren.</dd>
   </dl>
-  <p>Wechseln geht jederzeit: die andere App über die installierte installieren, die Messwerte bleiben. Wer zu «Weniger Lärm» wechselt, löscht seine Daten auf dem Server vorher in «Weniger Lärm · Karte» im Tab «Teilen» mit «Vom Server löschen»; sonst löscht der Server sie nach 60 Tagen selbst.</p>
-  <p class="downloads"><a class="button" href="download/lessnoise.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a>
-     <a class="button button-secondary" href="download/lessnoise-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a></p>
+  <p>Wechseln geht jederzeit: die andere Version über die installierte installieren, die Messwerte bleiben. Wer zur Offline-Version wechselt, löscht seine Daten auf dem Server vorher in der Online-Version im Tab «Teilen» mit «Vom Server löschen»; sonst löscht der Server sie nach 60 Tagen selbst.</p>
+  <p class="downloads"><a class="button" href="download/lessnoise-karte.apk" type="application/vnd.android.package-archive">Online-Version herunterladen</a>
+     <a class="button button-secondary" href="download/lessnoise.apk" type="application/vnd.android.package-archive">Offline-Version herunterladen</a></p>
 </section>
 
 <section id="installation">
   <h2>Installieren</h2>
   <p>Die App ist noch nicht im Play Store. Sie wird direkt als Datei installiert (APK, die Installationsdatei von Android):</p>
   <ol class="steps">
-    <li>«Weniger Lärm» oder «Weniger Lärm · Karte» herunterladen.</li>
+    <li>Die Online-Version oder die Offline-Version herunterladen.</li>
     <li>Die Datei in der App «Dateien» öffnen (Ordner «Downloads»), nicht im Browser – der verweigert das oft.</li>
     <li>Falls Android fragt: «Unbekannte Apps installieren» erlauben, zurück, installieren.</li>
     <li>Falls Google Play Protect warnt: «Weitere Details» → «Trotzdem installieren».</li>
@@ -64,17 +64,17 @@
 
 <section id="pruefsummen">
   <h2>Prüfsummen</h2>
-  <!-- Release checklist: version, sizes and SHA-256 of the two files in docs/download/ (lessnoise.apk = «Weniger Lärm»,
-       lessnoise-karte.apk = «Weniger Lärm · Karte»); also data-version / data-code in update.html and the version line on index.html. -->
+  <!-- Release checklist: version, sizes and SHA-256 of the two files in docs/download/ (lessnoise-karte.apk = Online-Version,
+       lessnoise.apk = Offline-Version); also data-version / data-code in update.html and the version line on index.html. -->
   <dl class="facts">
     <dt>Version</dt><dd>0.6.1 (Testversion), Android 8.0 oder neuer</dd>
-    <dt>Weniger Lärm</dt><dd>lessnoise.apk, 18,7 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">4f3771fcadd7ace412bbdc5851f003b00722f6b796a406c83acd083af9a7ab22</code></dd>
-    <dt>Weniger Lärm · Karte</dt><dd>lessnoise-karte.apk, 18,7 MB</dd>
+    <dt>Online-Version</dt><dd>lessnoise-karte.apk, 18,7 MB</dd>
     <dt>SHA-256</dt><dd><code class="hash">d3cba239dcb6b13a286e6eac3e719edcdb2ec01e6e9797f422223e318528242b</code></dd>
+    <dt>Offline-Version</dt><dd>lessnoise.apk, 18,7 MB</dd>
+    <dt>SHA-256</dt><dd><code class="hash">4f3771fcadd7ace412bbdc5851f003b00722f6b796a406c83acd083af9a7ab22</code></dd>
     <dt>Zertifikat der Signatur (beide), SHA-256</dt><dd><code class="hash">a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be</code></dd>
   </dl>
-  <p class="small">Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist, die Signatur, dass sie vom Projekt stammt. Prüfen auf dem Computer: <code>sha256sum lessnoise.apk</code> muss die Zahl oben ergeben, <code>apksigner verify --print-certs lessnoise.apk</code> das Zertifikat. Mehr in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
+  <p class="small">Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist, die Signatur, dass sie vom Projekt stammt. Prüfen auf dem Computer: <code>sha256sum lessnoise-karte.apk</code> muss die Zahl oben ergeben, <code>apksigner verify --print-certs lessnoise-karte.apk</code> das Zertifikat. Mehr in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
 </section>
 
 <section id="messen">
@@ -101,9 +101,9 @@
 
 <section id="teilen">
   <h2>Teilen und melden</h2>
-  <p>Nur in «Weniger Lärm · Karte»; beides ist aus, bis Sie es einschalten.</p>
+  <p>Nur in der Online-Version; beides ist aus, bis Sie es einschalten.</p>
   <ul class="features">
-    <li><strong>Messwerte teilen:</strong> im Tab «Teilen» die Erklärung lesen, «Weiter» und «Auf die Karte senden» einschalten. Beim Start einer Messung bestimmt das Telefon einmal den Standort; gesendet wird nur das 100-m-Quadrat (100&nbsp;×&nbsp;100&nbsp;m). Gesendet wird nur über WLAN, solange «Nur über WLAN» (unter «Weitere Angaben») eingeschaltet ist.</li>
+    <li><strong>Messwerte teilen:</strong> im Tab «Teilen» die Erklärung lesen, «Weiter» und «Auf die Karte senden» einschalten. Beim Start einer Messung bestimmt das Telefon einmal den Standort und verschiebt ihn sofort zufällig, standardmässig um etwa 50&nbsp;m; gesendet wird nur der verschobene Punkt. Wie weit, stellen Sie unter «Weitere Angaben» bei «Standort verschieben» ein (25 bis 200&nbsp;m). Gesendet wird nur über WLAN, solange «Nur über WLAN» (ebenfalls unter «Weitere Angaben») eingeschaltet ist.</li>
     <li><strong>Laut! Melden:</strong> im Tab «Messen», wenn keine Messung läuft, auf «Laut! Melden» tippen, wählen, was laut war (Töff, Auto, Lastwagen, Poser oder anderes), und «Senden». Die Meldung erscheint auf der <a href="karte.html">Lärmkarte</a> als Punkt an dieser Stelle, mit der auf die volle Stunde abgerundeten Zeit, ohne Angabe, wer gemeldet hat.</li>
     <li><strong>Löschen:</strong> «Vom Server löschen» im Tab «Teilen» entfernt sofort alles, was das Telefon gesendet hat, auch die Meldungen.</li>
   </ul>

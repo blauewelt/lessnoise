@@ -2,8 +2,9 @@
 
 Static files served by GitHub Pages (`CNAME`: wenigerlaerm.ch). No build step. German, Swiss
 spelling (ss, never ß), «Sie», guillemets, system fonts, no third-party requests — except on the
-map page, which says so. Since 0.6.0 the site speaks of «Weniger Lärm» (the offline app) and
-«Weniger Lärm · Karte» (the map edition), and of measurements, never of nights;
+map page, which says so. Since 0.6.0 the app is «Weniger Lärm»; since 0.6.2 the site calls its two
+editions the «Online-Version» (sharing for the map and «Laut! Melden»; the default, listed first
+everywhere) and the «Offline-Version» (no internet, no location; for even more privacy), and it speaks of measurements, never of nights;
 `tests/pages.spec.js` checks that for index, anleitung, datenschutz and update. The home page stays short;
 longer material goes to `anleitung.html`, whose anchors the app links (see below).
 
@@ -18,7 +19,7 @@ longer material goes to `anleitung.html`, whose anchors the app links (see below
 | `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
 | `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
-| `download/` | The signed APKs the download buttons link: `lessnoise.apk` = «Weniger Lärm», `lessnoise-karte.apk` = «Weniger Lärm · Karte». Until 0.6.1 they were named `stadtlaerm.apk` and `stadtlaerm-karte.apk`; renamed on 2026-10-14 to match the app (the old addresses no longer exist; `scripts/download_stats.py` knows both names). At release, replace both files and fill in the version line in `index.html`, version, size and SHA-256 in `anleitung.html` (`#pruefsummen`, `.facts`) and `data-version`/`data-code` in `update.html` |
+| `download/` | The signed APKs the download buttons link: `lessnoise-karte.apk` = «Online-Version» (the primary button), `lessnoise.apk` = «Offline-Version». Until 0.6.1 they were named `stadtlaerm.apk` and `stadtlaerm-karte.apk`; renamed on 2026-10-14 to match the app (the old addresses no longer exist; `scripts/download_stats.py` knows both names). At release, replace both files and fill in the version line in `index.html`, version, size and SHA-256 in `anleitung.html` (`#pruefsummen`, `.facts`) and `data-version`/`data-code` in `update.html` |
 | `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `app-messung.png` / `app-messung-dark.png`, the app screenshot on the home page (light and dark, via `<picture>`) |
 
 ## The map page

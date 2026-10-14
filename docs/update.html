@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4l5DtPcluGADJO2KHSWUcah+xfHAiNhZww/u5nUa2lg='; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-UfSlTMg/mBJ4QRHcub6lVhg4TuLMVDM3npAYYcyJn/0='; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex">
@@ -29,13 +29,13 @@
 
 <section>
   <h2 id="status">Aktuelle Version: 0.6.1</h2>
-  <p id="download"><a class="button" id="download-link" href="download/lessnoise.apk" type="application/vnd.android.package-archive">Weniger Lärm herunterladen</a></p>
+  <p id="download"><a class="button" id="download-link" href="download/lessnoise-karte.apk" type="application/vnd.android.package-archive">Online-Version herunterladen</a></p>
   <ol class="steps" id="hints" hidden>
     <li>Die heruntergeladene Datei in der App «Dateien» öffnen (Ordner «Downloads»). Der Download-Dialog des Browsers verweigert das Öffnen oft.</li>
     <li id="hint-over">Die neue Version wird über die alte installiert. Die Messwerte bleiben erhalten.</li>
   </ol>
   <p id="new-app">Ab 0.6.0 ist Weniger Lärm eine neue App und installiert sich nicht über «Stadtlärm»: Stadtlärm zuerst deinstallieren, vorher bei Bedarf die Messwerte als CSV exportieren und geteilte Daten auf dem Server löschen.</p>
-  <p id="other"><span id="other-text">Wer Messwerte für die Lärmkarte teilen oder unterwegs melden möchte:</span> <a id="other-link" href="download/lessnoise-karte.apk" type="application/vnd.android.package-archive">Weniger Lärm · Karte herunterladen</a>. Ab 0.6.0 installiert sich die eine Ausführung über die andere, die Messungen bleiben erhalten. <a href="anleitung.html#version">Welche wählen?</a></p>
+  <p id="other"><span id="other-text">Wer noch mehr Privatsphäre möchte (ohne Internet und ohne Standort, dafür ohne Karte und Meldungen):</span> <a id="other-link" href="download/lessnoise.apk" type="application/vnd.android.package-archive">Offline-Version herunterladen</a>. Ab 0.6.0 installiert sich die eine Version über die andere, die Messungen bleiben erhalten. <a href="anleitung.html#version">Welche wählen?</a></p>
   <p class="small">Die installierte Version wird nur im Browser verglichen; der Teil nach dem # wird nicht an den Server gesendet.</p>
   <p class="small">Mehr zur Installation und die Prüfsummen der Dateien stehen in der <a href="anleitung.html#installation">Anleitung</a>.</p>
 </section>
@@ -66,8 +66,8 @@
   var otherText = document.getElementById("other-text");
   var otherLink = document.getElementById("other-link");
   var EDITIONS = {
-    offline: { label: "Weniger Lärm", url: main.getAttribute("data-offline") },
-    karte: { label: "Weniger Lärm · Karte", url: main.getAttribute("data-karte") }
+    karte: { label: "Online-Version", url: main.getAttribute("data-karte") },
+    offline: { label: "Offline-Version", url: main.getAttribute("data-offline") }
   };
 
   function compareVersions(a, b) {
@@ -87,18 +87,22 @@
     if (v !== null && !/^[0-9A-Za-z.+ -]{1,32}$/.test(v)) v = null;
     if (c !== null && !/^[0-9]{1,9}$/.test(c)) c = null;
     // Only the two published editions; apps up to 0.4.0 send no e (and Labor's is ignored):
-    // they get «Weniger Lärm», the edition without internet permission, which is what they have.
+    // they get the Offline-Version, the edition without internet permission, which is what they have.
+    // A visitor without any version (no v, no c) gets the default, the Online-Version, first.
     if (e !== null && !/^(offline|karte)$/.test(e)) e = null;
+    var installed = e !== null ? e : (v !== null || c !== null ? "offline" : null);
 
-    var mine = EDITIONS[e === "karte" ? "karte" : "offline"];
-    var other = EDITIONS[e === "karte" ? "offline" : "karte"];
+    var mine = EDITIONS[installed === "offline" ? "offline" : "karte"];
+    var other = EDITIONS[installed === "offline" ? "karte" : "offline"];
     downloadLink.href = mine.url;
     downloadLink.textContent = mine.label + " herunterladen";
     otherLink.href = other.url;
     otherLink.textContent = other.label + " herunterladen";
-    otherText.textContent = e === "karte"
-      ? "Zu «Weniger Lärm» wechseln (ohne Internet- und Standort-Berechtigung):"
-      : "Wer Messwerte für die Lärmkarte teilen oder unterwegs melden möchte:";
+    otherText.textContent = installed === "karte"
+      ? "Zur Offline-Version wechseln (ohne Internet- und Standort-Berechtigung):"
+      : installed === "offline"
+        ? "Wer Messwerte für die Lärmkarte teilen oder unterwegs melden möchte:"
+        : "Wer noch mehr Privatsphäre möchte (ohne Internet und ohne Standort, dafür ohne Karte und Meldungen):";
     var label = e !== null ? EDITIONS[e].label : null;
 
     var newer, stadtlaerm;

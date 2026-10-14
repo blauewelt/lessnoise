@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
@@ -23,8 +24,8 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * How the phone is placed (server/DESIGN.md §4.2), optional and remembered for the next
- * measurements. The cell is no longer part of it: since 0.6.0 every measurement has its own
- * (MeasurementEntity.cell); the site call sends the newest one.
+ * measurements. The place is not part of it: since 0.6.2 every measurement has its own shifted
+ * point (MeasurementEntity.pointE/pointN); the site call sends the newest one.
  */
 data class SiteSettings(
     /** open_window | balcony | behind_glass | other */
@@ -85,6 +86,17 @@ data class UploadSnapshot(
     val refused: List<RefusedRecord> = emptyList(),
     /** How many records were refused in total (the list above is bounded). */
     val refusedTotal: Int = 0,
+    /**
+     * «Standort verschieben»: σ of the location noise in metres, one of LocationNoise.SIGMAS_M
+     * (server/DESIGN.md §2 rule 2). Kept when the server data is deleted.
+     */
+    val sigmaM: Int = LocationNoise.DEFAULT_SIGMA_M,
+    /**
+     * The location-noise secret (32 random bytes, Base64), made at the first shared «Start»
+     * ([NoiseSecret]); never sent. Kept encrypted at rest like the token. Null: none yet, or dropped
+     * by «Neu starten» / «Vom Server löschen» (then the next one is new).
+     */
+    val noiseSecret: String? = null,
 ) {
     val registered: Boolean get() = deviceId != null && token != null
     val canEnable: Boolean get() = explanationSeen
@@ -155,6 +167,11 @@ class UploadState(context: Context) : UploadStore {
                 (prefs.contains("token_enc") && token == null),
             refused = parseRefused(prefs.getString("refused", null)),
             refusedTotal = prefs.getInt("refused_total", 0),
+            sigmaM = prefs.getInt("location_sigma_m", LocationNoise.DEFAULT_SIGMA_M)
+                .takeIf { LocationNoise.isSigma(it) } ?: LocationNoise.DEFAULT_SIGMA_M,
+            // Like the token: one that cannot be decrypted (Keystore reset) is as good as none, and
+            // a new one is made at the next shared «Start».
+            noiseSecret = prefs.getString("noise_secret_enc", null)?.let { TokenCipher.decrypt(it) },
         )
     }
 
@@ -180,6 +197,12 @@ class UploadState(context: Context) : UploadStore {
         } else if (s.token != current.token || !prefs.contains("token_enc")) {
             e.putString("token_enc", TokenCipher.encrypt(s.token))
         }
+        e.putInt("location_sigma_m", s.sigmaM)
+        if (s.noiseSecret == null) {
+            e.remove("noise_secret_enc")
+        } else if (s.noiseSecret != current.noiseSecret || !prefs.contains("noise_secret_enc")) {
+            e.putString("noise_secret_enc", TokenCipher.encrypt(s.noiseSecret))
+        }
         if (s.lastSiteJson != null) e.putString("last_site_json", s.lastSiteJson) else e.remove("last_site_json")
         if (s.lastSuccessAtMs != null) e.putLong("last_success_ms", s.lastSuccessAtMs) else e.remove("last_success_ms")
         if (s.lastError != null) e.putString("last_error", s.lastError) else e.remove("last_error")
@@ -201,7 +224,10 @@ class UploadState(context: Context) : UploadStore {
     }
 }
 
-/** AES-256-GCM with a non-exportable key in the Android Keystore, for the one secret (the token). */
+/**
+ * AES-256-GCM with a non-exportable key in the Android Keystore, for the two secrets: the token and
+ * the location-noise secret.
+ */
 private object TokenCipher {
     private const val ALIAS = "lessnoise_upload_token"
     private const val KEYSTORE = "AndroidKeyStore"

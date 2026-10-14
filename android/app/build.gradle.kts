@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.6.1"
+        versionCode = 15
+        versionName = "0.6.2"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -76,11 +76,11 @@ android {
     }
 
     // Four editions (see PRIVACY.md → «Editions» and «Labor-Build»):
-    // - offline: the default download on wenigerlaerm.ch («Weniger Lärm»). The public app WITHOUT
+    // - offline: the alternative for even more privacy («Offline-Version»). The public app WITHOUT
     //            internet: its manifest removes INTERNET and ACCESS_NETWORK_STATE, «Messwerte teilen»
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
     //            (src/public/kotlin, see sourceSets below), so it contains no recording code either.
-    // - public:  the map edition («Weniger Lärm · Karte», release asset lessnoise-karte.apk):
+    // - public:  the «Online-Version», the default download (with the map, release asset lessnoise-karte.apk):
     //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», location only
     //            for one fix at «Start» of a shared measurement and per report (src/public/AndroidManifest.xml).
     //            offline and public share the applicationId ch.lessnoise.app and the release key:

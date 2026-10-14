@@ -8,11 +8,12 @@ each with its likely source using an on-device sound classifier, and summarises 
 (since v0.6.0; before, the app summarised nights 22:00–06:00).
 
 **Privacy by construction:** no audio is ever stored or sent. The app comes in
-[two editions](#editions): **«Weniger Lärm»** (the default download) has no internet and no location
-permission at all; **«Weniger Lärm · Karte»** uses the internet only for the opt-in upload
-[«Messwerte teilen»](#messwerte-teilen-opt-in-upload) and for «Laut! Melden» reports (off until
-switched on, one host, one network class, no third-party SDK), and the location only for one fix at
-the start of a shared measurement and one per report. See [PRIVACY.md](../PRIVACY.md). (A separate,
+[two editions](#editions): the **«Online-Version»** (the default download since 0.6.2) uses the
+internet only for the opt-in upload [«Messwerte teilen»](#messwerte-teilen-opt-in-upload) and for
+«Laut! Melden» reports (off until switched on, one host, one network class, no third-party SDK), and
+the location only for one fix at the start of a shared measurement and one per report; the
+**«Offline-Version»**, for even more privacy, has no internet and no location permission at all (and
+so no map and no reports). See [PRIVACY.md](../PRIVACY.md). (A separate,
 unpublished diagnostics app, «Weniger Lärm Labor», can record audio; the public app contains none of
 its code. See [Labor build](#labor-build).)
 
@@ -139,7 +140,8 @@ two are not interchangeable. One night, one window, one phone: treat all of it a
 ## Measurements and chart
 
 **What a measurement is (since v0.6.0).** Every «Messung starten» stores a row in the Room table
-`measurements` (start, stop, and in the Karte editions the 100 m cell if the measurement is shared);
+`measurements` (start, stop, and in the Online-Version (and laborKarte) the shifted point if the measurement is
+shared, see «Location per measurement»);
 «Stopp» sets its end. Minutes and events have no measurement id: a record belongs to the
 measurement that started last before it (5 s tolerance, `MeasurementSplitter.ownerIndex` in
 `dsp/.../Measurements.kt`). If Android killed the service before «Stopp», the row stays open and the
@@ -246,18 +248,19 @@ so a better model can be swapped in without touching the measurement code.
 
 ## Editions
 
-| | «Weniger Lärm» | «Weniger Lärm · Karte» | «Weniger Lärm Labor» | «Weniger Lärm Labor · Karte» (internal) |
+| | «Online-Version» | «Offline-Version» | «Weniger Lärm Labor» | «Weniger Lärm Labor · Karte» (internal) |
 |---|---|---|---|---|
-| Gradle flavour | `offline` (default variant) | `public` | `labor` | `laborKarte` |
-| `BuildConfig.EDITION` | `"offline"` | `"karte"` | `"labor"` | `"labor-karte"` |
+| Gradle flavour | `public` | `offline` (default variant) | `labor` | `laborKarte` |
+| `BuildConfig.EDITION` | `"karte"` | `"offline"` | `"labor"` | `"labor-karte"` |
 | App id (since 0.6.0; before `ch.stadtlaerm.*`) | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
-| Version name | `0.6.0` | `0.6.0` | `0.6.0-labor` | `0.6.0-labor-karte` |
-| `INTERNET`, `ACCESS_NETWORK_STATE` | no | yes, for «Messwerte teilen» and «Laut! Melden» only | no | yes, the same |
-| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | no (removed) | yes, for the fix at «Start» of a shared measurement and «Laut! Melden» only | no (removed) | yes, the same |
+| Version name | `0.6.2` | `0.6.2` | `0.6.2-labor` | `0.6.2-labor-karte` |
+| Launcher label | «Weniger Lärm» | «Weniger Lärm» | «Weniger Lärm Labor» | «Weniger Lärm Labor» |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen» and «Laut! Melden» only | no | no | yes, the same |
+| `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix at «Start» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
 | `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
-| `BuildConfig.UPLOAD_AVAILABLE` | false | true | false | true |
-| Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
-| Published as | `docs/download/lessnoise.apk` on wenigerlaerm.ch | `docs/download/lessnoise-karte.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
+| `BuildConfig.UPLOAD_AVAILABLE` | true | false | false | true |
+| Sources | `src/main` + `src/public` | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
+| Published as | `docs/download/lessnoise-karte.apk` on wenigerlaerm.ch | `docs/download/lessnoise.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
 
 The two published editions share the app id and the release key, so installing one over the other
 switches the edition and keeps all measurements. (0.6.0 changed the app id from `ch.stadtlaerm.app`
@@ -265,8 +268,8 @@ to `ch.lessnoise.app`, so it installs next to a 0.5.x install, not over it, and 
 storage; the signing key is unchanged.) **Einstellungen → Über die App** shows which edition is
 installed and how to switch; «Update prüfen» sends the edition to the update page
 (`&e=offline` / `&e=karte`; the Labor builds send no `e`). When the offline edition starts on a
-phone where the Karte edition had «Messwerte teilen» on, it switches sharing off, drops reports not
-yet sent and cancels the upload jobs (device id and token are kept, so the Karte edition can still
+phone where the Online-Version had «Teilen» on, it switches sharing off, drops reports not
+yet sent and cancels the upload jobs (device id and token are kept, so the Online-Version can still
 delete the server data). The upload classes are compiled into the offline edition too (shared
 `src/main`), but every entry point returns on `UPLOAD_AVAILABLE = false` and the manifest has no
 `INTERNET`.
@@ -274,8 +277,8 @@ delete the server data). The upload classes are compiled into the offline editio
 ## Install (sideload)
 
 The signed release APKs are on the website under fixed names:
-`wenigerlaerm.ch/download/lessnoise.apk` («Weniger Lärm») and
-`wenigerlaerm.ch/download/lessnoise-karte.apk` («Weniger Lärm · Karte»);
+`wenigerlaerm.ch/download/lessnoise-karte.apk` («Online-Version», the default) and
+`wenigerlaerm.ch/download/lessnoise.apk` («Offline-Version»);
 [wenigerlaerm.ch](https://wenigerlaerm.ch) links both and shows the current version and each file's
 SHA-256.
 A German step-by-step guide is on the website.
@@ -305,12 +308,12 @@ validated on many devices — see "Status" below.
 ## Updates without internet access
 
 The app never asks a server for updates itself (up to v0.4.0, and in the offline edition, it has no
-internet permission at all; in the Karte edition the internet is used only for «Messwerte teilen»
+internet permission at all; in the Online-Version the internet is used only for «Teilen»
 and «Laut! Melden», never for update checks).
 Instead:
 
-- **Einstellungen → Über die App** shows «Weniger Lärm 0.6.1 vom 13.10.2026» (the edition's
-  name) and a button **Update prüfen**. It opens
+- **Einstellungen → Über die App** shows «Offline-Version 0.6.2 vom 14.10.2026» (the edition's
+  name since 0.6.2; «Online-Version …» in the other; the launcher label of both stays «Weniger Lärm») and a button **Update prüfen**. It opens
   `https://wenigerlaerm.ch/update.html#v=<versionName>&c=<versionCode>&e=<edition>` in the browser
   (`e` since v0.5.0, `BuildConfig.EDITION` of the two published editions; the Labor builds send none). The page
   ([docs/update.html](../docs/update.html)) carries the published version as
@@ -334,8 +337,8 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Starten.** In «Weniger Lärm · Karte» with «Teilen» on, the phone
-   first takes one location fix for the measurement's 100 m cell (if that fails: «Nochmals»,
+3. **Messen → Starten.** In the «Online-Version» with «Teilen» on, the phone
+   first takes one location fix for the measurement's place, moved at random on the phone (if that fails: «Nochmals»,
    «Koordinaten einfügen» or «Ohne Teilen starten»). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
    «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
@@ -495,19 +498,21 @@ and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 Phones whose owners opt in send the minute and event records of their **shared measurements** to
 the project's server for the shared noise map ([../server/DESIGN.md](../server/DESIGN.md): §2
 privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! Melden» reports. Only in
-«Weniger Lärm · Karte» (and the internal Labor build with the map). Since 0.6.1 the tab **«Teilen»**
+the «Online-Version» (and the internal Labor build with the map). Since 0.6.1 the tab **«Teilen»**
 (screen title «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen):
 
 1. **Explanation** (open until «Weiter», afterwards behind «Was gesendet wird ▸»): what is sent
-   (Lärmwerte pro Minute and Lärmspitzen with their category; the 100 m square and the placement
-   answers; reports with time, exact place and kind; phone model, audio source, calibration and a
-   random id), the location rule (one fix at «Starten», only the square kept and sent; a report's
-   exact place deleted after sending), what is never sent (audio, name, phone number, e-mail; the
-   exact location except with a report, never read in the background), where it goes (the
-   project's server in Switzerland; public only values per 100 m square and reports, never the id
-   or note; «Misst sonst niemand in deinem Quadrat, sind es deine Werte.» as DESIGN.md §2 rule 2
-   asks; nothing measured with sharing off), how to delete (switching off, «Vom Server löschen»,
-   60 days). «Mehr dazu» opens wenigerlaerm.ch/datenschutz.html.
+   (Lärmwerte pro Minute and Lärmspitzen with their category; a randomly shifted point instead of
+   the location, and the placement answers; reports with time, exact place and kind; phone model,
+   audio source, calibration and a random id), the location rule (one fix at «Starten», moved at
+   once by about σ; the same shift at the same place; usually (86 of 100) the true place is within
+   2σ; a report's exact place deleted after sending), what is never sent (audio, name, phone
+   number, e-mail; the exact location except with a report, never read in the background), where
+   it goes (the project's server in Switzerland; public only values per 100 m square and reports,
+   never the id, the point or the note; «Misst sonst niemand in der Nähe, sind es deine Werte, in
+   einem Quadrat nahe bei dir.» as DESIGN.md §2 rule 2 asks; nothing measured with sharing off),
+   how to delete (switching off, «Vom Server löschen», 60 days). «Mehr dazu» opens
+   wenigerlaerm.ch/datenschutz.html.
 2. **Placement** («Wo steht das Telefon?»): «Das Telefon liegt» am offenen Fenster / auf dem Balkon /
    hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under «Weitere
    Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all optional,
@@ -516,15 +521,18 @@ privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! M
 3. **The switch** «Auf die Karte senden» (off by default; needs 1) with one status line («Ein ·
    zuletzt gesendet …» / «Aus – es wird nichts gesendet»), the count of records the server refused
    for good and the last error (retried failures all read «Senden klappt gerade nicht. Neuer Versuch
-   folgt.»); under «Weitere Angaben ▸» «Nur über WLAN» (default on: only unmetered networks) and
-   «Noch zu senden: n Minuten». A «Meldungen» card lists the reports waiting and the last sent ones
+   folgt.»); under «Weitere Angaben ▸» «Nur über WLAN» (default on: only unmetered networks),
+   «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
+   noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
+   macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice. A
+   «Meldungen» card lists the reports waiting and the last sent ones
    (category, time).
 4. **«Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
    then switches sharing off and drops unsent reports) and, only when the server no longer knows
    the phone, **«Neu starten»** (until 0.6.0 «Neue Kennung», always shown: deletes the server data,
    then sends under a fresh id).
 
-**Location per measurement (v0.6.0).** With sharing on, **Starten** first takes **one**
+**Location per measurement (v0.6.0; shifted by the location noise since v0.6.2).** With sharing on, **Starten** first takes **one**
 location fix (`ui/LocationFlows.kt` → `location/LocationFetcher.locate`): it requests
 `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION` if needed (Activity Result API), then asks the
 platform `LocationManager` (no Google Play Services): GPS and network provider, whichever are
@@ -532,14 +540,23 @@ enabled, at the same time — `getCurrentLocation` on API 30+, `requestLocationU
 the first update on API 26–29; the first fix ≤ 25 m ends the wait, otherwise the best one after
 both answered or after 30 s («Standort wird bestimmt …», «Abbrechen»). A last-known location is
 used only if younger than 2 min and accurate to ≤ 50 m. The fix goes straight through
-`CellInput.fromLatLon` → `Lv95.cellId` (the same formulas as the map's `docs/map/lv95.js`); the
-cell is accepted only with «Genauer Standort» and accuracy ≤ 75 m (`location/LocationPolicy.kt`,
-pure Kotlin). If it fails, one dialog says why in one sentence and offers «Nochmals», the app or
+`CellInput.fromLatLon` (WGS84 → LV95, the same formulas as the map's `docs/map/lv95.js`) and
+`LocationNoise.shift` (`dsp/geo/LocationNoise.kt`): the true LV95 point plus a Gaussian offset,
+independent N(0, σ²) east and north, σ = «Standort verschieben», rounded to whole metres and kept
+inside the server's box. The offset is fixed per place: its two normal draws come (Box–Muller)
+from HMAC-SHA256(device noise secret, "<true hectare>|<σ>"), so every «Starten» in the same hectare
+gives the same offset and averaging many measurements cannot remove it (server/DESIGN.md §2
+rule 2). The secret is 32 random bytes made at the first shared «Starten» (`upload/NoiseSecret.kt`,
+stored encrypted next to the upload token, never sent) and dropped by «Neu starten» and «Vom
+Server löschen». The point is accepted only with «Genauer Standort» and accuracy ≤ 75 m
+(`location/LocationPolicy.kt`, pure Kotlin). If it fails, one dialog says why in one sentence and offers «Nochmals», the app or
 location settings where they help, «Koordinaten einfügen» (WGS84 decimal degrees `47.3769, 8.5417`,
-LV95 `2'683'304, 1'247'925`, LV03 or a cell id, `upload/CellInput.kt`), «Ohne Teilen starten» and
-«Abbrechen». The cell is stored with the measurement (`MeasurementEntity.cell`) and passed to the
-service; the coordinates live only in local variables. With sharing off no location is read and
-the measurement has no cell; a measurement without a cell is never sent.
+LV95 `2'683'304, 1'247'925`, LV03 or a cell id — its centre —, `upload/CellInput.kt`; moved the same
+way), «Ohne Teilen starten» and «Abbrechen». The shifted point, its σ and its display cell are
+stored with the measurement (`MeasurementEntity.pointE/pointN/sigmaM/cell`, Room v7) and passed to
+the service; the coordinates and the offset live only in local variables. With sharing off no
+location is read and the measurement has no point; a measurement without a point is never sent
+(also not a row of 0.6.0 or 0.6.1, which has only a cell).
 
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
 Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes → ids `motorrad`, `auto`,
@@ -642,7 +659,20 @@ the website's `lv95.js`.
 - Settings changes (including the classifier level adjustment) apply from the next start of a measurement.
 - Calibration must be done with the app in the foreground; leaving the app aborts the measurement.
 
-## Status of v0.6.0, v0.5.x and v0.4.0
+## Status of v0.6.x, v0.5.x and v0.4.0
+
+v0.6.2 (versionCode 15, 2026-10-14) = v0.6.1 plus three changes: the place of a shared measurement
+is moved on the phone by a deterministic Gaussian offset (location noise, σ = «Standort verschieben»
+25 / 50 / 100 / 200 m, database v6 → v7, server schema v4 with `point`; see
+[«Location per measurement»](#messwerte-teilen-opt-in-upload)); the two published editions are
+called «Offline-Version» and «Online-Version» in the app and on the website (launcher label of both
+still «Weniger Lärm»); the privacy texts say a sent report keeps category, time and the approximate
+place. Verified on the JVM (unit tests of all flavours, dsp, chart; server pytest) and with `aapt2`
+on the offline and public debug APKs; not run on a device. The server must run schema v4 before
+0.6.2 uploads are accepted (older servers refuse `point`).
+
+v0.6.1 (versionCode 14, published 2026-10-13): fewer words, fewer options (tabs Messen · Messungen
+· Einstellungen, plus «Teilen» in the map edition); nothing about what is stored or sent changed.
 
 v0.6.0 (versionCode 13) is **published (2026-10-13)**: the app is renamed «Weniger Lärm»
 with new app ids (`ch.lessnoise.app`, `ch.lessnoise.labor`) and Kotlin packages (`ch.lessnoise.*`),
@@ -728,7 +758,7 @@ from the website. The public app contains none of its code (how to check: PRIVAC
 **«Weniger Lärm Labor · Karte»** (flavour `laborKarte`, internal, for the maintainer's own test phone,
 never published): the Labor build plus the opt-in «Messwerte teilen» and «Laut! Melden» (`INTERNET`,
 `ACCESS_NETWORK_STATE`, `ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION` for the fix at «Start» and
-for reports, the Karte edition's upload code; audio is never sent, checked by
+for reports, the Online-Version's upload code; audio is never sent, checked by
 `UploadSourceIsolationTest`, see PRIVACY.md → «Labor-Build»). It compiles `src/labor/kotlin` and
 `src/labor/res` but not `src/labor/AndroidManifest.xml`; its own manifest is
 `src/laborKarte/AndroidManifest.xml`. Same app id as Labor, so it installs over a Labor install and
@@ -845,14 +875,14 @@ covers its last second, so its trace is complete. If they fall behind, data is d
 ```sh
 export ANDROID_HOME=/path/to/android-sdk   # platform 35, build-tools 35.0.0
 ./gradlew test assembleDebug
-# APKs: app/build/outputs/apk/offline/debug/app-offline-debug.apk  («Weniger Lärm»)
-#       app/build/outputs/apk/public/debug/app-public-debug.apk    («Weniger Lärm · Karte»)
+# APKs: app/build/outputs/apk/offline/debug/app-offline-debug.apk  («Offline-Version»)
+#       app/build/outputs/apk/public/debug/app-public-debug.apk    («Online-Version»)
 #       app/build/outputs/apk/labor/debug/app-labor-debug.apk      (Labor build, see below)
 #       app/build/outputs/apk/laborKarte/debug/app-laborKarte-debug.apk («Weniger Lärm Labor · Karte», internal)
 ```
 
 The app module has four product flavours (dimension `edition`, see [Editions](#editions)):
-**`offline`** and **`public`**, the two published editions («Weniger Lärm» and «Weniger Lärm · Karte»),
+**`offline`** and **`public`**, the two published editions («Offline-Version» and «Online-Version»),
 **`labor`**, the unpublished diagnostics build, and **`laborKarte`**, the internal Labor build with
 «Messwerte teilen». Tasks are named per variant, e.g. `assembleOfflineDebug`, `assemblePublicDebug`,
 `assembleLaborKarteDebug`, `testOfflineDebugUnitTest`, `testLaborDebugUnitTest`,
@@ -915,8 +945,8 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    PRIVACY.md → «How to verify» (offline **without** `INTERNET`, `ACCESS_NETWORK_STATE`,
    `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, public with all four; neither with
    `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).
-3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Weniger Lärm»),
-   `app-public-release.apk` → **`lessnoise-karte.apk`** («Weniger Lärm · Karte»). Note size (bytes) and
+3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
+   `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
 4. Copy them to `../docs/download/lessnoise.apk` and `../docs/download/lessnoise-karte.apk`
    (GitHub Pages serves them; downloads are not counted). **Never** copy a Labor APK anywhere into
@@ -959,13 +989,14 @@ dsp/   pure Kotlin/JVM, no Android dependencies — shared with the planned ESP3
 chart/ Android library: the history chart (drawing model, Compose Canvas) and the app theme;
        JVM tests and Paparazzi renders
 dsp/geo/Lv95.kt          WGS84 ↔ LV95 and 100 m cell ids (same formulas as the map's docs/map/lv95.js)
+dsp/geo/LocationNoise.kt the location noise of shared measurements (deterministic Gaussian offset per place)
 app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Compose UI
   src/main/     shared code (AudioTap.kt: the no-op hook the Labor recorder plugs into;
                 upload/: the opt-in «Messwerte teilen» and the «Laut! Melden» queue, the app's only network code;
                 location/: the one-fix location code; data/: Room incl. the measurements table)
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
-  src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Weniger Lärm»)
+  src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
                 (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
   src/laborKarte/ AndroidManifest.xml only: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»
@@ -982,7 +1013,7 @@ tools/csp_hash.py         CSP script hashes for the website's inline script (doc
 - **ESP32 sensor:** a fixed outdoor sensor (ESP32-S3 + MEMS microphone) running the same DSP
   (the `dsp` module is written to port 1:1 to C/C++ or Kotlin/Native) and the same calibration
   procedure, so phone and sensor data are comparable. See [firmware/](../firmware/README.md).
-- Opt-in data sharing for a noise map: since v0.5.0 («Messwerte teilen» in the Karte edition, see
+- Opt-in data sharing for a noise map: since v0.5.0 («Messwerte teilen» in the map edition, since 0.6.2 «Online-Version», see
   above; server and map in [../server/](../server/DESIGN.md)); since v0.6.0 with a place per
   measurement and «Laut! Melden».
 - Slow time weighting, Lnight/Lden reporting per ISO 1996; zoom and export of the chart.

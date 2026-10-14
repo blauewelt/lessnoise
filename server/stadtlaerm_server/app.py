@@ -252,15 +252,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         s = validate(SiteIn, await read_body(request))
         with conn:
             conn.execute(
-                "INSERT INTO sites (device_id, cell, placement, floor, street_facing, device_model, audio_source, "
-                "calibrated, calibration_offset_db, note, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT (device_id) DO UPDATE SET cell = excluded.cell, placement = excluded.placement, "
+                "INSERT INTO sites (device_id, cell, point_e, point_n, sigma_m, placement, floor, street_facing, "
+                "device_model, audio_source, calibrated, calibration_offset_db, note, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (device_id) DO UPDATE SET cell = excluded.cell, point_e = excluded.point_e, "
+                "point_n = excluded.point_n, sigma_m = excluded.sigma_m, placement = excluded.placement, "
                 "floor = excluded.floor, street_facing = excluded.street_facing, device_model = excluded.device_model, "
                 "audio_source = excluded.audio_source, calibrated = excluded.calibrated, "
                 "calibration_offset_db = excluded.calibration_offset_db, note = excluded.note, "
                 "updated_at = excluded.updated_at",
                 (
-                    device_id, s.cell, s.placement, s.floor,
+                    device_id, s.display_cell,
+                    s.point.e if s.point else None, s.point.n if s.point else None,
+                    s.point.sigma_m if s.point else None,
+                    s.placement, s.floor,
                     None if s.street_facing is None else int(s.street_facing),
                     s.device_model, s.audio_source, int(s.calibrated), s.calibration_offset_db, s.note,
                     db.utc_now_iso(),

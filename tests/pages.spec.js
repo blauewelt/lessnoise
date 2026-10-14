@@ -81,8 +81,9 @@ test("the home page keeps the anchors other pages link to, and is short", async 
 test("the home page: two buttons, which to choose, the version line and the link to the Anleitung", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("#download a.button")).toHaveCount(2);
-  await expect(page.locator("#version")).toContainText("«Weniger Lärm»");
-  await expect(page.locator("#version")).toContainText("«Weniger Lärm · Karte»");
+  // Online-Version first (the default), the Offline-Version as the more private alternative.
+  await expect(page.locator("#version")).toContainText(/^Die Online-Version .* nimmt die Offline-Version:/);
+  await expect(page.locator("#download a.button").first()).toHaveText("Online-Version herunterladen");
   await expect(page.locator("#download .release")).toHaveText("Version 0.6.1, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
@@ -124,7 +125,7 @@ test("every link to anleitung.html#… or ./#… on any page lands on an existin
     const html = fs.readFileSync(path.join(DOCS, file), "utf8");
     for (const m of html.matchAll(/href="(anleitung\.html|\.\/)#([^"]+)"/g)) targets[m[1]].add(m[2]);
   }
-  // update.html and karte.html point to the Anleitung for «Welche App?», the installation and how to measure.
+  // update.html and karte.html point to the Anleitung for «Welche Version?», the installation and how to measure.
   expect([...targets["anleitung.html"]]).toEqual(expect.arrayContaining(["version", "installation", "messen"]));
   for (const [pagePath, ids] of [["/anleitung.html", targets["anleitung.html"]], ["/", targets["./"]]]) {
     await page.goto(pagePath);
@@ -153,10 +154,11 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
   for (const fact of [
-    "Weniger Lärm · Karte",            // the edition with internet and location
+    "Online-Version",                  // the edition with internet and location
     "Laut! Melden",                    // reports
     "auf die volle Stunde abgerundeten Zeit",
-    "Hektare",                         // the cell at Start
+    "zufällig, standardmässig um etwa 50",  // the point at Start is moved (location noise)
+    "Standort verschieben",            // the app setting
     "nie im Hintergrund",
     "60 Tage",
     "auch die Meldungen",              // deletion includes reports
@@ -165,9 +167,33 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 12. Oktober 2026",
+    "Stand: 14. Oktober 2026",
+    "Art, Zeit und den ungefähren Ort", // what the phone keeps of a sent report
   ]) {
     expect(text, fact).toContain(fact);
   }
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
+});
+
+test("the location of a measurement is described as moved, not as «only a hectare»", async ({ page }) => {
+  // server/DESIGN.md §2 rule 2 (location noise): the 100 m fields are a display grid, the protection
+  // is the random shift in the app. No page may still promise «only the hectare».
+  const forbidden = /genauer wird kein|nur (die|ihre|als) Hektare|behält nur ihre Hektare|pro Hektare|Jedes Feld ist eine Hektare/i;
+  const moved = /standardmässig um etwa 50(\s|&nbsp;)m \(in der App (einstellbar|unter)/;
+  for (const path of ["/", "/datenschutz.html"]) {
+    await page.goto(path);
+    const text = await allText(page);
+    expect(text, path).not.toMatch(forbidden);
+    expect(text, path).toMatch(moved);
+  }
+  // The guide describes the same setting (anleitung.html#teilen).
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  expect(guide).not.toMatch(forbidden);
+  expect(guide).toMatch(/verschiebt ihn sofort zufällig, standardmässig um etwa 50(\s|&nbsp;)m/);
+  expect(guide).toContain("Standort verschieben");
+  // The map page loads tiles and data (map.spec.js covers it with fixtures); here only its HTML.
+  const html = await (await page.request.get("/karte.html")).text();
+  expect(html).not.toMatch(forbidden);
+  expect(html).toMatch(moved);
 });

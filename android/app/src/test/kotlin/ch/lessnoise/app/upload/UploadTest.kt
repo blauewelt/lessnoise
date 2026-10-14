@@ -4,6 +4,7 @@ import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.dsp.Iso
+import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -35,8 +36,23 @@ class UploadTest {
 
     private val minuteRows = mutableListOf<MinuteEntity>()
     private val eventRows = mutableListOf<EventEntity>()
+
+    /** Shifted points as LocationPolicy makes them at «Start» (their display cells: h26824_12473, h26833_12479). */
+    private val pointA = LocationNoise.Point(2682437, 1247391, 50)
+    private val pointC = LocationNoise.Point(2683351, 1247988, 100)
+
+    private fun shared(id: Long, startMs: Long, endMs: Long?, p: LocationNoise.Point) =
+        MeasurementEntity(id = id, startMs = startMs, endMs = endMs, cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = p.sigmaM)
+
     /** By default one shared measurement covering every record; tests add others. */
-    private val measurementRows = mutableListOf(MeasurementEntity(id = 1, startMs = 0, endMs = null, cell = "h26824_12473"))
+    private val measurementRows = mutableListOf(shared(1, 0, null, pointA))
+
+    private fun JsonObject.point(): Triple<Int, Int, Int> = this["point"]!!.jsonObject.let {
+        Triple(it["e"]!!.jsonPrimitive.content.toInt(), it["n"]!!.jsonPrimitive.content.toInt(), it["sigma_m"]!!.jsonPrimitive.content.toInt())
+    }
+
+    private val a = Triple(pointA.e, pointA.n, 50)
+    private val c = Triple(pointC.e, pointC.n, 100)
     private val reports = MemoryReportStore()
 
     private val source = object : UploadSource {
@@ -119,17 +135,17 @@ class UploadTest {
     }
 
     @Test
-    fun recordsOfAMeasurementWithoutCellAreNeverSentAndEachRecordCarriesItsOwnMeasurementsCell() = runBlocking {
-        // Three measurements: A shared (cell a), B not shared, C shared elsewhere (cell c); a gap
+    fun recordsOfAMeasurementWithoutPointAreNeverSentAndEachRecordCarriesItsOwnMeasurementsPoint() = runBlocking {
+        // Three measurements: A shared (point a), B not shared, C shared elsewhere (point c); a gap
         // after A's stop that belongs to no running measurement.
         val t0 = now - 6 * 3_600_000L
         val aEnd = t0 + 30 * 60_000L
         val bStart = t0 + 60 * 60_000L
         val cStart = t0 + 120 * 60_000L
         measurementRows.clear()
-        measurementRows += MeasurementEntity(id = 1, startMs = t0, endMs = aEnd, cell = "h26824_12473")
+        measurementRows += shared(1, t0, aEnd, pointA)
         measurementRows += MeasurementEntity(id = 2, startMs = bStart, endMs = bStart + 30 * 60_000L, cell = null)
-        measurementRows += MeasurementEntity(id = 3, startMs = cStart, endMs = null, cell = "h26833_12479")
+        measurementRows += shared(3, cStart, null, pointC)
         for (i in 0 until 30) minuteRows += minute(t0 + i * 60_000L)              // A
         minuteRows += minute(aEnd + 5 * 60_000L)                                    // after A's stop, before B: no measurement
         for (i in 0 until 30) minuteRows += minute(bStart + i * 60_000L)          // B
@@ -139,14 +155,26 @@ class UploadTest {
         assertEquals(Uploader.Outcome.Done(minutes = 60, events = 2, refused = 0, more = false), up.run())
         val id = store.state.value.deviceId!!
         val sent = server.minutes[id]!!.values
-        assertEquals(30, sent.count { it["cell"]!!.jsonPrimitive.content == "h26824_12473" })
-        assertEquals(30, sent.count { it["cell"]!!.jsonPrimitive.content == "h26833_12479" })
-        assertEquals(listOf("h26824_12473", "h26833_12479"), server.events[id]!!.values.map { it["cell"]!!.jsonPrimitive.content }.sorted())
+        assertEquals(30, sent.count { it.point() == a })
+        assertEquals(30, sent.count { it.point() == c })
+        assertTrue(sent.none { "cell" in it }, "the true hectare is never sent")
+        assertEquals(setOf(a, c), server.events[id]!!.values.map { it.point() }.toSet())
         // The markers moved past the unshared records: they are never sent later either.
         assertEquals(minuteRows.maxOf { it.startEpochMs }, store.state.value.minutesSentUpToMs)
         assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
-        // The site call carries the newest shared measurement's cell.
-        assertEquals("h26833_12479", server.sites[id]!!["cell"]!!.jsonPrimitive.content)
+        // The site call carries the newest shared measurement's point.
+        assertEquals(c, server.sites[id]!!.point())
+    }
+
+    @Test
+    fun aMeasurementWithACellButNoPointIsNotSentAnyMore() = runBlocking {
+        // A row of 0.6.0/0.6.1 before the location noise: the true hectare, no point.
+        measurementRows.clear()
+        measurementRows += MeasurementEntity(id = 1, startMs = 0, endMs = null, cell = "h26833_12479")
+        addMinutes(20); addEvents(3)
+        val (up, _) = setup()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(listOf("POST /v1/devices"), server.requests.map { "${it.method} ${it.path}" })
     }
 
     @Test
@@ -160,33 +188,36 @@ class UploadTest {
     }
 
     @Test
-    fun cellIndexFindsTheOwnerMeasurement() {
-        val idx = CellIndex(
+    fun placeIndexFindsTheOwnerMeasurement() {
+        val idx = PlaceIndex(
             listOf(
                 MeasurementEntity(id = 2, startMs = 10_000, endMs = 20_000, cell = null),
-                MeasurementEntity(id = 1, startMs = 0, endMs = 5_000, cell = "h1_1"),
-                MeasurementEntity(id = 3, startMs = 30_000, endMs = null, cell = "h3_3"),
+                shared(1, 0, 5_000, pointA),
+                shared(3, 30_000, null, pointC),
+                // A cell without a point (0.6.0/0.6.1, before the noise) counts as not shared.
+                MeasurementEntity(id = 4, startMs = 40_000_000, endMs = null, cell = "h26833_12479"),
             )
         )
-        assertNull(idx.cellAt(-10_000), "before the first measurement")
-        assertEquals("h1_1", idx.cellAt(-4_000), "first minute may start a few seconds before the recorded start")
-        assertEquals("h1_1", idx.cellAt(4_999))
-        assertNull(idx.cellAt(5_000), "after its stop")
-        assertNull(idx.cellAt(15_000), "not shared")
-        assertEquals("h3_3", idx.cellAt(10_000_000), "running")
-        assertEquals("h3_3", idx.latest)
+        assertNull(idx.pointAt(-10_000), "before the first measurement")
+        assertEquals(pointA, idx.pointAt(-4_000), "first minute may start a few seconds before the recorded start")
+        assertEquals(pointA, idx.pointAt(4_999))
+        assertNull(idx.pointAt(5_000), "after its stop")
+        assertNull(idx.pointAt(15_000), "not shared")
+        assertEquals(pointC, idx.pointAt(10_000_000), "running")
+        assertNull(idx.pointAt(40_000_001), "cell only")
+        assertEquals(pointC, idx.latest)
     }
 
     @Test
-    fun siteBodyIsExactlyDesign42AndCarriesTheNewestMeasurementsCell() = runBlocking {
+    fun siteBodyIsExactlyDesign42AndCarriesTheNewestMeasurementsPoint() = runBlocking {
         val (up, store) = setup()
         up.run()
         val body = server.sites[store.state.value.deviceId]!!
         assertEquals(
-            setOf("cell", "placement", "floor", "street_facing", "device_model", "audio_source", "calibrated", "calibration_offset_db", "note"),
+            setOf("point", "placement", "floor", "street_facing", "device_model", "audio_source", "calibrated", "calibration_offset_db", "note"),
             body.keys,
         )
-        assertEquals("h26824_12473", body["cell"]!!.jsonPrimitive.content)
+        assertEquals("""{"e":2682437,"n":1247391,"sigma_m":50}""", body["point"].toString())
         assertEquals("open_window", body["placement"]!!.jsonPrimitive.content)
         assertEquals("3", body["floor"].toString())
         assertEquals("true", body["street_facing"].toString())
@@ -207,11 +238,11 @@ class UploadTest {
             setOf(
                 "start", "duration_s", "valid_s", "coverage", "laeq_db", "lafmax_db", "lafmin_db", "l1_db", "l10_db", "l50_db",
                 "l90_db", "event_count", "dominant_category", "category_shares", "calibration_id", "calibration_offset_db",
-                "calibrated", "audio_source", "clock_corrections", "cell",
+                "calibrated", "audio_source", "clock_corrections", "point",
             ),
             m.keys,
         )
-        assertEquals("h26824_12473", m["cell"]!!.jsonPrimitive.content, "the measurement's cell")
+        assertEquals("""{"e":2682437,"n":1247391,"sigma_m":50}""", m["point"].toString(), "the measurement's shifted point, integers")
         assertEquals(JsonNull, m["laeq_db"], "NaN is sent as null, never as invalid JSON")
         assertEquals("61.0", m["lafmax_db"].toString(), "one decimal")
         assertEquals("0.992", m["coverage"].toString())
@@ -222,10 +253,10 @@ class UploadTest {
         val e = server.events[id]!!.values.single()
         assertEquals(
             setOf("start", "duration_s", "lafmax_db", "sel_db", "background_db", "threshold_db", "min_level_db", "category",
-                "category_score", "calibration_id", "calibrated", "cell"),
+                "category_score", "calibration_id", "calibrated", "point"),
             e.keys,
         )
-        assertEquals("h26824_12473", e["cell"]!!.jsonPrimitive.content)
+        assertEquals(a, e.point())
         assertEquals("unclassified", e["category"]!!.jsonPrimitive.content, "no category → unclassified")
         assertTrue(e["start"]!!.jsonPrimitive.content.contains("."), "event start with milliseconds")
         // Nothing of the raw classifier labels or the re-evaluation originals leaves the phone.
@@ -378,9 +409,14 @@ class UploadTest {
         assertEquals(before, server.requests.size, "no requests while the token is refused")
 
         // «Neue Kennung»: the DELETE is refused (401) too, so the old id is simply forgotten.
+        val oldSecret = NoiseSecret.getOrCreate(store)
+        store.update { it.copy(sigmaM = 200) }
         assertEquals(Uploader.DeleteOutcome.UnknownToServer, up.newIdentity())
         val s = store.state.value
         assertNull(s.deviceId); assertNull(s.token); assertFalse(s.authFailed)
+        assertNull(s.noiseSecret, "a new location-noise secret with the new id")
+        assertEquals(200, s.sigmaM, "the setting stays")
+        assertFalse(oldSecret.contentEquals(NoiseSecret.getOrCreate(store)))
         assertTrue(s.enabled, "«Neue Kennung» keeps sharing on")
         up.run()
         val newId = store.state.value.deviceId!!
@@ -394,11 +430,13 @@ class UploadTest {
         val (up, store) = setup()
         up.run()
         val id = store.state.value.deviceId!!
+        NoiseSecret.getOrCreate(store) // as at a shared «Start»
         assertEquals(Uploader.DeleteOutcome.Deleted, up.deleteServerData())
         assertEquals(1, server.count("DELETE", "/v1/devices/$id"))
         assertNull(server.tokens[id]); assertNull(server.sites[id]); assertNull(server.minutes[id]); assertNull(server.events[id])
         val s = store.state.value
         assertFalse(s.enabled); assertNull(s.deviceId); assertNull(s.token)
+        assertNull(s.noiseSecret, "deleting the server data also drops the location-noise secret")
         assertEquals(0, s.minutesSentUpToMs)
         assertEquals(now, s.sendFloorMs, "switching on again sends nothing measured before the delete")
         // Off: nothing is sent.
@@ -471,11 +509,11 @@ class UploadTest {
         up.run()
         assertEquals(2, server.count("PUT", "/site"))
         assertEquals("balcony", server.sites[store.state.value.deviceId]!!["placement"]!!.jsonPrimitive.content)
-        // A new shared measurement elsewhere: the site follows its cell.
-        measurementRows += MeasurementEntity(id = 2, startMs = now, endMs = null, cell = "h26833_12479")
+        // A new shared measurement elsewhere: the site follows its point.
+        measurementRows += shared(2, now, null, pointC)
         up.run()
         assertEquals(3, server.count("PUT", "/site"))
-        assertEquals("h26833_12479", server.sites[store.state.value.deviceId]!!["cell"]!!.jsonPrimitive.content)
+        assertEquals(c, server.sites[store.state.value.deviceId]!!.point())
     }
 
     @Test
@@ -534,7 +572,7 @@ class UploadTest {
         assertEquals(JsonNull, Payloads.level(Double.NaN))
         assertEquals(JsonNull, Payloads.level(Double.POSITIVE_INFINITY))
         assertEquals(JsonNull, Payloads.level(null))
-        val site = Payloads.site("h26824_12473", SiteSettings(note = "x".repeat(300)), SiteExtras("", "VOICE_RECOGNITION", false, 112.35))
+        val site = Payloads.site(pointA, SiteSettings(note = "x".repeat(300)), SiteExtras("", "VOICE_RECOGNITION", false, 112.35))
         assertEquals(200, site["note"]!!.jsonPrimitive.content.length)
         assertEquals(JsonNull, site["device_model"])
         assertEquals(JsonNull, site["floor"])
@@ -542,7 +580,7 @@ class UploadTest {
     }
 
     @Test
-    fun coordinateEntryBecomesAHectareOnThePhone() {
+    fun coordinateEntryBecomesAnLv95PointOnThePhone() {
         fun ok(s: String) = (CellInput.parse(s) as CellInput.Parsed.Ok).cell
         assertEquals("h26833_12479", ok("47.3769, 8.5417"))
         assertEquals("h26833_12479", ok("47,3769 8,5417"))
@@ -556,5 +594,19 @@ class UploadTest {
         assertIs<CellInput.Parsed.Error>(CellInput.parse("48.8566, 2.3522"))   // Paris
         assertIs<CellInput.Parsed.Error>(CellInput.parse("47.37"))
         assertIs<CellInput.Parsed.Error>(CellInput.parse("h99999_99999"))
+    }
+
+    @Test
+    fun noiseSecretIsMadeOnceAndKept() {
+        val store = MemoryUploadStore()
+        assertNull(store.state.value.noiseSecret)
+        assertEquals(LocationNoise.DEFAULT_SIGMA_M, store.state.value.sigmaM)
+        val first = NoiseSecret.getOrCreate(store)
+        assertEquals(LocationNoise.SECRET_BYTES, first.size)
+        assertTrue(first.contentEquals(NoiseSecret.getOrCreate(store)), "the same secret every time")
+        assertTrue(first.contentEquals(java.util.Base64.getDecoder().decode(store.state.value.noiseSecret)))
+        // An unreadable stored value is replaced.
+        store.update { it.copy(noiseSecret = "not base64 !") }
+        assertEquals(LocationNoise.SECRET_BYTES, NoiseSecret.getOrCreate(store).size)
     }
 }
