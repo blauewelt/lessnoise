@@ -18,7 +18,7 @@ longer material goes to `anleitung.html`, whose anchors the app links (see below
 | `map/model.js` | Pure helpers of the map: wording, colour scales, report categories, the card's 24-hour chart model (with the LSV bands) |
 | `map/karte.js`, `map/karte.css` | The map page itself (Leaflet, legend, period selector and day steps, reports layer, card) |
 | `vendor/leaflet/` | Leaflet 1.9.4, copied unchanged from the npm package (`node_modules/leaflet/dist`) |
-| `download/` | The signed APKs the download buttons link: `stadtlaerm.apk` = «Weniger Lärm», `stadtlaerm-karte.apk` = «Weniger Lärm · Karte». The file names stayed when the app was renamed (0.6.0, as decided for the release) so that existing links, bookmarks and `scripts/download_stats.py` keep working. At release, replace both files and fill in the version line in `index.html`, version, size and SHA-256 in `anleitung.html` (`#pruefsummen`, `.facts`) and `data-version`/`data-code` in `update.html` |
+| `download/` | The signed APKs the download buttons link: `lessnoise.apk` = «Weniger Lärm», `lessnoise-karte.apk` = «Weniger Lärm · Karte». Until 0.6.1 they were named `stadtlaerm.apk` and `stadtlaerm-karte.apk`; renamed on 2026-10-14 to match the app (the old addresses no longer exist; `scripts/download_stats.py` knows both names). At release, replace both files and fill in the version line in `index.html`, version, size and SHA-256 in `anleitung.html` (`#pruefsummen`, `.facts`) and `data-version`/`data-code` in `update.html` |
 | `img/` | `karte-360.png` (map screenshot, `scripts/karte_screenshot.js`); `app-messung.png` / `app-messung-dark.png`, the app screenshot on the home page (light and dark, via `<picture>`) |
 
 ## The map page

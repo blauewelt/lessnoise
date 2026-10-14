@@ -53,8 +53,8 @@ async function pageData(page) {
 test("without a hash: «Weniger Lärm», and a link to «Weniger Lärm · Karte»", async ({ page }) => {
   await page.goto("/update.html");
   const d = await pageData(page);
-  expect(d.offline).toMatch(new RegExp("^" + RELEASES + "stadtlaerm\\.apk$"));
-  expect(d.karte).toBe(d.offline.replace(/stadtlaerm\.apk$/, "stadtlaerm-karte.apk"));
+  expect(d.offline).toMatch(new RegExp("^" + RELEASES + "lessnoise\\.apk$"));
+  expect(d.karte).toBe(d.offline.replace(/lessnoise\.apk$/, "lessnoise-karte.apk"));
   await expect(page.locator("#status")).toHaveText("Aktuelle Version: " + d.version);
   await expect(page.locator("#download-link")).toHaveAttribute("href", d.offline);
   await expect(page.locator("#download-link")).toHaveText("Weniger Lärm herunterladen");
@@ -157,6 +157,6 @@ test("the home page links the same two release files as update.html", async ({ p
   const hrefs2 = await page.locator(`a[href^="${RELEASES}"]`).evaluateAll((as) => as.map((a) => a.getAttribute("href")));
   expect(new Set(hrefs2)).toEqual(new Set([d.offline, d.karte]));
   await expect(page.locator("#pruefsummen .facts")).toContainText(d.version);
-  await expect(page.locator("#pruefsummen .facts")).toContainText("stadtlaerm.apk");
-  await expect(page.locator("#pruefsummen .facts")).toContainText("stadtlaerm-karte.apk");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("lessnoise.apk");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("lessnoise-karte.apk");
 });

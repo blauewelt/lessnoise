@@ -257,7 +257,7 @@ so a better model can be swapped in without touching the measurement code.
 | `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
 | `BuildConfig.UPLOAD_AVAILABLE` | false | true | false | true |
 | Sources | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/public` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
-| Published as | `docs/download/stadtlaerm.apk` on wenigerlaerm.ch | `docs/download/stadtlaerm-karte.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
+| Published as | `docs/download/lessnoise.apk` on wenigerlaerm.ch | `docs/download/lessnoise-karte.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
 
 The two published editions share the app id and the release key, so installing one over the other
 switches the edition and keeps all measurements. (0.6.0 changed the app id from `ch.stadtlaerm.app`
@@ -274,8 +274,8 @@ delete the server data). The upload classes are compiled into the offline editio
 ## Install (sideload)
 
 The signed release APKs are on the website under fixed names:
-`wenigerlaerm.ch/download/stadtlaerm.apk` («Weniger Lärm») and
-`wenigerlaerm.ch/download/stadtlaerm-karte.apk` («Weniger Lärm · Karte»);
+`wenigerlaerm.ch/download/lessnoise.apk` («Weniger Lärm») and
+`wenigerlaerm.ch/download/lessnoise-karte.apk` («Weniger Lärm · Karte»);
 [wenigerlaerm.ch](https://wenigerlaerm.ch) links both and shows the current version and each file's
 SHA-256.
 A German step-by-step guide is on the website.
@@ -291,10 +291,10 @@ A German step-by-step guide is on the website.
    from the **Files** app (Dateien → Downloads).
 2. Android asks to allow installing unknown apps from that source (Files, Chrome, …): allow it.
 3. If Play Protect warns about an unknown developer: *More details → Install anyway*.
-4. Or with a computer: `adb install -r stadtlaerm.apk` (or `stadtlaerm-karte.apk`).
+4. Or with a computer: `adb install -r lessnoise.apk` (or `lessnoise-karte.apk`).
 5. Start Weniger Lärm and allow **microphone** and **notifications** when asked.
 
-To check the download: `sha256sum stadtlaerm.apk` (or `stadtlaerm-karte.apk`) must match the value
+To check the download: `sha256sum lessnoise.apk` (or `lessnoise-karte.apk`) must match the value
 on the website, and `apksigner verify --print-certs <file>` must show the signer
 `CN=Christian Frank, O=Stadtlaerm, L=Zuerich, C=CH` with certificate SHA-256
 `a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be`.
@@ -882,8 +882,8 @@ Pass its path as a Gradle property or an environment variable:
 ./gradlew test assembleOfflineRelease assemblePublicRelease -Pstadtlaerm.keystoreProperties=$HOME/stadtlaerm-keys/keystore.properties
 # or
 STADTLAERM_KEYSTORE_PROPERTIES=$HOME/stadtlaerm-keys/keystore.properties ./gradlew assembleOfflineRelease assemblePublicRelease
-# APKs: app/build/outputs/apk/offline/release/app-offline-release.apk  → stadtlaerm.apk
-#       app/build/outputs/apk/public/release/app-public-release.apk    → stadtlaerm-karte.apk
+# APKs: app/build/outputs/apk/offline/release/app-offline-release.apk  → lessnoise.apk
+#       app/build/outputs/apk/public/release/app-public-release.apk    → lessnoise-karte.apk
 ```
 
 Check the result (build-tools 35), for **each** of the two APKs:
@@ -915,10 +915,10 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    PRIVACY.md → «How to verify» (offline **without** `INTERNET`, `ACCESS_NETWORK_STATE`,
    `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, public with all four; neither with
    `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs).
-3. Name the files: `app-offline-release.apk` → **`stadtlaerm.apk`** («Weniger Lärm»),
-   `app-public-release.apk` → **`stadtlaerm-karte.apk`** («Weniger Lärm · Karte»). Note size (bytes) and
+3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Weniger Lärm»),
+   `app-public-release.apk` → **`lessnoise-karte.apk`** («Weniger Lärm · Karte»). Note size (bytes) and
    SHA-256 of each.
-4. Copy them to `../docs/download/stadtlaerm.apk` and `../docs/download/stadtlaerm-karte.apk`
+4. Copy them to `../docs/download/lessnoise.apk` and `../docs/download/lessnoise-karte.apk`
    (GitHub Pages serves them; downloads are not counted). **Never** copy a Labor APK anywhere into
    `../docs/`. Optionally also attach both to a GitHub Release `vX.Y.Z` (a Claude session cannot
    create releases); `../scripts/download_stats.py` reads that release's download counts.

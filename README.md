@@ -32,8 +32,8 @@ no internet and no location permission at all.
 
 No audio is ever stored or transmitted; sound source classification runs on the phone and only
 levels and statistics are kept. Up to v0.4.0 the app had no internet permission at all, and neither
-has the default edition **«Weniger Lärm»** (`stadtlaerm.apk`; app id `ch.lessnoise.app` since
-0.6.0). **«Weniger Lärm · Karte»** (`stadtlaerm-karte.apk`, same app id, installs over the other
+has the default edition **«Weniger Lärm»** (`lessnoise.apk`; app id `ch.lessnoise.app` since
+0.6.0). **«Weniger Lärm · Karte»** (`lessnoise-karte.apk`, same app id, installs over the other
 and keeps the data) uses the internet only for the opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until switched on; minute and event numbers of
 shared measurements, each with the 100 m cell of its measurement (never the coordinates of that

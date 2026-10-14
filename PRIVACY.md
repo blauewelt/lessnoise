@@ -16,7 +16,7 @@ app, is never published, and neither published edition contains any of its code.
 
 | | «Weniger Lärm» (offline) | «Weniger Lärm · Karte» |
 |---|---|---|
-| File (on the website, `docs/download/`) | `stadtlaerm.apk` — the default download | `stadtlaerm-karte.apk` |
+| File (on the website, `docs/download/`) | `lessnoise.apk` — the default download | `lessnoise-karte.apk` |
 | Gradle flavour | `offline` | `public` |
 | App id, signing key | `ch.lessnoise.app` (0.6.0; before `ch.stadtlaerm.app`), release key | the same |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | **no** (removed in `app/src/offline/AndroidManifest.xml`) | yes, only for «Messwerte teilen» and «Laut! Melden» |
@@ -99,11 +99,11 @@ accordingly before you share them.
 ## How to verify
 
 - `aapt2 dump permissions <apk>` (Android SDK build-tools) lists exactly:
-  - **`stadtlaerm.apk`** (offline edition «Weniger Lärm», and every version up to v0.4.0):
+  - **`lessnoise.apk`** (offline edition «Weniger Lärm»; until 0.6.1 named `stadtlaerm.apk`, which up to v0.4.0 was the only edition):
     `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `POST_NOTIFICATIONS`,
     `WAKE_LOCK` (plus AndroidX's internal `ch.lessnoise.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`).
     No `INTERNET`, no `ACCESS_NETWORK_STATE`, no `ACCESS_FINE_LOCATION`, no `ACCESS_COARSE_LOCATION`.
-  - **`stadtlaerm-karte.apk`** («Weniger Lärm · Karte», from v0.5.0): the same plus `INTERNET` and
+  - **`lessnoise-karte.apk`** («Weniger Lärm · Karte», from v0.5.0): the same plus `INTERNET` and
     `ACCESS_NETWORK_STATE`, both only for «Messwerte teilen» and «Laut! Melden» (below), and
     `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`, only for the two location uses (below).
   - Neither has `ACCESS_BACKGROUND_LOCATION` (removed in `app/src/main/AndroidManifest.xml`) or a
@@ -181,7 +181,7 @@ v0.5.0 three of them (`offline`, `public`, `labor`), plus the internal `laborKar
 | | `offline` and `public` (the two published editions) | `labor` |
 |---|---|---|
 | App id / name | `ch.lessnoise.app`, «Weniger Lärm» (0.6.0; before `ch.stadtlaerm.app`, «Stadtlärm») | `ch.lessnoise.labor`, «Weniger Lärm Labor» (red icon; before `ch.stadtlaerm.labor`) |
-| Published | yes: `stadtlaerm.apk` and `stadtlaerm-karte.apk` in `docs/download/` on wenigerlaerm.ch | **never**: not in `docs/`, not in a release, not linked from the website |
+| Published | yes: `lessnoise.apk` and `lessnoise-karte.apk` in `docs/download/` on wenigerlaerm.ch | **never**: not in `docs/`, not in a release, not linked from the website |
 | Can record audio | no — the code does not exist in these apps | yes, only after switching it on, see below |
 
 The Labor build exists to debug the event detector and the sound-source classifier with real
@@ -213,7 +213,7 @@ The Labor build has no network access: its manifest (`app/src/labor/AndroidManif
 for a phone that measures in someone else's home: it cannot send anything.
 
 **How to verify** (on **both** published APKs: `app/build/outputs/apk/offline/release/app-offline-release.apk`
-= `stadtlaerm.apk` and `app/build/outputs/apk/public/release/app-public-release.apk` = `stadtlaerm-karte.apk`;
+= `lessnoise.apk` and `app/build/outputs/apk/public/release/app-public-release.apk` = `lessnoise-karte.apk`;
 the commands below use the second name, run them on each):
 
 1. Source: `find android/app/src -path '*labor*'` lists the only recording code;
@@ -303,8 +303,8 @@ technical reasons, see the
 Since 0.6.1 the app's «Mehr dazu» links open `anleitung.html#messen`, `#kalibrieren`, `#teilen`,
 `#daten` and `datenschutz.html` in the browser: plain links, nothing appended. The German privacy page is [docs/datenschutz.html](docs/datenschutz.html).
 
-**Downloads.** Both APKs are served from the website itself (`docs/download/stadtlaerm.apk` =
-«Weniger Lärm», `docs/download/stadtlaerm-karte.apk` = «Weniger Lärm · Karte»), i.e. by GitHub Pages like
+**Downloads.** Both APKs are served from the website itself (`docs/download/lessnoise.apk` =
+«Weniger Lärm», `docs/download/lessnoise-karte.apk` = «Weniger Lärm · Karte»), i.e. by GitHub Pages like
 every page of the site. GitHub sees the requesting IP address as for any page view; the project
 counts nothing. (`scripts/download_stats.py` reads GitHub Release download counts and only has
 something to report if a version is ever also attached to a GitHub Release.)
@@ -340,5 +340,5 @@ attached to a GitHub Release.)
 **Not counted:** downloads, and anything about the offline edition — it has no internet
 permission and cannot report anything, by design; the Karte edition with sharing switched off;
 app starts, measurements, crashes or versions of apps that do not share; downloads of
-`docs/download/stadtlaerm.apk`. `scripts/usage_report.py` combines both sources into one short
+`docs/download/lessnoise.apk`. `scripts/usage_report.py` combines both sources into one short
 text report.

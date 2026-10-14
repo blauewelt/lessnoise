@@ -3,8 +3,8 @@
 
 The APKs are attached to a GitHub Release per version (tag vX.Y.Z) under fixed names:
 
-    stadtlaerm.apk        Offline-Version (no internet permission)  → edition "offline"
-    stadtlaerm-karte.apk  Karten-Version («Messwerte teilen»)        → edition "karte"
+    lessnoise.apk (until 0.6.1 stadtlaerm.apk)              Offline-Version (no internet permission)  → edition "offline"
+    lessnoise-karte.apk (until 0.6.1 stadtlaerm-karte.apk)  Karten-Version («Messwerte teilen»)        → edition "karte"
 
 GitHub counts every download of a release asset (`download_count`). These are downloads, not
 people: one person downloading twice counts twice, and an update downloaded again counts again.
@@ -36,7 +36,9 @@ from collections.abc import Callable
 REPO = "blauewelt/stadtlaerm"
 API = "https://api.github.com"
 PER_PAGE = 100
-EDITIONS = {"stadtlaerm.apk": "offline", "stadtlaerm-karte.apk": "karte"}
+EDITIONS = {"lessnoise.apk": "offline", "lessnoise-karte.apk": "karte",
+            # file names up to 0.6.1
+            "stadtlaerm.apk": "offline", "stadtlaerm-karte.apk": "karte"}
 EDITION_ORDER = ("offline", "karte", "andere")
 
 
