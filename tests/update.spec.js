@@ -155,7 +155,7 @@ test("the home page links the same two release files as update.html", async ({ p
   await expect(page.locator("#download a.button-secondary")).toHaveAttribute("href", d.offline);
   await expect(page.locator("#download a.button-secondary")).toHaveText("Offline-Version herunterladen");
   await expect(page.locator("#version")).toHaveText(
-    "Die Online-Version misst, teilt auf Wunsch mit der Lärmkarte und meldet unterwegs. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: ohne Internet und ohne Standort, dafür ohne Karte und Meldungen.");
+    "Die Online-Version erlaubt es, zur Lärmkarte beizutragen und unterwegs Meldungen zu machen. Die Offline-Version ist für alle, die noch mehr Privatsphäre möchten: Sie hat weder Internet- noch Standortzugriff und kann nur für eigene, private Messungen verwendet werden.");
   // Both version strings agree; the home page shows only the version line, the facts are on anleitung.html.
   await expect(page.locator("#download .release")).toHaveText(`Version ${d.version}, Android 8 oder neuer.`);
   await expect(page.locator(".facts")).toHaveCount(0);

@@ -82,7 +82,7 @@ test("the home page: two buttons, which to choose, the version line and the link
   await page.goto("/");
   await expect(page.locator("#download a.button")).toHaveCount(2);
   // Online-Version first (the default), the Offline-Version as the more private alternative.
-  await expect(page.locator("#version")).toContainText(/^Die Online-Version .* nimmt die Offline-Version:/);
+  await expect(page.locator("#version")).toContainText(/^Die Online-Version .* Die Offline-Version ist für alle, die noch mehr Privatsphäre möchten:/);
   await expect(page.locator("#download a.button").first()).toHaveText("Online-Version herunterladen");
   await expect(page.locator("#download .release")).toHaveText("Version 0.6.1, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
