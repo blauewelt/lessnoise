@@ -155,6 +155,8 @@ final class BundleTests: XCTestCase {
 }
 
 final class WebKitTests: XCTestCase {
+    /** WebKit wants the main thread (run 38803618975: a trap when this ran on a background executor). */
+    @MainActor
     func testContentRuleListCompilesInWebKit() async throws {
         let store = try XCTUnwrap(WKContentRuleListStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("rules-\(UUID().uuidString)")))
         let list = try await store.compileContentRuleList(forIdentifier: "test", encodedContentRuleList: MapPolicy.contentRules())

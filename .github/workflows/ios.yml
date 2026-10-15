@@ -102,6 +102,7 @@ jobs:
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \
             -resultBundlePath build/WenigerLaermTests.xcresult \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
             CODE_SIGNING_ALLOWED=NO > test.log 2>&1; status=$?
           grep -E "error:|Test Case .* failed|Executed|\*\* .* \*\*" test.log | head -150
           exit $status

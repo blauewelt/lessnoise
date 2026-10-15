@@ -62,6 +62,16 @@ simulator tests without signing; the test summary is in the run's summary, logs 
 4. Select the iPhone as destination and run (⌘R). The first launch on a device needs
    Settings → General → VPN & Device Management → trust the developer (only for development builds).
 
+## Classifier (not built in yet)
+
+The owner chose TensorFlow Lite with Android's `yamnet.tflite` (DESIGN.md §9). There is no official
+Swift Package Manager distribution of it, so this version runs with the classifier off (categories
+empty, as on Android with the classifier off; «Sehr laut» needs the categories and stays silent).
+`App/Platform/YamnetClassifier.swift` is ready behind `#if canImport(TensorFlowLite)`: once the
+`TensorFlowLite` module is linked to the app target (TensorFlowLiteSwift through CocoaPods, or an
+xcframework built from source) and `../android/app/src/main/assets/yamnet.tflite` is added as a
+resource in `project.yml`, `ClassifierFactory` uses it — that file has never been compiled yet.
+
 ## TestFlight (owner)
 
 1. App Store Connect → My Apps → «+» → New App: platform iOS, name «Weniger Lärm», primary
