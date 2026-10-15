@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -281,27 +281,53 @@ def delete_device(conn: sqlite3.Connection, device_id: str) -> None:
 # ---- reads for aggregation ---------------------------------------------------------------
 
 
+def _utc_hours(utc_hours: Collection[int] | None) -> tuple[str, list[int]]:
+    """SQL filter on the UTC clock hour (0–23) of `start_utc`, for [load_minutes] / [load_events]."""
+    if utc_hours is None:
+        return "", []
+    hours = sorted(set(utc_hours))
+    return f" AND (start_utc / {agg.HOUR_MS}) % 24 IN ({','.join('?' * len(hours))})", hours
+
+
 def load_minutes(
-    conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int, default_cell: str | None = None
+    conn: sqlite3.Connection,
+    device_id: str,
+    start_ms: int,
+    end_ms: int,
+    default_cell: str | None = None,
+    utc_hours: Collection[int] | None = None,
 ) -> list[agg.Minute]:
-    """`cell` is the record's own hectare, else `default_cell` (the publisher passes the site cell)."""
-    rows = conn.execute(
-        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated, cell FROM minutes "
-        "WHERE device_id = ? AND start_utc >= ? AND start_utc < ? ORDER BY start_utc",
-        (device_id, start_ms, end_ms),
+    """`cell` is the record's own hectare, else `default_cell` (the publisher passes the site cell).
+    With `utc_hours`, only the minutes that start in those UTC clock hours (0–23)."""
+    where, hours = _utc_hours(utc_hours)
+    # Plain tuples straight into the NamedTuple (no sqlite3.Row): this runs once per stored minute.
+    cur = conn.cursor()
+    cur.row_factory = None
+    cur.execute(
+        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated <> 0, COALESCE(cell, ?) "
+        f"FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        (default_cell, device_id, start_ms, end_ms, *hours),
     )
-    return [agg.Minute(r[0], r[1], r[2], r[3], r[4], r[5], bool(r[6]), r[7] or default_cell) for r in rows]
+    return list(map(agg.Minute._make, cur))
 
 
 def load_events(
-    conn: sqlite3.Connection, device_id: str, start_ms: int, end_ms: int, default_cell: str | None = None
+    conn: sqlite3.Connection,
+    device_id: str,
+    start_ms: int,
+    end_ms: int,
+    default_cell: str | None = None,
+    utc_hours: Collection[int] | None = None,
 ) -> list[agg.Event]:
-    rows = conn.execute(
-        "SELECT start_utc, lafmax_db, category, cell FROM events "
-        "WHERE device_id = ? AND start_utc >= ? AND start_utc < ? ORDER BY start_utc",
-        (device_id, start_ms, end_ms),
+    where, hours = _utc_hours(utc_hours)
+    cur = conn.cursor()
+    cur.row_factory = None
+    cur.execute(
+        "SELECT start_utc, lafmax_db, category, COALESCE(cell, ?) FROM events "
+        f"WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        (default_cell, device_id, start_ms, end_ms, *hours),
     )
-    return [agg.Event(r[0], r[1], r[2], r[3] or default_cell) for r in rows]
+    return list(map(agg.Event._make, cur))
 
 
 def _place(d: dict, rec: MinuteIn | EventIn) -> None:

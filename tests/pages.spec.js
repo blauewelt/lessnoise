@@ -167,7 +167,8 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 14. Oktober 2026",
+    "Stand: 15. Oktober 2026",
+    "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
     "Art, Zeit und den ungefähren Ort", // what the phone keeps of a sent report
   ]) {
     expect(text, fact).toContain(fact);

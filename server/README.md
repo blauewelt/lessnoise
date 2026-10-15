@@ -1,8 +1,8 @@
 # Weniger Lärm contribution server
 
 The server behind the shared noise map: phones that opted in to «Messwerte teilen» send their
-minute and event records and their manual reports here, and every 10 minutes the server turns
-them into per-hectare figures per calendar day (plus a 24-hour profile per hectare) and a list
+minute and event records and their manual reports here, and every 30 seconds (when something
+new arrived) the server turns them into per-hectare figures per calendar day (plus a 24-hour profile per hectare) and a list
 of the reports of the last 30 days, which the map page reads as static JSON. [DESIGN.md](DESIGN.md) is the contract;
 this file is about running it.
 
@@ -78,8 +78,12 @@ low-coverage minutes, two- and three-device cells, the 24-hour profile and its 3
 the v2 → v3 migration (rows kept), the Caddy/compose host list, publishing, retention, the
 deletion of devices without uploads for 60 days (`tests/test_expiry.py`: 61 days deleted with
 every row, 59 kept, `created_at` when never seen, 0 disables, hidden devices, separate counter,
-map after publish, log line, CLI), and the usage counts of `stats.json` (every field, after a
-delete and after retention).
+map after publish, log line, CLI), the usage counts of `stats.json` (every field, after a
+delete and after retention), and the 30-second cycle (`tests/test_live_publish.py`: which run a
+change triggers — none, incremental or full; full after 10 minutes, after local midnight, after
+a delete, a new site or a change of `hidden`; every file an incremental run writes equals a full
+run's, also over random cycles; a failed run keeps its changes), plus `304 Not Modified` for the
+map files and the rate-limit default.
 
 ## The API in one screen
 
@@ -91,7 +95,7 @@ delete and after retention).
 | `POST /v1/devices/{id}/events` `[…≤ 2000]` | Bearer | `200 {accepted, duplicates, rejected}` |
 | `POST /v1/devices/{id}/reports` `[…≤ 50]` (DESIGN §4.7) | Bearer | `200 {accepted, duplicates, rejected}` |
 | `DELETE /v1/devices/{id}` | Bearer | `204` after every row is gone |
-| `GET /v1/map/cells.json`, `/v1/map/cells/{cell}.json`, `/v1/map/days/{date}.json`, `/v1/map/reports.json` | – | static JSON |
+| `GET /v1/map/cells.json`, `/v1/map/cells/{cell}.json`, `/v1/map/days/{date}.json`, `/v1/map/reports.json` | – | static JSON, `Cache-Control: max-age=15`, `ETag`/`Last-Modified`; `304` without body for a matching `If-None-Match` / `If-Modified-Since` |
 | `GET /v1/map/stats.json` | – | static JSON: project-wide usage counts (below) |
 | `GET /healthz` | – | `{ok: true, commit}` (the deployed git commit) |
 
@@ -208,12 +212,42 @@ make the checkout fail (the log says so); keep server-only settings in the untra
 `sudo docker compose exec app python -m stadtlaerm_server stats`.
 Keep a misbehaving device out of the map without deleting its data:
 `sudo docker compose exec app sqlite3 /data/stadtlaerm.sqlite "UPDATE devices SET hidden = 1 WHERE id = '…'"`
-(it disappears on the next publish; its owner can still delete it).
+(it disappears on the next publish cycle, a full one, within about 30 seconds; its owner can still delete it).
 
 **Cloud Run alternative** (DESIGN §8): the same image runs on Google Cloud Run in
 `europe-west6` with a volume mounted at `/data`; set `TRUST_PROXY=1`, keep one instance
 (`--max-instances 1`, SQLite and the in-process rate limits assume a single process) and
 `--no-cpu-throttling` so the background loop keeps running between requests.
+
+### After the update to the 30-second map (for app 0.6.3): check `.env`
+
+Production reads `/opt/stadtlaerm/server/.env`, and a line there wins over the built-in
+default. If that file was copied from an older `.env.example`, it contains
+
+```
+PUBLISH_INTERVAL_S=600
+REQUESTS_PER_DEVICE_PER_HOUR=60
+```
+
+and the server keeps publishing every 10 minutes and refuses phones of app 0.6.3 after 60
+requests an hour (`429`). Change the two lines to the new values (or delete them, then the
+defaults apply):
+
+```sh
+cd /opt/stadtlaerm/server
+sudo grep -nE 'PUBLISH_INTERVAL_S|REQUESTS_PER_DEVICE_PER_HOUR' .env
+sudo sed -i -e 's/^PUBLISH_INTERVAL_S=.*/PUBLISH_INTERVAL_S=30/' \
+            -e 's/^REQUESTS_PER_DEVICE_PER_HOUR=.*/REQUESTS_PER_DEVICE_PER_HOUR=360/' .env
+sudo GIT_COMMIT=$(sudo git -C /opt/stadtlaerm rev-parse --short=12 HEAD) docker compose up -d
+```
+
+The last line recreates the app container with the new `.env` (plain `sudo docker compose up -d`
+works too, but `/healthz` then says `"commit": "unknown"` until the next automatic deployment).
+
+`.env` is not tracked by git, so the automatic deployment never changes it; but it is read
+whenever the container is (re)created, so the next deployment (the timer, after any push to
+the deployed branch) applies an edited `.env` too. Check with
+`sudo docker compose exec app env | grep -E 'PUBLISH|REQUESTS'`.
 
 ## Environment variables
 
@@ -223,14 +257,14 @@ Keep a misbehaving device out of the map without deleting its data:
 | `MAP_DIR` | `data/map` (container: `/data/map`) | Folder the published map files are written to and served from under `/v1/map/`. |
 | `MIN_DEVICES_PER_CELL` | `1` | A hectare is shown on the map for a day (and an hour of its 24-hour profile has values) only if at least this many devices measured there. Raise it if the network becomes dense. Does not apply to reports. |
 | `LOUD_EVENT_DB` | `75` | An event with LAFmax ≥ this (dB(A)) counts as a «loud event» (`loud_events`, `loud_events_per_h`; published as `loud_event_db`). |
-| `PUBLISH_INTERVAL_S` | `600` | How often (seconds) the map files are rebuilt. They are also rebuilt at startup. |
+| `PUBLISH_INTERVAL_S` | `30` | How often (seconds, start to start) the publish cycle runs. A cycle with nothing new since the last one writes nothing; one with only new records rewrites only the files they change; a full rebuild runs at startup, at least every 10 minutes, on the first cycle after local midnight and after a delete, a new site or a change of `hidden` (DESIGN §6, «Publish cadence»). Until release 0.6.2 the default was `600`. |
 | `BACKGROUND_JOBS` | `1` | `1` runs the publish loop and the daily retention job inside the server process; `0` turns them off (tests, or if you run `publish`/`retention` from cron instead). |
 | `RETENTION_DAYS` | `730` | Raw minutes and events older than this are reduced to hourly figures and deleted; reports older than this are deleted (2 years per DESIGN §5). |
 | `INACTIVE_DELETE_DAYS` | `60` | A device with no authenticated request (upload, site) for this many days is deleted with all its data in the daily job, like a deletion by its owner (DESIGN §2.9, §5); counted in `devices_expired_total`. `0` disables it. |
 | `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
 | `TRUST_PROXY` | `0` (compose: `1`) | `1` takes the client IP for the registration limit from the `X-Forwarded-For` header set by Caddy. Only turn on behind a proxy you control, otherwise clients could fake their IP. |
 | `REGISTRATIONS_PER_IP_PER_DAY` | `10` | How many new device ids one IP address may create per day. |
-| `REQUESTS_PER_DEVICE_PER_HOUR` | `60` | How many authenticated requests one device may make per hour (deleting is never limited). |
+| `REQUESTS_PER_DEVICE_PER_HOUR` | `360` | How many authenticated requests one device may make per hour (deleting is never limited). App 0.6.3 sends loud events about 30 s after they end and minutes every 2 minutes. Until release 0.6.2 the default was `60`. |
 | `MAX_BODY_BYTES` | `2000000` | Largest request body accepted, as sent (compressed). A gzip body may expand to 8× this. |
 | `MAX_RECORD_AGE_DAYS` | `7` | Minute, event and report records older than this are rejected. |
 | `CLOCK_SKEW_S` | `600` | How far in the future a record's start (a report's time) may be (phone clock drift) before it is rejected as "in the future". |
@@ -245,8 +279,8 @@ Keep a misbehaving device out of the map without deleting its data:
 
 These are choices the design left open; the website builds against them (see the fixtures).
 
-- **Which day.** `cells.json` ends with *today* (local time), still running: it is rebuilt
-  every 10 minutes, so new data appears within minutes. `generated_at` is local time with
+- **Which day.** `cells.json` ends with *today* (local time), still running: the cycle runs
+  every 30 seconds, so new data appears within about a minute of its upload. `generated_at` is local time with
   offset. `default_period` is `last_7_days`.
 - **Cells without data today** stay on the map while they have any data in the last 30 days;
   their `day` is `null`; `devices` / `calibrated` of the entry are the distinct devices / all

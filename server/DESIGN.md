@@ -93,6 +93,11 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    not on which day. Report times are rounded down to the full hour (rule 10). Device models
    are published only as counts per model over the whole network («Beteiligte Geräte»), never
    per cell. The usage figures of `stats.json` (§6.5) are likewise whole-network counts only.
+   Risk that remains since the 30-second map (§6, «Publish cadence»): the published counts of
+   the current day and the hour profile update about every 30 seconds, so someone who watches
+   a field with a single contributor can tell to within about a minute when a loud event was
+   measured there; still never a list of events, never a device id, never the exact time.
+   datenschutz.html and PRIVACY.md say the same.
 9. **Data of a silent device does not stay.** When no authenticated request has arrived
    from a device for 60 days (`INACTIVE_DELETE_DAYS`), the server deletes every row of it,
    reports included, exactly as in rule 4, and the map is rebuilt without it. «Without
@@ -404,17 +409,44 @@ Backups: nightly SQLite `.backup` to encrypted object storage in Switzerland, 30
 
 ## 6. Published aggregates (what the website reads)
 
-Rebuilt every 10 minutes and written as static JSON files served with
-`Cache-Control: max-age=300` under `/v1/map/` (on both API hosts). The website only ever reads
-these. Times are Europe/Zurich local time with offset.
+Written as static JSON files served under `/v1/map/` (on both API hosts) with
+`Cache-Control: max-age=15`, an `ETag` and a `Last-Modified`; a request with a matching
+`If-None-Match` (or, without it, `If-Modified-Since`) gets `304 Not Modified` without a body.
+The website only ever reads these. Times are Europe/Zurich local time with offset.
+
+**Publish cadence.** A publish cycle runs every 30 seconds (`PUBLISH_INTERVAL_S`), because
+app 0.6.3 sends a loud event about 30 seconds after it ends and minute values every 2 minutes,
+and the map page reloads every 30 seconds while it is visible. The API notes in memory what it
+committed (a change marker in the one server process): which device sent records starting in
+which hours, whether reports or registrations arrived, whether a site changed or a device was
+deleted. Each cycle then does one of three things:
+
+- **nothing**, if nothing was noted since the last cycle and the hidden devices are the same
+  (no file is touched, so their `ETag`s stay);
+- **an incremental rebuild**, if only records, reports or registrations arrived: the touched
+  devices' days and clock hours are summarised again, and only the files they change are
+  written — the touched cells' files, the day files from the oldest touched day to today,
+  `cells.json`, and `reports.json` / `stats.json` if their content changed;
+- **a full rebuild** of every file from the database: at startup, on the first cycle after
+  local midnight (the windows end today), at least every 10 minutes, and at once after a
+  deletion (a device's own or the 60-day expiry, rule 9), a new or moved site (records without
+  their own cell move with it), a change of the `hidden` flags, or a failed cycle.
+
+An incremental rebuild writes exactly what a full rebuild would write into the files it
+writes (tested). What it leaves for the next full rebuild, at most 10 minutes later:
+`generated_at` of the files it does not write, the `network` block of day files older than
+the oldest touched day, and devices that drop out of the 7- and 30-day counts only because time
+passed. A full rebuild of 100 devices with 30 days of round-the-clock minutes takes about 26 s
+on a 2-core machine, an incremental one with all 100 devices touched about 2 s, one device
+0.05 s (server/README.md).
 
 **Days, not nights.** The unit is the **calendar day in local time** (Europe/Zurich): 00:00 to
 00:00, so 24 h, or 23 h / 25 h on the days the clocks change, all hours. A record belongs to
 the day its start falls in, and to its cell (its display cell or own cell, else the site's,
 §3, §4.3); a measurement
 over midnight counts for both days, each with its own minutes. The newest day is **today**
-(still running; the files are rebuilt every 10 minutes), so a contributor sees today's data on
-the map within minutes.
+(still running; the files are rebuilt about every 30 seconds while data arrives), so a
+contributor sees today's data on the map within about a minute.
 
 **Per device and day** (the app's rules, with the 22–6 h restriction removed):
 
@@ -650,11 +682,17 @@ Alternative if a managed service is preferred: Google Cloud Run in `europe-west6
 with the SQLite file on a mounted volume — the container does not change. Deployment is
 `docker compose up`; `server/README.md` documents it.
 
-Abuse limits: 10 device registrations per IP per day, 60 requests per device per hour (reports
-included), request body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage
-outside 0–1, starts or report times more than 7 days old or in the future, cells, measurement
+Abuse limits: 10 device registrations per IP per day, 360 requests per device per hour (reports
+included; until release 0.6.2 it was 60 — app 0.6.3 uploads every 30 s to 2 min), request
+body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage outside 0–1, starts or report times more than 7 days old or in the future, cells, measurement
 points or report points outside Switzerland, a σ other than 25/50/100/200 m are rejected with the
 reason).
+
+Caching: the map files under `/v1/map/` carry `Cache-Control: max-age=15` (until release 0.6.2:
+300), an `ETag` and a `Last-Modified`, and a conditional request for an unchanged file gets
+`304 Not Modified` without a body (§6). No CDN; Caddy compresses (`encode gzip`) and passes the
+headers on — if it appends the coding to the ETag (`"…-gzip"`), the server accepts that form
+too.
 
 ## 9. App changes (public flavour)
 

@@ -29,6 +29,8 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from functools import lru_cache
+from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 ZONE = ZoneInfo("Europe/Zurich")
@@ -56,8 +58,9 @@ CATEGORIES: tuple[str, ...] = (
 # ---- input records ------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class Minute:
+# NamedTuples, not frozen dataclasses: the publisher creates one per stored minute, and a
+# NamedTuple is more than twice as cheap to create. Both are immutable and compare by value.
+class Minute(NamedTuple):
     start_ms: int  # UTC epoch milliseconds
     valid_s: float
     coverage: float
@@ -72,8 +75,7 @@ class Minute:
         return self.coverage >= MIN_MINUTE_COVERAGE and self.laeq_db is not None and self.valid_s > 0
 
 
-@dataclass(frozen=True)
-class Event:
+class Event(NamedTuple):
     start_ms: int  # UTC epoch milliseconds
     lafmax_db: float
     category: str
@@ -118,13 +120,29 @@ def local(ms: int, zone: ZoneInfo = ZONE) -> datetime:
     return datetime.fromtimestamp(ms / 1000, zone)
 
 
+# Since June 1894 every offset of Europe/Zurich is a whole number of hours, so all instants of one
+# UTC hour share the local date and clock hour: the publisher asks this once per hour, not once
+# per minute (the same results, about a third of a full publish run saved).
+_ZONE_WHOLE_HOURS_FROM_MS = -2_366_755_200_000  # 1895-01-01 UTC (CET since 1 June 1894)
+
+
+@lru_cache(maxsize=1 << 16)
+def _zurich_hour(hour_index: int) -> tuple[date, int]:
+    t = datetime.fromtimestamp(hour_index * 3600, ZONE)
+    return t.date(), t.hour
+
+
 def day_of(ms: int, zone: ZoneInfo = ZONE) -> date:
     """Local calendar date of the instant."""
+    if zone is ZONE and ms >= _ZONE_WHOLE_HOURS_FROM_MS:
+        return _zurich_hour(ms // HOUR_MS)[0]
     return local(ms, zone).date()
 
 
 def hour_of_day(ms: int, zone: ZoneInfo = ZONE) -> int:
     """Local clock hour 0–23 (the autumn change has two hours «02», the spring one none)."""
+    if zone is ZONE and ms >= _ZONE_WHOLE_HOURS_FROM_MS:
+        return _zurich_hour(ms // HOUR_MS)[1]
     return local(ms, zone).hour
 
 

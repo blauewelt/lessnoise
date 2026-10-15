@@ -14,14 +14,17 @@ import logging
 import os
 import secrets
 import sqlite3
+import threading
+import time
 import uuid
 import zlib
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from datetime import UTC, datetime, timedelta
+from email.utils import formatdate, parsedate_to_datetime
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from . import db, publish, retention
@@ -58,6 +61,31 @@ def _reasons(err: ValidationError) -> list[dict[str, str]]:
     ]
 
 
+# Cache-Control max-age of the map files (DESIGN.md §6, §8): the map page polls every 30 s.
+MAP_MAX_AGE_S = 15
+
+
+def not_modified(request: Request, etag: str, mtime_s: int) -> bool:
+    """RFC 9110 §13.1: If-None-Match (weak comparison) wins; If-Modified-Since only without it."""
+    inm = request.headers.get("if-none-match")
+    if inm is not None:
+        tags = [t.strip().removeprefix("W/") for t in inm.split(",")]
+        # A proxy that compresses (Caddy's `encode gzip`) may hand the browser our tag with the
+        # coding appended ("…-gzip"); the browser sends that back. Same file, same answer.
+        coded = {f'{etag[:-1]}-{c}"' for c in ("gzip", "zstd", "br")}
+        return "*" in tags or any(t == etag or t in coded for t in tags)
+    ims = request.headers.get("if-modified-since")
+    if ims:
+        try:
+            since = parsedate_to_datetime(ims)
+        except (TypeError, ValueError):
+            return False
+        if since.tzinfo is None:
+            return False  # not an HTTP date
+        return mtime_s <= since.timestamp()
+    return False
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     registrations = TokenBuckets(settings.registrations_per_ip_per_day, 86_400)
@@ -66,11 +94,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     with db.open_db(settings.db_path) as conn:
         db.migrate(conn)
 
-    def publish_once() -> None:
-        with db.open_db(settings.db_path) as conn:
-            publish.publish(
-                conn, settings.map_dir, min_devices=settings.min_devices_per_cell, loud_db=settings.loud_event_db
-            )
+    # The change marker (publish.Changes): the handlers note what they committed; the publish
+    # cycle takes the notes and rebuilds only when something changed (DESIGN.md §6).
+    changes = publish.Changes()
+    publisher = publish.Publisher(settings.map_dir, settings.min_devices_per_cell, settings.loud_event_db)
+    publish_lock = threading.Lock()
+
+    def _publishing(run: Callable[[sqlite3.Connection, publish.Pending], str]) -> str:
+        with publish_lock:
+            pending = changes.take()  # before reading the database: a later note waits for the next run
+            try:
+                with db.open_db(settings.db_path) as conn:
+                    return run(conn, pending)
+            except BaseException:
+                changes.put_back(pending)
+                raise
+
+    def publish_once(now: datetime | None = None) -> None:
+        """A full rebuild now (after expiry; tests)."""
+
+        def run(conn: sqlite3.Connection, _: publish.Pending) -> str:
+            publisher.full(conn, now or datetime.now(UTC))
+            return "full"
+
+        _publishing(run)
+
+    def publish_cycle(now: datetime | None = None) -> str:
+        """One background cycle: "full", "incremental" or "skipped" (publish.Publisher.run)."""
+        return _publishing(lambda conn, pending: publisher.run(conn, now or datetime.now(UTC), pending))
 
     def retention_once() -> int:
         """Retention and expiry (DESIGN.md §5); returns the number of expired devices."""
@@ -81,8 +132,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def background() -> None:
         last_retention: datetime | None = None
         while True:
+            started = time.monotonic()
             try:
-                await asyncio.to_thread(publish_once)
+                result = await asyncio.to_thread(publish_cycle)
+                if result != "skipped":
+                    log.debug("publish: %s in %.1f s", result, time.monotonic() - started)
                 now = datetime.now(UTC)
                 if last_retention is None or now - last_retention >= timedelta(days=1):
                     if await asyncio.to_thread(retention_once):
@@ -91,9 +145,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     last_retention = now
                 registrations.prune()
                 device_requests.prune()
-            except Exception:  # keep the loop alive; the next run tries again
+            except Exception:  # keep the loop alive; the next run tries again (a full one)
                 log.exception("background job failed")
-            await asyncio.sleep(settings.publish_interval_s)
+            # Every PUBLISH_INTERVAL_S from start to start; a run that took longer is followed at once.
+            await asyncio.sleep(max(0.0, settings.publish_interval_s - (time.monotonic() - started)))
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -107,6 +162,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Weniger Lärm contribution API", version="1", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.publish_once = publish_once
+    app.state.publish_cycle = publish_cycle
+    app.state.changes = changes
+    app.state.publisher = publisher
     app.state.retention_once = retention_once
     app.state.registrations = registrations
     app.state.device_requests = device_requests
@@ -244,12 +302,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 (device_id, hash_token(token), body.app_version, body.app_build, db.utc_now_iso(), db.utc_now_iso()),
             )
+        changes.registered()  # stats.json counts devices
         return DeviceOut(device_id=device_id, token=token)
 
     @app.put("/v1/devices/{device_id}/site", status_code=204)
     async def put_site(device_id: str, request: Request, conn: Conn, authorization: Auth = None) -> Response:
         authenticate(device_id, conn, authorization)
         s = validate(SiteIn, await read_body(request))
+        before = conn.execute("SELECT cell, device_model FROM sites WHERE device_id = ?", (device_id,)).fetchone()
         with conn:
             conn.execute(
                 "INSERT INTO sites (device_id, cell, point_e, point_n, sigma_m, placement, floor, street_facing, "
@@ -271,6 +331,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     db.utc_now_iso(),
                 ),
             )  # fmt: skip
+        # The map uses the site's cell (for records without their own) and its phone model; a new or
+        # changed one moves data between cells, which only a full rebuild gets right. The other
+        # fields are not published.
+        if before is None or tuple(before) != (s.display_cell, s.device_model):
+            changes.structural()
         return Response(status_code=204)
 
     @app.post("/v1/devices/{device_id}/minutes", response_model=UploadResult)
@@ -282,6 +347,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         with conn:
             accepted, duplicates = db.upsert_rows(conn, "minutes", db.MINUTE_COLUMNS, rows)
+        changes.records(device_id, (r["start_utc"] for r in rows))
         return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
 
     @app.post("/v1/devices/{device_id}/events", response_model=UploadResult)
@@ -293,6 +359,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         with conn:
             accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, rows)
+        changes.records(device_id, (r["start_utc"] for r in rows))
         return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
 
     @app.post("/v1/devices/{device_id}/reports", response_model=UploadResult)
@@ -305,6 +372,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         with conn:
             accepted, duplicates = db.upsert_rows(conn, "reports", db.REPORT_COLUMNS, rows, key="time_utc")
+        if rows:
+            changes.reports()
         return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
 
     @app.delete("/v1/devices/{device_id}", status_code=204)
@@ -312,6 +381,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Never rate limited: deleting one's data must always work (DESIGN.md §2.4).
         authenticate(device_id, conn, authorization, rate_limit=False)
         db.delete_device(conn, device_id)
+        changes.structural()  # gone from every file on the next cycle, ≤ PUBLISH_INTERVAL_S (§2 rule 4)
         return Response(status_code=204)
 
     # ---- the public map files -------------------------------------------------------------
@@ -323,7 +393,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         origin = request.headers.get("origin", "")
         allowed = settings.cors_origins
         return {
-            "Cache-Control": "max-age=300",
+            # Short, because the files change every 30 s while people measure; a browser then asks
+            # again with If-None-Match / If-Modified-Since and mostly gets an empty 304.
+            "Cache-Control": f"max-age={MAP_MAX_AGE_S}",
             "Access-Control-Allow-Origin": origin if origin in allowed else allowed[0],
             "Vary": "Origin",
         }
@@ -332,9 +404,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def map_file(path: str, request: Request) -> Response:
         root = settings.map_dir.resolve()
         target = (root / path).resolve()
+        headers = map_headers(request)
         if root not in target.parents or target.suffix != ".json" or not target.is_file():
-            return JSONResponse({"detail": "not found"}, status_code=404, headers=map_headers(request))
-        return FileResponse(target, media_type="application/json", headers=map_headers(request))
+            return JSONResponse({"detail": "not found"}, status_code=404, headers=headers)
+        try:
+            # Open first, then stat the open file: the publisher replaces files atomically, so the
+            # validators always describe exactly the bytes sent.
+            with open(target, "rb") as f:
+                st = os.fstat(f.fileno())
+                headers["ETag"] = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+                headers["Last-Modified"] = formatdate(st.st_mtime, usegmt=True)
+                if not_modified(request, headers["ETag"], int(st.st_mtime)):
+                    return Response(status_code=304, headers=headers)
+                body = f.read()
+        except FileNotFoundError:  # removed by the publisher just now
+            return JSONResponse({"detail": "not found"}, status_code=404, headers=headers)
+        return Response(body, media_type="application/json", headers=headers)
 
     return app
 

@@ -17,14 +17,14 @@ class Settings:
     map_dir: Path = Path("data/map")
     min_devices_per_cell: int = 1
     loud_event_db: float = 75.0  # an event with LAFmax ≥ this counts as a «loud event» (DESIGN.md §6)
-    publish_interval_s: float = 600.0
+    publish_interval_s: float = 30.0  # a cycle with nothing new is skipped (publish.Publisher.run)
     background_jobs: bool = True
     retention_days: int = 730
     inactive_delete_days: int = 60
     cors_origin: str = "https://wenigerlaerm.ch,https://stadtlaerm.ch"  # comma-separated
     trust_proxy: bool = False
     registrations_per_ip_per_day: int = 10
-    requests_per_device_per_hour: int = 60
+    requests_per_device_per_hour: int = 360  # an upload every 30 s, minutes every 2 min, reports
     max_body_bytes: int = 2_000_000
     max_record_age_days: int = 7
     clock_skew_s: float = 600.0

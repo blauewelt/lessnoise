@@ -242,13 +242,76 @@ def test_map_files_are_served_with_cache_and_cors(make_client, settings):
     (settings.map_dir / "cells" / "h26824_12473.json").write_text("{}")
     r = client.get("/v1/map/cells.json")
     assert r.status_code == 200 and r.json() == {"cells": []}
-    assert r.headers["cache-control"] == "max-age=300"
+    assert r.headers["cache-control"] == "max-age=15"
     assert r.headers["access-control-allow-origin"] == "https://example.test"
     assert r.headers["content-type"].startswith("application/json")
     assert client.get("/v1/map/cells/h26824_12473.json").status_code == 200
     assert client.get("/v1/map/missing.json").status_code == 404
     assert client.get("/v1/map/../db.sqlite").status_code == 404
     assert client.get("/v1/map/%2e%2e/db.sqlite").status_code == 404
+
+
+def test_map_files_answer_conditional_requests_with_304(make_client, settings):
+    """The map page polls every 30 s; an unchanged file costs an empty 304 (DESIGN.md §6, §8)."""
+    import os
+
+    client = make_client(cors_origin="https://example.test")
+    settings.map_dir.mkdir(parents=True)
+    path = settings.map_dir / "cells.json"
+    path.write_text('{"cells": []}')
+    os.utime(path, (1_792_000_000, 1_792_000_000))
+    r = client.get("/v1/map/cells.json")
+    assert r.status_code == 200
+    etag, last_modified = r.headers["etag"], r.headers["last-modified"]
+    assert etag.startswith('"') and last_modified == "Wed, 14 Oct 2026 17:46:40 GMT"
+
+    def get(**headers):
+        return client.get("/v1/map/cells.json", headers=headers)
+
+    for r in (
+        get(**{"If-None-Match": etag}),
+        get(**{"If-None-Match": f'"other", W/{etag}'}),  # a list, and the weak form
+        get(**{"If-None-Match": "*"}),
+        get(**{"If-None-Match": f'W/{etag[:-1]}-gzip"'}),  # as a compressing proxy (Caddy) may pass it on
+        get(**{"If-Modified-Since": last_modified}),
+        get(**{"If-Modified-Since": "Wed, 14 Oct 2026 18:00:00 GMT"}),
+    ):
+        assert r.status_code == 304 and r.content == b""
+        assert r.headers["etag"] == etag and r.headers["cache-control"] == "max-age=15"
+        assert r.headers["access-control-allow-origin"] == "https://example.test"
+    for r in (
+        get(**{"If-None-Match": '"other"'}),
+        get(**{"If-None-Match": f'{etag[:-1]}-other"'}),
+        get(**{"If-Modified-Since": "Wed, 14 Oct 2026 17:46:39 GMT"}),
+        get(**{"If-Modified-Since": "not a date"}),
+        # If-None-Match wins over If-Modified-Since (RFC 9110 §13.1.3)
+        get(**{"If-None-Match": '"other"', "If-Modified-Since": last_modified}),
+    ):
+        assert r.status_code == 200 and r.json() == {"cells": []}
+
+    # A new version of the file: new validators, the old ones get the new body.
+    path.write_text('{"cells": [1]}')
+    os.utime(path, (1_792_000_030, 1_792_000_030))
+    r = get(**{"If-None-Match": etag, "If-Modified-Since": last_modified})
+    assert r.status_code == 200 and r.json() == {"cells": [1]} and r.headers["etag"] != etag
+    assert get(**{"If-Modified-Since": last_modified}).status_code == 200
+    assert get(**{"If-None-Match": r.headers["etag"]}).status_code == 304
+
+
+def test_rate_limit_default_allows_an_upload_every_30_seconds(client):
+    """360 authenticated requests per device and hour by default (DESIGN.md §8)."""
+    from stadtlaerm_server.config import Settings
+
+    assert Settings().requests_per_device_per_hour == 360
+    assert Settings.from_env({}).requests_per_device_per_hour == 360
+    assert Settings.from_env({"REQUESTS_PER_DEVICE_PER_HOUR": "60"}).requests_per_device_per_hour == 60
+    assert Settings().publish_interval_s == 30.0
+    assert Settings.from_env({}).publish_interval_s == 30.0
+    assert Settings().registrations_per_ip_per_day == 10  # unchanged
+    dev, auth = register(client)
+    codes = [client.post(f"/v1/devices/{dev}/minutes", json=[], headers=auth).status_code for _ in range(360)]
+    assert codes == [200] * 360
+    assert client.post(f"/v1/devices/{dev}/minutes", json=[], headers=auth).status_code == 429
 
 
 def test_map_cors_allows_each_configured_origin(make_client, settings):

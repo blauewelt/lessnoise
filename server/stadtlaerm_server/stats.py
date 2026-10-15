@@ -38,6 +38,8 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections import Counter
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
 from . import aggregate as agg
@@ -86,26 +88,73 @@ def _created_local_date(created_at: str | None) -> date | None:
     return t.astimezone(agg.ZONE).date()
 
 
-def compute(conn: sqlite3.Connection, now: datetime, cells_with_data_30d: int) -> dict:
-    """The stats.json object. `cells_with_data_30d` comes from the cells.json of the same run."""
+def _since(now: datetime, days: int) -> int:
+    return int((now - timedelta(days=days)).timestamp() * 1000)
+
+
+@dataclass
+class Scan:
+    """The figures that read every minute row: the active devices and the device-days.
+
+    A full publish run makes one with [scan]; the runs in between keep it and [refresh] it for
+    the devices that sent records since (publish.Publisher), so a 30-second run does not read
+    the whole `minutes` table. Devices that merely fall out of the 7/30-day windows are noticed
+    at the next full run (at most 10 minutes later)."""
+
+    active_7: set[str] = field(default_factory=set)
+    active_30: set[str] = field(default_factory=set)
+    days: set[tuple[str, date]] = field(default_factory=set)
+
+
+def scan(conn: sqlite3.Connection, now: datetime) -> Scan:
     now_ms = int(now.timestamp() * 1000)
-    since_7 = int((now - timedelta(days=ACTIVE_SHORT_DAYS)).timestamp() * 1000)
-    since_30 = int((now - timedelta(days=ACTIVE_LONG_DAYS)).timestamp() * 1000)
-
-    active_30 = _active_ids(conn, since_30, now_ms)
-    versions: Counter[str] = Counter()
-    if active_30:
-        for device_id, version in conn.execute("SELECT id, app_version FROM devices"):
-            if device_id in active_30:
-                versions[_version_key(version)] += 1
-
     # Device-days with a valid minute: distinct (device, hour) first, then hour → local day. Swiss
     # offsets are whole hours, so every minute of a UTC hour belongs to the same local day.
     device_hours = conn.execute(
         f"SELECT DISTINCT device_id, start_utc / {agg.HOUR_MS} FROM minutes WHERE {VALID_MINUTE_SQL} "
         f"UNION SELECT device_id, hour_utc / {agg.HOUR_MS} FROM hourly WHERE valid_minutes > 0"
     )
-    days = {(dev, agg.day_of(int(h) * agg.HOUR_MS)) for dev, h in device_hours}
+    return Scan(
+        active_7=_active_ids(conn, _since(now, ACTIVE_SHORT_DAYS), now_ms),
+        active_30=_active_ids(conn, _since(now, ACTIVE_LONG_DAYS), now_ms),
+        days={(dev, agg.day_of(int(h) * agg.HOUR_MS)) for dev, h in device_hours},
+    )
+
+
+def refresh(conn: sqlite3.Connection, s: Scan, now: datetime, touched: Mapping[str, Iterable[date]]) -> None:
+    """Updates `s` for the devices in `touched` (device id → local days that got records), with
+    the same rules as [scan]: exact for those devices and days, read through the primary keys."""
+    now_ms = int(now.timestamp() * 1000)
+    valid_in = f"SELECT 1 FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ? AND {VALID_MINUTE_SQL}"
+    hour_in = "SELECT 1 FROM hourly WHERE device_id = ? AND hour_utc >= ? AND hour_utc < ? AND valid_minutes > 0"
+    for dev, days in touched.items():
+        for since, ids in ((_since(now, ACTIVE_SHORT_DAYS), s.active_7), (_since(now, ACTIVE_LONG_DAYS), s.active_30)):
+            if conn.execute(valid_in + " LIMIT 1", (dev, since, now_ms + 1)).fetchone():
+                ids.add(dev)
+            else:
+                ids.discard(dev)
+        for d in days:
+            a, b = agg.day_bounds(d)
+            if (
+                conn.execute(valid_in + " LIMIT 1", (dev, a, b)).fetchone()
+                or conn.execute(hour_in + " LIMIT 1", (dev, a, b)).fetchone()
+            ):
+                s.days.add((dev, d))
+            else:
+                s.days.discard((dev, d))
+
+
+def compute(conn: sqlite3.Connection, now: datetime, cells_with_data_30d: int, scanned: Scan | None = None) -> dict:
+    """The stats.json object. `cells_with_data_30d` comes from the cells.json of the same run;
+    `scanned` is a [Scan] kept up to date by the caller (default: scan now)."""
+    sc = scanned if scanned is not None else scan(conn, now)
+    active_30 = sc.active_30
+    versions: Counter[str] = Counter()
+    if active_30:
+        for device_id, version in conn.execute("SELECT id, app_version FROM devices"):
+            if device_id in active_30:
+                versions[_version_key(version)] += 1
+    days = sc.days
 
     today = now.astimezone(agg.ZONE).date()
     this_monday = today - timedelta(days=today.weekday())
@@ -128,7 +177,7 @@ def compute(conn: sqlite3.Connection, now: datetime, cells_with_data_30d: int) -
             "SELECT COUNT(*) FROM devices d WHERE EXISTS (SELECT 1 FROM minutes m WHERE m.device_id = d.id) "
             "OR EXISTS (SELECT 1 FROM hourly h WHERE h.device_id = d.id)",
         ),
-        "devices_active_7d": len(_active_ids(conn, since_7, now_ms)),
+        "devices_active_7d": len(sc.active_7),
         "devices_active_30d": len(active_30),
         "devices_deleted_total": counters.get("devices_deleted", 0),
         "devices_expired_total": counters.get("devices_expired", 0),
