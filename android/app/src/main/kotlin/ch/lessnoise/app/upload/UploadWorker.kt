@@ -27,18 +27,31 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
 /**
- * Background upload for «Messwerte teilen» (server/DESIGN.md §4.6): a periodic job every hour
- * (a few minutes after the full hour, so the hour's last minute is closed) and a one-shot job
- * shortly after a measurement stops. Network constraint: Wi-Fi/unmetered with «nur über WLAN»
- * (default), otherwise any connection. Failures back off exponentially (WorkManager, from 10 min).
+ * Background upload for «Messwerte teilen» (server/DESIGN.md §4.6). Since 0.6.3: while a shared
+ * measurement runs, the live uploads of [LiveUploadPlan] run in the app's process (not here); this
+ * worker is the one-shot job shortly after a measurement stops, after a report or a settings change,
+ * and the periodic job every hour (a few minutes after the full hour) as the fallback. Network constraint: any connection (since 0.6.3 the default), Wi-Fi/unmetered with «nur
+ * über WLAN». Failures back off exponentially (WorkManager, from 10 min).
  */
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -69,6 +82,119 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         const val WORK_PERIODIC = "upload_hourly"
         const val WORK_NOW = "upload_now"
         const val WORK_MORE = "upload_more"
+        /** The 10-minute job of the first 0.6.3 builds; only cancelled now (the live uploads run in-process). */
+        const val WORK_LIVE = "upload_live"
+    }
+}
+
+/**
+ * Uploads outside a running shared measurement (server/DESIGN.md §4.6): once shortly after
+ * «Stoppen», and the hourly fallback job. While a shared measurement runs: [LiveUploadPlan].
+ */
+object UploadCadence {
+    /** One upload this long after «Stoppen» (the service writes the last minute within 3 s). */
+    const val AFTER_STOP_MS = 15_000L
+
+    /** The hourly fallback job's runs in [fromMs, toMs) (five minutes after every full hour). */
+    fun hourlyRunTimes(fromMs: Long, toMs: Long, zone: ZoneId): List<Long> {
+        val first = fromMs + UploadModule.delayToNextHourMs(java.time.Instant.ofEpochMilli(fromMs).atZone(zone))
+        return generateSequence(first) { it + 3_600_000L }.takeWhile { it < toMs }.toList()
+    }
+}
+
+/**
+ * The live map (0.6.3, «every 30 seconds»): when the app uploads while a shared measurement runs.
+ * Pure and single-threaded by contract (the caller serialises; UploadModule holds a lock), so that
+ * LiveUploadPlanTest and UploadCadenceTest can drive the real Uploader with it against the fake
+ * server in simulated time.
+ *
+ * - The first FULL run (reports, site, minutes, events) [FIRST_AFTER_POINT_MS] after the point is
+ *   attached, then one every [MINUTES_EVERY_MS].
+ * - A loud event that ended goes out [EVENT_DELAY_MS] after its end in an EVENTS run (usually one
+ *   request); runs are at least [MIN_GAP_MS] apart, so several events coalesce into one run, and an
+ *   events run that would fall within [MIN_GAP_MS] of the next full run is merged into it.
+ * - A 429 (the server's per-device limit) backs off: no separate events runs, and full runs every
+ *   [MINUTES_EVERY_MS] × 2^level (4, 8, 16 minutes) for [SLOW_FOR_MS]; nothing is lost, the markers
+ *   only move for acknowledged records. Another problem (no network, «nur über WLAN» without
+ *   Wi-Fi, server error): the events wait for the next full slot.
+ */
+class LiveUploadPlan(pointAtMs: Long) {
+    enum class Kind { FULL, EVENTS }
+
+    data class Run(val atMs: Long, val kind: Kind)
+
+    enum class Result { OK, RATE_LIMITED, FAILED }
+
+    private var nextFullAtMs = pointAtMs + FIRST_AFTER_POINT_MS
+    private var eventDueAtMs: Long? = null
+    private var lastRunAtMs = Long.MIN_VALUE / 4
+    private var level = 0
+    private var slowUntilMs = Long.MIN_VALUE / 4
+
+    /** The back-off level after 429 answers (0: normal). */
+    val backOffLevel: Int get() = level
+
+    private fun fullInterval(): Long = MINUTES_EVERY_MS shl level
+
+    /** A shared (not wind) event ended at [endMs]. */
+    fun onEvent(endMs: Long) {
+        if (endMs <= 0 || level > 0) return // backed off: the next full run sends it
+        val due = maxOf(endMs + EVENT_DELAY_MS, lastRunAtMs + MIN_GAP_MS)
+        eventDueAtMs = eventDueAtMs?.let { minOf(it, due) } ?: due
+    }
+
+    /** The next run. */
+    fun next(): Run {
+        val ev = eventDueAtMs
+        return when {
+            ev == null -> Run(nextFullAtMs, Kind.FULL)
+            ev + MIN_GAP_MS > nextFullAtMs -> Run(minOf(ev, nextFullAtMs), Kind.FULL)
+            else -> Run(ev, Kind.EVENTS)
+        }
+    }
+
+    /** [run] ended at [nowMs] with [result]. */
+    fun done(run: Run, result: Result, nowMs: Long) {
+        lastRunAtMs = nowMs
+        when (result) {
+            Result.RATE_LIMITED -> {
+                level = minOf(level + 1, MAX_LEVEL)
+                slowUntilMs = nowMs + SLOW_FOR_MS
+                eventDueAtMs = null
+                nextFullAtMs = nowMs + fullInterval()
+            }
+            Result.FAILED -> {
+                eventDueAtMs = null
+                nextFullAtMs = nowMs + fullInterval()
+            }
+            Result.OK -> {
+                if (level > 0 && nowMs >= slowUntilMs) {
+                    level--
+                    slowUntilMs = nowMs + SLOW_FOR_MS
+                }
+                eventDueAtMs = null
+                nextFullAtMs = if (run.kind == Kind.FULL) nowMs + fullInterval() else maxOf(nextFullAtMs, nowMs + MIN_GAP_MS)
+            }
+        }
+    }
+
+    companion object {
+        /** First full run this long after the running measurement got its point. */
+        const val FIRST_AFTER_POINT_MS = 30_000L
+
+        /** Then a full run (minutes and events) every … */
+        const val MINUTES_EVERY_MS = 2 * 60_000L
+
+        /** A loud event goes out this long after it ended. */
+        const val EVENT_DELAY_MS = 30_000L
+
+        /** At most one run per … */
+        const val MIN_GAP_MS = 30_000L
+
+        /** After a 429: slower for this long, then one level faster again. */
+        const val SLOW_FOR_MS = 60 * 60_000L
+
+        const val MAX_LEVEL = 3
     }
 }
 
@@ -137,6 +263,7 @@ class UploadModule(
             work.cancelUniqueWork(UploadWorker.WORK_PERIODIC)
             work.cancelUniqueWork(UploadWorker.WORK_NOW)
             work.cancelUniqueWork(UploadWorker.WORK_MORE)
+            work.cancelUniqueWork(UploadWorker.WORK_LIVE)
             return
         }
         val req = PeriodicWorkRequestBuilder<UploadWorker>(1, TimeUnit.HOURS)
@@ -170,6 +297,7 @@ class UploadModule(
             work.cancelUniqueWork(UploadWorker.WORK_PERIODIC)
             work.cancelUniqueWork(UploadWorker.WORK_NOW)
             work.cancelUniqueWork(UploadWorker.WORK_MORE)
+            work.cancelUniqueWork(UploadWorker.WORK_LIVE)
         }
     }
 
@@ -182,6 +310,59 @@ class UploadModule(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
             .build()
         work.enqueueUniqueWork(UploadWorker.WORK_NOW, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
+    }
+
+    /**
+     * The live uploads of the running shared measurement ([LiveUploadPlan]), in this process (it
+     * lives as long as the measurement's foreground service, which holds a wake lock), not as a
+     * WorkManager job every 30 s. Cancelled when the measurement stops or is no longer shared.
+     */
+    private suspend fun liveLoop(live: StateFlow<LiveState>) = coroutineScope {
+        val plan = LiveUploadPlan(System.currentTimeMillis())
+        val lock = Any()
+        val wake = Channel<Unit>(Channel.CONFLATED)
+        launch {
+            live.map { it.lastEvent }.distinctUntilChanged().collect { e ->
+                if (e != null && !e.wind) {
+                    synchronized(lock) { plan.onEvent(e.endEpochMs) }
+                    wake.trySend(Unit)
+                }
+            }
+        }
+        while (true) {
+            val run = synchronized(lock) { plan.next() }
+            val wait = run.atMs - System.currentTimeMillis()
+            // A new event may move the next run earlier: wait for it or for the time.
+            if (wait > 0 && withTimeoutOrNull(wait) { wake.receive() } != null) continue
+            val result = if (!networkAllowed()) {
+                LiveUploadPlan.Result.FAILED
+            } else {
+                when (val o = withContext(Dispatchers.IO) { uploader.run(withMinutes = run.kind == LiveUploadPlan.Kind.FULL) }) {
+                    is Uploader.Outcome.Done -> LiveUploadPlan.Result.OK
+                    is Uploader.Outcome.Retry -> if (o.rateLimited) LiveUploadPlan.Result.RATE_LIMITED else LiveUploadPlan.Result.FAILED
+                    else -> LiveUploadPlan.Result.FAILED
+                }
+            }
+            synchronized(lock) { plan.done(run, result, System.currentTimeMillis()) }
+        }
+    }
+
+    /** Whether a live upload may go now: a connection, and Wi-Fi (unmetered) with «nur über WLAN». */
+    private fun networkAllowed(): Boolean = runCatching {
+        val cm = appContext.getSystemService(ConnectivityManager::class.java) ?: return true
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            (!store.state.value.wifiOnly || caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED))
+    }.getOrDefault(true)
+
+    /**
+     * The running measurement got its shifted point (0.6.3): its whole measurement is sent from now
+     * on, also the minutes before the point ([Uploader.pointAttached]). The first live upload follows
+     * from the live state ([start]).
+     */
+    suspend fun pointAttached(measurementStartMs: Long) {
+        if (!BuildConfig.UPLOAD_AVAILABLE) return
+        uploader.pointAttached(measurementStartMs)
     }
 
     /** Another run after the server's hourly request limit has room again. */
@@ -198,16 +379,31 @@ class UploadModule(
     /**
      * Hooks that need no change in the measurement code: when the live state goes from running to
      * stopped, upload once (the service writes the last minute within 3 s; the job waits 15 s);
+     * while a shared measurement runs (it has its point and sharing is on), the live uploads of
+     * [UploadCadence] — this runs in the app's process scope, which lives as long as the
+     * measurement's foreground service, also with the screen off or the app closed;
      * after «Alte Messungen neu bewerten», send the last 7 days again with the new levels.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun start(scope: CoroutineScope, live: StateFlow<LiveState>, recalibrator: Recalibrator) {
         if (!BuildConfig.UPLOAD_AVAILABLE) return
         applySchedule(replace = false)
         scope.launch {
             var wasRunning = live.value.running
             live.collect { st ->
-                if (wasRunning && !st.running) uploadSoon()
+                if (wasRunning && !st.running) uploadSoon(UploadCadence.AFTER_STOP_MS / 1000)
                 wasRunning = st.running
+            }
+        }
+        scope.launch {
+            // The start of the running shared measurement, or null; a new value restarts the loop.
+            combine(live, store.state) { l, s ->
+                if (l.running && l.sharedPoint != null && s.enabled && !s.authFailed) l.measurementStartMs else null
+            }.distinctUntilChanged().collectLatest { start ->
+                // The WorkManager job of the first 0.6.3 builds (every 10 minutes) is gone.
+                runCatching { work.cancelUniqueWork(UploadWorker.WORK_LIVE) }
+                if (start == null) return@collectLatest
+                liveLoop(live)
             }
         }
         scope.launch {

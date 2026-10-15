@@ -274,6 +274,22 @@ interface MeasurementDao {
     @Query("SELECT * FROM measurements WHERE end_ms IS NULL")
     suspend fun openMeasurements(): List<MeasurementEntity>
 
+    /**
+     * 0.6.3: gives the RUNNING measurement that started at [startMs] its shifted point (the fix
+     * arrives after «Starten», or sharing was switched on during the measurement). Only a row that
+     * is still open and has no point yet: a measurement that already ended unshared stays unshared.
+     * Returns the number of rows changed (0 or 1).
+     */
+    @Query(
+        "UPDATE measurements SET cell = :cell, point_e = :e, point_n = :n, sigma_m = :sigmaM " +
+            "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL"
+    )
+    suspend fun attachPoint(startMs: Long, cell: String, e: Int, n: Int, sigmaM: Int): Int
+
+    /** The newest measurement with a shifted point (the «Karte» tab opens there), or null. */
+    @Query("SELECT * FROM measurements WHERE point_e IS NOT NULL ORDER BY start_ms DESC, id DESC LIMIT 1")
+    suspend fun latestSharedMeasurement(): MeasurementEntity?
+
     /** End (ms) of the last minute starting in [fromMs, toMs), or null. */
     @Query("SELECT MAX(startEpochMs + CAST(durationSeconds * 1000 AS INTEGER)) FROM minutes WHERE startEpochMs >= :fromMs AND startEpochMs < :toMs")
     suspend fun lastMinuteEnd(fromMs: Long, toMs: Long): Long?

@@ -112,8 +112,8 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
     await expect(page.locator("#" + id), "#" + id).toHaveCount(1);
     await expect(page.locator(`nav.toc a[href="#${id}"]`), "toc → #" + id).toHaveCount(1);
   }
-  await expect(page.locator("#installation .note")).toContainText("deinstallieren");
-  await expect(page.locator("#installation .note")).toContainText("CSV");
+  // The «Stadtlärm» 0.5.x note left the Anleitung (owner, 2026-10-15); update.html#new-app still explains it.
+  await expect(page.locator("#stadtlaerm, #installation .note")).toHaveCount(0);
   await expect(page.locator("#installation")).toContainText("«Dateien»");
   await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.2");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
@@ -122,8 +122,7 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
 });
 
 test("footnotes: each marker links to its note right below, and the note links back", async ({ page }) => {
-  // Startseite only on main; the Anleitung footnotes ship with 0.6.3.
-  for (const [p, n] of [["/", 1]]) {
+  for (const [p, n] of [["/", 1], ["/anleitung.html", 2]]) {
     await page.goto(p);
     const markers = page.locator("sup.fn a");
     await expect(markers, p).toHaveCount(n);
@@ -141,6 +140,9 @@ test("footnotes: each marker links to its note right below, and the note links b
   }
   await page.goto("/");
   await expect(page.locator("#fn1")).toContainText("ein altes Telefon");
+  await page.goto("/anleitung.html");
+  await expect(page.locator("#fn1")).toContainText("nie mit dem genauen Standort");
+  await expect(page.locator('#fn2 a[href="https://github.com/blauewelt/lessnoise"]')).toHaveText("Quellcode der App");
 });
 
 test("every link to anleitung.html#… or ./#… on any page lands on an existing element", async ({ page }) => {
@@ -198,6 +200,26 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     expect(text, fact).toContain(fact);
   }
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
+});
+
+test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const text = await allText(page);
+  for (const fact of [
+    "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
+    "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "mobile Daten",  // cadence, network
+    "etwa alle 30 Sekunden neu berechnet", "auf etwa eine Minute genau", // DESIGN §2 rule 8, the live map
+    "Mit «Unterwegs»", "sie bleibt auf dem Telefon und sendet nichts",   // the «Sehr laut» notification
+    "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
+  ]) expect(text, fact).toContain(fact);
+  expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone
+  await expect(page.locator("#karte-in-der-app")).toHaveCount(1);
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  for (const fact of ["Auf die Lärmkarte?", "Ja, auf die Karte", "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "Karte in der App", "Unterwegs", "«Sehr laut»"]) expect(guide, fact).toContain(fact);
+  expect(text).not.toContain("0,1");
+  expect(guide).not.toContain("alle 10 Minuten");
+  expect(guide).not.toContain("«Weiter»");
 });
 
 test("the location of a measurement is described as moved, not as «only a hectare»", async ({ page }) => {

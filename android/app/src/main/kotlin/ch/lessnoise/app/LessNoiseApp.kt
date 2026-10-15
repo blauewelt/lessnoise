@@ -8,6 +8,7 @@ import ch.lessnoise.app.data.MeasurementRepository
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.data.SettingsStore
 import ch.lessnoise.app.service.LiveState
+import ch.lessnoise.app.ui.LocateState
 import ch.lessnoise.app.update.UpdateReminderStore
 import ch.lessnoise.app.upload.UploadModule
 import ch.lessnoise.dsp.classify.CategoryMapper
@@ -30,6 +31,9 @@ class LessNoiseApp : Application() {
         // Started off the main thread (the token is read through the Android Keystore).
         if (BuildConfig.UPLOAD_AVAILABLE) {
             container.appScope.launch { container.upload.start(container.appScope, container.live, container.recalibrator) }
+            // «Unterwegs» (0.6.3): the «Sehr laut» notification; only the editions with the map
+            // have it (src/karte), the stand-in in src/nomap does nothing.
+            ch.lessnoise.app.ui.LoudAlerts.start(this, container)
         } else {
             // An edition without upload installed over one with sharing on (Offline-Version over
             // Online-Version, Labor over the Labor edition with the map): switch it off, cancel the jobs.
@@ -50,10 +54,19 @@ class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val recalibrator: Recalibrator by lazy { Recalibrator(db, appScope) }
     val live = MutableStateFlow(LiveState())
-    /** The opt-in upload «Messwerte teilen» (server/DESIGN.md §4); the app's only network use. */
+    /**
+     * The opt-in upload «Messwerte teilen» (server/DESIGN.md §4); with the tab «Karte» (0.6.3, a
+     * WebView in src/karte/) one of the two network uses of the Karten editions.
+     */
     val upload: UploadModule by lazy { UploadModule(appContext, db, calibrations) }
     /** True while the calibration screen is using the microphone (blocks starting a measurement). */
     val calibrationActive = MutableStateFlow(false)
+    /**
+     * Karten editions (0.6.3): where the fix for the running measurement stands (ui/ShareFlow.kt).
+     * Kept for the process so that «Messen» and «Teilen» show the same status line and a fix that
+     * was interrupted by leaving the app is tried again when the app is opened.
+     */
+    val shareLocate = MutableStateFlow<LocateState>(LocateState.Idle)
 
     val labels: List<String> by lazy {
         CategoryMapper.parseLabels(appContext.assets.open("yamnet_labels.txt").bufferedReader().readText())

@@ -91,8 +91,10 @@
 
   /* ---------- fetching ---------- */
 
-  function fetchFrom(root, path) {
-    return fetch(root + path, { credentials: "omit", referrerPolicy: "no-referrer" }).then(function (r) {
+  function fetchFrom(root, path, cache) {
+    var opts = { credentials: "omit", referrerPolicy: "no-referrer" };
+    if (cache) opts.cache = cache;
+    return fetch(root + path, opts).then(function (r) {
       apiSettled = true;
       if (r.status === 404) { var e = new Error("404"); e.notFound = true; throw e; }
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -102,12 +104,12 @@
 
   /** GET a map file. While no host has answered yet, a network failure of the first host
    *  (no DNS record, no certificate) switches to the fallback host for the rest of the visit. */
-  function getJson(path) {
-    return fetchFrom(api, path).catch(function (e) {
+  function getJson(path, cache) {
+    return fetchFrom(api, path, cache).catch(function (e) {
       if (apiSettled || !apiFallback || e.notFound || !(e instanceof TypeError)) throw e;
       api = apiFallback;
       apiFallback = null;
-      return fetchFrom(api, path);
+      return fetchFrom(api, path, cache);
     });
   }
 
@@ -132,7 +134,31 @@
     keyboard: true,
     attributionControl: true,
   });
-  map.fitBounds(START);
+  // A view in the fragment (karte.html#lat=…&lon=…&z=…, server/DESIGN.md §7; the app's tab
+  // «Karte» opens the map like this) wins over the default view and over fitting the data; it sets
+  // only the view, no marker. Invalid or missing: the default view.
+  var hashView = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+  if (hashView) {
+    map.setView([hashView.lat, hashView.lon], hashView.z, { animate: false });
+    // A link to a place on the map: show the map, not the page head (on a phone the head fills
+    // the first screen). The same as the plain anchor karte.html#metric does by itself.
+    var first = document.getElementById("metric");
+    if (first && first.scrollIntoView) first.scrollIntoView();
+  } else {
+    map.fitBounds(START);
+  }
+  function applyView(v) {
+    // Leaflet ignores a view change while a zoom animation runs (e.g. the first fit to the data)
+    // and would end that animation on its own target: wait for it.
+    if (map._animatingZoom) { map.once("zoomend", function () { applyView(v); }); return; }
+    map.setView([v.lat, v.lon], v.z, { animate: false });
+  }
+  window.addEventListener("hashchange", function () {
+    var v = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+    if (!v) return;
+    hashView = v;
+    applyView(v);
+  });
   map.createPane("reports").style.zIndex = 450;   // above the cells (400), below tooltips
 
   L.tileLayer(TILES, {
@@ -722,6 +748,79 @@
     Array.prototype.forEach.call(document.querySelectorAll(".loud-db"), function (s) { s.textContent = dbText(v); });
   }
 
+  /* ---------- keeping the page up to date ---------- */
+
+  // The server publishes the map files about every 30 seconds when there is new data (DESIGN §6).
+  // While the page is visible it asks for cells.json every 30 seconds, through the same getJson as
+  // above (same hosts, no credentials, no referrer) with cache "no-cache": the browser always
+  // revalidates, so an unchanged file comes back as a small 304 from a server that answers
+  // conditional requests. Only when its generated_at changed are the cells, the reports and an
+  // open card redrawn; the view, the metric, the period, the day shown and the open card stay as
+  // they are. Hidden page: no checks; visible again: one check at once.
+  var POLL_MS = 30 * 1000;
+  var shownGenerated = null;   // generated_at of the newest cells.json in use
+  var pollTimer = null;
+  var polling = false;         // true once the first load is over
+  var checking = null;         // the running check, so that checks never overlap
+  var checksDone = 0;          // for the tests: data-checks on #karte
+
+  function checkForUpdate() {
+    if (!polling) return Promise.resolve(false);   // the first load is still running
+    if (checking) return checking;
+    checking = getJson("cells.json", "no-cache").then(function (file) {
+      if (!file || !M.isDate(file.day) || !Array.isArray(file.cells) || file.generated_at === shownGenerated) return false;
+      shownGenerated = file.generated_at;
+      var showingNewest = !state.day || state.day === state.latest;
+      state.latest = file.day;
+      state.history = {};       // a cell's file is rebuilt with the same run
+      setLoudDb(file.loud_event_db);
+      showNetwork(file);
+      if (showingNewest) {
+        state.loadSeq++;        // a day file still loading must not replace this one
+        showFile(file, file.day);   // redraws cells and reports, re-renders an open card
+        setStatus(file.cells.length ? "" : "Noch keine Messwerte auf der Karte.");
+      } else {
+        updateButtons();        // an older day stays shown; › now reaches the new day
+        if (state.selected) renderCard();
+      }
+      mapEl.setAttribute("data-ready", "1");
+      return getJson("reports.json", "no-cache").then(function (r) {
+        if (Array.isArray(r.reports)) state.reports = r.reports;
+      }).catch(function () { /* keep the reports shown */ }).then(function () {
+        drawReports();
+        if (state.reports) mapEl.setAttribute("data-reports", String(state.reports.length));
+        return true;
+      });
+    }).catch(function () { return false; }).then(function (changed) {
+      checking = null;
+      checksDone++;
+      mapEl.setAttribute("data-checks", String(checksDone));
+      mapEl.setAttribute("data-generated", shownGenerated || "");
+      return changed;
+    });
+    return checking;
+  }
+
+  function schedule() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+    if (polling && document.visibilityState === "visible") {
+      pollTimer = setTimeout(function () { pollTimer = null; checkForUpdate().then(schedule); }, POLL_MS);
+    }
+  }
+
+  function startPolling() {
+    polling = true;
+    mapEl.setAttribute("data-generated", shownGenerated || "");
+    schedule();
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!polling) return;
+    if (document.visibilityState === "visible") checkForUpdate().then(schedule);
+    else schedule();          // clears the timer
+  });
+
   /* ---------- start ---------- */
 
   drawLegend();
@@ -738,9 +837,10 @@
     }
     setLoudDb(file.loud_event_db);
     drawLegend();
+    shownGenerated = file.generated_at;
     showFile(file, file.day);
     showNetwork(file);
-    fitToCells();
+    if (!hashView) fitToCells();
     setStatus(file.cells.length ? "" : "Noch keine Messwerte auf der Karte.");
     mapEl.setAttribute("data-ready", "1");
     return getJson("reports.json").then(function (r) {
@@ -759,8 +859,10 @@
     setStatus("Die Messwerte konnten nicht geladen werden" + (e.notFound ? "." : " (" + e.message + ")."));
     updateButtons();
     mapEl.setAttribute("data-ready", "error");
-  });
+  }).then(startPolling);
 
   // for the Playwright tests: the map and the state
-  window.__karte = { map: map, state: state, reportLayer: reportLayer };
+  window.__karte = { map: map, state: state, reportLayer: reportLayer, hashView: function () { return hashView; }, pollMs: POLL_MS };
+  // The app's tab «Karte» calls this when it shows the kept page again (server/DESIGN.md §7).
+  window.KarteCheck = checkForUpdate;
 })();

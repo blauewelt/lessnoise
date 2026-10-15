@@ -96,8 +96,8 @@ class Uploader(
         /** Everything newer than the markers was sent (or the request budget of this run is used up: [more]). */
         data class Done(val minutes: Int, val events: Int, val refused: Int, val more: Boolean, val reports: Int = 0) : Outcome
 
-        /** Temporary problem (network, server, rate limit): try again later. */
-        data class Retry(val message: String) : Outcome
+        /** Temporary problem (network, server, rate limit): try again later. [rateLimited]: the server answered 429. */
+        data class Retry(val message: String, val rateLimited: Boolean = false) : Outcome
 
         /** The server refused a whole request (4xx): retrying the same request will not help. */
         data class Failed(val message: String) : Outcome
@@ -114,28 +114,57 @@ class Uploader(
         data class Failed(val message: String) : DeleteOutcome
     }
 
-    /** Switch «Messwerte teilen» on. Needs the explanation (or the short consent of «Laut! Melden»). */
+    /**
+     * Switch «Messwerte teilen» on: «Ja, auf die Karte» at the first «Starten», the switch in
+     * «Teilen», or the short consent of «Laut! Melden» (0.6.3: no other gate). Records the answer
+     * [ShareDecision.YES]. Always true (kept as Boolean for the callers).
+     */
     fun enable(): Boolean {
-        val s = store.state.value
-        if (!s.canEnable) return false
         val now = clock()
         store.update {
             // The very first time, shared measurements of the last 7 days are included (normally
-            // none exist yet: a measurement is shared only if started while sharing was on); after
-            // that, nothing measured while sharing was off is ever sent (the explanation says so).
+            // none exist yet: a measurement is shared only if it has a point); after that, nothing
+            // measured while sharing was off is ever sent — except the measurement that is running
+            // when sharing is switched on, which gets its point afterwards ([pointAttached]).
             val floor = if (it.sendFloorMs == 0L && !it.registered) now - MAX_AGE_MS else now
-            it.copy(enabled = true, sendFloorMs = maxOf(it.sendFloorMs, floor), lastError = null)
+            it.copy(
+                enabled = true, shareDecision = ShareDecision.YES,
+                sendFloorMs = maxOf(it.sendFloorMs, floor), lastError = null,
+            )
         }
         return true
     }
 
     /**
-     * Switch it off: no further request is started (a running one finishes its current call).
-     * Reports not sent yet are dropped with their coordinates: off means nothing more is sent.
+     * Switch it off («Nur auf dem Telefon», or the switch in «Teilen»): records [ShareDecision.NO];
+     * no further request is started (a running one finishes its current call). Reports not sent yet
+     * are dropped with their coordinates: off means nothing more is sent.
      */
     fun disable() {
-        store.update { it.copy(enabled = false) }
+        store.update { it.copy(enabled = false, shareDecision = ShareDecision.NO) }
         ReportQueue.dropPending(reports)
+    }
+
+    /**
+     * The running measurement that started at [measurementStartMs] has just got its shifted point
+     * (0.6.3: the fix runs while the measurement already measures, or sharing was switched on during
+     * it). Its minutes and events recorded before the point may already lie behind the markers: an
+     * earlier run skipped them (no point then) and moved past them. Move both markers back to just
+     * before the measurement's start, and the opt-in floor too, so that the next run sends the whole
+     * measurement. Records of earlier measurements in between are re-sent at most once; the server is
+     * idempotent on `(device_id, start)`. Taken under the upload lock, so a run in progress cannot
+     * move the markers past them again after this.
+     */
+    suspend fun pointAttached(measurementStartMs: Long) = lock.withLock {
+        val back = measurementStartMs - MeasurementSplitter.START_TOLERANCE_MS - 1
+        store.update {
+            it.copy(
+                minutesSentUpToMs = minOf(it.minutesSentUpToMs, back),
+                eventsSentUpToMs = minOf(it.eventsSentUpToMs, back),
+                sendFloorMs = minOf(it.sendFloorMs, back),
+            )
+        }
+        Unit
     }
 
     /**
@@ -154,9 +183,14 @@ class Uploader(
     fun minutesPendingAfterMs(s: UploadSnapshot = store.state.value): Long =
         maxOf(s.minutesSentUpToMs, effectiveFloorMs(s) - 1)
 
-    suspend fun run(): Outcome = lock.withLock { runLocked() }
+    /**
+     * One upload run. [withMinutes] false (0.6.3 live map): an events-only run for a loud event
+     * that just ended — the reports and the site if needed, then the new events, usually ONE
+     * request; the minutes wait for the next full run ([LiveUploadPlan]).
+     */
+    suspend fun run(withMinutes: Boolean = true): Outcome = lock.withLock { runLocked(withMinutes) }
 
-    private suspend fun runLocked(): Outcome {
+    private suspend fun runLocked(withMinutes: Boolean): Outcome {
         var s = store.state.value
         if (!s.enabled) return Outcome.Disabled
         if (s.authFailed) return Outcome.AuthFailed
@@ -213,16 +247,18 @@ class Uploader(
             }
 
             var more = false
-            val minutes = sendAll(
-                kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests },
-                marker = { it.minutesSentUpToMs },
-                fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
-                // Only minutes of shared measurements; the marker still moves past the others.
-                include = { places.pointAt(it.startEpochMs) != null },
-                post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, places.pointAt(it.startEpochMs)!!) })) },
-                advance = { snap, t -> snap.copy(minutesSentUpToMs = maxOf(snap.minutesSentUpToMs, t)) },
-            ) ?: return Outcome.Disabled
-            requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
+            if (withMinutes) {
+                val minutes = sendAll(
+                    kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests },
+                    marker = { it.minutesSentUpToMs },
+                    fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
+                    // Only minutes of shared measurements; the marker still moves past the others.
+                    include = { places.pointAt(it.startEpochMs) != null },
+                    post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, places.pointAt(it.startEpochMs)!!) })) },
+                    advance = { snap, t -> snap.copy(minutesSentUpToMs = maxOf(snap.minutesSentUpToMs, t)) },
+                ) ?: return Outcome.Disabled
+                requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
+            }
             if (!more) {
                 val events = sendAll(
                     kind = RefusedRecord.EVENT, batchSize = eventBatch, budget = { maxRequestsPerRun - requests },
@@ -245,7 +281,7 @@ class Uploader(
             return Outcome.AuthFailed
         } catch (e: UploadClient.Failure.RateLimited) {
             store.update { it.copy(lastError = RETRY_TEXT) }
-            return Outcome.Retry(e.message ?: "429")
+            return Outcome.Retry(e.message ?: "429", rateLimited = true)
         } catch (e: UploadClient.Failure.Rejected) {
             store.update { it.copy(lastError = "Vom Server abgelehnt (${e.status}).") }
             return Outcome.Failed(e.message ?: e.status.toString())
@@ -253,10 +289,16 @@ class Uploader(
             store.update { it.copy(lastError = RETRY_TEXT) }
             return Outcome.Retry(e.message ?: e.status.toString())
         } catch (e: IOException) {
-            store.update { it.copy(lastError = RETRY_TEXT) }
+            store.update { it.copy(lastError = NO_CONNECTION_TEXT) }
             return Outcome.Retry(e.javaClass.simpleName)
         }
     }
+
+    /**
+     * Requests one [run] sends at most (the server allows 60 per device and hour, DESIGN.md §8);
+     * the live cadence of 0.6.3 (UploadCadence) stays far below that, see UploadCadenceTest.
+     */
+    val requestBudgetPerRun: Int get() = maxRequestsPerRun
 
     private class Sent(val requests: Int, val sent: Int, val refused: Int, val more: Boolean)
 
@@ -346,7 +388,7 @@ class Uploader(
     private fun deleteAndForget(disable: Boolean): DeleteOutcome {
         val r = deleteLocked()
         if (r !is DeleteOutcome.Failed) {
-            store.update { forget(it).let { f -> if (disable) f.copy(enabled = false) else f } }
+            store.update { forget(it).let { f -> if (disable) f.copy(enabled = false, shareDecision = ShareDecision.NO) else f } }
         }
         return r
     }
@@ -389,8 +431,11 @@ class Uploader(
         const val AUTH_FAILED_TEXT =
             "Nach 60 Tagen ohne Werte hat der Server deine Daten gelöscht. Tippe auf «Neu starten», um wieder zu teilen."
 
-        /** One message for every failure that is retried by itself (429, 5xx, no connection): nothing to do. */
+        /** One message for the failures of the server that are retried by themselves (429, 5xx): nothing to do. */
         const val RETRY_TEXT = "Senden klappt gerade nicht. Neuer Versuch folgt."
+
+        /** No connection to the server (0.6.3: told apart from [RETRY_TEXT] for the status line «Kein Internet»). */
+        const val NO_CONNECTION_TEXT = "Keine Verbindung zum Server. Neuer Versuch folgt."
 
         /** The server refuses records older than 7 days (DESIGN.md §8, `MAX_RECORD_AGE_DAYS`). */
         const val MAX_AGE_MS = 7L * 24 * 3600 * 1000

@@ -310,3 +310,237 @@ test("dark mode uses the site's colours", async ({ browser, baseURL }) => {
   expect(s.foreign).toEqual([]);
   await ctx.close();
 });
+
+// ---- 0.6.3: the view fragment karte.html#lat=…&lon=…&z=… (server/DESIGN.md §7, the app's tab «Karte») ----
+
+async function viewOf(page) {
+  return page.evaluate(() => {
+    const k = window.__karte;
+    const c = k.map.getCenter();
+    return { lat: c.lat, lon: c.lng, z: k.map.getZoom(), hashView: k.hashView() };
+  });
+}
+
+/** Leaflet markers/circles drawn within ~30 m of a point (the fragment must not add one). */
+async function layersNear(page, lat, lon) {
+  return page.evaluate(([la, lo]) => {
+    let n = 0;
+    window.__karte.map.eachLayer((l) => {
+      if (typeof l.getLatLng === "function" && l.getLatLng().distanceTo([la, lo]) < 30) n++;
+    });
+    return n;
+  }, [lat, lon]);
+}
+
+test("a valid view fragment centres the map at load, keeps it after the data, and draws no marker", async ({ page, isMobile }) => {
+  const plain = await viewOf(page);
+  expect(plain.hashView).toBeNull();
+  const urls = [];
+  page.on("request", (r) => urls.push(r.url()));
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-reports", String(reportsJson.reports.length));
+  const v = await viewOf(page);
+  expect(v.hashView).toEqual({ lat: 47.3769, lon: 8.5417, z: 16 });
+  expect(v.z).toBe(16);
+  expect(Math.abs(v.lat - 47.3769)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 8.5417)).toBeLessThan(1e-4);
+  expect(v).not.toEqual(plain);
+  expect(await layersNear(page, 47.3769, 8.5417)).toBe(0);
+  // On a phone the page opens at the map, not at the page head.
+  if (isMobile) expect(await page.locator("#metric").evaluate((e) => e.getBoundingClientRect().top)).toBeLessThan(40);
+  // The fragment never leaves the browser: no request carried it.
+  expect(urls.some((u) => u.includes("/karte.html"))).toBe(true);
+  expect(urls.filter((u) => u.includes("lat=") || u.includes("47.3769") || u.includes("8.5417"))).toEqual([]);
+});
+
+test("an invalid view fragment falls back to the default view", async ({ page }) => {
+  const plain = await viewOf(page);
+  for (const bad of ["#lat=48.90&lon=8.54170&z=16", "#lat=47.37690&lon=8.54170&z=30", "#lat=47.37690&lon=8.54170", "#foo=1"]) {
+    await page.goto("about:blank");
+    await page.goto("/karte.html" + bad);
+    await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+    const v = await viewOf(page);
+    expect(v.hashView, bad).toBeNull();
+    expect(v.z, bad).toBe(plain.z);
+    expect(Math.abs(v.lat - plain.lat), bad).toBeLessThan(1e-6);
+    expect(Math.abs(v.lon - plain.lon), bad).toBeLessThan(1e-6);
+  }
+});
+
+test("a changed view fragment moves the map (hashchange); an invalid one is ignored", async ({ page }) => {
+  await page.evaluate(() => { location.hash = "lat=46.94800&lon=7.44740&z=15"; });
+  await expect.poll(async () => (await viewOf(page)).z).toBe(15);
+  const v = await viewOf(page);
+  expect(Math.abs(v.lat - 46.948)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 7.4474)).toBeLessThan(1e-4);
+  await page.evaluate(() => { location.hash = "lat=99&lon=7.4474&z=15"; });
+  await page.waitForTimeout(100);
+  const w = await viewOf(page);
+  expect(Math.abs(w.lat - 46.948)).toBeLessThan(1e-4);
+});
+
+test("the app's address without a point, karte.html#metric, opens at the map with the default view", async ({ page, isMobile }) => {
+  const plain = await viewOf(page);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#metric");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  const v = await viewOf(page);
+  expect(v.hashView).toBeNull();
+  expect(v.z).toBe(plain.z);
+  if (isMobile) expect(await page.locator("#metric").evaluate((e) => e.getBoundingClientRect().top)).toBeLessThan(40);
+});
+
+// 0.6.3 map tab fix: the app keeps the page alive and re-centres it by replacing only the fragment
+// (WebView evaluateJavascript "location.replace('#lat=…')"): no reload, no new history entry, so
+// the system back gesture is never swallowed by the page's history.
+test("location.replace of the view fragment after load moves the map without a history entry or reload", async ({ page }) => {
+  // The field case: the tab was opened before the phone had a point (karte.html#metric).
+  await page.goto("about:blank");
+  await page.goto("/karte.html#metric");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await page.evaluate(() => { window.__notReloaded = true; });
+  const before = await page.evaluate(() => history.length);
+  await page.evaluate(() => { location.replace("#lat=46.94800&lon=7.44740&z=16"); });
+  await expect.poll(async () => (await viewOf(page)).z).toBe(16);
+  let v = await viewOf(page);
+  expect(Math.abs(v.lat - 46.948)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 7.4474)).toBeLessThan(1e-4);
+  expect(v.hashView).toEqual({ lat: 46.948, lon: 7.4474, z: 16 });
+  // The point changed while the tab was shown: replaced again.
+  await page.evaluate(() => { location.replace("#lat=47.37690&lon=8.54170&z=16"); });
+  await expect.poll(async () => Math.abs((await viewOf(page)).lat - 47.3769) < 1e-4).toBe(true);
+  v = await viewOf(page);
+  expect(Math.abs(v.lon - 8.5417)).toBeLessThan(1e-4);
+  expect(await page.evaluate(() => history.length)).toBe(before);
+  expect(await page.evaluate(() => window.__notReloaded)).toBe(true);
+  expect(await layersNear(page, 47.3769, 8.5417)).toBe(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+// ---- 0.6.3: the page keeps itself up to date while it is visible (cells.json every 30 seconds) ----
+
+const NEW_CELL = "h26833_12462";
+function updatedCells() {
+  const f = JSON.parse(JSON.stringify(cellsJson));
+  f.generated_at = "2026-10-08T18:50:00+02:00";
+  f.cells.push(Object.assign(JSON.parse(JSON.stringify(f.cells[0])), { cell: NEW_CELL }));
+  return f;
+}
+
+/** Answers cells.json from body() (later routes win over mockNetwork's) and counts the requests. */
+async function serveCells(page, body) {
+  const count = { n: 0 };
+  await page.route(API + "cells.json", (route) => {
+    count.n++;
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "max-age=300" },
+      body: JSON.stringify(body()),
+    });
+  });
+  return count;
+}
+
+test("a changed generated_at redraws: the new cell appears, view, metric and open card stay", async ({ page }) => {
+  let body = cellsJson;
+  const count = await serveCells(page, () => body);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", cellsJson.generated_at);
+  await page.locator('#metric input[value="l90"]').check({ force: true });
+  await page.locator("#celllist summary").focus();
+  await page.keyboard.press("Enter");
+  await page.locator(`#celllist-items button[data-cell="${CAL}"]`).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#card-title")).toContainText(CAL);
+  await page.waitForTimeout(600);                 // the pan to the cell has ended
+  const before = await viewOf(page);
+  const historyBefore = seen.api.filter((p) => p === `cells/${CAL}.json`).length;
+  expect(await page.locator(`#celllist-items button[data-cell="${NEW_CELL}"]`).count()).toBe(0);
+
+  body = updatedCells();
+  const reportsBefore = seen.api.filter((p) => p === "reports.json").length;
+  expect(await page.evaluate(() => window.KarteCheck())).toBe(true);
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", "2026-10-08T18:50:00+02:00");
+  await expect(page.locator(`#celllist-items button[data-cell="${NEW_CELL}"]`)).toHaveCount(1);
+  expect(await page.evaluate((c) => !!window.__karte.state.layers[c], NEW_CELL)).toBe(true);
+  const after = await viewOf(page);
+  expect(after.z).toBe(before.z);
+  expect(Math.abs(after.lat - before.lat)).toBeLessThan(1e-9);
+  expect(Math.abs(after.lon - before.lon)).toBeLessThan(1e-9);
+  await expect(page.locator('#metric input[value="l90"]')).toBeChecked();
+  expect(await page.evaluate(() => window.__karte.state.metric)).toBe("l90");
+  await expect(page.locator("#card")).toBeVisible();
+  await expect(page.locator("#card-title")).toContainText(CAL);
+  // The open card's file and the reports were fetched again.
+  await expect.poll(() => seen.api.filter((p) => p === `cells/${CAL}.json`).length).toBe(historyBefore + 1);
+  expect(seen.api.filter((p) => p === "reports.json").length).toBe(reportsBefore + 1);
+  expect(count.n).toBe(2);
+  expect(seen.foreign).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an unchanged generated_at does not redraw", async ({ page }) => {
+  const count = await serveCells(page, () => cellsJson);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await page.evaluate(() => { document.querySelector("#karte path.cell").setAttribute("data-mark", "old"); });
+  const reportsBefore = seen.api.filter((p) => p === "reports.json").length;
+  expect(await page.evaluate(() => window.KarteCheck())).toBe(false);
+  expect(count.n).toBe(2);
+  // The same SVG paths: nothing was drawn again, and nothing else was fetched.
+  await expect(page.locator('#karte path.cell[data-mark="old"]')).toHaveCount(1);
+  expect(seen.api.filter((p) => p === "reports.json").length).toBe(reportsBefore);
+});
+
+test("checks every 30 seconds only while visible, always revalidating; visible again checks at once", async ({ page }) => {
+  await page.addInitScript(() => {
+    let v = "visible";
+    Object.defineProperty(Document.prototype, "visibilityState", { get() { return v; }, configurable: true });
+    Object.defineProperty(Document.prototype, "hidden", { get() { return v !== "visible"; }, configurable: true });
+    window.__setVisibility = (x) => { v = x; document.dispatchEvent(new Event("visibilitychange")); };
+    // The fetch cache mode of every cells.json request (the header the browser derives from it is
+    // not visible to page.route).
+    window.__cellsCache = [];
+    const orig = window.fetch;
+    window.fetch = function (url, init) {
+      if (String(url).endsWith("/cells.json")) window.__cellsCache.push((init && init.cache) || "default");
+      return orig.apply(this, arguments);
+    };
+  });
+  await page.clock.install();
+  const count = await serveCells(page, () => cellsJson);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", cellsJson.generated_at);
+  expect(await page.evaluate(() => window.__karte.pollMs)).toBe(30000);
+  expect(count.n).toBe(1);
+  await page.clock.runFor(29000);
+  expect(count.n).toBe(1);
+  await page.clock.runFor(2000);
+  await expect.poll(() => count.n).toBe(2);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "1");   // the next timer is set
+  await page.clock.runFor(30000);
+  await expect.poll(() => count.n).toBe(3);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "2");
+  // The checks always revalidate (fetch cache "no-cache": a server with ETags answers 304); the
+  // first load uses the normal cache.
+  expect(await page.evaluate(() => window.__cellsCache)).toEqual(["default", "no-cache", "no-cache"]);
+  // Hidden: no checks at all, however long.
+  await page.evaluate(() => window.__setVisibility("hidden"));
+  await page.clock.runFor(30 * 60000);
+  await page.waitForTimeout(200);
+  expect(count.n).toBe(3);
+  // Visible again: one check at once, then every 30 seconds again.
+  await page.evaluate(() => window.__setVisibility("visible"));
+  await expect.poll(() => count.n).toBe(4);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "3");
+  await page.clock.runFor(31000);
+  await expect.poll(() => count.n).toBe(5);
+  expect(seen.foreign).toEqual([]);
+});

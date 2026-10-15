@@ -2,6 +2,7 @@ package ch.lessnoise.app.upload
 
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -21,7 +22,8 @@ import kotlin.test.fail
  * 2. No flavour source set (src/labor, src/laborKarte, src/public, src/offline) contains classes
  *    of the upload package: every edition uploads with exactly this code.
  * 3. The Labor code (app/src/labor/) does not touch the upload or any network API.
- * 4. Network code exists in exactly one file of the app, upload/UploadClient.kt.
+ * 4. Network code exists in exactly two files of the app: upload/UploadClient.kt and (0.6.3) the
+ *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.).
  *
  * It reads the source files, so it runs the same in every flavour (testOfflineDebugUnitTest …
  * testLaborKarteDebugUnitTest). Comments are ignored; string literals are checked.
@@ -141,13 +143,72 @@ class UploadSourceIsolationTest {
         if (problems.isNotEmpty()) fail("The Labor code must not reach the upload or the network:\n" + problems.joinToString("\n"))
     }
 
+    /**
+     * Network code exists in exactly two files: the upload's UploadClient.kt (one host, opt-in) and,
+     * since 0.6.3, the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
+     * which shows the website's map page once the tab is opened.
+     */
     @Test
-    fun networkCodeOnlyInUploadClient() {
+    fun networkCodeOnlyInUploadClientAndTheMapTab() {
         val roots = listOf(File(appDir, "src")) + listOf("dsp", "chart").map { File(appDir.parentFile, "$it/src/main") }
         val files = roots.flatMap { kotlinFiles(it) }.filter { f -> f.path.split(File.separatorChar).none { it.startsWith("test") } }
         assertTrue(files.size > 30, "sources not found under $roots")
         val hits = files.filter { f -> networkCode.containsMatchIn(KotlinSource.parse(f.readText()).code) }.map { it.relativeTo(appDir.parentFile).path }
-        assertTrue(hits == listOf("app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt"), "network code in: $hits")
+        assertEquals(
+            listOf("app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt", "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt"),
+            hits, "network code in: $hits",
+        )
+        // The WebView's address comes from MapLinks (Links.MAP + fragment) only, and the map tab
+        // uses no other network API than the WebView.
+        val map = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").readText())
+        val otherNetwork = Regex("""\b(HttpURLConnection|HttpsURLConnection|openConnection|Socket|SSLSocket|DatagramSocket|SocketChannel|DownloadManager)\b|\bjava\.net\.|\bokhttp3?\b|\bio\.ktor\b""")
+        assertTrue(!otherNetwork.containsMatchIn(map.code), "MapScreen.kt uses another network API")
+        assertTrue(map.literals.none { it.startsWith("http") }, "MapScreen.kt builds no address itself: ${map.literals.filter { it.startsWith("http") }}")
+        // 0.6.3 map tab fix: the address comes from MapCentring.Step.Load, which is built only
+        // from MapLinks.url. The app runs exactly two scripts in the page, never reading a result:
+        // MapCentring.Step.Recentre, built only from MapLinks.recentreScript (a validated view
+        // fragment), and MapCentring.Step.Check, only ever MapLinks.CHECK_SCRIPT =
+        // "window.KarteCheck && window.KarteCheck()" (the page's own check for new map files;
+        // MapCentringTest pins the value).
+        assertTrue(map.code.contains("remember { MapCentring() }") && map.code.contains("val target = step.url"))
+        val loads = Regex("""\.loadUrl\(([^)]*)\)""").findAll(map.code).map { it.groupValues[1] }.toList()
+        assertTrue(loads.isNotEmpty() && loads.all { it == "target" }, "every loadUrl loads the MapLinks address: $loads")
+        val scripts = Regex("""\.evaluateJavascript\(([^)]*)\)""").findAll(map.code).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("step.script, null", "step.script, null"), scripts, "the only scripts are the re-centring and the check")
+        assertTrue(Regex("""\bis MapCentring\.Step\.Recentre -> w\.evaluateJavascript\(step\.script, null\)""").containsMatchIn(map.code))
+        assertTrue(Regex("""\bis MapCentring\.Step\.Check -> w\.evaluateJavascript\(step\.script, null\)""").containsMatchIn(map.code))
+        val links = KotlinSource.parse(File(appDir, "src/main/kotlin/ch/lessnoise/app/ui/MapLinks.kt").readText()).code
+        assertEquals(listOf("Step.Load(MapLinks.url(point))"), Regex("""Step\.Load\([^\n]*""").findAll(links).map { it.value }.toList())
+        assertEquals(
+            listOf("Step.Recentre(MapLinks.recentreScript(f))", "Step.Recentre(MapLinks.recentreScript(f))"),
+            Regex("""Step\.Recentre\([^\n]*""").findAll(links).map { it.value }.toList(),
+        )
+        assertEquals(listOf("Step.Check(MapLinks.CHECK_SCRIPT) else null"), Regex("""Step\.Check\([^\n]*""").findAll(links).map { it.value }.toList())
+    }
+
+    /** The WebView of the tab «Karte» is locked down (PRIVACY.md, the tab «Karte»). */
+    @Test
+    fun mapWebViewIsLockedDown() {
+        val code = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").readText()).code
+        val required = listOf(
+            "domStorageEnabled = false", "allowFileAccess = false", "allowContentAccess = false", "setGeolocationEnabled(false)",
+            "MIXED_CONTENT_NEVER_ALLOW", "javaScriptCanOpenWindowsAutomatically = false", "setSupportMultipleWindows(false)",
+            "safeBrowsingEnabled = true", "setAcceptCookie(false)", "setAcceptThirdPartyCookies(web, false)",
+            "callback?.invoke(origin, false, false)", "request?.deny()", "MapLinks.staysInApp(", "MapLinks.allowedHost(",
+        )
+        for (r in required) assertTrue(code.contains(r), "MapScreen.kt lacks «$r»")
+        val forbidden = listOf(
+            "addJavascriptInterface", "domStorageEnabled = true", "allowFileAccess = true", "allowContentAccess = true",
+            "setGeolocationEnabled(true)", "MIXED_CONTENT_ALWAYS_ALLOW", "MIXED_CONTENT_COMPATIBILITY_MODE", "setAcceptCookie(true)",
+            "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs", "LocationFetcher", "LocationManager", "UploadClient",
+            "loadData", "postUrl", "goBack",
+        )
+        for (f in forbidden) assertTrue(!code.contains(f), "MapScreen.kt contains «$f»")
+        // The manifests of the two map editions opt the WebView out of usage metrics.
+        for (flavour in listOf("public", "laborKarte")) {
+            val m = File(appDir, "src/$flavour/AndroidManifest.xml").readText()
+            assertTrue(Regex("""android\.webkit\.WebView\.MetricsOptOut"\s+android:value="true"""").containsMatchIn(m), flavour)
+        }
     }
 
     @Test

@@ -341,7 +341,36 @@
     return pts;
   }
 
+  /* ---------- the view fragment: karte.html#lat=…&lon=…&z=… (server/DESIGN.md §7) ---------- */
+
+  var VIEW_NUMBER = /^-?\d{1,3}(\.\d{1,8})?$/;
+
+  /** Parses a location hash like "#lat=47.37690&lon=8.54170&z=16" into { lat, lon, z }, or null if
+   *  anything is missing or invalid: lat/lon WGS84 decimal degrees inside `bounds` ([[S, W], [N, E]]),
+   *  z a number within [minZoom, maxZoom]. Only these three keys, each once; anything else -> null.
+   *  The fragment never reaches a server (browsers do not send it); the app's tab «Karte» uses it
+   *  to open the map at the shifted point of the phone's newest shared measurement. */
+  function parseView(hash, bounds, minZoom, maxZoom) {
+    if (typeof hash !== "string") return null;
+    var h = hash.charAt(0) === "#" ? hash.slice(1) : hash;
+    if (!h || h.length > 100) return null;
+    var seen = {};
+    var parts = h.split("&");
+    for (var i = 0; i < parts.length; i++) {
+      var kv = parts[i].split("=");
+      if (kv.length !== 2 || (kv[0] !== "lat" && kv[0] !== "lon" && kv[0] !== "z")) return null;
+      if (Object.prototype.hasOwnProperty.call(seen, kv[0]) || !VIEW_NUMBER.test(kv[1])) return null;
+      seen[kv[0]] = Number(kv[1]);
+    }
+    var lat = seen.lat, lon = seen.lon, z = seen.z;
+    if (![lat, lon, z].every(function (x) { return typeof x === "number" && isFinite(x); })) return null;
+    if (lat < bounds[0][0] || lat > bounds[1][0] || lon < bounds[0][1] || lon > bounds[1][1]) return null;
+    if (z < minZoom || z > maxZoom) return null;
+    return { lat: lat, lon: lon, z: z };
+  }
+
   return {
+    parseView: parseView,
     fmt1: fmt1, fmtPct: fmtPct, fmtHours: fmtHours,
     isDate: isDate, addDays: addDays, daysBetween: daysBetween,
     dayLabel: dayLabel, dayShort: dayShort, spanLabel: spanLabel, periodLabel: periodLabel,

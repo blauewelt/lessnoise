@@ -4,6 +4,8 @@ import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.ui.REPORT_CONSENT_TEXT
+import ch.lessnoise.app.ui.REPORT_SPOT_WARNING
+import ch.lessnoise.app.ui.reportConfirmDialogText
 import ch.lessnoise.app.ui.reportConfirmText
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
@@ -181,5 +183,15 @@ class ReportsTest {
             assertTrue(REPORT_CONSENT_TEXT.contains(part), part)
         }
         assertFalse(REPORT_CONSENT_TEXT.contains('ß'))
+        // DESIGN.md §2 rule 10: the report screen states the risk, on every confirmation (0.6.3:
+        // the consent above is skipped once sharing is on).
+        assertEquals("Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.", REPORT_SPOT_WARNING)
+        assertEquals(
+            "Meldung: Töff, 16:05, Standort ± 12 m – senden?\nWer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.",
+            reportConfirmDialogText(ReportCategory.MOTORRAD, now, 12, zone),
+        )
+        val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        assertTrue(ui.contains("Text(reportConfirmDialogText("), "the «Meldung» dialog shows the warning")
+        assertFalse(ui.contains("Text(reportConfirmText("), "no confirmation without the warning")
     }
 }

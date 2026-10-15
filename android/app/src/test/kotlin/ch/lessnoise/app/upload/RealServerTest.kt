@@ -80,4 +80,49 @@ class RealServerTest {
         assertTrue(store.state.value.refused.isEmpty())
         assertEquals(Uploader.DeleteOutcome.Deleted, up.deleteServerData())
     }
+
+    /** 0.6.3: the measurement starts without a point; the point comes later; the server gets it all. */
+    @Test
+    fun theRealServerAcceptsARunningMeasurementWhosePointCameLater() = runBlocking {
+        assumeTrue("STADTLAERM_TEST_SERVER not set", base != null)
+        val start = (System.currentTimeMillis() - 30 * 60_000L) / 60_000 * 60_000
+        val minutes = (0 until 25).map { i ->
+            val t = start + i * 60_000L
+            MinuteEntity(
+                id = i + 1L, startEpochMs = t, startIso = Iso.format(t, zone), durationSeconds = 60.0,
+                laeqDb = 51.0, lafMaxDb = 66.0, lafMinDb = 40.0, l1Db = 63.0, l10Db = 56.0, l50Db = 50.0, l90Db = 44.0,
+                eventCount = 1, dominantCategory = "road_traffic", categorySharesJson = """{"road_traffic":1.0}""",
+                classifierFrames = 60, calibrationId = null, calibrationOffsetDb = 112.35, audioSource = "UNPROCESSED",
+                calibrated = false, validSeconds = 60.0, coverage = 1.0, clockCorrections = 0,
+            )
+        }
+        val events = (0 until 5).map { i ->
+            val t = start + i * 5 * 60_000L + 12_345
+            EventEntity(
+                id = i + 1L, startEpochMs = t, startIso = Iso.format(t, zone, millis = true), durationSeconds = 3.0,
+                lafMaxDb = 77.0, selDb = 79.0, backgroundDb = 45.0, thresholdDb = 10.0, dominantCategory = "loud_vehicle",
+                dominantScore = 0.4f, topLabelsJson = "[]", classifierFrames = 3, calibrationId = null,
+                audioSource = "UNPROCESSED", calibrated = false, minLevelDb = 30.0,
+            )
+        }
+        var row = ch.lessnoise.app.data.MeasurementEntity(id = 1, startMs = start, endMs = null)
+        val source = object : UploadSource {
+            override suspend fun minutesAfter(afterMs: Long, limit: Int) = minutes.filter { it.startEpochMs > afterMs }.take(limit)
+            override suspend fun eventsAfter(afterMs: Long, limit: Int) = events.filter { it.startEpochMs > afterMs }.take(limit)
+            override suspend fun siteExtras() = SiteExtras("Pixel 8", "UNPROCESSED", calibrated = false, calibrationOffsetDb = 112.35)
+            override suspend fun measurements() = listOf(row)
+        }
+        val store = MemoryUploadStore()
+        val up = Uploader(UploadClient(base!!), store, source, MemoryReportStore(), "0.6.3-dev", 16)
+        up.enable()
+        // Before the fix: registers, sends nothing, the markers move past the records.
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertTrue(store.state.value.registered)
+        // The fix arrives: the running measurement gets its shifted point.
+        row = row.copy(cell = "h26833_12479", pointE = 2683351, pointN = 1247988, sigmaM = 50)
+        up.pointAttached(start)
+        assertEquals(Uploader.Outcome.Done(minutes = 25, events = 5, refused = 0, more = false), up.run())
+        assertNull(store.state.value.lastError)
+        assertEquals(Uploader.DeleteOutcome.Deleted, up.deleteServerData())
+    }
 }

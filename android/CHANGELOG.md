@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.6.3 — not published (versionCode 16)
+
+Built on 0.6.2. Sharing made simple and the map in the app («Online-Version» only; the Offline-Version
+and the Labor build behave exactly as before).
+
+- **One question at the first «Starten»:** «Auf die Lärmkarte?» — three lines (what is sent, what
+  never, how to delete), «Mehr dazu» for the full explanation, «Ja, auf die Karte» / «Nur auf dem
+  Telefon». Asked once; the switch in «Teilen» changes it later. The «Weiter» gate in «Teilen» is gone.
+  Updating from 0.6.2: sharing on counts as yes, everybody else is asked once.
+- **Measuring never waits for the location:** the measurement starts at once; the one location fix
+  runs while the app is open and its shifted point is attached to the running measurement, which is
+  then shared as a whole (also the minutes before the fix). No fix: no dialog, a line «Kein Standort –
+  tippen» with the options. Switching sharing on during a measurement shares that measurement.
+- **Live map:** while a shared measurement runs, the first upload about 30 s after the point is
+  known, each loud moment about 30 s after it ended (usually one request), the minutes every 2
+  minutes; at once after «Stoppen»; hourly as before. After a 429 the app slows down, nothing is
+  lost. Mobile data is allowed by default (at most about 3 MB a day measuring round the clock;
+  «Nur über WLAN» is reset once to off). The map page refreshes every 30 s while visible.
+- **One status line** on «Messen» and «Teilen»: «Standort wird bestimmt …», «Wird geteilt – erste
+  Werte in etwa einer Minute», «Auf der Karte · zuletzt gesendet 14:05», «Kein Internet – wird
+  nachgeholt» …
+- **«Teilen» shorter:** status and switch on top; «Was gesendet wird ▸» and «Wo liegt das Telefon?
+  (freiwillig) ▸» folded.
+- **New tab «Karte»:** the website's noise map in the app (WebView, loaded only when the tab is
+  opened, no other host, no cookies, no location; opens at the shifted point of the newest shared
+  measurement via `karte.html#lat=…&lon=…&z=16`). The website's map page reads that new view fragment.
+- **Back undoes tab switches:** every switch pushes the tab you leave, back returns to it (also from
+  «Messen»), and only with nothing left does back leave the app; the map page's history no longer
+  swallows it.
+- **The map centres on your point whenever the tab is shown:** the page is kept across tab switches
+  (paused while hidden; the page refreshes its data itself every 30 seconds while visible) and moved
+  with `location.replace('#lat=…')` as soon as the point exists or changes — no reload, no history
+  entry. The website's map page checks for new data every 30 seconds while visible (also on the web).
+- **«Unterwegs» and «Sehr laut»:** a switch under «Starten» (off by default). While it is on and you
+  measure, a very loud vehicle (≥ 75 dB, «Töff & Poser» or «Strassenverkehr», never wind) shows a
+  notification «Sehr laut: Töff & Poser, 84 dB – Antippen zum Melden», at most one every 2 minutes;
+  a tap opens «Laut! Melden» with the time of the noise and the fitting categories highlighted, also
+  during a measurement. Online-Version only.
+- **A banner above the map** while your values are not visible yet: «Noch kein Standort», «Erste
+  Werte werden gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte
+  aktualisiert sich laufend» (2 minutes) or «Du teilst nicht – tippen zum Teilen».
+
 ## 0.6.2 — 2026-10-14 (versionCode 15)
 
 Built on 0.6.1. Four changes; the detector, the CSV columns and everything the offline edition does

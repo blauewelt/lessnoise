@@ -82,13 +82,37 @@ data class LiveState(
     val topLabels: List<LabelScore> = emptyList(),
     val lastMinute: MinuteRecord? = null,
     val classifierEnabled: Boolean = false,
-    /** The running measurement's shifted point if it is shared («Messwerte teilen»), else null. */
+    /**
+     * The running measurement's shifted point if it is shared («Messwerte teilen»), else null. Since
+     * 0.6.3 the measurement starts without it and the point is attached once the fix is there
+     * (ui/ShareFlow.kt), or when sharing is switched on during the measurement.
+     */
     val sharedPoint: LocationNoise.Point? = null,
+    /** Start of the running measurement's row (MeasurementEntity.startMs); 0 when none runs. */
+    val measurementStartMs: Long = 0,
     /** The system currently silences the microphone (call, voice assistant): audio not evaluated. */
     val micSilenced: Boolean = false,
     /** Current audio is not evaluated (silenced, digital silence or 0.5 s recovery after it). */
     val invalidAudio: Boolean = false,
     val error: String? = null,
+    /**
+     * The newest event of the running measurement (0.6.3): it starts the live upload of loud
+     * events (UploadModule, LiveUploadPlan) and, in the editions with the map, the «Sehr laut»
+     * alert while «Unterwegs» is on. Null until the first event.
+     */
+    val lastEvent: LiveEvent? = null,
+)
+
+/** An event as it was detected (0.6.3, [LiveState.lastEvent]). Levels as shown (calibrated if the phone is). */
+data class LiveEvent(
+    val startEpochMs: Long,
+    val endEpochMs: Long,
+    val lafMaxDb: Double,
+    /** Category id («loud_vehicle», «road_traffic» …), «unclassified», «wind», or null (classifier off). */
+    val category: String?,
+    /** Wind on the microphone (detector v2): not counted, not shared, never an alert. */
+    val wind: Boolean,
+    val calibrated: Boolean,
 )
 
 /**
@@ -286,6 +310,7 @@ class MeasurementService : Service() {
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
+                        measurementStartMs = startedAt,
                     )
                 }
             } catch (e: Exception) {
@@ -380,6 +405,16 @@ class MeasurementService : Service() {
 
         override fun onEventEmitted(event: NoiseEvent, startSample: Long, endSample: Long) {
             val t = tap
+            container.live.update {
+                it.copy(
+                    lastEvent = LiveEvent(
+                        startEpochMs = event.startEpochMs,
+                        endEpochMs = event.startEpochMs + (event.durationSeconds * 1000).toLong(),
+                        lafMaxDb = event.lafMaxDb, category = event.dominantCategory, wind = event.wind,
+                        calibrated = event.calibrated,
+                    ),
+                )
+            }
             persist("event") {
                 val id = container.measurements.insert(event)
                 t.onEventStored(id, event, startSample, endSample)

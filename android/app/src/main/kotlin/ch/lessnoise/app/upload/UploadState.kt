@@ -55,13 +55,51 @@ data class RefusedRecord(val kind: String, val startEpochMs: Long, val reason: S
     }
 }
 
+/**
+ * The answer to «Auf die Lärmkarte?» (0.6.3): asked once, at the first «Starten» of the Online-Version
+ * (or when «Teilen» is switched on before that). The switch in «Teilen» changes it later: on ⇒ [YES],
+ * off ⇒ [NO]. [UNDECIDED] until then.
+ */
+enum class ShareDecision(val stored: String) {
+    UNDECIDED("undecided"), YES("yes"), NO("no");
+
+    companion object {
+        fun fromStored(s: String?): ShareDecision? = entries.firstOrNull { it.stored == s }
+    }
+}
+
+/**
+ * One-time changes of the stored upload settings when the app is updated (pure, JVM-tested in
+ * UploadPrefsMigrationTest). [CURRENT] is the version of the stored settings written by this app.
+ */
+object UploadPrefsMigration {
+    /** 1 = up to 0.6.2 (no version key); 2 = 0.6.3 (share decision, mobile data by default). */
+    const val CURRENT = 2
+
+    data class Stored(val version: Int, val enabled: Boolean, val decision: String?, val wifiOnly: Boolean)
+    data class Result(val decision: ShareDecision, val wifiOnly: Boolean, val version: Int)
+
+    fun migrate(s: Stored): Result {
+        val decision = ShareDecision.fromStored(s.decision)
+            // 0.6.2 and older: sharing on means the person already said yes; everybody else is
+            // asked once, at the next «Starten».
+            ?: if (s.enabled) ShareDecision.YES else ShareDecision.UNDECIDED
+        // 0.6.3: mobile data allowed by default (at most about 3 MB a day with the live map). The 0.6.2 default (Wi-Fi only) is
+        // reset once on the update; a later choice in «Weitere Angaben» is kept.
+        val wifiOnly = if (s.version < 2) false else s.wifiOnly
+        return Result(decision, wifiOnly, CURRENT)
+    }
+}
+
 /** Everything the upload remembers. Immutable; changed through [UploadStore.update]. */
 data class UploadSnapshot(
     /** «Messwerte teilen» (off by default, DESIGN.md §2.3). */
     val enabled: Boolean = false,
-    /** «nur über WLAN» (default on, DESIGN.md §4.6). */
-    val wifiOnly: Boolean = true,
-    /** The explanation screen was read and confirmed once. */
+    /** «Auf die Lärmkarte?» answered (0.6.3); see [ShareDecision]. */
+    val shareDecision: ShareDecision = ShareDecision.UNDECIDED,
+    /** «nur über WLAN» (default off since 0.6.3, DESIGN.md §4.6). */
+    val wifiOnly: Boolean = false,
+    /** Up to 0.6.2: the explanation screen was read once. Kept in the settings; gates nothing since 0.6.3. */
     val explanationSeen: Boolean = false,
     /** Placement details (optional fields). */
     val site: SiteSettings = SiteSettings(),
@@ -99,7 +137,6 @@ data class UploadSnapshot(
     val noiseSecret: String? = null,
 ) {
     val registered: Boolean get() = deviceId != null && token != null
-    val canEnable: Boolean get() = explanationSeen
 
     companion object {
         const val REFUSED_KEEP = 2000
@@ -149,9 +186,26 @@ class UploadState(context: Context) : UploadStore {
             note = prefs.getString("site_note", null) ?: "",
         )
         val token = prefs.getString("token_enc", null)?.let { TokenCipher.decrypt(it) }
+        val enabled = prefs.getBoolean("enabled", false)
+        val migrated = UploadPrefsMigration.migrate(
+            UploadPrefsMigration.Stored(
+                version = prefs.getInt("prefs_version", 1),
+                enabled = enabled,
+                decision = prefs.getString("share_decision", null),
+                wifiOnly = prefs.getBoolean("wifi_only", false),
+            )
+        )
+        if (prefs.getInt("prefs_version", 1) != migrated.version) {
+            prefs.edit()
+                .putInt("prefs_version", migrated.version)
+                .putString("share_decision", migrated.decision.stored)
+                .putBoolean("wifi_only", migrated.wifiOnly)
+                .commit()
+        }
         return UploadSnapshot(
-            enabled = prefs.getBoolean("enabled", false),
-            wifiOnly = prefs.getBoolean("wifi_only", true),
+            enabled = enabled,
+            shareDecision = migrated.decision,
+            wifiOnly = migrated.wifiOnly,
             explanationSeen = prefs.getBoolean("explanation_seen", false),
             site = site,
             deviceId = prefs.getString("device_id", null),
@@ -177,7 +231,9 @@ class UploadState(context: Context) : UploadStore {
 
     private fun write(s: UploadSnapshot) {
         val e = prefs.edit()
+            .putInt("prefs_version", UploadPrefsMigration.CURRENT)
             .putBoolean("enabled", s.enabled)
+            .putString("share_decision", s.shareDecision.stored)
             .putBoolean("wifi_only", s.wifiOnly)
             .putBoolean("explanation_seen", s.explanationSeen)
             .putLong("send_floor_ms", s.sendFloorMs)

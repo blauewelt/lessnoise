@@ -131,6 +131,12 @@ object Links {
     const val DATA = "$GUIDE#daten"
     const val PRIVACY = "https://wenigerlaerm.ch/datenschutz.html"
     val all = listOf(MEASURE, CALIBRATE, SHARE, DATA, PRIVACY)
+
+    /**
+     * The noise map, shown inside the app in the tab «Karte» (0.6.3, Karten editions only; see
+     * MapLinks for the one fragment the app may add). Not a «Mehr dazu» link, hence not in [all].
+     */
+    const val MAP = "https://wenigerlaerm.ch/karte.html"
 }
 
 /** Opens [url] in the browser; false if no app can open it. */

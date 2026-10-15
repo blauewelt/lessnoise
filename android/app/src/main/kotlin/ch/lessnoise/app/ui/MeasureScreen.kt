@@ -20,6 +20,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,7 +44,12 @@ import ch.lessnoise.app.service.LiveState
 import ch.lessnoise.app.service.MeasurementService
 
 @Composable
-fun MeasureScreen(modifier: Modifier = Modifier) {
+fun MeasureScreen(
+    modifier: Modifier = Modifier,
+    onOpen: (Screen) -> Unit = {},
+    reportPreset: ReportPreset? = null,
+    onReportPresetUsed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val c = context.container
     val live by c.live.collectAsStateWithLifecycle()
@@ -51,18 +57,22 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
-    // Karten editions with «Teilen» on: one location fix at «Starten» (LocationFlows.kt).
-    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { point -> MeasurementService.start(context, point) } else null
+    // Karten editions: «Auf die Lärmkarte?» once, and the fix while measuring (ShareFlow.kt, 0.6.3).
+    val share = LocalShareController.current
     fun startMeasurement() {
-        val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
-        if (sharing && sharedStart != null) sharedStart() else MeasurementService.start(context)
+        if (share != null) share.start() else MeasurementService.start(context)
     }
     val requestPermission = rememberMicPermissionLauncher { granted ->
         if (granted) startMeasurement()
     }
     val report = if (BuildConfig.UPLOAD_AVAILABLE) {
-        rememberReportAction { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } }
+        rememberReportAction(
+            onQueued = { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } },
+            // From the «Sehr laut» notification (0.6.3, editions with the map): also while measuring.
+            preset = reportPreset, onPresetUsed = onReportPresetUsed,
+        )
     } else null
+    val status = if (share != null) rememberShareStatus() else null
 
     MeasureContent(
         live = live, events = events, calibrating = calibrating, modifier = modifier,
@@ -72,7 +82,55 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
         onReport = report,
         updateLine = { UpdateReminderLine() },
         eventMarker = { EditionUi.EventMarker(it) },
+        shareStatus = status,
+        onShareStatus = { a -> handleShareAction(a, share, onOpen) },
+        // «Unterwegs» (0.6.3): only in the editions with the map (src/karte); nothing elsewhere.
+        unterwegs = { LoudAlerts.Switch() },
     )
+}
+
+/** What a tap on the status line does: open a tab, or let the controller act. */
+fun handleShareAction(a: ShareAction, share: ShareController?, onOpen: (Screen) -> Unit) {
+    when (a) {
+        ShareAction.OPEN_MAP -> onOpen(Screen.MAP)
+        ShareAction.OPEN_SHARE -> onOpen(Screen.SHARE)
+        else -> share?.onStatus(a)
+    }
+}
+
+/** The status line for the current state (Karten editions), from the live state, the upload and the fix. */
+@Composable
+fun rememberShareStatus(): ShareStatus? {
+    val c = LocalContext.current.container
+    val live by c.live.collectAsStateWithLifecycle()
+    val s by c.upload.store.state.collectAsStateWithLifecycle()
+    val locate by c.shareLocate.collectAsStateWithLifecycle()
+    val online = rememberOnline()
+    return shareStatus(
+        s = s, running = live.running, measurementStartMs = live.measurementStartMs,
+        hasPoint = live.sharedPoint != null, locate = locate, online = online, hm = Fmt::hm,
+    )
+}
+
+/** The status line: one tappable row (0.6.3). */
+@Composable
+fun ShareStatusLine(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modifier = Modifier) {
+    val tappable = status.action != ShareAction.NONE
+    Surface(
+        onClick = { onTap(status.action) },
+        enabled = tappable,
+        shape = RoundedCornerShape(12.dp),
+        color = if (status.problem) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                status.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+                color = if (status.problem) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            if (tappable) Text(" ›", style = MaterialTheme.typography.titleMedium)
+        }
+    }
 }
 
 /**
@@ -92,6 +150,9 @@ fun MeasureContent(
     onReport: (() -> Unit)? = null,
     updateLine: @Composable () -> Unit = {},
     eventMarker: @Composable (Long) -> Unit = {},
+    shareStatus: ShareStatus? = null,
+    onShareStatus: (ShareAction) -> Unit = {},
+    unterwegs: @Composable () -> Unit = {},
 ) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -156,20 +217,24 @@ fun MeasureContent(
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
+                    unterwegs()
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
-                    live.sharedPoint?.let { Text(sharedMeasurementLine(it.sigmaM), style = MaterialTheme.typography.bodySmall) }
+                    shareStatus?.let { ShareStatusLine(it, onShareStatus) }
                 } else {
                     Button(
                         onClick = onStart,
                         enabled = !live.starting && !calibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) { Text(if (live.starting) "Startet …" else "Starten", fontSize = 18.sp) }
+                    unterwegs()
                     // «Laut! Melden»: Karten editions only, while no measurement runs.
                     if (onReport != null && !live.starting) {
                         OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
                     }
                 }
                 if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
+                // Idle: the short form (e.g. «Auf der Karte · zuletzt gesendet 14:05»).
+                if (!live.running && !live.starting) shareStatus?.let { ShareStatusLine(it, onShareStatus) }
                 if (!live.running) updateLine()
                 live.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
             }

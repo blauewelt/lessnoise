@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.6.2"
+        versionCode = 16
+        versionName = "0.6.3"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -81,8 +81,10 @@ android {
     //            is switched off (UPLOAD_AVAILABLE = false). Same Kotlin sources as public
     //            (src/public/kotlin, see sourceSets below), so it contains no recording code either.
     // - public:  the «Online-Version», the default download (with the map, release asset lessnoise-karte.apk):
-    //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», location only
-    //            for one fix at «Start» of a shared measurement and per report (src/public/AndroidManifest.xml).
+    //            INTERNET only for the opt-in «Messwerte teilen» and «Laut! Melden», and (0.6.3) the
+    //            tab «Karte», which shows the website's map page while it is open; location only for
+    //            one fix right after «Starten» of a shared measurement and per report
+    //            (src/public/AndroidManifest.xml).
     //            offline and public share the applicationId ch.lessnoise.app and the release key:
     //            installing one over the other switches the edition and keeps the data.
     // - labor:   a diagnostics build that can record audio (event clips, continuous AAC) for
@@ -133,6 +135,16 @@ android {
         // belongs to the map edition only. Its own manifest is src/offline/AndroidManifest.xml.
         named("offline") {
             kotlin.srcDir("src/public/kotlin")
+            kotlin.srcDir("src/nomap/kotlin")
+        }
+        // The tab «Karte» (0.6.3): the website's map page in a WebView (src/karte/.../MapScreen.kt),
+        // compiled ONLY into the two editions with the map. The Offline and Labor builds get the
+        // stand-in src/nomap/.../MapTab.kt (no tab, no WebView in their dex).
+        named("public") {
+            kotlin.srcDir("src/karte/kotlin")
+        }
+        named("labor") {
+            kotlin.srcDir("src/nomap/kotlin")
         }
         // laborKarte compiles the Labor edition's Kotlin and resources (recorder, clip player, red
         // icon, «Stadtlärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
@@ -140,10 +152,16 @@ android {
         // src/labor/ has no other folders (no assets, java, resources); add them here if it gets any.
         named("laborKarte") {
             kotlin.srcDir("src/labor/kotlin")
+            kotlin.srcDir("src/karte/kotlin")
             res.srcDir("src/labor/res")
         }
         named("testLaborKarte") {
             kotlin.srcDir("src/testLabor/kotlin")
+            kotlin.srcDir("src/testKarte/kotlin")
+        }
+        // JVM tests of src/karte (0.6.3: the «Sehr laut» alert), run for both editions with the map.
+        named("testPublic") {
+            kotlin.srcDir("src/testKarte/kotlin")
         }
     }
 

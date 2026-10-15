@@ -1,16 +1,31 @@
 package ch.lessnoise.app.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -21,7 +36,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -31,57 +45,131 @@ import ch.lessnoise.app.edition.EditionUi
 import ch.lessnoise.chart.LessNoiseTheme
 
 class MainActivity : ComponentActivity() {
+    // A tap on the «Sehr laut» notification (0.6.3, editions with the map; always null elsewhere):
+    // «Laut! Melden» with the event's time and suggested categories.
+    private var alertPreset by mutableStateOf<ReportPreset?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { LessNoiseTheme { AppRoot() } }
+        // Not again after a rotation: the intent was taken the first time.
+        if (savedInstanceState == null) takeAlert(intent)
+        setContent { LessNoiseTheme { AppRoot(alertPreset) { alertPreset = null } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeAlert(intent)
+    }
+
+    private fun takeAlert(intent: Intent?) {
+        val preset = LoudAlerts.presetFrom(intent) ?: return
+        alertPreset = preset
+        // Taken: a later recreation must not start the report again.
+        setIntent(Intent(this, MainActivity::class.java))
     }
 }
 
-private enum class Screen { MEASURE, MEASUREMENTS, SHARE, SETTINGS }
-
-private data class Tab(val screen: Screen, val label: String, val icon: ImageVector)
-
-/**
- * «Messen · Messungen · Einstellungen», plus «Teilen» in the editions with the Lärmkarte (0.6.1;
- * Kalibrieren and Daten moved into Einstellungen).
- */
-private val tabs = buildList {
-    add(Tab(Screen.MEASURE, "Messen", Icons.Filled.Home))
-    add(Tab(Screen.MEASUREMENTS, "Messungen", Icons.Filled.DateRange))
-    if (BuildConfig.UPLOAD_AVAILABLE) add(Tab(Screen.SHARE, "Teilen", Icons.Filled.Share))
-    add(Tab(Screen.SETTINGS, "Einstellungen", Icons.Filled.Settings))
+/** Tab icon. «Karte»: the pin (Icons.Filled.Map is only in the large extended icon set). */
+fun screenIcon(s: Screen): ImageVector = when (s) {
+    Screen.MEASURE -> Icons.Filled.Home
+    Screen.MEASUREMENTS -> Icons.Filled.DateRange
+    Screen.MAP -> Icons.Filled.Place
+    Screen.SHARE -> Icons.Filled.Share
+    Screen.SETTINGS -> Icons.Filled.Settings
 }
 
+/** The bottom bar (also rendered on the JVM, ShareScreenshots). */
 @Composable
-fun AppRoot() {
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+fun AppBottomBar(screens: List<Screen>, selected: Int, onSelect: (Int) -> Unit) {
+    val labels = remember(screens) { screens.map(::screenLabel) }
+    NavigationBar {
+        screens.forEachIndexed { i, s ->
+            val label = labels[i]
+            NavigationBarItem(
+                selected = selected == i,
+                onClick = { onSelect(i) },
+                icon = { Icon(screenIcon(s), contentDescription = label) },
+                // Five tabs since 0.6.3: ONE label size for all tabs, the largest at which every
+                // label (in practice «Einstellungen») fits one line in a tab's width.
+                label = { BarLabel(label, labels, MaterialTheme.typography.labelMedium) },
+            )
+        }
+    }
+}
+
+/**
+ * [text] in the largest size (≤ [style]'s, ≥ 8 sp, half-sp steps) at which all of [all] fit the
+ * available width on one line. Every tab has the same width, so every tab arrives at the same size.
+ */
+@Composable
+private fun BarLabel(text: String, all: List<String>, style: TextStyle) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints {
+        val max = constraints.maxWidth
+        val fitted = remember(all, max, style) {
+            if (max == Constraints.Infinity) return@remember style
+            fun fits(s: TextStyle) = all.all { measurer.measure(it, s, maxLines = 1, softWrap = false).size.width <= max }
+            var size = style.fontSize.value
+            var s = style
+            while (!fits(s) && size > 8f) {
+                size -= 0.5f
+                s = style.copy(fontSize = size.sp, letterSpacing = 0.sp)
+            }
+            s
+        }
+        Text(text, style = fitted, maxLines = 1, softWrap = false)
+    }
+}
+
+/** Saves the tab history across configuration changes (as the tab names). */
+private val TabHistorySaver = Saver<TabHistory, ArrayList<String>>(
+    save = { ArrayList(it.save()) },
+    restore = { TabHistory.restore(it) },
+)
+
+@Composable
+fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {}) {
+    val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
+    // The undo stack of tabs opened (TabHistory): every switch, tapped or opened from a status
+    // line or banner, pushes the tab left; back pops it; with nothing left back leaves the app
+    // (no handler then).
+    var history by rememberSaveable(stateSaver = TabHistorySaver) { mutableStateOf(TabHistory()) }
+    val current = history.current.takeIf { it in screens } ?: Screen.MEASURE
     val snackbar = remember { SnackbarHostState() }
+    // Karten editions: the consent at the first «Starten», the fix for the running measurement and
+    // its dialogs (ShareFlow.kt). Null in the Offline and Labor builds.
+    val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareController() else null
+    val open: (Screen) -> Unit = { s -> if (s in screens) history = history.select(s) }
+    BackHandler(enabled = history.canGoBack) { history = history.back() }
+    // «Laut! Melden» from the notification runs on «Messen» (a tab switch like any other).
+    LaunchedEffect(alertPreset) { if (alertPreset != null) open(Screen.MEASURE) }
+    // The map tab's WebView is created the first time the tab is shown and then kept (paused while
+    // another tab is shown) until the activity ends, so that switching tabs does not reload it.
+    var mapOpened by remember { mutableStateOf(false) }
+    SideEffect { if (current == Screen.MAP) mapOpened = true }
     Scaffold(
         // Public: emits nothing (same as Scaffold's default). Labor: the red warning banner.
         topBar = { EditionUi.Banner() },
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            NavigationBar {
-                tabs.forEachIndexed { i, t ->
-                    NavigationBarItem(
-                        selected = selected == i,
-                        onClick = { selected = i },
-                        icon = { Icon(t.icon, contentDescription = t.label) },
-                        label = { Text(t.label, maxLines = 1) },
-                    )
-                }
-            }
-        },
+        bottomBar = { AppBottomBar(screens, screens.indexOf(current)) { i -> open(screens[i]) } },
     ) { padding ->
         val m = Modifier.padding(padding)
-        CompositionLocalProvider(LocalSnackbarHost provides snackbar) {
-            when (tabs.getOrNull(selected)?.screen ?: Screen.MEASURE) {
-                Screen.MEASURE -> MeasureScreen(m)
-                Screen.MEASUREMENTS -> MeasurementsScreen(m)
-                Screen.SHARE -> ShareScreen(m)
-                Screen.SETTINGS -> SettingsScreen(m)
+        CompositionLocalProvider(LocalSnackbarHost provides snackbar, LocalShareController provides share) {
+            Box(Modifier.fillMaxSize()) {
+                // Below the other tabs; invisible and paused unless «Karte» is shown (MapScreen.kt).
+                if (MapTab.AVAILABLE && (mapOpened || current == Screen.MAP)) {
+                    MapTab.Content(m, visible = current == Screen.MAP, onOpen = open)
+                }
+                when (current) {
+                    Screen.MEASURE -> MeasureScreen(m, onOpen = open, reportPreset = alertPreset, onReportPresetUsed = onAlertPresetUsed)
+                    Screen.MEASUREMENTS -> MeasurementsScreen(m)
+                    Screen.MAP -> Unit
+                    Screen.SHARE -> ShareScreen(m, onOpen = open)
+                    Screen.SETTINGS -> SettingsScreen(m)
+                }
             }
+            share?.Dialogs()
             // Public: nothing. Labor: the clip player sheet.
             EditionUi.Overlay()
         }
