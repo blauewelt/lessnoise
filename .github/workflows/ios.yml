@@ -1,0 +1,130 @@
+# iOS app «Weniger Lärm» (ios/): the Swift packages' tests on macOS, then the app built and
+# tested on an iOS Simulator, without signing. Runs on pushes to the branch ios-app that touch
+# ios/** (and on demand). Reads nothing but the repository and the Swift packages (GRDB,
+# swift-crypto) from github.com; sends nothing anywhere.
+name: iOS
+
+on:
+  push:
+    branches: [ios-app]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: LessNoiseCore swift test (CryptoKit, Compression-framework gzip)
+        working-directory: ios/LessNoiseCore
+        run: |
+          set +e
+          swift test > ../core-test.log 2>&1; status=$?
+          grep -E "✘|error:|passed after|failed after|Test run" ../core-test.log | tail -40
+          exit $status
+
+      - name: LessNoiseKit swift test (storage, session, flows)
+        working-directory: ios/LessNoiseKit
+        run: |
+          set +e
+          swift test > ../kit-test.log 2>&1; status=$?
+          grep -E "error:|failed|Executed" ../kit-test.log | tail -40
+          exit $status
+
+      - name: XcodeGen
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen --spec project.yml
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          def ver(rt):
+              tail = rt.split("iOS-")[-1]
+              return [int(x) for x in tail.split("-") if x.isdigit()]
+          for rt in sorted((r for r in d if "iOS" in r), key=ver, reverse=True):
+              for dev in d[rt]:
+                  if dev["name"].startswith("iPhone"):
+                      print(dev["udid"]); sys.exit(0)
+          sys.exit(1)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available | grep "$UDID"
+
+      - name: Build for testing (iOS Simulator, no signing)
+        working-directory: ios
+        run: |
+          set +e
+          xcodebuild build-for-testing \
+            -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO > build-for-testing.log 2>&1; status=$?
+          grep -E "error:|\*\* .* \*\*" build-for-testing.log | sort -u | head -150
+          exit $status
+
+      - name: Test (iOS Simulator)
+        working-directory: ios
+        run: |
+          set +e
+          xcodebuild test-without-building \
+            -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/WenigerLaermTests.xcresult \
+            CODE_SIGNING_ALLOWED=NO > test.log 2>&1; status=$?
+          grep -E "error:|Test Case .* failed|Executed|\*\* .* \*\*" test.log | head -150
+          exit $status
+
+      - name: Test summary
+        if: always()
+        working-directory: ios
+        run: |
+          if [ -d build/WenigerLaermTests.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path build/WenigerLaermTests.xcresult > test-summary.json || true
+            echo "TEST SUMMARY:"; cat test-summary.json || true
+            {
+              echo '### iOS tests'
+              echo '```json'
+              cat test-summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "no result bundle"
+          fi
+
+      - name: Upload logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-results
+          path: |
+            ios/core-test.log
+            ios/kit-test.log
+            ios/build-for-testing.log
+            ios/test.log
+            ios/test-summary.json
+            ios/build/WenigerLaermTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,108 @@
+# XcodeGen spec of the iOS app «Weniger Lärm» (ios/README.md):
+#   brew install xcodegen && cd ios && xcodegen && open WenigerLaerm.xcodeproj
+# The generated WenigerLaerm.xcodeproj and App/Info.plist are not committed (ios/.gitignore).
+name: WenigerLaerm
+options:
+  bundleIdPrefix: ch.lessnoise
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: de
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    # Swift 5 language mode (as the two packages): Sendable checks stay warnings.
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # PLACEHOLDER: the owner's Team ID (Xcode → Settings → Accounts, or developer.apple.com →
+    # Membership). Empty = Xcode asks for a team at the first build on a device.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+packages:
+  LessNoiseCore:
+    path: LessNoiseCore
+  LessNoiseKit:
+    path: LessNoiseKit
+targets:
+  WenigerLaerm:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      # Single source of the categories: the Android app's asset files, as they are.
+      - path: ../android/app/src/main/assets/categories.json
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/yamnet_labels.txt
+        buildPhase: resources
+    dependencies:
+      - package: LessNoiseKit
+      - sdk: WebKit.framework
+      - sdk: BackgroundTasks.framework
+    entitlements:
+      path: App/WenigerLaerm.entitlements
+      properties:
+        # «Sehr laut» may break through a Focus (only if the person allows it in the settings).
+        com.apple.developer.usernotifications.time-sensitive: true
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Weniger Lärm
+        CFBundleName: Weniger Lärm
+        CFBundleDevelopmentRegion: de
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        # Measuring continues with the screen locked (ios/DESIGN.md §3). No «location» mode.
+        UIBackgroundModes:
+          - audio
+        BGTaskSchedulerPermittedIdentifiers:
+          - ch.lessnoise.upload
+        NSMicrophoneUsageDescription: Weniger Lärm misst den Schallpegel. Es wird nie Audio gespeichert oder gesendet.
+        NSLocationWhenInUseUsageDescription: Nur wenn du teilst – einmal nach dem Starten, solange die App offen ist; gesendet wird ein verschobener Punkt, bei einer Meldung der genaue Ort.
+        # Only Apple's TLS (URLSession) and CryptoKit: exempt from export documentation.
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.lessnoise.app
+        PRODUCT_NAME: WenigerLaerm
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_PREVIEWS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+  WenigerLaermTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: AppTests
+    dependencies:
+      - target: WenigerLaerm
+      - package: LessNoiseKit
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ch.lessnoise.app.tests
+schemes:
+  WenigerLaerm:
+    build:
+      targets:
+        WenigerLaerm: all
+        WenigerLaermTests: [test]
+    test:
+      config: Debug
+      targets:
+        - WenigerLaermTests
+    run:
+      config: Debug
+    archive:
+      config: Release
