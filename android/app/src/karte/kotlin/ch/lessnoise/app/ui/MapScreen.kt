@@ -2,7 +2,6 @@ package ch.lessnoise.app.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.os.SystemClock
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -60,8 +59,9 @@ import java.io.ByteArrayInputStream
 // - Nothing is loaded before the tab is first opened. The WebView is then kept until the app's
 //   screen is closed, so that switching tabs does not reload the page; while another tab is shown
 //   it is invisible and paused (WebView.onPause, JavaScript timers paused; a page still loading is
-//   stopped, MapCentring.hidden), and nothing is loaded or re-centred. Shown again after 10 minutes
-//   or more, it is loaded again (the server publishes the map every 10 minutes).
+//   stopped, MapCentring.hidden), and nothing is loaded or re-centred. The page keeps its data up
+//   to date by itself while visible (docs/map/karte.js: cells.json every 2 minutes); shown again,
+//   the app asks it to check at once (MapLinks.CHECK_SCRIPT).
 // - It loads the map page like a browser would: the page from wenigerlaerm.ch (GitHub Pages), map
 //   tiles from wmts.geo.admin.ch (swisstopo) and the published map files from api.lessnoise.ch
 //   (or api.stadtlaerm.ch, the same server). Any other host is refused here (MapLinks.allowedHost),
@@ -69,8 +69,9 @@ import java.io.ByteArrayInputStream
 // - It sends no measurement and no location. The centre (the SHIFTED point of the running
 //   measurement, else of the newest shared one) is in the URL fragment, which the WebView never
 //   sends to a server; the page's script reads it on the phone. When the point appears or changes
-//   after the page was loaded, the app replaces only the fragment (MapLinks.recentreScript, the one
-//   script it ever runs in the page; no reload, no history entry). The map tiles for the area on
+//   after the page was loaded, the app replaces only the fragment (MapLinks.recentreScript; no
+//   reload, no history entry). That and MapLinks.CHECK_SCRIPT are the only scripts it ever runs
+//   in the page. The map tiles for the area on
 //   screen are requested from swisstopo, as for anyone who looks at that area on the website.
 // - Back never goes back in the page's history (fragment changes would swallow it): the system
 //   back gesture belongs to the tabs (TabHistory). Links leaving the map page open in the browser.
@@ -126,8 +127,14 @@ fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (S
             // location.replace('#lat=…&lon=…&z=16'): only the fragment; the page's hashchange
             // handler re-centres (docs/map/karte.js). No reload, no history entry.
             is MapCentring.Step.Recentre -> w.evaluateJavascript(step.script, null)
+            // window.KarteCheck(): the page's own check for new map files, at once.
+            is MapCentring.Step.Check -> w.evaluateJavascript(step.script, null)
         }
     }
+
+    // What the last run of the effect below saw (not state: it only tells «shown again» apart
+    // from «the point changed while shown»).
+    val last = remember { object { var visible = false; var reshow = -1 } }
 
     // Shown, hidden, back in the app, or the point changed while shown.
     LaunchedEffect(visible, livePoint, web, reshow) {
@@ -136,13 +143,20 @@ fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (S
             if (centring.hidden()) w.stopLoading()
             w.onPause()
             w.pauseTimers()
+            last.visible = false
             return@LaunchedEffect
         }
+        val shownAgain = !last.visible || last.reshow != reshow
+        last.visible = true
+        last.reshow = reshow
         w.resumeTimers()
         w.onResume()
         val point = livePoint ?: withContext(Dispatchers.IO) { runCatching { c.measurements.latestSharedPoint() }.getOrNull() }
         anyPoint = point != null
-        centring.show(point, SystemClock.elapsedRealtime())?.let { perform(w, it) }
+        centring.show(point)?.let { perform(w, it) }
+        // The page checks for new map files when it becomes visible; in case the WebView does not
+        // tell it, the app asks once (the page runs one check at a time).
+        if (shownAgain) centring.check()?.let { perform(w, it) }
     }
 
     val owner = LocalLifecycleOwner.current

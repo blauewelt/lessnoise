@@ -63,6 +63,15 @@ object MapLinks {
         return "location.replace('$fragment')"
     }
 
+    /**
+     * The only other script the app runs in the page (0.6.3): when the kept page is shown again,
+     * ask it to check for new map files at once — the page's own check (docs/map/karte.js
+     * `window.KarteCheck`, the function its 2-minute timer and its visibilitychange handler call).
+     * A fallback in case Android's WebView does not report the page as visible again; it reads
+     * nothing back (no callback) and sends nothing but the page's usual request for cells.json.
+     */
+    const val CHECK_SCRIPT = "window.KarteCheck && window.KarteCheck()"
+
     /** Whether [url] is the map page (with any query or fragment): shown in the tab. Anything else goes to the browser. */
     fun staysInApp(url: String): Boolean = MAP_PAGE.matches(url)
 
@@ -79,34 +88,40 @@ object MapLinks {
  * stays alive across tab switches; this decides when it is loaded and when it is only re-centred.
  *
  * - [show] — the tab became visible, or the point changed while it is visible: the first time (or
- *   after an error, or when the page was loaded [staleMs] or longer ago, so that it shows the map
- *   files of the last 10 minutes) the page is loaded at [MapLinks.url]. Otherwise, if there is a
- *   point and the page is not centred on it yet, only the fragment is replaced
- *   ([MapLinks.recentreScript]); while the page is still loading, that waits for [pageFinished].
- *   Without a point the page is left as it is. «Centred on» means: the fragment the app last
- *   loaded or set; if you moved the map yourself, it is not moved back until the point changes.
+ *   after an error) the page is loaded at [MapLinks.url]. Otherwise, if there is a point and the
+ *   page is not centred on it yet, only the fragment is replaced ([MapLinks.recentreScript]);
+ *   while the page is still loading, that waits for [pageFinished]. Without a point the page is
+ *   left as it is. «Centred on» means: the fragment the app last loaded or set; if you moved the
+ *   map yourself, it is not moved back until the point changes. The page keeps its data up to
+ *   date by itself (docs/map/karte.js checks cells.json every 2 minutes while visible), so a kept
+ *   page is never reloaded for freshness.
+ * - [check] — the tab became visible again: ask the loaded page to check for new map files at
+ *   once ([MapLinks.CHECK_SCRIPT]; the page's own visibilitychange may already have done so — the
+ *   page runs one check at a time and the HTTP cache answers a repeat).
  * - [hidden] — another tab was chosen: a page still loading is stopped (true) and loaded again
  *   when the tab is shown, so that nothing is loaded while the tab is not shown.
  */
-class MapCentring(private val staleMs: Long = STALE_MS) {
+class MapCentring {
     sealed interface Step {
         /** Load the page at [url] (always a [MapLinks.url]). */
         data class Load(val url: String) : Step
 
         /** Run [script] in the page (always a [MapLinks.recentreScript]). */
         data class Recentre(val script: String) : Step
+
+        /** Run [script] in the page (always [MapLinks.CHECK_SCRIPT]). */
+        data class Check(val script: String) : Step
     }
 
-    private var loadedAtMs: Long? = null
+    private var loaded = false
     private var ready = false
     private var centredOn: String? = null
     private var pending: String? = null
 
-    /** The tab is shown (or the point changed while it is shown); [nowMs] a monotonic clock. */
-    fun show(point: LocationNoise.Point?, nowMs: Long): Step? {
-        val loaded = loadedAtMs
-        if (loaded == null || nowMs - loaded >= staleMs) {
-            loadedAtMs = nowMs
+    /** The tab is shown (or the point changed while it is shown). */
+    fun show(point: LocationNoise.Point?): Step? {
+        if (!loaded) {
+            loaded = true
             ready = false
             pending = null
             centredOn = MapLinks.viewFragment(point)
@@ -127,9 +142,12 @@ class MapCentring(private val staleMs: Long = STALE_MS) {
         ready = false
     }
 
+    /** The tab became visible again: a loaded page checks for new map files at once; null while none is loaded or it is still loading (it checks when it has loaded). */
+    fun check(): Step? = if (loaded && ready) Step.Check(MapLinks.CHECK_SCRIPT) else null
+
     /** The page has loaded: a re-centring that waited for it. */
     fun pageFinished(): Step? {
-        if (loadedAtMs == null) return null
+        if (!loaded) return null
         ready = true
         val f = pending ?: return null
         pending = null
@@ -140,20 +158,15 @@ class MapCentring(private val staleMs: Long = STALE_MS) {
 
     /** The page could not be loaded: load it again at the next [show] («Nochmals» or the tab shown again). */
     fun failed() {
-        loadedAtMs = null
+        loaded = false
         ready = false
         pending = null
     }
 
     /** Another tab was chosen. True: the page is still loading; stop it (it is loaded again at the next [show]). */
     fun hidden(): Boolean {
-        if (loadedAtMs == null || ready) return false
+        if (!loaded || ready) return false
         failed()
         return true
-    }
-
-    companion object {
-        /** A page older than this is loaded again when the tab is shown: the server publishes the map every 10 minutes. */
-        const val STALE_MS = 10 * 60_000L
     }
 }

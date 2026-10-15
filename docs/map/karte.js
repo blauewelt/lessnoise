@@ -746,6 +746,75 @@
     Array.prototype.forEach.call(document.querySelectorAll(".loud-db"), function (s) { s.textContent = dbText(v); });
   }
 
+  /* ---------- keeping the page up to date ---------- */
+
+  // The server rebuilds the map files every 10 minutes (DESIGN §6). While the page is visible it
+  // asks for cells.json every 2 minutes, through the same getJson as above (same hosts, no
+  // credentials, no referrer, the browser's HTTP cache honoured: max-age=300). Only when its
+  // generated_at changed are the cells, the reports and an open card redrawn; the view, the
+  // metric, the period, the day shown and the open card stay as they are. Hidden page: no
+  // checks; visible again: one check at once.
+  var POLL_MS = 2 * 60 * 1000;
+  var shownGenerated = null;   // generated_at of the newest cells.json in use
+  var pollTimer = null;
+  var polling = false;         // true once the first load is over
+  var checking = null;         // the running check, so that checks never overlap
+
+  function checkForUpdate() {
+    if (!polling) return Promise.resolve(false);   // the first load is still running
+    if (checking) return checking;
+    checking = getJson("cells.json").then(function (file) {
+      if (!file || !M.isDate(file.day) || !Array.isArray(file.cells) || file.generated_at === shownGenerated) return false;
+      shownGenerated = file.generated_at;
+      var showingNewest = !state.day || state.day === state.latest;
+      state.latest = file.day;
+      state.history = {};       // a cell's file is rebuilt with the same run
+      setLoudDb(file.loud_event_db);
+      showNetwork(file);
+      if (showingNewest) {
+        state.loadSeq++;        // a day file still loading must not replace this one
+        showFile(file, file.day);   // redraws cells and reports, re-renders an open card
+        setStatus(file.cells.length ? "" : "Noch keine Messwerte auf der Karte.");
+      } else {
+        updateButtons();        // an older day stays shown; › now reaches the new day
+        if (state.selected) renderCard();
+      }
+      mapEl.setAttribute("data-ready", "1");
+      return getJson("reports.json").then(function (r) {
+        if (Array.isArray(r.reports)) state.reports = r.reports;
+      }).catch(function () { /* keep the reports shown */ }).then(function () {
+        drawReports();
+        if (state.reports) mapEl.setAttribute("data-reports", String(state.reports.length));
+        return true;
+      });
+    }).catch(function () { return false; }).then(function (changed) {
+      checking = null;
+      mapEl.setAttribute("data-generated", shownGenerated || "");
+      return changed;
+    });
+    return checking;
+  }
+
+  function schedule() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+    if (polling && document.visibilityState === "visible") {
+      pollTimer = setTimeout(function () { pollTimer = null; checkForUpdate().then(schedule); }, POLL_MS);
+    }
+  }
+
+  function startPolling() {
+    polling = true;
+    mapEl.setAttribute("data-generated", shownGenerated || "");
+    schedule();
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!polling) return;
+    if (document.visibilityState === "visible") checkForUpdate().then(schedule);
+    else schedule();          // clears the timer
+  });
+
   /* ---------- start ---------- */
 
   drawLegend();
@@ -762,6 +831,7 @@
     }
     setLoudDb(file.loud_event_db);
     drawLegend();
+    shownGenerated = file.generated_at;
     showFile(file, file.day);
     showNetwork(file);
     if (!hashView) fitToCells();
@@ -783,8 +853,10 @@
     setStatus("Die Messwerte konnten nicht geladen werden" + (e.notFound ? "." : " (" + e.message + ")."));
     updateButtons();
     mapEl.setAttribute("data-ready", "error");
-  });
+  }).then(startPolling);
 
   // for the Playwright tests: the map and the state
-  window.__karte = { map: map, state: state, reportLayer: reportLayer, hashView: function () { return hashView; } };
+  window.__karte = { map: map, state: state, reportLayer: reportLayer, hashView: function () { return hashView; }, pollMs: POLL_MS };
+  // The app's tab «Karte» calls this when it shows the kept page again (server/DESIGN.md §7).
+  window.KarteCheck = checkForUpdate;
 })();

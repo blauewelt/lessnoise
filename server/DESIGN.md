@@ -663,6 +663,16 @@ Online-Version (0.5.x: «Karten-Version») are counted.
 - The page never uses the word «Nacht»: nothing about night is special any more.
 - Everything is static files plus JSON fetches (cells.json, reports.json, a cell's file on
   tap, a day's file on ‹ ›); works at 360 px; dark mode via the site's CSS variables.
+- **Keeping up to date** (0.6.3): while the page is visible (`document.visibilityState ===
+  'visible'`) it fetches cells.json again every 2 minutes through the same `getJson` (same host,
+  `credentials: "omit"`, no referrer, the browser's HTTP cache honoured — the files are served with
+  `Cache-Control: max-age=300`, so a change shows up at most about 5 minutes after it was
+  published, plus the 10-minute publishing cycle). Only when `generated_at` changed does it fetch
+  reports.json, redraw cells and reports, and re-fetch the open card's cell file — the view, metric,
+  period, the day shown (an older day stays shown; › then reaches the new one) and the open card
+  stay. Hidden page: no timer; visible again: one check at once. `window.KarteCheck()` runs the same
+  check (one at a time); the app's tab «Karte» calls it when it shows its kept page again. The
+  requests carry nothing about the viewer (no view, no chosen field, no location).
   Hash-stamped asset URLs (`scripts/stamp_assets.py`) so a phone never runs yesterday's script
   against today's JSON.
 - **View fragment** (0.6.3): `karte.html#lat=<WGS84 latitude>&lon=<longitude>&z=<zoom>`, e.g.

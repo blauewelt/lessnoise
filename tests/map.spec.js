@@ -418,3 +418,115 @@ test("location.replace of the view fragment after load moves the map without a h
   expect(await layersNear(page, 47.3769, 8.5417)).toBe(0);
   expect(consoleErrors).toEqual([]);
 });
+
+// ---- 0.6.3: the page keeps itself up to date while it is visible (cells.json every 2 minutes) ----
+
+const NEW_CELL = "h26833_12462";
+function updatedCells() {
+  const f = JSON.parse(JSON.stringify(cellsJson));
+  f.generated_at = "2026-10-08T18:50:00+02:00";
+  f.cells.push(Object.assign(JSON.parse(JSON.stringify(f.cells[0])), { cell: NEW_CELL }));
+  return f;
+}
+
+/** Answers cells.json from body() (later routes win over mockNetwork's) and counts the requests. */
+async function serveCells(page, body) {
+  const count = { n: 0 };
+  await page.route(API + "cells.json", (route) => {
+    count.n++;
+    return route.fulfill({
+      status: 200, contentType: "application/json",
+      headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "max-age=300" },
+      body: JSON.stringify(body()),
+    });
+  });
+  return count;
+}
+
+test("a changed generated_at redraws: the new cell appears, view, metric and open card stay", async ({ page }) => {
+  let body = cellsJson;
+  const count = await serveCells(page, () => body);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", cellsJson.generated_at);
+  await page.locator('#metric input[value="l90"]').check({ force: true });
+  await page.locator("#celllist summary").focus();
+  await page.keyboard.press("Enter");
+  await page.locator(`#celllist-items button[data-cell="${CAL}"]`).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#card-title")).toContainText(CAL);
+  await page.waitForTimeout(600);                 // the pan to the cell has ended
+  const before = await viewOf(page);
+  const historyBefore = seen.api.filter((p) => p === `cells/${CAL}.json`).length;
+  expect(await page.locator(`#celllist-items button[data-cell="${NEW_CELL}"]`).count()).toBe(0);
+
+  body = updatedCells();
+  const reportsBefore = seen.api.filter((p) => p === "reports.json").length;
+  expect(await page.evaluate(() => window.KarteCheck())).toBe(true);
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", "2026-10-08T18:50:00+02:00");
+  await expect(page.locator(`#celllist-items button[data-cell="${NEW_CELL}"]`)).toHaveCount(1);
+  expect(await page.evaluate((c) => !!window.__karte.state.layers[c], NEW_CELL)).toBe(true);
+  const after = await viewOf(page);
+  expect(after.z).toBe(before.z);
+  expect(Math.abs(after.lat - before.lat)).toBeLessThan(1e-9);
+  expect(Math.abs(after.lon - before.lon)).toBeLessThan(1e-9);
+  await expect(page.locator('#metric input[value="l90"]')).toBeChecked();
+  expect(await page.evaluate(() => window.__karte.state.metric)).toBe("l90");
+  await expect(page.locator("#card")).toBeVisible();
+  await expect(page.locator("#card-title")).toContainText(CAL);
+  // The open card's file and the reports were fetched again.
+  await expect.poll(() => seen.api.filter((p) => p === `cells/${CAL}.json`).length).toBe(historyBefore + 1);
+  expect(seen.api.filter((p) => p === "reports.json").length).toBe(reportsBefore + 1);
+  expect(count.n).toBe(2);
+  expect(seen.foreign).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("an unchanged generated_at does not redraw", async ({ page }) => {
+  const count = await serveCells(page, () => cellsJson);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await page.evaluate(() => { document.querySelector("#karte path.cell").setAttribute("data-mark", "old"); });
+  const reportsBefore = seen.api.filter((p) => p === "reports.json").length;
+  expect(await page.evaluate(() => window.KarteCheck())).toBe(false);
+  expect(count.n).toBe(2);
+  // The same SVG paths: nothing was drawn again, and nothing else was fetched.
+  await expect(page.locator('#karte path.cell[data-mark="old"]')).toHaveCount(1);
+  expect(seen.api.filter((p) => p === "reports.json").length).toBe(reportsBefore);
+});
+
+test("checks every 2 minutes only while visible; visible again checks at once", async ({ page }) => {
+  await page.addInitScript(() => {
+    let v = "visible";
+    Object.defineProperty(Document.prototype, "visibilityState", { get() { return v; }, configurable: true });
+    Object.defineProperty(Document.prototype, "hidden", { get() { return v !== "visible"; }, configurable: true });
+    window.__setVisibility = (x) => { v = x; document.dispatchEvent(new Event("visibilitychange")); };
+  });
+  await page.clock.install();
+  const count = await serveCells(page, () => cellsJson);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-generated", cellsJson.generated_at);
+  expect(await page.evaluate(() => window.__karte.pollMs)).toBe(120000);
+  expect(count.n).toBe(1);
+  await page.clock.runFor(119000);
+  expect(count.n).toBe(1);
+  await page.clock.runFor(2000);
+  await expect.poll(() => count.n).toBe(2);
+  await page.clock.runFor(120000);
+  await expect.poll(() => count.n).toBe(3);
+  // Hidden: no checks at all, however long.
+  await page.evaluate(() => window.__setVisibility("hidden"));
+  await page.clock.runFor(30 * 60000);
+  await page.waitForTimeout(200);
+  expect(count.n).toBe(3);
+  // Visible again: one check at once, then every 2 minutes again.
+  await page.evaluate(() => window.__setVisibility("visible"));
+  await expect.poll(() => count.n).toBe(4);
+  await page.clock.runFor(121000);
+  await expect.poll(() => count.n).toBe(5);
+  expect(seen.foreign).toEqual([]);
+});

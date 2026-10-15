@@ -24,12 +24,13 @@ and the Labor build behave exactly as before).
 - **New tab «Karte»:** the website's noise map in the app (WebView, loaded only when the tab is
   opened, no other host, no cookies, no location; opens at the shifted point of the newest shared
   measurement via `karte.html#lat=…&lon=…&z=16`). The website's map page reads that new view fragment.
-- **Back returns to the previous tab:** on every tab but «Messen» the back gesture goes to the tab
-  used before (each tab once, «Messen» is the root and leaves the app); the map page's history no
-  longer swallows it.
+- **Back undoes tab switches:** every switch pushes the tab you leave, back returns to it (also from
+  «Messen»), and only with nothing left does back leave the app; the map page's history no longer
+  swallows it.
 - **The map centres on your point whenever the tab is shown:** the page is kept across tab switches
-  (paused, reloaded only after 10 minutes) and moved with `location.replace('#lat=…')` as soon as the
-  point exists or changes — no reload, no history entry.
+  (paused while hidden; the page refreshes its data itself every 2 minutes while visible) and moved
+  with `location.replace('#lat=…')` as soon as the point exists or changes — no reload, no history
+  entry. The website's map page checks for new data every 2 minutes while visible (also on the web).
 - **A banner above the map** while your values are not visible yet: «Noch kein Standort», «Erste
   Werte werden gesendet …», «Gesendet HH:MM …» (12 minutes) or «Du teilst nicht – tippen zum Teilen».
 

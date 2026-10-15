@@ -111,8 +111,9 @@ private val TabHistorySaver = Saver<TabHistory, ArrayList<String>>(
 @Composable
 fun AppRoot() {
     val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
-    // The tabs visited, «Messen» at the bottom (TabHistory): back returns to the tab before; back
-    // on «Messen» leaves the app (no handler then).
+    // The undo stack of tabs opened (TabHistory): every switch, tapped or opened from a status
+    // line or banner, pushes the tab left; back pops it; with nothing left back leaves the app
+    // (no handler then).
     var history by rememberSaveable(stateSaver = TabHistorySaver) { mutableStateOf(TabHistory()) }
     val current = history.current.takeIf { it in screens } ?: Screen.MEASURE
     val snackbar = remember { SnackbarHostState() }

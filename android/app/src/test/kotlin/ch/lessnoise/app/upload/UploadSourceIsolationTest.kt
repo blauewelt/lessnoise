@@ -165,20 +165,25 @@ class UploadSourceIsolationTest {
         assertTrue(!otherNetwork.containsMatchIn(map.code), "MapScreen.kt uses another network API")
         assertTrue(map.literals.none { it.startsWith("http") }, "MapScreen.kt builds no address itself: ${map.literals.filter { it.startsWith("http") }}")
         // 0.6.3 map tab fix: the address comes from MapCentring.Step.Load, which is built only
-        // from MapLinks.url; the one script the app runs in the page is MapCentring.Step.Recentre,
-        // built only from MapLinks.recentreScript (a validated view fragment; MapCentringTest).
+        // from MapLinks.url. The app runs exactly two scripts in the page, never reading a result:
+        // MapCentring.Step.Recentre, built only from MapLinks.recentreScript (a validated view
+        // fragment), and MapCentring.Step.Check, only ever MapLinks.CHECK_SCRIPT =
+        // "window.KarteCheck && window.KarteCheck()" (the page's own check for new map files;
+        // MapCentringTest pins the value).
         assertTrue(map.code.contains("remember { MapCentring() }") && map.code.contains("val target = step.url"))
         val loads = Regex("""\.loadUrl\(([^)]*)\)""").findAll(map.code).map { it.groupValues[1] }.toList()
         assertTrue(loads.isNotEmpty() && loads.all { it == "target" }, "every loadUrl loads the MapLinks address: $loads")
         val scripts = Regex("""\.evaluateJavascript\(([^)]*)\)""").findAll(map.code).map { it.groupValues[1] }.toList()
-        assertEquals(listOf("step.script, null"), scripts, "the only script is the re-centring")
+        assertEquals(listOf("step.script, null", "step.script, null"), scripts, "the only scripts are the re-centring and the check")
         assertTrue(Regex("""\bis MapCentring\.Step\.Recentre -> w\.evaluateJavascript\(step\.script, null\)""").containsMatchIn(map.code))
+        assertTrue(Regex("""\bis MapCentring\.Step\.Check -> w\.evaluateJavascript\(step\.script, null\)""").containsMatchIn(map.code))
         val links = KotlinSource.parse(File(appDir, "src/main/kotlin/ch/lessnoise/app/ui/MapLinks.kt").readText()).code
         assertEquals(listOf("Step.Load(MapLinks.url(point))"), Regex("""Step\.Load\([^\n]*""").findAll(links).map { it.value }.toList())
         assertEquals(
             listOf("Step.Recentre(MapLinks.recentreScript(f))", "Step.Recentre(MapLinks.recentreScript(f))"),
             Regex("""Step\.Recentre\([^\n]*""").findAll(links).map { it.value }.toList(),
         )
+        assertEquals(listOf("Step.Check(MapLinks.CHECK_SCRIPT) else null"), Regex("""Step\.Check\([^\n]*""").findAll(links).map { it.value }.toList())
     }
 
     /** The WebView of the tab «Karte» is locked down (PRIVACY.md, the tab «Karte»). */

@@ -27,39 +27,40 @@ fun screenLabel(s: Screen): String = when (s) {
 }
 
 /**
- * Which tab the system back gesture returns to (0.6.3 map tab fix; pure, TabHistoryTest).
+ * Which tab the system back gesture returns to (0.6.3 map tab fix; pure, TabHistoryTest): an
+ * undo stack of the tabs opened. [stack] ends with the tab shown; before it, the tabs left, oldest
+ * first.
  *
- * «Messen» is the root: back on «Messen» leaves the app, as before. Every other tab goes back to
- * the tab visited before it. The rule against loops: each tab is in the history at most once —
- * choosing a tab that is already in it moves it to the top (Messen → Karte → Teilen → Karte, back
- * → Teilen, back → Messen); choosing «Messen» empties the history. So it holds at most one entry
- * per tab, and back reaches «Messen» in at most four steps.
+ * Every switch to another tab — a tap in the bottom bar or a tap that opens a tab (the status
+ * line opening «Karte», the banner opening «Teilen») — pushes the tab left; choosing the tab shown
+ * pushes nothing. Back pops and shows the tab before, whichever it is («Messen» is not special:
+ * Karte → Messen, back → Karte). Only with nothing left to pop does back leave the app. At most
+ * [MAX_BACK] tabs are kept to go back to; the oldest is dropped.
  */
 data class TabHistory(val stack: List<Screen> = listOf(Screen.MEASURE)) {
     init {
-        require(stack.firstOrNull() == Screen.MEASURE && stack.toSet().size == stack.size) { "bad tab history $stack" }
+        require(stack.isNotEmpty() && stack.size <= MAX_BACK + 1) { "bad tab history $stack" }
     }
 
     /** The tab shown. */
     val current: Screen get() = stack.last()
 
-    /** Whether back stays in the app (false on «Messen»: back leaves the app). */
+    /** Whether back stays in the app (false: nothing to go back to, back leaves the app). */
     val canGoBack: Boolean get() = stack.size > 1
 
     /** [s] was chosen (bottom bar, or a tap that opens a tab). */
-    fun select(s: Screen): TabHistory = when (s) {
-        current -> this
-        Screen.MEASURE -> TabHistory()
-        else -> TabHistory(stack.filter { it != s } + s)
-    }
+    fun select(s: Screen): TabHistory = if (s == current) this else TabHistory((stack + s).takeLast(MAX_BACK + 1))
 
-    /** The back gesture: the tab before; on «Messen» unchanged (the app is left). */
+    /** The back gesture: the tab before; unchanged when there is none (the app is left). */
     fun back(): TabHistory = if (canGoBack) TabHistory(stack.dropLast(1)) else this
 
     /** For rememberSaveable: the tab names. */
     fun save(): List<String> = stack.map { it.name }
 
     companion object {
+        /** How many tabs back can return to. */
+        const val MAX_BACK = 30
+
         /** From [save]; anything unreadable gives the plain history (only «Messen»). */
         fun restore(names: List<String>): TabHistory =
             runCatching { TabHistory(names.map { Screen.valueOf(it) }) }.getOrDefault(TabHistory())

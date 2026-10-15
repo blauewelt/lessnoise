@@ -506,8 +506,10 @@ The «Online-Version» and the internal Labor build with the map have a fifth ta
 (`app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt`; the source folder `src/karte/` is compiled
 only into the flavours `public` and `laborKarte`, the others get the stand-in `src/nomap/…/MapTab.kt`
 and contain no WebView). The page is loaded only when the tab is opened; the WebView is then kept until the app's screen is
-closed — invisible and paused while another tab is shown (a page still loading is stopped), loaded
-again when shown 10 minutes or more after loading (`MapCentring`) —; a thin progress bar while it loads, «Karte nicht erreichbar – Internet
+closed — invisible and paused while another tab is shown (a page still loading is stopped;
+`MapCentring`), never reloaded for freshness: the page checks `cells.json` every 2 minutes while
+visible (docs/map/karte.js), and when the tab is shown again the app asks it to check at once
+(`MapLinks.CHECK_SCRIPT` = `window.KarteCheck && window.KarteCheck()`) —; a thin progress bar while it loads, «Karte nicht erreichbar – Internet
 prüfen» and «Nochmals» when it cannot be loaded. The address comes from `ui/MapLinks.kt` only:
 `Links.MAP` plus, when the phone has a shared measurement, the view fragment
 `#lat=…&lon=…&z=16` with the **shifted** point of the newest one (the running measurement's
@@ -525,8 +527,9 @@ fragment: no reload, no history entry; after `onPageFinished` if the page is sti
 not visible yet (`mapBanner`: «Noch kein Standort – Werte erscheinen danach», «Erste Werte werden
 gesendet – auf der Karte nach etwa 10 Minuten», «Gesendet HH:MM – die Karte aktualisiert sich alle
 10 Minuten» for 12 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
-on «Messen» does). The WebView's history is never used: the system back gesture returns to the tab
-visited before (`TabHistory`; «Messen» is the root, back there leaves the app). No permission is
+on «Messen» does). The WebView's history is never used: the system back gesture is an undo stack of the
+tabs opened (`TabHistory`: every switch, tapped or opened from a status line or banner, pushes the
+tab left; back pops; with nothing left back leaves the app; at most 30 entries). No permission is
 added. Privacy: [PRIVACY.md](../PRIVACY.md), «The tab «Karte»».
 
 ## «Messwerte teilen» (opt-in upload)
