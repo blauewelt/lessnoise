@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
+
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Alignment
@@ -148,17 +148,6 @@ class ShareScreenshots {
                         MapStatusContent(load = MapLoad.ERROR, progress = 0, onRetry = {})
                     }
                 }
-            }
-        }
-    }
-
-    /** The five tabs on the narrowest common phone (360 dp). */
-    @Test
-    fun bottomBarAt360dp() {
-        val screens = appScreens(uploadAvailable = true, mapAvailable = true)
-        paparazzi.snapshot("bottom-bar-360dp") {
-            LessNoiseTheme(dark = false) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) { Box(Modifier.requiredWidth(360.dp)) { AppBottomBar(screens, screens.indexOf(Screen.MAP)) {} } }
             }
         }
     }

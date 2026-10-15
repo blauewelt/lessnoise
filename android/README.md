@@ -611,8 +611,9 @@ location is read and the measurement has no point; a measurement without a point
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
 Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes → ids `motorrad`, `auto`,
 `lastwagen`, `poser`, `andere`) → one precise fix (`LocationFetcher.locateForReport`, accuracy
-≤ 50 m, else the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?»
-(«Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the
+≤ 50 m, else the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
+every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
+(DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`) («Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the
 second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and schedules
 an upload (same constraints as the other uploads; registers the device first if needed). If
 sharing is off, the first «Melden» shows a short consent first and switches sharing on only with

@@ -138,7 +138,9 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     someone's home). The raw report is deleted with the device (rules 4, 9) and at the latest
     after 2 years (§5). Risk that remains, and that the app must say on its report screen:
     someone who reports often from the same spot (their balcony, their front door) makes that
-    spot visible on the map as a cluster of points, at hour resolution.
+    spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
+    confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
+    sichtbar.», because the first-report consent is skipped once sharing is on.)
 
 ## 3. Cell ids
 

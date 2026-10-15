@@ -57,31 +57,37 @@ fun screenIcon(s: Screen): ImageVector = when (s) {
 /** The bottom bar (also rendered on the JVM, ShareScreenshots). */
 @Composable
 fun AppBottomBar(screens: List<Screen>, selected: Int, onSelect: (Int) -> Unit) {
+    val labels = remember(screens) { screens.map(::screenLabel) }
     NavigationBar {
         screens.forEachIndexed { i, s ->
-            val label = screenLabel(s)
+            val label = labels[i]
             NavigationBarItem(
                 selected = selected == i,
                 onClick = { onSelect(i) },
                 icon = { Icon(screenIcon(s), contentDescription = label) },
-                // Five tabs since 0.6.3: on narrow phones «Messungen» and «Einstellungen» shrink to fit.
-                label = { FitText(label, MaterialTheme.typography.labelMedium) },
+                // Five tabs since 0.6.3: ONE label size for all tabs, the largest at which every
+                // label (in practice «Einstellungen») fits one line in a tab's width.
+                label = { BarLabel(label, labels, MaterialTheme.typography.labelMedium) },
             )
         }
     }
 }
 
-/** One line that shrinks its font (down to 8 sp) until it fits the available width. */
+/**
+ * [text] in the largest size (≤ [style]'s, ≥ 8 sp, half-sp steps) at which all of [all] fit the
+ * available width on one line. Every tab has the same width, so every tab arrives at the same size.
+ */
 @Composable
-private fun FitText(text: String, style: TextStyle) {
+private fun BarLabel(text: String, all: List<String>, style: TextStyle) {
     val measurer = rememberTextMeasurer()
     BoxWithConstraints {
         val max = constraints.maxWidth
-        val fitted = remember(text, max, style) {
+        val fitted = remember(all, max, style) {
             if (max == Constraints.Infinity) return@remember style
+            fun fits(s: TextStyle) = all.all { measurer.measure(it, s, maxLines = 1, softWrap = false).size.width <= max }
             var size = style.fontSize.value
             var s = style
-            while (measurer.measure(text, s, maxLines = 1, softWrap = false).size.width > max && size > 8f) {
+            while (!fits(s) && size > 8f) {
                 size -= 0.5f
                 s = style.copy(fontSize = size.sp, letterSpacing = 0.sp)
             }

@@ -148,7 +148,7 @@ fun rememberReportAction(onQueued: () -> Unit): () -> Unit {
         is ReportStep.Confirm -> AlertDialog(
             onDismissRequest = { step = null },
             title = { Text("Meldung") },
-            text = { Text(reportConfirmText(s.category, tapMs, s.fix.accuracyText)) },
+            text = { Text(reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText)) },
             confirmButton = {
                 TextButton(onClick = {
                     val zone = ZoneId.systemDefault()
@@ -184,6 +184,16 @@ const val REPORT_CONSENT_TEXT =
     "Gesendet werden Zeit, genauer Standort und Art des Lärms, nie Audio. " +
         "Der Punkt erscheint auf der Lärmkarte; wer oft vom gleichen Ort meldet, macht ihn sichtbar. " +
         "Dafür wird «Teilen» eingeschaltet; löschen kannst du alles mit «Vom Server löschen»."
+
+/**
+ * The risk server/DESIGN.md §2 rule 10 asks the report screen to state. Since 0.6.3 it is on the
+ * confirmation of EVERY report: the consent (REPORT_CONSENT_TEXT) is skipped once sharing is on.
+ */
+const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
+
+/** The text of the «Meldung» dialog: what is sent, then [REPORT_SPOT_WARNING]. */
+fun reportConfirmDialogText(category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault()): String =
+    reportConfirmText(category, tapMs, accuracyM, zone) + "\n" + REPORT_SPOT_WARNING
 
 /** «Meldung: Töff, 16:05, Standort ± 12 m – senden?» */
 fun reportConfirmText(category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault()): String {
