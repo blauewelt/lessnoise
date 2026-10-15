@@ -132,7 +132,31 @@
     keyboard: true,
     attributionControl: true,
   });
-  map.fitBounds(START);
+  // A view in the fragment (karte.html#lat=…&lon=…&z=…, server/DESIGN.md §7; the app's tab
+  // «Karte» opens the map like this) wins over the default view and over fitting the data; it sets
+  // only the view, no marker. Invalid or missing: the default view.
+  var hashView = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+  if (hashView) {
+    map.setView([hashView.lat, hashView.lon], hashView.z, { animate: false });
+    // A link to a place on the map: show the map, not the page head (on a phone the head fills
+    // the first screen). The same as the plain anchor karte.html#metric does by itself.
+    var first = document.getElementById("metric");
+    if (first && first.scrollIntoView) first.scrollIntoView();
+  } else {
+    map.fitBounds(START);
+  }
+  function applyView(v) {
+    // Leaflet ignores a view change while a zoom animation runs (e.g. the first fit to the data)
+    // and would end that animation on its own target: wait for it.
+    if (map._animatingZoom) { map.once("zoomend", function () { applyView(v); }); return; }
+    map.setView([v.lat, v.lon], v.z, { animate: false });
+  }
+  window.addEventListener("hashchange", function () {
+    var v = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+    if (!v) return;
+    hashView = v;
+    applyView(v);
+  });
   map.createPane("reports").style.zIndex = 450;   // above the cells (400), below tooltips
 
   L.tileLayer(TILES, {
@@ -740,7 +764,7 @@
     drawLegend();
     showFile(file, file.day);
     showNetwork(file);
-    fitToCells();
+    if (!hashView) fitToCells();
     setStatus(file.cells.length ? "" : "Noch keine Messwerte auf der Karte.");
     mapEl.setAttribute("data-ready", "1");
     return getJson("reports.json").then(function (r) {
@@ -762,5 +786,5 @@
   });
 
   // for the Playwright tests: the map and the state
-  window.__karte = { map: map, state: state, reportLayer: reportLayer };
+  window.__karte = { map: map, state: state, reportLayer: reportLayer, hashView: function () { return hashView; } };
 })();

@@ -27,6 +27,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -35,10 +39,12 @@ import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
 /**
- * Background upload for «Messwerte teilen» (server/DESIGN.md §4.6): a periodic job every hour
- * (a few minutes after the full hour, so the hour's last minute is closed) and a one-shot job
- * shortly after a measurement stops. Network constraint: Wi-Fi/unmetered with «nur über WLAN»
- * (default), otherwise any connection. Failures back off exponentially (WorkManager, from 10 min).
+ * Background upload for «Messwerte teilen» (server/DESIGN.md §4.6). Since 0.6.3: while a shared
+ * measurement runs, one job about 2 minutes after its point is known and then every 10 minutes
+ * ([UploadCadence], driven by [UploadModule.start] from the live state); a one-shot job shortly after
+ * a measurement stops; and the periodic job every hour (a few minutes after the full hour) as the
+ * fallback. Network constraint: any connection (since 0.6.3 the default), Wi-Fi/unmetered with «nur
+ * über WLAN». Failures back off exponentially (WorkManager, from 10 min).
  */
 class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -69,6 +75,36 @@ class UploadWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         const val WORK_PERIODIC = "upload_hourly"
         const val WORK_NOW = "upload_now"
         const val WORK_MORE = "upload_more"
+        /** The 10-minute uploads while a shared measurement runs (0.6.3). */
+        const val WORK_LIVE = "upload_live"
+    }
+}
+
+/**
+ * When the app uploads while a shared measurement runs (0.6.3, server/DESIGN.md §4.6): first values
+ * on the map fast, then a steady pace that stays far below the server's limit of 60 requests per
+ * device and hour (DESIGN.md §8; one run sends about 2–3 requests). Pure, so that UploadCadenceTest
+ * can check the request count of a long measurement against the fake server.
+ */
+object UploadCadence {
+    /** First upload this long after the running measurement got its point. */
+    const val FIRST_AFTER_POINT_MS = 2 * 60_000L
+
+    /** Then every … while the shared measurement runs. */
+    const val WHILE_MEASURING_MS = 10 * 60_000L
+
+    /** One upload this long after «Stoppen» (the service writes the last minute within 3 s). */
+    const val AFTER_STOP_MS = 15_000L
+
+    /** The live uploads of a shared measurement that got its point at [pointAtMs] and stops at [stopMs], plus the one after «Stoppen». */
+    fun liveRunTimes(pointAtMs: Long, stopMs: Long): List<Long> =
+        generateSequence(pointAtMs + FIRST_AFTER_POINT_MS) { it + WHILE_MEASURING_MS }.takeWhile { it < stopMs }.toList() +
+            (stopMs + AFTER_STOP_MS)
+
+    /** The hourly fallback job's runs in [fromMs, toMs) (five minutes after every full hour). */
+    fun hourlyRunTimes(fromMs: Long, toMs: Long, zone: ZoneId): List<Long> {
+        val first = fromMs + UploadModule.delayToNextHourMs(java.time.Instant.ofEpochMilli(fromMs).atZone(zone))
+        return generateSequence(first) { it + 3_600_000L }.takeWhile { it < toMs }.toList()
     }
 }
 
@@ -137,6 +173,7 @@ class UploadModule(
             work.cancelUniqueWork(UploadWorker.WORK_PERIODIC)
             work.cancelUniqueWork(UploadWorker.WORK_NOW)
             work.cancelUniqueWork(UploadWorker.WORK_MORE)
+            work.cancelUniqueWork(UploadWorker.WORK_LIVE)
             return
         }
         val req = PeriodicWorkRequestBuilder<UploadWorker>(1, TimeUnit.HOURS)
@@ -170,6 +207,7 @@ class UploadModule(
             work.cancelUniqueWork(UploadWorker.WORK_PERIODIC)
             work.cancelUniqueWork(UploadWorker.WORK_NOW)
             work.cancelUniqueWork(UploadWorker.WORK_MORE)
+            work.cancelUniqueWork(UploadWorker.WORK_LIVE)
         }
     }
 
@@ -182,6 +220,29 @@ class UploadModule(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
             .build()
         work.enqueueUniqueWork(UploadWorker.WORK_NOW, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
+    }
+
+    /**
+     * One live upload now (0.6.3, [UploadCadence]). KEEP: if the previous one still waits (for a
+     * network, or in its backoff after a 429), no second one is queued behind it.
+     */
+    private fun uploadLive() {
+        if (!BuildConfig.UPLOAD_AVAILABLE || !store.state.value.enabled) return
+        val req = OneTimeWorkRequestBuilder<UploadWorker>()
+            .setConstraints(constraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
+            .build()
+        work.enqueueUniqueWork(UploadWorker.WORK_LIVE, ExistingWorkPolicy.KEEP, req)
+    }
+
+    /**
+     * The running measurement got its shifted point (0.6.3): its whole measurement is sent from now
+     * on, also the minutes before the point ([Uploader.pointAttached]). The first live upload follows
+     * from the live state ([start]).
+     */
+    suspend fun pointAttached(measurementStartMs: Long) {
+        if (!BuildConfig.UPLOAD_AVAILABLE) return
+        uploader.pointAttached(measurementStartMs)
     }
 
     /** Another run after the server's hourly request limit has room again. */
@@ -198,16 +259,36 @@ class UploadModule(
     /**
      * Hooks that need no change in the measurement code: when the live state goes from running to
      * stopped, upload once (the service writes the last minute within 3 s; the job waits 15 s);
+     * while a shared measurement runs (it has its point and sharing is on), the live uploads of
+     * [UploadCadence] — this runs in the app's process scope, which lives as long as the
+     * measurement's foreground service, also with the screen off or the app closed;
      * after «Alte Messungen neu bewerten», send the last 7 days again with the new levels.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun start(scope: CoroutineScope, live: StateFlow<LiveState>, recalibrator: Recalibrator) {
         if (!BuildConfig.UPLOAD_AVAILABLE) return
         applySchedule(replace = false)
         scope.launch {
             var wasRunning = live.value.running
             live.collect { st ->
-                if (wasRunning && !st.running) uploadSoon()
+                if (wasRunning && !st.running) uploadSoon(UploadCadence.AFTER_STOP_MS / 1000)
                 wasRunning = st.running
+            }
+        }
+        scope.launch {
+            // The start of the running shared measurement, or null; a new value restarts the ticker.
+            combine(live, store.state) { l, s ->
+                if (l.running && l.sharedPoint != null && s.enabled && !s.authFailed) l.measurementStartMs else null
+            }.distinctUntilChanged().collectLatest { start ->
+                if (start == null) {
+                    runCatching { work.cancelUniqueWork(UploadWorker.WORK_LIVE) }
+                    return@collectLatest
+                }
+                delay(UploadCadence.FIRST_AFTER_POINT_MS)
+                while (true) {
+                    uploadLive()
+                    delay(UploadCadence.WHILE_MEASURING_MS)
+                }
             }
         }
         scope.launch {

@@ -27,7 +27,8 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    surface for no gain.
 2. **Measurements carry a shifted point, never the true location.** Since app 0.6.2 (schema v4)
    the app moves the place of a shared measurement on the phone *before* anything is sent. From
-   the one location fix at «Start» (or from pasted coordinates) it computes the true point in the
+   the one location fix right after «Starten» (since 0.6.3 while the measurement already runs, and
+   only while the app is open; or from pasted coordinates) it computes the true point in the
    national LV95 coordinate system (§3) and adds a random offset: two independent normal draws
    N(0, σ²), one east, one north, where σ is the contributor's setting «Standort verschieben»
    (25, **50 (default)**, 100 or 200 m). Only the shifted point, rounded to whole metres, and σ are
@@ -57,17 +58,31 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    - a contributor who measures in several places appears in several display cells, never linked
      to each other (no device id is published) — but a reader who knows that one person measures
      in a sparse area could follow that person's cells day by day.
-   The app's «Teilen» tab says, before the first upload, that the point is moved by
-   about σ, that it is moved the same way at the same place, that the true place is usually within
-   2σ and that a lone contributor's field lies near them (`ui/ShareTexts.kt`); datenschutz.html
-   says the same and that a lone contributor's fields can be followed day by day.
+   Before the first upload the app's one question «Auf die Lärmkarte?» (rule 3, since 0.6.3) says
+   that a point moved by about σ is sent instead of the location; its full explanation, one tap away
+   («Mehr dazu» in the dialog, «Was gesendet wird ▸» in «Teilen»), says that the point is moved the
+   same way at the same place, that the true place is usually within 2σ and that a lone
+   contributor's field lies near them (`ui/ShareTexts.kt`); datenschutz.html says the same and that
+   a lone contributor's fields can be followed day by day. (Until 0.6.2 the whole explanation stood
+   before the switch.)
    Apps up to 0.5.1 send no point and no record cell; their records count for the site's hectare,
    which the contributor picked and the app snapped to the 100 m grid — for them the hectare is
    still the protection, as before. Records with a `cell` and no point (schema v3; apps 0.6.0 and
    0.6.1, which snapped the place to its hectare) are stored and shown in that hectare as before.
-3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»),
-   off until the contributor switches it on in a screen that lists exactly what leaves the
-   phone, what never does, and where it goes. Switching it off stops uploads at once.
+3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»), off until
+   the contributor says yes. Since app 0.6.3 the opt-in is **one dialog**, «Auf die Lärmkarte?»,
+   shown once at the first «Starten» of the Online-Version (or when the switch «Auf die Karte senden»
+   in «Teilen» is turned on before that). It names, in three lines, what is sent (the values per
+   minute and the loud moments, with a point moved by about σ instead of the location), what is
+   never sent (audio, name, the exact location — except with «Laut! Melden»), where it goes (our
+   server in Switzerland) and how to delete (switch off and delete in «Teilen»; the server deletes
+   everything after 60 days without new values); the full explanation of «Teilen» is one tap away
+   («Mehr dazu»). «Ja, auf die Karte» switches sharing on; «Nur auf dem Telefon» keeps it off;
+   dismissing the dialog starts nothing. The question is not asked again; the switch in «Teilen»
+   changes the answer later. Until 0.6.2 the opt-in was the switch in «Teilen» behind the full
+   explanation and a «Weiter» button. Switching it off stops uploads at once. Switching it on during
+   a running measurement shares that whole measurement (its records get the point once the fix is
+   there); a measurement that ended unshared is never sent.
 4. **Delete means delete.** «Meine Daten auf dem Server löschen» removes every row for
    the device — site, minutes, events, hourly rows and reports — synchronously, and the server
    answers only after the rows are gone. The published files are rebuilt on the next cycle
@@ -86,7 +101,13 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    for the same machine (`api.lessnoise.ch`, and `api.stadtlaerm.ch` for app versions up to
    0.5.1 and while the website moves). The website's main page still loads nothing from third
    parties; the map page is the one exception and says so (swisstopo tiles and our own API
-   host only; see section 7).
+   host only; see section 7). Since app 0.6.3 the Online-Version shows that map page in its tab
+   «Karte» (a WebView, only while the tab is open): it then loads the page from wenigerlaerm.ch
+   (GitHub Pages), the tiles from swisstopo and the published files from our API host, exactly
+   like a browser, and nothing from any other host (the app refuses other hosts). It sends no
+   measurement and no location; the centre of the view (the shifted point of the newest shared
+   measurement) is in the URL fragment, which never leaves the phone — but the tiles requested for
+   the area on screen tell swisstopo which area is being looked at, as for any visitor of the map.
 8. **Minimisation on publish.** Event times are published only as counts per day and per
    clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
    (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,
@@ -235,7 +256,7 @@ A record whose `start` already exists for the device replaces the stored one, it
 included (re-evaluation after a calibration sends the day again).
 
 The app (0.6.2 and later; 0.6.0 and 0.6.1 sent the `cell` of the measurement) sends a `point` with every minute and event of a shared measurement,
-determined on the phone at the measurement's «Start» (the same point for all records of one
+determined on the phone at (since 0.6.3: right after) the measurement's «Start» (the same point for all records of one
 measurement); minutes of a measurement without a point are not sent at all. It never sends the
 true hectare.
 
@@ -277,13 +298,22 @@ Response `204`. Never rate limited.
 
 ### 4.6 Upload cadence in the app
 
-While «Messwerte teilen» is on: at the end of every full hour, when a measurement stops and after a
-report, the app first sends waiting reports (§4.7), then all minutes and events of shared
-measurements newer than the last acknowledged `start`, in batches,
-over Wi-Fi or mobile data (setting «nur über WLAN», default on). Failures are retried with
-backoff; nothing is lost because the local database is the source of truth. The settings
-screen shows «Zuletzt gesendet: …» and the number of minutes still to send. Reports are sent
-with the next upload (the app agent documents the details in android/README.md).
+While «Messwerte teilen» is on, since app 0.6.3: while a shared measurement runs, about 2 minutes
+after it got its point and then every 10 minutes; shortly (15 s) after it stops; after a report;
+and at the end of every full hour as the fallback. Each upload first sends waiting reports (§4.7),
+then all minutes and events of shared measurements newer than the last acknowledged `start`, in
+batches, over any connection — mobile data is allowed by default since 0.6.3 (less than 0.1 MB a
+day); the setting «Nur über WLAN» (until 0.6.2 on by default) restricts it to Wi-Fi/unmetered
+networks. One upload is about 2–3 requests; a two-hour measurement makes at most about 16 requests in
+its busiest hour, far below the limit of 60 per device and hour (§8; app test `UploadCadenceTest`).
+A 429 or 5xx answer is retried with backoff from 10 minutes; nothing is lost because the local
+database is the source of truth. Since 0.6.3 a measurement starts without a point and gets it once
+the fix is there; the app then moves its acknowledged markers back to the measurement's start so
+that the minutes before the fix are sent too (`Uploader.pointAttached`). The tab «Teilen» and the
+screen «Messen» show one status line («Wird geteilt – erste Werte in wenigen Minuten», «Auf der
+Karte · zuletzt gesendet …», «Kein Internet – wird nachgeholt», …); «Teilen» › «Weitere Angaben»
+shows the number of minutes still to send. Reports are sent with the next upload (the app agent
+documents the details in android/README.md).
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
 
@@ -633,8 +663,19 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   tap, a day's file on ‹ ›); works at 360 px; dark mode via the site's CSS variables.
   Hash-stamped asset URLs (`scripts/stamp_assets.py`) so a phone never runs yesterday's script
   against today's JSON.
+- **View fragment** (0.6.3): `karte.html#lat=<WGS84 latitude>&lon=<longitude>&z=<zoom>`, e.g.
+  `karte.html#lat=47.37690&lon=8.54170&z=16`, opens the map centred there. The page reads it on load
+  and on `hashchange` (`KarteModel.parseView`): exactly these three keys, plain decimal numbers,
+  the point inside the map's bounds (45.80–47.85° N, 5.90–10.55° E) and the zoom within 7–18;
+  anything else is ignored and the default view is used. A valid view replaces the default view
+  and the fit to the data, scrolls the page to the map (`#metric`, the first control), and sets
+  only the view: no marker is drawn there. Browsers never send the fragment to a server. The app's
+  tab «Karte» uses it with the **shifted** point of the newest shared measurement (`MapLinks.url`,
+  5 decimals, zoom 16), and the plain anchor `karte.html#metric` when there is none. WGS84 rather
+  than LV95, because Leaflet works in WGS84 and any map link can be written by hand.
 - Playwright tests at 360 px and 1280 px against the fixtures: renders, legend, period switch,
-  card and chart, LSV bands, reports layer, day steps, fallback host, no «Nacht», CSP exact.
+  card and chart, LSV bands, reports layer, day steps, fallback host, no «Nacht», CSP exact,
+  view fragment (valid, invalid, hashchange, no marker, not in any request).
 
 ## 8. Hosting
 
@@ -666,8 +707,18 @@ reason).
 - Manifest gains `INTERNET` (the `tools:node="remove"` goes); `PRIVACY.md`, `README.md`
   and the website change in the same release to say: internet is used only for the opt-in
   upload described here, nothing else, and here is how to check (one network class,
-  `upload/UploadClient.kt`, one host, no third-party SDK).
-- New screen **Einstellungen → Messwerte teilen**: explanation (what is sent / what is
+  `upload/UploadClient.kt`, one host, no third-party SDK). Since 0.6.3 there is a second, separate
+  use: the tab «Karte» shows `docs/karte.html` in a WebView while it is open (rule 7; only in the
+  editions with the map, `app/src/karte/`), locked down (no storage, no file access, no JavaScript
+  bridge, no geolocation, no cookies, only the page's hosts), and the same documents say so.
+- **0.6.3 opt-in and start** (rule 3): the first «Starten» asks «Auf die Lärmkarte?» once; with
+  «Ja, auf die Karte» the measurement starts at once and the one location fix runs in parallel while
+  the app is open (never in the background; retried when the app comes back to the foreground);
+  the shifted point is attached to the running measurement. No fix: no dialog, the status line on
+  «Messen» says «Kein Standort – tippen» and offers «Nochmals», the location or app settings and
+  «Koordinaten einfügen». The tab «Teilen» has the status line and the switch on top and folds the
+  explanation and the placement away.
+- (Up to 0.6.0) screen **Einstellungen → Messwerte teilen**: explanation (what is sent / what is
   never sent / where it goes / how to delete), the map placement step (a small map, same
   swisstopo tiles, pin → hectare shown as a square, «Dieses Hektar wird gezeigt»),
   placement/floor/street-facing fields, the switch, «nur über WLAN», «Zuletzt gesendet»,

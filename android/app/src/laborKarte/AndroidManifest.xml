@@ -7,10 +7,12 @@
      class, upload/UploadClient.kt, for one host (BuildConfig.API_BASE,
      https://api.lessnoise.ch), only after the person switched sharing on. It sends the same
      measurement values and reports as the «Online-Version», never audio: the upload code reads only the Room
-     tables (UploadSourceIsolationTest). ACCESS_NETWORK_STATE: needed by Android for background jobs
-     that wait for a network («nur über WLAN»).
+     tables (UploadSourceIsolationTest). Since 0.6.3 also the tab «Karte» (WebView with the website's
+     map page while the tab is open; src/karte/.../ui/MapScreen.kt), as in the «Online-Version»,
+     with WebView metrics switched off (meta-data below). ACCESS_NETWORK_STATE: needed by Android for
+     background jobs that wait for a network («nur über WLAN»).
      Location (0.6.0) exactly as in the «Online-Version»: ACCESS_FINE_LOCATION +
-     ACCESS_COARSE_LOCATION only for one fix at «Start» of a shared measurement (turned into a point
+     ACCESS_COARSE_LOCATION only for one fix right after «Starten» of a shared measurement (turned into a point
      moved at random on the phone; only that point is sent) and for «Laut! Melden» (exact place sent with the report, then deleted
      from the phone); only while the app is open, never in the
      background). The plain Labor build has neither (src/labor/AndroidManifest.xml). -->
@@ -23,4 +25,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <application>
+        <meta-data android:name="android.webkit.WebView.MetricsOptOut" android:value="true" />
+    </application>
 </manifest>

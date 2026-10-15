@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.3 — not published (versionCode 16)
+
+Built on 0.6.2. Sharing made simple and the map in the app («Online-Version» only; the Offline-Version
+and the Labor build behave exactly as before).
+
+- **One question at the first «Starten»:** «Auf die Lärmkarte?» — three lines (what is sent, what
+  never, how to delete), «Mehr dazu» for the full explanation, «Ja, auf die Karte» / «Nur auf dem
+  Telefon». Asked once; the switch in «Teilen» changes it later. The «Weiter» gate in «Teilen» is gone.
+  Updating from 0.6.2: sharing on counts as yes, everybody else is asked once.
+- **Measuring never waits for the location:** the measurement starts at once; the one location fix
+  runs while the app is open and its shifted point is attached to the running measurement, which is
+  then shared as a whole (also the minutes before the fix). No fix: no dialog, a line «Kein Standort –
+  tippen» with the options. Switching sharing on during a measurement shares that measurement.
+- **Faster on the map:** while a shared measurement runs, the first upload about 2 minutes after the
+  point is known, then every 10 minutes; at once after «Stoppen»; hourly as before. Mobile data is
+  allowed by default (less than 0.1 MB a day; «Nur über WLAN» is reset once to off).
+- **One status line** on «Messen» and «Teilen»: «Standort wird bestimmt …», «Wird geteilt – erste
+  Werte in wenigen Minuten», «Auf der Karte · zuletzt gesendet 14:05», «Kein Internet – wird
+  nachgeholt» …
+- **«Teilen» shorter:** status and switch on top; «Was gesendet wird ▸» and «Wo liegt das Telefon?
+  (freiwillig) ▸» folded.
+- **New tab «Karte»:** the website's noise map in the app (WebView, loaded only while the tab is
+  open, no other host, no cookies, no location; opens at the shifted point of the newest shared
+  measurement via `karte.html#lat=…&lon=…&z=16`). The website's map page reads that new view fragment.
+
 ## 0.6.2 — 2026-10-14 (versionCode 15)
 
 Built on 0.6.1. Four changes; the detector, the CSV columns and everything the offline edition does

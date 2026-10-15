@@ -310,3 +310,84 @@ test("dark mode uses the site's colours", async ({ browser, baseURL }) => {
   expect(s.foreign).toEqual([]);
   await ctx.close();
 });
+
+// ---- 0.6.3: the view fragment karte.html#lat=…&lon=…&z=… (server/DESIGN.md §7, the app's tab «Karte») ----
+
+async function viewOf(page) {
+  return page.evaluate(() => {
+    const k = window.__karte;
+    const c = k.map.getCenter();
+    return { lat: c.lat, lon: c.lng, z: k.map.getZoom(), hashView: k.hashView() };
+  });
+}
+
+/** Leaflet markers/circles drawn within ~30 m of a point (the fragment must not add one). */
+async function layersNear(page, lat, lon) {
+  return page.evaluate(([la, lo]) => {
+    let n = 0;
+    window.__karte.map.eachLayer((l) => {
+      if (typeof l.getLatLng === "function" && l.getLatLng().distanceTo([la, lo]) < 30) n++;
+    });
+    return n;
+  }, [lat, lon]);
+}
+
+test("a valid view fragment centres the map at load, keeps it after the data, and draws no marker", async ({ page, isMobile }) => {
+  const plain = await viewOf(page);
+  expect(plain.hashView).toBeNull();
+  const urls = [];
+  page.on("request", (r) => urls.push(r.url()));
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator("#karte")).toHaveAttribute("data-reports", String(reportsJson.reports.length));
+  const v = await viewOf(page);
+  expect(v.hashView).toEqual({ lat: 47.3769, lon: 8.5417, z: 16 });
+  expect(v.z).toBe(16);
+  expect(Math.abs(v.lat - 47.3769)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 8.5417)).toBeLessThan(1e-4);
+  expect(v).not.toEqual(plain);
+  expect(await layersNear(page, 47.3769, 8.5417)).toBe(0);
+  // On a phone the page opens at the map, not at the page head.
+  if (isMobile) expect(await page.locator("#metric").evaluate((e) => e.getBoundingClientRect().top)).toBeLessThan(40);
+  // The fragment never leaves the browser: no request carried it.
+  expect(urls.some((u) => u.includes("/karte.html"))).toBe(true);
+  expect(urls.filter((u) => u.includes("lat=") || u.includes("47.3769") || u.includes("8.5417"))).toEqual([]);
+});
+
+test("an invalid view fragment falls back to the default view", async ({ page }) => {
+  const plain = await viewOf(page);
+  for (const bad of ["#lat=48.90&lon=8.54170&z=16", "#lat=47.37690&lon=8.54170&z=30", "#lat=47.37690&lon=8.54170", "#foo=1"]) {
+    await page.goto("about:blank");
+    await page.goto("/karte.html" + bad);
+    await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+    const v = await viewOf(page);
+    expect(v.hashView, bad).toBeNull();
+    expect(v.z, bad).toBe(plain.z);
+    expect(Math.abs(v.lat - plain.lat), bad).toBeLessThan(1e-6);
+    expect(Math.abs(v.lon - plain.lon), bad).toBeLessThan(1e-6);
+  }
+});
+
+test("a changed view fragment moves the map (hashchange); an invalid one is ignored", async ({ page }) => {
+  await page.evaluate(() => { location.hash = "lat=46.94800&lon=7.44740&z=15"; });
+  await expect.poll(async () => (await viewOf(page)).z).toBe(15);
+  const v = await viewOf(page);
+  expect(Math.abs(v.lat - 46.948)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 7.4474)).toBeLessThan(1e-4);
+  await page.evaluate(() => { location.hash = "lat=99&lon=7.4474&z=15"; });
+  await page.waitForTimeout(100);
+  const w = await viewOf(page);
+  expect(Math.abs(w.lat - 46.948)).toBeLessThan(1e-4);
+});
+
+test("the app's address without a point, karte.html#metric, opens at the map with the default view", async ({ page, isMobile }) => {
+  const plain = await viewOf(page);
+  await page.goto("about:blank");
+  await page.goto("/karte.html#metric");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  const v = await viewOf(page);
+  expect(v.hashView).toBeNull();
+  expect(v.z).toBe(plain.z);
+  if (isMobile) expect(await page.locator("#metric").evaluate((e) => e.getBoundingClientRect().top)).toBeLessThan(40);
+});

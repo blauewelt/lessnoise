@@ -153,7 +153,7 @@ private fun PrivacyCard() {
         // Edition-specific (public: never audio; Labor: can store audio locally).
         Text(EditionUi.ABOUT_AUDIO, style = MaterialTheme.typography.bodySmall)
         Text(
-            if (BuildConfig.UPLOAD_AVAILABLE) "Ins Internet geht nur, was du unter «Teilen» einschaltest."
+            if (BuildConfig.UPLOAD_AVAILABLE) "Ins Internet geht nur, was du unter «Teilen» einschaltest, und die Karte, wenn du sie öffnest."
             else "Diese Version hat keinen Internetzugang.",
             style = MaterialTheme.typography.bodySmall,
         )

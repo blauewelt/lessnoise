@@ -8,9 +8,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -20,8 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,50 +45,78 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Screen { MEASURE, MEASUREMENTS, SHARE, SETTINGS }
+/** Tab icon. «Karte»: the pin (Icons.Filled.Map is only in the large extended icon set). */
+fun screenIcon(s: Screen): ImageVector = when (s) {
+    Screen.MEASURE -> Icons.Filled.Home
+    Screen.MEASUREMENTS -> Icons.Filled.DateRange
+    Screen.MAP -> Icons.Filled.Place
+    Screen.SHARE -> Icons.Filled.Share
+    Screen.SETTINGS -> Icons.Filled.Settings
+}
 
-private data class Tab(val screen: Screen, val label: String, val icon: ImageVector)
+/** The bottom bar (also rendered on the JVM, ShareScreenshots). */
+@Composable
+fun AppBottomBar(screens: List<Screen>, selected: Int, onSelect: (Int) -> Unit) {
+    NavigationBar {
+        screens.forEachIndexed { i, s ->
+            val label = screenLabel(s)
+            NavigationBarItem(
+                selected = selected == i,
+                onClick = { onSelect(i) },
+                icon = { Icon(screenIcon(s), contentDescription = label) },
+                // Five tabs since 0.6.3: on narrow phones «Messungen» and «Einstellungen» shrink to fit.
+                label = { FitText(label, MaterialTheme.typography.labelMedium) },
+            )
+        }
+    }
+}
 
-/**
- * «Messen · Messungen · Einstellungen», plus «Teilen» in the editions with the Lärmkarte (0.6.1;
- * Kalibrieren and Daten moved into Einstellungen).
- */
-private val tabs = buildList {
-    add(Tab(Screen.MEASURE, "Messen", Icons.Filled.Home))
-    add(Tab(Screen.MEASUREMENTS, "Messungen", Icons.Filled.DateRange))
-    if (BuildConfig.UPLOAD_AVAILABLE) add(Tab(Screen.SHARE, "Teilen", Icons.Filled.Share))
-    add(Tab(Screen.SETTINGS, "Einstellungen", Icons.Filled.Settings))
+/** One line that shrinks its font (down to 8 sp) until it fits the available width. */
+@Composable
+private fun FitText(text: String, style: TextStyle) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints {
+        val max = constraints.maxWidth
+        val fitted = remember(text, max, style) {
+            if (max == Constraints.Infinity) return@remember style
+            var size = style.fontSize.value
+            var s = style
+            while (measurer.measure(text, s, maxLines = 1, softWrap = false).size.width > max && size > 8f) {
+                size -= 0.5f
+                s = style.copy(fontSize = size.sp, letterSpacing = 0.sp)
+            }
+            s
+        }
+        Text(text, style = fitted, maxLines = 1, softWrap = false)
+    }
 }
 
 @Composable
 fun AppRoot() {
+    val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
+    // Karten editions: the consent at the first «Starten», the fix for the running measurement and
+    // its dialogs (ShareFlow.kt). Null in the Offline and Labor builds.
+    val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareController() else null
+    val open: (Screen) -> Unit = { s -> screens.indexOf(s).takeIf { it >= 0 }?.let { selected = it } }
     Scaffold(
         // Public: emits nothing (same as Scaffold's default). Labor: the red warning banner.
         topBar = { EditionUi.Banner() },
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            NavigationBar {
-                tabs.forEachIndexed { i, t ->
-                    NavigationBarItem(
-                        selected = selected == i,
-                        onClick = { selected = i },
-                        icon = { Icon(t.icon, contentDescription = t.label) },
-                        label = { Text(t.label, maxLines = 1) },
-                    )
-                }
-            }
-        },
+        bottomBar = { AppBottomBar(screens, selected) { selected = it } },
     ) { padding ->
         val m = Modifier.padding(padding)
-        CompositionLocalProvider(LocalSnackbarHost provides snackbar) {
-            when (tabs.getOrNull(selected)?.screen ?: Screen.MEASURE) {
-                Screen.MEASURE -> MeasureScreen(m)
+        CompositionLocalProvider(LocalSnackbarHost provides snackbar, LocalShareController provides share) {
+            when (screens.getOrNull(selected) ?: Screen.MEASURE) {
+                Screen.MEASURE -> MeasureScreen(m, onOpen = open)
                 Screen.MEASUREMENTS -> MeasurementsScreen(m)
-                Screen.SHARE -> ShareScreen(m)
+                // Loaded only while this tab is shown (MapScreen.kt); nothing in the background.
+                Screen.MAP -> MapTab.Content(m)
+                Screen.SHARE -> ShareScreen(m, onOpen = open)
                 Screen.SETTINGS -> SettingsScreen(m)
             }
+            share?.Dialogs()
             // Public: nothing. Labor: the clip player sheet.
             EditionUi.Overlay()
         }

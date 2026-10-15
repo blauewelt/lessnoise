@@ -167,12 +167,28 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 14. Oktober 2026",
+    "Stand: 15. Oktober 2026",
     "Art, Zeit und den ungefähren Ort", // what the phone keeps of a sent report
   ]) {
     expect(text, fact).toContain(fact);
   }
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
+});
+
+test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const text = await allText(page);
+  for (const fact of [
+    "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
+    "alle 10 Minuten", "mobile Daten",                                   // cadence, network
+    "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
+  ]) expect(text, fact).toContain(fact);
+  expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone
+  await expect(page.locator("#karte-in-der-app")).toHaveCount(1);
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  for (const fact of ["Auf die Lärmkarte?", "Ja, auf die Karte", "alle 10 Minuten", "Karte in der App"]) expect(guide, fact).toContain(fact);
+  expect(guide).not.toContain("«Weiter»");
 });
 
 test("the location of a measurement is described as moved, not as «only a hectare»", async ({ page }) => {

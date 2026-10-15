@@ -240,6 +240,16 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     /** «Stop». */
     suspend fun endMeasurement(id: Long, endMs: Long) = dao.endMeasurement(id, endMs)
 
+    /**
+     * 0.6.3: the running measurement that started at [startMs] gets its shifted [point] after the
+     * fact. False if that row is gone, already ended, or already has a point.
+     */
+    suspend fun attachPoint(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point): Boolean =
+        dao.attachPoint(startMs, point.cell, point.e, point.n, point.sigmaM) > 0
+
+    /** The shifted point of the newest shared measurement, or null (opens the «Karte» tab there). */
+    suspend fun latestSharedPoint(): ch.lessnoise.dsp.geo.LocationNoise.Point? = dao.latestSharedMeasurement()?.sharedPoint()
+
     /** Writes CSV exports into cache/exports (served via FileProvider). */
     suspend fun exportCsv(dir: File, bucketIds: List<String>): List<File> {
         dir.mkdirs()

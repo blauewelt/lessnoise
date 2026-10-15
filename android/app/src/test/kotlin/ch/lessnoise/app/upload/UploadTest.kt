@@ -5,6 +5,7 @@ import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.dsp.Iso
 import ch.lessnoise.dsp.geo.LocationNoise
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -185,6 +186,113 @@ class UploadTest {
         val (up, _) = setup()
         assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
         assertEquals(listOf("POST /v1/devices"), server.requests.map { "${it.method} ${it.path}" })
+    }
+
+    // ---- 0.6.3: the point arrives after «Starten» ------------------------------------------------
+
+    /** A running measurement whose fix is not there yet: its first [n] minutes and two events. */
+    private fun runningWithoutPoint(start: Long, n: Int) {
+        measurementRows.clear()
+        measurementRows += MeasurementEntity(id = 1, startMs = start, endMs = null)
+        for (i in 0 until n) minuteRows += minute(start + i * 60_000L)
+        eventRows += event(start + 30_000L); eventRows += event(start + 5 * 60_000L)
+    }
+
+    @Test
+    fun aPointAttachedLaterSendsTheWholeRunningMeasurementAlsoAfterAnEarlierRunMovedTheMarkerPastIt() = runBlocking {
+        val start = now - 20 * 60_000L
+        runningWithoutPoint(start, 10)
+        val (up, store) = setup()
+        // A run before the fix (e.g. the hourly job): nothing to send, and the markers move past
+        // the records, which had no point then.
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(minuteRows.last().startEpochMs, store.state.value.minutesSentUpToMs)
+        assertEquals(eventRows.last().startEpochMs, store.state.value.eventsSentUpToMs)
+        // The fix arrives: the row gets its point (MeasurementRepository.attachPoint), then the upload hears of it.
+        measurementRows[0] = shared(1, start, null, pointA)
+        up.pointAttached(start)
+        for (i in 10 until 15) minuteRows += minute(start + i * 60_000L)
+        eventRows += event(start + 12 * 60_000L)
+        assertEquals(Uploader.Outcome.Done(minutes = 15, events = 3, refused = 0, more = false), up.run())
+        val id = store.state.value.deviceId!!
+        assertEquals(15, server.minutes[id]!!.size, "the 10 minutes before the fix are not lost behind the marker")
+        assertTrue(server.minutes[id]!!.values.all { it.point() == a })
+        assertEquals(3, server.events[id]!!.size)
+        assertTrue(server.events[id]!!.values.all { it.point() == a })
+        // Nothing twice afterwards.
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+    }
+
+    @Test
+    fun withoutPointAttachedTheMinutesBeforeTheFixWouldBeLost() = runBlocking {
+        // The behaviour of 0.6.2 that pointAttached fixes: the same scenario without it.
+        val start = now - 20 * 60_000L
+        runningWithoutPoint(start, 10)
+        val (up, store) = setup()
+        up.run()
+        measurementRows[0] = shared(1, start, null, pointA)
+        for (i in 10 until 15) minuteRows += minute(start + i * 60_000L)
+        up.run()
+        assertEquals(5, server.minutes[store.state.value.deviceId]!!.size)
+    }
+
+    @Test
+    fun switchingOnDuringAMeasurementSharesThatWholeMeasurementButNoEarlierOne() = runBlocking {
+        // Registered before, then off; an earlier measurement ended unshared.
+        measurementRows.clear()
+        val old = now - 3 * 3_600_000L
+        measurementRows += MeasurementEntity(id = 1, startMs = old, endMs = old + 30 * 60_000L)
+        for (i in 0 until 30) minuteRows += minute(old + i * 60_000L)
+        val (up, store) = setup()
+        up.run()
+        val id = store.state.value.deviceId!!
+        up.disable()
+        // A measurement starts while sharing is off …
+        val start = now - 40 * 60_000L
+        measurementRows += MeasurementEntity(id = 2, startMs = start, endMs = null)
+        for (i in 0 until 40) minuteRows += minute(start + i * 60_000L)
+        // … and sharing is switched on during it (the floor becomes «now» for a registered phone),
+        // then the fix gives that measurement its point.
+        assertTrue(up.enable())
+        assertEquals(now, store.state.value.sendFloorMs)
+        measurementRows[1] = shared(2, start, null, pointC)
+        up.pointAttached(start)
+        up.run()
+        val sent = server.minutes[id]!!.values
+        assertEquals(40, sent.size, "the whole running measurement")
+        assertTrue(sent.all { it.point() == c }, "nothing of the measurement that ended unshared")
+    }
+
+    @Test
+    fun pointAttachedWaitsForARunningUpload() = runBlocking {
+        // pointAttached takes the upload lock: a run in progress cannot move the markers past the
+        // measurement again after the rewind.
+        val start = now - 20 * 60_000L
+        runningWithoutPoint(start, 10)
+        val (up, store) = setup()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = object : UploadSource by source {
+            override suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity> {
+                gate.await()
+                return source.eventsAfter(afterMs, limit)
+            }
+        }
+        val up2 = Uploader(UploadClient(server.baseUrl), store, slow, reports, "0.4.0-dev", 9, clock = { now })
+        kotlinx.coroutines.coroutineScope {
+            val run = launch(kotlinx.coroutines.Dispatchers.Default) { up2.run() }
+            while (store.state.value.minutesSentUpToMs == 0L) kotlinx.coroutines.delay(10)
+            val attached = launch(kotlinx.coroutines.Dispatchers.Default) {
+                measurementRows[0] = shared(1, start, null, pointA)
+                up2.pointAttached(start)
+            }
+            kotlinx.coroutines.delay(100)
+            assertTrue(attached.isActive, "waits for the run")
+            gate.complete(Unit)
+            run.join(); attached.join()
+        }
+        assertTrue(store.state.value.minutesSentUpToMs < start && store.state.value.eventsSentUpToMs < start)
+        up.run()
+        assertEquals(10, server.minutes[store.state.value.deviceId]!!.size)
     }
 
     @Test
@@ -436,6 +544,7 @@ class UploadTest {
         assertNull(server.tokens[id]); assertNull(server.sites[id]); assertNull(server.minutes[id]); assertNull(server.events[id])
         val s = store.state.value
         assertFalse(s.enabled); assertNull(s.deviceId); assertNull(s.token)
+        assertEquals(ShareDecision.NO, s.shareDecision, "0.6.3: deleting is a «no»; the question is not asked again")
         assertNull(s.noiseSecret, "deleting the server data also drops the location-noise secret")
         assertEquals(0, s.minutesSentUpToMs)
         assertEquals(now, s.sendFloorMs, "switching on again sends nothing measured before the delete")
@@ -465,16 +574,23 @@ class UploadTest {
     }
 
     @Test
-    fun offByDefaultAndEnablingNeedsTheExplanation() = runBlocking {
+    fun offByDefaultAndOneYesSwitchesOn() = runBlocking {
         addMinutes(5)
         assertFalse(UploadSnapshot().enabled)
-        assertTrue(UploadSnapshot().wifiOnly)
-        val bare = Uploader(UploadClient(server.baseUrl), MemoryUploadStore(), source, reports, "x", 1, clock = { now })
-        assertFalse(bare.enable(), "no explanation")
-        // Since 0.6.0 no hectare is needed to switch on: the cell comes with each measurement.
-        val noSite = MemoryUploadStore(UploadSnapshot(explanationSeen = true))
-        assertTrue(Uploader(UploadClient(server.baseUrl), noSite, source, reports, "x", 1, clock = { now }).enable())
-        noSite.update { it.copy(enabled = false) }
+        assertEquals(ShareDecision.UNDECIDED, UploadSnapshot().shareDecision)
+        assertFalse(UploadSnapshot().wifiOnly, "0.6.3: mobile data allowed by default (< 0.1 MB a day)")
+        // 0.6.3: no explanation gate («Weiter») any more; the opt-in is «Ja, auf die Karte» at the
+        // first «Starten», the switch in «Teilen» or the consent of «Laut! Melden» (ShareFlow.kt,
+        // LocationFlows.kt), each of which calls enable(). Since 0.6.0 no hectare is needed either.
+        val bareStore = MemoryUploadStore()
+        val bare = Uploader(UploadClient(server.baseUrl), bareStore, source, reports, "x", 1, clock = { now })
+        assertTrue(bare.enable())
+        assertTrue(bareStore.state.value.enabled)
+        assertEquals(ShareDecision.YES, bareStore.state.value.shareDecision)
+        bare.disable()
+        assertFalse(bareStore.state.value.enabled)
+        assertEquals(ShareDecision.NO, bareStore.state.value.shareDecision)
+        assertTrue(server.requests.isEmpty(), "switching on and off sends nothing by itself")
         val (up, _) = setup(enabled = false)
         assertEquals(Uploader.Outcome.Disabled, up.run())
         assertTrue(server.requests.isEmpty(), "nothing at all is sent while sharing is off")
@@ -537,7 +653,8 @@ class UploadTest {
         val up = Uploader(UploadClient(server.baseUrl, connectTimeoutMs = 2000), store, source, reports, "x", 1, clock = { now })
         up.enable()
         assertIs<Uploader.Outcome.Retry>(up.run())
-        assertEquals(Uploader.RETRY_TEXT, store.state.value.lastError)
+        // 0.6.3: told apart from the server's own failures, for the status line «Kein Internet».
+        assertEquals(Uploader.NO_CONNECTION_TEXT, store.state.value.lastError)
     }
 
     @Test

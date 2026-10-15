@@ -9,6 +9,22 @@ const M = require("../../docs/map/model.js");
 const cell = require("../../server/example_cell.json");
 const reports = require("../../server/example_reports.json");
 
+test("view fragment: karte.html#lat=…&lon=…&z=… (the app's tab «Karte»)", () => {
+  const B = [[45.80, 5.90], [47.85, 10.55]];
+  assert.deepEqual(M.parseView("#lat=47.37690&lon=8.54170&z=16", B, 7, 18), { lat: 47.3769, lon: 8.5417, z: 16 });
+  assert.deepEqual(M.parseView("lat=46.5&lon=6.6&z=7", B, 7, 18), { lat: 46.5, lon: 6.6, z: 7 });
+  assert.deepEqual(M.parseView("#z=18&lon=10.55&lat=45.8", B, 7, 18), { lat: 45.8, lon: 10.55, z: 18 }, "any order, edges included");
+  for (const bad of [
+    "", "#", "#lat=47.37&lon=8.54", "#lat=47.37&lon=8.54&z=19", "#lat=47.37&lon=8.54&z=6",
+    "#lat=48.5&lon=8.54&z=16", "#lat=47.37&lon=11&z=16", "#lat=45.79&lon=8.54&z=16",
+    "#lat=47.37&lon=8.54&z=16&x=1", "#lat=47.37&lat=46&lon=8.54&z=16", "#lat=47,37&lon=8.54&z=16",
+    "#lat=1e1&lon=8.54&z=16", "#lat=NaN&lon=8.54&z=16", "#lat=Infinity&lon=8.54&z=16", "#lat=&lon=8.54&z=16",
+    "#lat=47.37&lon=8.54&z=16=1", "#cell=h26833_12479", "#lat=0x2f&lon=8.54&z=16",
+    "#lat=47.37&lon=8.54&z=16" + "&".repeat(90),
+  ]) assert.equal(M.parseView(bad, B, 7, 18), null, bad);
+  assert.equal(M.parseView(undefined, B, 7, 18), null);
+});
+
 test("numbers use the decimal comma", () => {
   assert.equal(M.fmt1(54.9), "54,9");
   assert.equal(M.fmt1(55), "55,0");
