@@ -81,9 +81,10 @@ jobs:
         working-directory: ios
         run: |
           set +e
-          # -continueBuildingAfterErrors and the compiler's -continue-building-after-errors: one
-          # round shows the errors of every file, not only of the first batch that failed.
-          xcodebuild build-for-testing -continueBuildingAfterErrors \
+          # Xcode's «continue building after errors» and the compiler's -continue-building-after-errors:
+          # one round shows the errors of every file, not only of the first batch that failed.
+          defaults write com.apple.dt.Xcode IDEBuildingContinueBuildingAfterErrors -bool YES
+          xcodebuild build-for-testing \
             -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \

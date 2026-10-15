@@ -216,9 +216,7 @@ struct AdvancedView: View {
                     let history = cal.history
                     if history.isEmpty { Text("Noch keine Kalibrierungen.").font(.footnote) }
                     ForEach(history) { h in
-                        Text("#\(h.id) · \(Fmt.dateTime(h.createdEpochMs)) · \(CalibrationTexts.methodName(h.method)) · \(Fmt.db(h.offsetDb, 2)) dB · "
-                             + AudioSource.labelDe(h.audioSource) + (h.notes.isEmpty ? "" : " · \(h.notes)"))
-                            .font(.footnote)
+                        Text(historyLine(h)).font(.footnote)
                     }
                 }
                 Spacer(minLength: 24)
@@ -241,6 +239,14 @@ struct AdvancedView: View {
         }
         .sheet(item: $exported) { f in ShareSheet(items: f.urls) }
         .onChange(of: scenePhase) { p in if p == .background { cal.onAppStopped() } }
+    }
+
+    /** «#3 · 15.10.2026 21:30 · Messgerät · 121,90 dB · iPhone (Messmodus) · Notiz». */
+    private func historyLine(_ h: CalibrationEntity) -> String {
+        var parts = ["#\(h.id)", Fmt.dateTime(h.createdEpochMs), CalibrationTexts.methodName(h.method), "\(Fmt.db(h.offsetDb, 2)) dB",
+                     AudioSource.labelDe(h.audioSource)]
+        if !h.notes.isEmpty { parts.append(h.notes) }
+        return parts.joined(separator: " · ")
     }
 
     private func startCal(_ mode: CalMode) {
