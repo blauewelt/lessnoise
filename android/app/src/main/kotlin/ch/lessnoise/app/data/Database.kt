@@ -268,6 +268,13 @@ interface MeasurementDao {
     @Query("SELECT * FROM measurements ORDER BY start_ms ASC, id ASC")
     suspend fun allMeasurements(): List<MeasurementEntity>
 
+    /**
+     * App 0.6.3: the shifted point found after «Starten», attached to the measurement that is still
+     * running (no end yet) and has no point yet. Returns the number of rows changed (0 or 1).
+     */
+    @Query(AttachPointSql.UPDATE)
+    suspend fun attachPoint(startMs: Long, cell: String, pointE: Int, pointN: Int, sigmaM: Int): Int
+
     @Query("SELECT * FROM measurements ORDER BY start_ms ASC, id ASC")
     fun measurementsFlow(): Flow<List<MeasurementEntity>>
 

@@ -57,6 +57,9 @@ private val tabs = buildList {
 fun AppRoot() {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
+    // Karten editions: «Auf die Lärmkarte?», the location fix and the status line (LocationFlows.kt).
+    val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareFlow() else null
+    share?.openShareTab = { tabs.indexOfFirst { it.screen == Screen.SHARE }.takeIf { it >= 0 }?.let { selected = it } }
     Scaffold(
         // Public: emits nothing (same as Scaffold's default). Labor: the red warning banner.
         topBar = { EditionUi.Banner() },
@@ -75,7 +78,7 @@ fun AppRoot() {
         },
     ) { padding ->
         val m = Modifier.padding(padding)
-        CompositionLocalProvider(LocalSnackbarHost provides snackbar) {
+        CompositionLocalProvider(LocalSnackbarHost provides snackbar, LocalShareFlow provides share) {
             when (tabs.getOrNull(selected)?.screen ?: Screen.MEASURE) {
                 Screen.MEASURE -> MeasureScreen(m)
                 Screen.MEASUREMENTS -> MeasurementsScreen(m)

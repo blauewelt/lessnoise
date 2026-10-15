@@ -49,6 +49,19 @@ class PlaceIndex(measurements: List<MeasurementEntity>) {
 
     /** The point of the newest shared measurement (sent with the placement details). */
     val latest: LocationNoise.Point? = points.lastOrNull { it != null }
+
+    /**
+     * Records starting at or after this (epoch ms) belong to the newest measurement while it is
+     * still open and has no point yet (app 0.6.3: «Starten» does not wait for the location; the
+     * shifted point is attached to the running measurement once the fix arrives). The markers must
+     * not move past them, or their minutes and events would be lost behind the acknowledged marker
+     * once the point is there. Long.MAX_VALUE: nothing is held back. A measurement that ends without
+     * a point releases its records (they are then skipped for good, as before).
+     */
+    val holdFromMs: Long = sorted.lastOrNull()
+        ?.takeIf { it.endMs == null && points.last() == null }
+        ?.let { it.startMs - MeasurementSplitter.START_TOLERANCE_MS }
+        ?: Long.MAX_VALUE
 }
 
 /**
@@ -114,17 +127,24 @@ class Uploader(
         data class Failed(val message: String) : DeleteOutcome
     }
 
-    /** Switch «Messwerte teilen» on. Needs the explanation (or the short consent of «Laut! Melden»). */
-    fun enable(): Boolean {
-        val s = store.state.value
-        if (!s.canEnable) return false
+    /**
+     * Switch «Auf die Karte senden» on (the answer «Ja, auf die Karte», the switch in «Teilen», or
+     * the short consent of «Laut! Melden»). Since 0.6.3 nothing gates it; the consent is the dialog.
+     * [runningSinceMs]: start of a measurement that is running right now, if any — switching on
+     * during a measurement shares that whole measurement (its point is attached afterwards), so
+     * nothing of it may lie below the floor. Always returns true (kept for the callers' shape).
+     */
+    fun enable(runningSinceMs: Long? = null): Boolean {
         val now = clock()
         store.update {
             // The very first time, shared measurements of the last 7 days are included (normally
-            // none exist yet: a measurement is shared only if started while sharing was on); after
-            // that, nothing measured while sharing was off is ever sent (the explanation says so).
+            // none exist yet: a measurement is shared only if it has a point); after that, nothing
+            // measured while sharing was off is ever sent — except the running measurement, which
+            // the person shares as a whole by switching on now.
             val floor = if (it.sendFloorMs == 0L && !it.registered) now - MAX_AGE_MS else now
-            it.copy(enabled = true, sendFloorMs = maxOf(it.sendFloorMs, floor), lastError = null)
+            val start = runningSinceMs?.let { r -> r - MeasurementSplitter.START_TOLERANCE_MS }
+            val newFloor = if (start != null) minOf(maxOf(it.sendFloorMs, floor), maxOf(start, now - MAX_AGE_MS)) else maxOf(it.sendFloorMs, floor)
+            it.copy(enabled = true, decision = ShareDecision.YES, sendFloorMs = newFloor, lastError = null)
         }
         return true
     }
@@ -134,7 +154,7 @@ class Uploader(
      * Reports not sent yet are dropped with their coordinates: off means nothing more is sent.
      */
     fun disable() {
-        store.update { it.copy(enabled = false) }
+        store.update { it.copy(enabled = false, decision = ShareDecision.NO) }
         ReportQueue.dropPending(reports)
     }
 
@@ -214,7 +234,7 @@ class Uploader(
 
             var more = false
             val minutes = sendAll(
-                kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests },
+                kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests }, holdFromMs = places.holdFromMs,
                 marker = { it.minutesSentUpToMs },
                 fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
                 // Only minutes of shared measurements; the marker still moves past the others.
@@ -225,7 +245,7 @@ class Uploader(
             requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
             if (!more) {
                 val events = sendAll(
-                    kind = RefusedRecord.EVENT, batchSize = eventBatch, budget = { maxRequestsPerRun - requests },
+                    kind = RefusedRecord.EVENT, batchSize = eventBatch, budget = { maxRequestsPerRun - requests }, holdFromMs = places.holdFromMs,
                     marker = { it.eventsSentUpToMs },
                     fetch = { after, n -> source.eventsAfter(after, n) }, start = { it.startEpochMs },
                     // Wind-flagged events (detector v2) are not shared, as they are left out of the app's
@@ -253,7 +273,8 @@ class Uploader(
             store.update { it.copy(lastError = RETRY_TEXT) }
             return Outcome.Retry(e.message ?: e.status.toString())
         } catch (e: IOException) {
-            store.update { it.copy(lastError = RETRY_TEXT) }
+            // Not an HTTP answer: no connection (no network, DNS, timeout).
+            store.update { it.copy(lastError = NO_NETWORK_TEXT) }
             return Outcome.Retry(e.javaClass.simpleName)
         }
     }
@@ -268,11 +289,16 @@ class Uploader(
      * can share a start after a restart within one minute). The marker means "start > marker", so
      * such a tail is cut off and goes with the next batch. (If a whole batch had one start it is
      * sent as is; with 1440 rows per batch that cannot happen in practice.)
+     *
+     * Records from [holdFromMs] on belong to the running measurement that has no point yet
+     * ([PlaceIndex.holdFromMs]): they are not sent, and the marker stays below them, so the next
+     * run considers them again once the point is attached.
      */
     private suspend fun <T> sendAll(
         kind: String,
         batchSize: Int,
         budget: () -> Int,
+        holdFromMs: Long,
         marker: (UploadSnapshot) -> Long,
         fetch: suspend (Long, Int) -> List<T>,
         start: (T) -> Long,
@@ -297,7 +323,10 @@ class Uploader(
                 if (start(head.last()) != nextStart) head else head.dropLastWhile { start(it) == nextStart }.ifEmpty { head }
             }
             val skip = s.refused.filter { it.kind == kind }.map { it.startEpochMs }.toHashSet()
-            val batch = rows.filter { start(it) !in skip && include(it) }
+            // Held records (running measurement without a point) end this run's walk.
+            val held = rows.indexOfFirst { start(it) >= holdFromMs }
+            val open = if (held < 0) rows else rows.subList(0, held)
+            val batch = open.filter { start(it) !in skip && include(it) }
             if (batch.isNotEmpty()) {
                 val res = post(batch)
                 requests++
@@ -305,9 +334,11 @@ class Uploader(
                 refusedCount += res.rejected.size
                 recordRefused(kind, batch.map(start), res.rejected)
             }
-            val last = start(rows.last())
-            store.update { advance(it, last) }
-            if (!full) return Sent(requests, sent, refusedCount, more = false)
+            if (open.isNotEmpty()) {
+                val last = start(open.last())
+                store.update { advance(it, last) }
+            }
+            if (!full || held >= 0) return Sent(requests, sent, refusedCount, more = false)
         }
     }
 
@@ -346,7 +377,7 @@ class Uploader(
     private fun deleteAndForget(disable: Boolean): DeleteOutcome {
         val r = deleteLocked()
         if (r !is DeleteOutcome.Failed) {
-            store.update { forget(it).let { f -> if (disable) f.copy(enabled = false) else f } }
+            store.update { forget(it).let { f -> if (disable) f.copy(enabled = false, decision = ShareDecision.NO) else f } }
         }
         return r
     }
@@ -389,8 +420,11 @@ class Uploader(
         const val AUTH_FAILED_TEXT =
             "Nach 60 Tagen ohne Werte hat der Server deine Daten gelöscht. Tippe auf «Neu starten», um wieder zu teilen."
 
-        /** One message for every failure that is retried by itself (429, 5xx, no connection): nothing to do. */
+        /** One message for every server failure that is retried by itself (429, 5xx): nothing to do. */
         const val RETRY_TEXT = "Senden klappt gerade nicht. Neuer Versuch folgt."
+
+        /** No connection to the server at all (no network, DNS, timeout); retried by itself. */
+        const val NO_NETWORK_TEXT = "Kein Internet. Neuer Versuch folgt."
 
         /** The server refuses records older than 7 days (DESIGN.md §8, `MAX_RECORD_AGE_DAYS`). */
         const val MAX_AGE_MS = 7L * 24 * 3600 * 1000

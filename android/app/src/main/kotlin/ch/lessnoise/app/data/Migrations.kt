@@ -168,6 +168,15 @@ object RecalibrationSql {
     const val SCOPE = "audioSource = :source AND (calibrationId IS NULL OR calibrationId != :calibrationId)"
 }
 
+/**
+ * App 0.6.3: the shifted point found after «Starten» goes to the measurement that is still running
+ * (no end) and has no point yet; an ended measurement is never shared afterwards (checked by a unit test).
+ */
+object AttachPointSql {
+    const val UPDATE = "UPDATE measurements SET cell = :cell, point_e = :pointE, point_n = :pointN, sigma_m = :sigmaM " +
+        "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL"
+}
+
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_1_2.forEach { db.execSQL(it) }

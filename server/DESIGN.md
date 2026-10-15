@@ -57,17 +57,28 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    - a contributor who measures in several places appears in several display cells, never linked
      to each other (no device id is published) — but a reader who knows that one person measures
      in a sparse area could follow that person's cells day by day.
-   The app's «Teilen» tab says, before the first upload, that the point is moved by
-   about σ, that it is moved the same way at the same place, that the true place is usually within
-   2σ and that a lone contributor's field lies near them (`ui/ShareTexts.kt`); datenschutz.html
-   says the same and that a lone contributor's fields can be followed day by day.
+   The app's opt-in question (rule 3, since app 0.6.3) says, before the first upload, that the
+   point is moved by about σ; its full explanation, one tap away («Mehr dazu») and in the
+   «Teilen» tab, adds that it is moved the same way at the same place, that the true place is
+   usually within 2σ and that a lone contributor's field lies near them (`ui/ShareTexts.kt`);
+   datenschutz.html says the same and that a lone contributor's fields can be followed day by day.
    Apps up to 0.5.1 send no point and no record cell; their records count for the site's hectare,
    which the contributor picked and the app snapped to the 100 m grid — for them the hectare is
    still the protection, as before. Records with a `cell` and no point (schema v3; apps 0.6.0 and
    0.6.1, which snapped the place to its hectare) are stored and shown in that hectare as before.
-3. **Off by default, one explicit opt-in.** Upload is a setting («Messwerte teilen»),
-   off until the contributor switches it on in a screen that lists exactly what leaves the
-   phone, what never does, and where it goes. Switching it off stops uploads at once.
+3. **Off by default, one explicit opt-in.** Upload is off until the contributor says yes.
+   Since app 0.6.3 the opt-in is ONE question, «Auf die Lärmkarte?», asked at the first
+   «Starten» (or when the switch «Auf die Karte senden» in «Teilen» is turned on before that).
+   It names, in three short lines, what is sent (minute values and noise peaks, with a point
+   moved by about σ instead of the location — rule 2), what never is (audio, name, the exact
+   location except with «Laut! Melden»), where it goes (our server in Switzerland), and how to
+   switch off and delete (in «Teilen»; the server deletes everything after 60 days without new
+   values, rule 9); the full explanation is one tap away («Mehr dazu»). «Ja, auf die Karte»
+   switches sharing on; «Nur auf dem Telefon» measures without sharing; dismissing the question
+   starts nothing. It is asked only once; afterwards the switch in «Teilen» changes the answer.
+   (Up to 0.6.2 the opt-in was the switch, behind an explanation screen with «Weiter».)
+   Switching it off stops uploads at once. Switching it on while a measurement runs shares that
+   whole measurement; measurements that ended unshared are never sent.
 4. **Delete means delete.** «Meine Daten auf dem Server löschen» removes every row for
    the device — site, minutes, events, hourly rows and reports — synchronously, and the server
    answers only after the rows are gone. The published files are rebuilt on the next cycle
@@ -277,11 +288,21 @@ Response `204`. Never rate limited.
 
 ### 4.6 Upload cadence in the app
 
-While «Messwerte teilen» is on: at the end of every full hour, when a measurement stops and after a
-report, the app first sends waiting reports (§4.7), then all minutes and events of shared
-measurements newer than the last acknowledged `start`, in batches,
-over Wi-Fi or mobile data (setting «nur über WLAN», default on). Failures are retried with
-backoff; nothing is lost because the local database is the source of truth. The settings
+While «Auf die Karte senden» is on (app 0.6.3): while a shared measurement runs, about 2 minutes
+after its shifted point is attached and then every 10 minutes; right after «Stoppen»; after a
+report; and once an hour as a fallback (a few minutes after the full hour). Each run first sends
+waiting reports (§4.7), then all minutes and events of shared measurements newer than the last
+acknowledged `start`, in batches, over any connection: mobile data is allowed by default (less
+than 0.1 MB a day; setting «Nur über WLAN», default off since 0.6.3, on until 0.6.2). A run makes
+a few requests (site when changed, one minute batch, one event batch, reports), so two hours of
+measuring stay far below the 60 requests per device and hour of §8 (tested in the app). Failures
+(429, 5xx, no connection) are retried with backoff from 10 minutes; nothing is lost because the
+local database is the source of truth.
+Since 0.6.3 «Starten» does not wait for the location: the measurement starts at once, the one
+fix runs while the app is open, and its shifted point is then attached to the running
+measurement; the app holds back the records of a running measurement without a point (the
+acknowledged marker does not pass them), so all its minutes and events are sent once the point
+is there. A measurement that ends without a point is never sent. The settings
 screen shows «Zuletzt gesendet: …» and the number of minutes still to send. Reports are sent
 with the next upload (the app agent documents the details in android/README.md).
 
@@ -674,6 +695,12 @@ reason).
   «Meine Daten auf dem Server löschen», «Neue Kennung».
 - Upload worker: WorkManager periodic + on measurement stop; batches as in 4.6; tested on
   the JVM with a fake server.
+- Since app 0.6.3 the opt-in is the one question «Auf die Lärmkarte?» at the first «Starten»
+  or the switch in «Teilen» (rule 3): it names what is sent, what never, where, and how to
+  delete, with the full details one tap away. The tab «Teilen» starts with a status line and the
+  switch; the explanation and the placement details are collapsed. The location is read once
+  right after «Starten», while the app is open, never in the background (no
+  `ACCESS_BACKGROUND_LOCATION`); uploads follow §4.6.
 - Nothing in the measurement path changes.
 
 ## 10. Out of scope for the first version

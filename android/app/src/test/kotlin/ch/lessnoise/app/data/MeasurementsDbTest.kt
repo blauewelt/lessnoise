@@ -140,4 +140,40 @@ class MeasurementsDbTest {
         val fresh = MeasurementList.resolve(listOf(MeasurementEntity(id = 9, startMs = now - 1_000)), emptyList(), now, running = true)
         assertEquals(listOf(Measurement(9, MeasurementSpan(now - 1_000, now), null, running = true)), fresh)
     }
+
+    /** 0.6.3: the point found after «Starten» goes only to the running measurement without a point. */
+    @Test
+    fun attachPointOnlyChangesTheRunningMeasurementWithoutPoint() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { c ->
+            c.createStatement().use { st ->
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_V7)
+                st.execute("INSERT INTO measurements (start_ms, end_ms) VALUES (1000, 2000), (3000, NULL)")
+                st.execute("INSERT INTO measurements (start_ms, end_ms, cell, point_e, point_n, sigma_m) VALUES (4000, NULL, 'h26824_12473', 2682437, 1247391, 50)")
+            }
+            // Room binds :cell, :pointE, :pointN, :sigmaM, :startMs; SQLite numbers named parameters in order.
+            fun attach(startMs: Long, p: LocationNoise.Point): Int = c.prepareStatement(AttachPointSql.UPDATE).use { ps ->
+                ps.setString(1, p.cell); ps.setInt(2, p.e); ps.setInt(3, p.n); ps.setInt(4, p.sigmaM); ps.setLong(5, startMs)
+                ps.executeUpdate()
+            }
+            assertEquals(0, attach(1000, p4), "an ended measurement stays unshared")
+            assertEquals(0, attach(4000, p4), "a point is never replaced")
+            assertEquals(0, attach(3500, p4), "no such measurement")
+            assertEquals(1, attach(3000, p4))
+            assertEquals(0, attach(3000, p1), "only once")
+            val rows = ArrayList<List<Any?>>()
+            c.createStatement().use { st ->
+                st.executeQuery("SELECT start_ms, cell, point_e, point_n, sigma_m FROM measurements ORDER BY start_ms").use { rs ->
+                    while (rs.next()) rows += listOf(rs.getLong(1), rs.getString(2), rs.getObject(3), rs.getObject(4), rs.getObject(5))
+                }
+            }
+            assertEquals(
+                listOf(
+                    listOf<Any?>(1000L, null, null, null, null),
+                    listOf<Any?>(3000L, p4.cell, p4.e, p4.n, p4.sigmaM),
+                    listOf<Any?>(4000L, "h26824_12473", 2682437, 1247391, 50),
+                ),
+                rows,
+            )
+        }
+    }
 }

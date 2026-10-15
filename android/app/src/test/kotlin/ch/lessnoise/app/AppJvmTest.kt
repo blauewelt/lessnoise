@@ -515,6 +515,8 @@ class AppJvmTest {
             ),
             ch.lessnoise.app.ui.Links.all,
         )
+        // 0.6.3: «Karte ansehen» on the sharing status line.
+        assertEquals("https://wenigerlaerm.ch/karte.html", ch.lessnoise.app.ui.Links.MAP)
     }
 
     /**

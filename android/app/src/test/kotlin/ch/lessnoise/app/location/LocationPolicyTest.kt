@@ -7,11 +7,12 @@ import ch.lessnoise.app.ui.SHARE_DELETE_BULLETS
 import ch.lessnoise.app.ui.SHARE_INTRO
 import ch.lessnoise.app.ui.SHARE_SENT_BULLETS
 import ch.lessnoise.app.ui.SHARE_WHERE_BULLETS
+import ch.lessnoise.app.ui.SHARE_NEVER_BULLETS
 import ch.lessnoise.app.ui.SIGMA_EXPLANATION
+import ch.lessnoise.app.ui.consentLines
 import ch.lessnoise.app.ui.SIGMA_LABEL
 import ch.lessnoise.app.ui.pastedText
 import ch.lessnoise.app.ui.shareLocationBullets
-import ch.lessnoise.app.ui.sharedMeasurementLine
 import ch.lessnoise.app.ui.sigmaChoice
 import ch.lessnoise.app.upload.CellInput
 import ch.lessnoise.dsp.geo.LocationNoise
@@ -179,8 +180,10 @@ class LocationPolicyTest {
     fun shareTextsDescribeTheShiftedPoint() {
         assertEquals("Standort verschieben", SIGMA_LABEL)
         assertEquals(listOf("25 m", "50 m", "100 m", "200 m"), LocationNoise.SIGMAS_M.map { sigmaChoice(it) })
-        val all = LocationNoise.SIGMAS_M.flatMap { shareLocationBullets(it) + pastedText(it) + sharedMeasurementLine(it) } +
-            SHARE_SENT_BULLETS + SHARE_WHERE_BULLETS + SHARE_DELETE_BULLETS + SHARE_INTRO + SIGMA_EXPLANATION
+        // 0.6.3: the line «Wird auf die Lärmkarte geteilt (…)» is gone (the status line replaced it);
+        // the question «Auf die Lärmkarte?» is checked here too.
+        val all = LocationNoise.SIGMAS_M.flatMap { shareLocationBullets(it) + pastedText(it) + consentLines(it) } +
+            SHARE_SENT_BULLETS + SHARE_WHERE_BULLETS + SHARE_DELETE_BULLETS + SHARE_NEVER_BULLETS + SHARE_INTRO + SIGMA_EXPLANATION
         for (t in all) {
             assertFalse(t.contains('ß'), t)
             assertFalse(Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)

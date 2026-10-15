@@ -51,11 +51,11 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
-    // Karten editions with «Teilen» on: one location fix at «Starten» (LocationFlows.kt).
-    val sharedStart = if (BuildConfig.UPLOAD_AVAILABLE) rememberSharedStart { point -> MeasurementService.start(context, point) } else null
+    // Karten editions: the question «Auf die Lärmkarte?» at the first «Starten», and the location
+    // fix for a shared measurement while it already runs (LocationFlows.kt). Offline/Labor: null.
+    val share = if (BuildConfig.UPLOAD_AVAILABLE) LocalShareFlow.current else null
     fun startMeasurement() {
-        val sharing = BuildConfig.UPLOAD_AVAILABLE && c.upload.store.state.value.enabled
-        if (sharing && sharedStart != null) sharedStart() else MeasurementService.start(context)
+        if (share != null) share.start() else MeasurementService.start(context)
     }
     val requestPermission = rememberMicPermissionLauncher { granted ->
         if (granted) startMeasurement()
@@ -70,6 +70,7 @@ fun MeasureScreen(modifier: Modifier = Modifier) {
         onStart = { if (hasMicPermission(context)) startMeasurement() else requestPermission() },
         onStop = { MeasurementService.stop(context) },
         onReport = report,
+        shareLine = share?.let { flow -> { ShareStatusLine(rememberShareStatus(flow), flow::onStatusTap) } },
         updateLine = { UpdateReminderLine() },
         eventMarker = { EditionUi.EventMarker(it) },
     )
@@ -90,6 +91,8 @@ fun MeasureContent(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
     onReport: (() -> Unit)? = null,
+    /** Karten editions: the sharing status line (ShareStatusLine); null elsewhere. */
+    shareLine: (@Composable () -> Unit)? = null,
     updateLine: @Composable () -> Unit = {},
     eventMarker: @Composable (Long) -> Unit = {},
 ) {
@@ -157,7 +160,7 @@ fun MeasureContent(
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
-                    live.sharedPoint?.let { Text(sharedMeasurementLine(it.sigmaM), style = MaterialTheme.typography.bodySmall) }
+                    shareLine?.invoke()
                 } else {
                     Button(
                         onClick = onStart,
@@ -168,6 +171,8 @@ fun MeasureContent(
                     if (onReport != null && !live.starting) {
                         OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
                     }
+                    // The short form while idle («Auf der Karte · zuletzt gesendet …», «Nicht auf der Karte – …»).
+                    if (!live.starting) shareLine?.invoke()
                 }
                 if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
                 if (!live.running) updateLine()

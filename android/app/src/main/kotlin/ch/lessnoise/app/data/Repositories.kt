@@ -240,6 +240,21 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     /** «Stop». */
     suspend fun endMeasurement(id: Long, endMs: Long) = dao.endMeasurement(id, endMs)
 
+    /**
+     * App 0.6.3: the shifted [point] found after «Starten» (or after switching sharing on while
+     * measuring) becomes the point of the running measurement that started at [startMs], so that
+     * all its minutes and events are shared, also those recorded before the fix. Only a measurement
+     * that is still open and has no point is changed (an ended one stays unshared). The row is
+     * inserted right after «Starten»; if the fix was faster, this waits for it (≤ 3 s).
+     */
+    suspend fun attachPoint(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point): Boolean {
+        repeat(15) {
+            if (dao.attachPoint(startMs, point.cell, point.e, point.n, point.sigmaM) > 0) return true
+            kotlinx.coroutines.delay(200)
+        }
+        return false
+    }
+
     /** Writes CSV exports into cache/exports (served via FileProvider). */
     suspend fun exportCsv(dir: File, bucketIds: List<String>): List<File> {
         dir.mkdirs()

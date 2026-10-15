@@ -465,16 +465,17 @@ class UploadTest {
     }
 
     @Test
-    fun offByDefaultAndEnablingNeedsTheExplanation() = runBlocking {
+    fun offByDefaultUndecidedAndMobileDataAllowed() = runBlocking {
         addMinutes(5)
         assertFalse(UploadSnapshot().enabled)
-        assertTrue(UploadSnapshot().wifiOnly)
-        val bare = Uploader(UploadClient(server.baseUrl), MemoryUploadStore(), source, reports, "x", 1, clock = { now })
-        assertFalse(bare.enable(), "no explanation")
-        // Since 0.6.0 no hectare is needed to switch on: the cell comes with each measurement.
-        val noSite = MemoryUploadStore(UploadSnapshot(explanationSeen = true))
-        assertTrue(Uploader(UploadClient(server.baseUrl), noSite, source, reports, "x", 1, clock = { now }).enable())
-        noSite.update { it.copy(enabled = false) }
+        assertEquals(ShareDecision.UNDECIDED, UploadSnapshot().decision)
+        // 0.6.3: mobile data is allowed by default (well under 0.1 MB a day, see below).
+        assertFalse(UploadSnapshot().wifiOnly)
+        // 0.6.3: the consent is the question «Auf die Lärmkarte?» in the UI; enable() itself has no
+        // gate any more (until 0.6.2 it needed the explanation screen's «Weiter»).
+        val bare = MemoryUploadStore()
+        assertTrue(Uploader(UploadClient(server.baseUrl), bare, source, reports, "x", 1, clock = { now }).enable())
+        assertEquals(ShareDecision.YES, bare.state.value.decision)
         val (up, _) = setup(enabled = false)
         assertEquals(Uploader.Outcome.Disabled, up.run())
         assertTrue(server.requests.isEmpty(), "nothing at all is sent while sharing is off")
@@ -537,7 +538,8 @@ class UploadTest {
         val up = Uploader(UploadClient(server.baseUrl, connectTimeoutMs = 2000), store, source, reports, "x", 1, clock = { now })
         up.enable()
         assertIs<Uploader.Outcome.Retry>(up.run())
-        assertEquals(Uploader.RETRY_TEXT, store.state.value.lastError)
+        // 0.6.3: no connection at all has its own text («Kein Internet – wird nachgeholt» on the status line).
+        assertEquals(Uploader.NO_NETWORK_TEXT, store.state.value.lastError)
     }
 
     @Test
@@ -608,5 +610,170 @@ class UploadTest {
         // An unreadable stored value is replaced.
         store.update { it.copy(noiseSecret = "not base64 !") }
         assertEquals(LocationNoise.SECRET_BYTES, NoiseSecret.getOrCreate(store).size)
+    }
+
+    // ---- 0.6.3: the point arrives after «Starten»; the 10-minute cadence --------------------------
+
+    /** The running row as MeasurementRepository.attachPoint leaves it once the fix arrived. */
+    private fun attach(id: Long, p: LocationNoise.Point) {
+        val i = measurementRows.indexOfFirst { it.id == id }
+        val m = measurementRows[i]
+        check(m.endMs == null && m.pointE == null)
+        measurementRows[i] = m.copy(cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = p.sigmaM)
+    }
+
+    @Test
+    fun aPointAttachedLaterSharesTheWholeRunningMeasurementAlsoAfterAnEarlierRunPassedItsRecords() = runBlocking {
+        // An earlier shared measurement A, already uploaded.
+        val aStart = now - 5 * 3_600_000L
+        measurementRows.clear()
+        measurementRows += shared(1, aStart, aStart + 20 * 60_000L, pointA)
+        for (i in 0 until 20) minuteRows += minute(aStart + i * 60_000L)
+        val (up, store) = setup()
+        assertEquals(Uploader.Outcome.Done(minutes = 20, events = 0, refused = 0, more = false), up.run())
+        val markerAfterA = store.state.value.minutesSentUpToMs
+
+        // «Starten» with sharing on (0.6.3): B runs at once, without a point, while the fix is running.
+        val bStart = now - 3_600_000L
+        measurementRows += MeasurementEntity(id = 2, startMs = bStart, endMs = null)
+        // Its first minute may start a few seconds before the row's start (MeasurementSplitter tolerance).
+        minuteRows += minute(bStart - 3_000L)
+        for (i in 1 until 25) minuteRows += minute(bStart + i * 60_000L)
+        eventRows += event(bStart + 30_000L); eventRows += event(bStart + 300_000L)
+
+        // An upload run before the fix (e.g. the hourly job): nothing of B, and the markers do NOT
+        // move past B's records (before 0.6.3 they did, and B's first minutes were lost for good).
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(markerAfterA, store.state.value.minutesSentUpToMs)
+        assertTrue(store.state.value.eventsSentUpToMs < bStart - 5_000L)
+        val id = store.state.value.deviceId!!
+        assertEquals(20, server.minutes[id]!!.size)
+
+        // The fix arrives: the shifted point is attached to the running measurement.
+        attach(2, pointC)
+        for (i in 25 until 30) minuteRows += minute(bStart + i * 60_000L)
+        assertEquals(Uploader.Outcome.Done(minutes = 30, events = 2, refused = 0, more = false), up.run())
+        val sentB = server.minutes[id]!!.values.filter { it.point() == c }
+        assertEquals(30, sentB.size, "every minute of B, also the ones recorded before the fix")
+        assertTrue(Iso.format(bStart - 3_000L, zone) in server.minutes[id]!!.keys, "the first minute (started 3 s early) too")
+        assertEquals(setOf(c), server.events[id]!!.values.map { it.point() }.toSet())
+        assertEquals(c, server.sites[id]!!.point(), "the site follows the new point")
+        assertEquals(minuteRows.maxOf { it.startEpochMs }, store.state.value.minutesSentUpToMs)
+    }
+
+    @Test
+    fun aMeasurementThatEndsWithoutAPointIsSkippedForGoodAndReleasesTheMarker() = runBlocking {
+        measurementRows.clear()
+        val bStart = now - 3_600_000L
+        measurementRows += MeasurementEntity(id = 1, startMs = bStart, endMs = null)
+        for (i in 0 until 10) minuteRows += minute(bStart + i * 60_000L)
+        val (up, store) = setup()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertTrue(store.state.value.minutesSentUpToMs < bStart)
+        // «Stoppen» without a point (fix failed, nothing pasted): no retroactive sharing.
+        measurementRows[0] = measurementRows[0].copy(endMs = bStart + 10 * 60_000L)
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(minuteRows.last().startEpochMs, store.state.value.minutesSentUpToMs, "the marker moves on")
+        // Even a point that would arrive now is refused by the database rule (end_ms IS NULL) — see
+        // MeasurementsDbTest.attachPointOnlyChangesTheRunningMeasurementWithoutPoint.
+    }
+
+    @Test
+    fun switchingOnDuringAMeasurementSharesThatWholeMeasurement() = runBlocking {
+        val (up, store) = setup()
+        up.run()
+        up.disable()
+        assertEquals(ShareDecision.NO, store.state.value.decision)
+        // A measurement started while sharing was off, 40 minutes ago.
+        val bStart = now - 40 * 60_000L
+        measurementRows += MeasurementEntity(id = 2, startMs = bStart, endMs = null)
+        for (i in 0 until 40) minuteRows += minute(bStart + i * 60_000L)
+        // Switched on now (status line or «Teilen»), the fix follows and is attached.
+        assertTrue(up.enable(runningSinceMs = bStart))
+        assertEquals(ShareDecision.YES, store.state.value.decision)
+        attach(2, pointC)
+        val o = up.run()
+        assertIs<Uploader.Outcome.Done>(o)
+        assertEquals(40, o.minutes, "the whole running measurement, not only from now on")
+        // Without the running measurement the floor is «now» as before: nothing measured while off.
+        up.disable()
+        val cStart = now + 60_000L
+        measurementRows[1] = measurementRows[1].copy(endMs = cStart - 1)
+        measurementRows += shared(3, cStart, null, pointA)
+        minuteRows += minute(cStart + 1_000L)
+        now += 3_600_000L
+        up.enable()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+    }
+
+    @Test
+    fun cadenceIsTwoMinutesAfterThePointThenEveryTenMinutes() {
+        assertEquals(listOf(2, 12, 22, 32, 42, 52).map { it * 60_000L }, UploadCadence.slots(60 * 60_000L))
+        assertEquals(emptyList(), UploadCadence.slots(60_000L))
+    }
+
+    /**
+     * Two hours of measuring with the point attached 30 s after «Starten»: the cadence runs
+     * (2 min, then every 10 min), the hourly fallback, two «Laut! Melden» reports and the run after
+     * «Stoppen». The server's limit is a token bucket of 60 requests per device and hour
+     * (server/stadtlaerm_server/ratelimit.py, DESIGN.md §8); this stays well below it.
+     */
+    @Test
+    fun twoHoursAtTheTenMinuteCadenceStayWellBelowTheRateLimit() = runBlocking {
+        measurementRows.clear()
+        minuteRows.clear(); eventRows.clear()
+        val t0 = ZonedDateTime.of(2026, 10, 8, 18, 0, 20, 0, zone).toInstant().toEpochMilli()
+        val duration = 2 * 3_600_000L
+        measurementRows += shared(1, t0, null, pointA)
+        // Records appear when they are finished: a minute at its end, an event every 3 min.
+        val allMinutes = (0 until 120).map { minute(t0 + it * 60_000L, id = it + 1L) }
+        val allEvents = (0 until 40).map { event(t0 + it * 180_000L + 20_000L, id = it + 1L) }
+        fun publishUpTo(t: Long) {
+            minuteRows.clear(); minuteRows += allMinutes.filter { it.startEpochMs + 60_000L <= t }
+            eventRows.clear(); eventRows += allEvents.filter { it.startEpochMs + 5_000L <= t }
+        }
+        val attachedAt = t0 + 30_000L
+        val runs = sortedSetOf<Long>()
+        UploadCadence.slots(duration - 30_000L).forEach { runs += attachedAt + it }
+        // Hourly fallback: five minutes after each full hour.
+        var h = t0 + UploadModule.delayToNextHourMs(java.time.Instant.ofEpochMilli(t0).atZone(zone))
+        while (h <= t0 + duration) { runs += h; h += 3_600_000L }
+        runs += t0 + duration + 15_000L // after «Stoppen»
+        now = t0
+        val store = MemoryUploadStore(UploadSnapshot(site = site))
+        val up = Uploader(UploadClient(server.baseUrl), store, source, reports, "0.6.3", 16, clock = { now })
+        up.enable()
+        val reportAt = setOf(runs.elementAt(3), runs.elementAt(8))
+        val perRun = mutableListOf<Pair<Long, Int>>()
+        for (t in runs) {
+            now = t
+            publishUpTo(minOf(t, t0 + duration))
+            if (t in reportAt) {
+                ReportQueue.add(
+                    reports,
+                    PendingReport(epochMs = t - 1_000L, timeIso = PendingReport.isoSeconds(t - 1_000L, zone), lat = 47.3769, lon = 8.5417, accuracyM = 9.0, category = "motorrad", cell = "h26833_12479"),
+                )
+            }
+            val before = server.requests.size
+            assertIs<Uploader.Outcome.Done>(up.run())
+            perRun += t to (server.requests.size - before)
+        }
+        val id = store.state.value.deviceId!!
+        assertEquals(120, server.minutes[id]!!.size, "every minute arrived")
+        assertEquals(40, server.events[id]!!.size)
+        // Per run: registration (once), site (once), reports (twice), one minute batch, one event batch.
+        assertTrue(perRun.all { it.second <= 4 }, perRun.toString())
+        // Busiest hour (sliding window over the run times) and the server's token bucket.
+        val busiest = perRun.maxOf { (t, _) -> perRun.filter { it.first in t until t + 3_600_000L }.sumOf { it.second } }
+        assertTrue(busiest <= 30, "busiest hour: $busiest requests (limit 60)")
+        var tokens = 60.0
+        var last = perRun.first().first
+        for ((t, n) in perRun) {
+            tokens = minOf(60.0, tokens + (t - last) / 60_000.0)
+            last = t
+            tokens -= n
+            assertTrue(tokens >= 30, "token bucket at $tokens after the run at $t")
+        }
+        assertEquals(perRun.sumOf { it.second }, server.requests.size)
     }
 }
