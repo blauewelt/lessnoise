@@ -55,6 +55,24 @@ class FakeServer : AutoCloseable {
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
 
+    /**
+     * The per-device request limit like server/stadtlaerm_server/ratelimit.py (a token bucket of
+     * [limitPerHour] requests, refilled continuously over an hour), on the simulated [clock]. Null:
+     * no limit. Authenticated calls only, deleting never limited (as the server).
+     */
+    @Volatile var limitPerHour: Int? = null
+    @Volatile var clock: () -> Long = { System.currentTimeMillis() }
+    val rateLimited = java.util.concurrent.atomic.AtomicInteger()
+    private val buckets = HashMap<String, Pair<Double, Long>>()
+
+    private fun takeToken(id: String): Boolean = synchronized(buckets) {
+        val cap = limitPerHour?.toDouble() ?: return true
+        val now = clock()
+        val (tokens0, last) = buckets[id] ?: (cap to now)
+        val tokens = minOf(cap, tokens0 + (now - last) * cap / 3_600_000.0)
+        if (tokens >= 1) { buckets[id] = (tokens - 1) to now; true } else { buckets[id] = tokens to now; false }
+    }
+
     /** Records (by start) the server refuses for good. */
     val refuseStarts: MutableSet<String> = java.util.Collections.synchronizedSet(mutableSetOf())
 
@@ -131,6 +149,10 @@ class FakeServer : AutoCloseable {
             val id = m.groupValues[1]
             val auth = headers["authorization"] ?: ""
             if (tokens[id] == null || auth != "Bearer ${tokens[id]}") return reply(ex, 401, """{"detail":"invalid device or token"}""")
+            if (ex.method != "DELETE" && !takeToken(id)) {
+                rateLimited.incrementAndGet()
+                return reply(ex, 429, """{"detail":"too many requests"}""")
+            }
             when (ex.method to m.groupValues[2]) {
                 "PUT" to "/site" -> { sites[id] = body!!.jsonObject; reply(ex, 204, null) }
                 "POST" to "/minutes" -> reply(ex, 200, upsert(minutes.getOrPut(id) { mutableMapOf() }, body!!.jsonArray, 1440))

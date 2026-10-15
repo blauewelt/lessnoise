@@ -187,7 +187,7 @@ fun ShareContent(
                     Text("Nur über WLAN", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Switch(checked = s.wifiOnly, onCheckedChange = onWifiOnly)
                 }
-                if (!s.wifiOnly) Text("Weniger als 0,1 MB pro Tag.", style = MaterialTheme.typography.bodySmall)
+                if (!s.wifiOnly) Text("Höchstens etwa 3 MB pro Tag.", style = MaterialTheme.typography.bodySmall)
                 StatRow("Noch zu senden", "$pending Minuten")
                 SigmaSetting(s.sigmaM, onSigma)
             }

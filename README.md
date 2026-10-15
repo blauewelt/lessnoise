@@ -47,7 +47,7 @@ for even more privacy. The **«Online-Version»** (`lessnoise-karte.apk`, the de
 and keeps the data) uses the internet for two things only. (1) The opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until you say yes («Auf die Lärmkarte?» at the
 first «Starten», one dialog that names what is sent, what never, where and how to delete; or the
-switch in «Teilen»); while a shared measurement runs about every 10 minutes, over mobile data too
+switch in «Teilen»); while a shared measurement runs each loud moment about 30 s after it ended and the minutes every 2 minutes (the live map), over mobile data too
 unless «Nur über WLAN» is on; minute and event numbers of
 shared measurements, each with the point of its measurement moved at random on the phone by a
 Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offset every time for
@@ -141,8 +141,8 @@ What the project counts, and who counts it — totals over the whole project, al
   editions are now called «Offline-Version» and «Online-Version» (the app is still «Weniger Lärm»).
 - **Phone app v0.6.3 (not published yet):** sharing made simple — one question «Auf die
   Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
-  the fix arrives (all its minutes are sent); uploads every 10 minutes while measuring, over mobile
-  data by default; one status line on «Messen» and «Teilen»; the new tab «Karte» shows the website's
+  the fix arrives (all its minutes are sent); the live map: loud moments about 30 s after they end,
+  minutes every 2 minutes, the map page refreshes every 30 s; over mobile data by default; one status line on «Messen» and «Teilen»; the new tab «Karte» shows the website's
   map in the app.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the

@@ -419,7 +419,7 @@ test("location.replace of the view fragment after load moves the map without a h
   expect(consoleErrors).toEqual([]);
 });
 
-// ---- 0.6.3: the page keeps itself up to date while it is visible (cells.json every 2 minutes) ----
+// ---- 0.6.3: the page keeps itself up to date while it is visible (cells.json every 30 seconds) ----
 
 const NEW_CELL = "h26833_12462";
 function updatedCells() {
@@ -497,12 +497,20 @@ test("an unchanged generated_at does not redraw", async ({ page }) => {
   expect(seen.api.filter((p) => p === "reports.json").length).toBe(reportsBefore);
 });
 
-test("checks every 2 minutes only while visible; visible again checks at once", async ({ page }) => {
+test("checks every 30 seconds only while visible, always revalidating; visible again checks at once", async ({ page }) => {
   await page.addInitScript(() => {
     let v = "visible";
     Object.defineProperty(Document.prototype, "visibilityState", { get() { return v; }, configurable: true });
     Object.defineProperty(Document.prototype, "hidden", { get() { return v !== "visible"; }, configurable: true });
     window.__setVisibility = (x) => { v = x; document.dispatchEvent(new Event("visibilitychange")); };
+    // The fetch cache mode of every cells.json request (the header the browser derives from it is
+    // not visible to page.route).
+    window.__cellsCache = [];
+    const orig = window.fetch;
+    window.fetch = function (url, init) {
+      if (String(url).endsWith("/cells.json")) window.__cellsCache.push((init && init.cache) || "default");
+      return orig.apply(this, arguments);
+    };
   });
   await page.clock.install();
   const count = await serveCells(page, () => cellsJson);
@@ -510,14 +518,19 @@ test("checks every 2 minutes only while visible; visible again checks at once", 
   await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16");
   await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
   await expect(page.locator("#karte")).toHaveAttribute("data-generated", cellsJson.generated_at);
-  expect(await page.evaluate(() => window.__karte.pollMs)).toBe(120000);
+  expect(await page.evaluate(() => window.__karte.pollMs)).toBe(30000);
   expect(count.n).toBe(1);
-  await page.clock.runFor(119000);
+  await page.clock.runFor(29000);
   expect(count.n).toBe(1);
   await page.clock.runFor(2000);
   await expect.poll(() => count.n).toBe(2);
-  await page.clock.runFor(120000);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "1");   // the next timer is set
+  await page.clock.runFor(30000);
   await expect.poll(() => count.n).toBe(3);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "2");
+  // The checks always revalidate (fetch cache "no-cache": a server with ETags answers 304); the
+  // first load uses the normal cache.
+  expect(await page.evaluate(() => window.__cellsCache)).toEqual(["default", "no-cache", "no-cache"]);
   // Hidden: no checks at all, however long.
   await page.evaluate(() => window.__setVisibility("hidden"));
   await page.clock.runFor(30 * 60000);
@@ -526,7 +539,8 @@ test("checks every 2 minutes only while visible; visible again checks at once", 
   // Visible again: one check at once, then every 2 minutes again.
   await page.evaluate(() => window.__setVisibility("visible"));
   await expect.poll(() => count.n).toBe(4);
-  await page.clock.runFor(121000);
+  await expect(page.locator("#karte")).toHaveAttribute("data-checks", "3");
+  await page.clock.runFor(31000);
   await expect.poll(() => count.n).toBe(5);
   expect(seen.foreign).toEqual([]);
 });

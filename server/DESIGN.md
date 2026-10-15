@@ -111,7 +111,11 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
 8. **Minimisation on publish.** Event times are published only as counts per day and per
    clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
    (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,
-   not on which day. Report times are rounded down to the full hour (rule 10). Device models
+   not on which day. Report times are rounded down to the full hour (rule 10). Since the live map
+   (app 0.6.3), the published counts of the current day and the hour profile update about every 30
+   seconds, so someone who watches a field with a single contributor can tell to within about a
+   minute when a loud event was measured there; still never a list of events, never a device id,
+   never the exact time. Device models
    are published only as counts per model over the whole network («Beteiligte Geräte»), never
    per cell. The usage figures of `stats.json` (§6.5) are likewise whole-network counts only.
 9. **Data of a silent device does not stay.** When no authenticated request has arrived
@@ -300,19 +304,26 @@ Response `204`. Never rate limited.
 
 ### 4.6 Upload cadence in the app
 
-While «Messwerte teilen» is on, since app 0.6.3: while a shared measurement runs, about 2 minutes
-after it got its point and then every 10 minutes; shortly (15 s) after it stops; after a report;
-and at the end of every full hour as the fallback. Each upload first sends waiting reports (§4.7),
-then all minutes and events of shared measurements newer than the last acknowledged `start`, in
-batches, over any connection — mobile data is allowed by default since 0.6.3 (less than 0.1 MB a
-day); the setting «Nur über WLAN» (until 0.6.2 on by default) restricts it to Wi-Fi/unmetered
-networks. One upload is about 2–3 requests; a two-hour measurement makes at most about 16 requests in
-its busiest hour, far below the limit of 60 per device and hour (§8; app test `UploadCadenceTest`).
-A 429 or 5xx answer is retried with backoff from 10 minutes; nothing is lost because the local
-database is the source of truth. Since 0.6.3 a measurement starts without a point and gets it once
+While «Messwerte teilen» is on, since app 0.6.3 (the live map): while a shared measurement runs,
+a full upload about 30 s after it got its point and then every 2 minutes, and each loud event about
+30 s after it ended in an events-only upload (usually one request; at most one upload per 30 s, so
+events close together go together; an events upload due within 30 s of the next full one is merged
+into it) — run in the app's process while the measurement's foreground service runs
+(`LiveUploadPlan`), not as a WorkManager job; shortly (15 s) after it stops; after a report; and at
+the end of every full hour as the fallback (WorkManager). Each full upload first sends waiting
+reports (§4.7), then all minutes and events of shared measurements newer than the last acknowledged
+`start`, in batches, over any connection — mobile data is allowed by default since 0.6.3 (at most
+about 3 MB a day when measuring round the clock); the setting «Nur über WLAN» (until 0.6.2 on by
+default) restricts it to Wi-Fi/unmetered networks, and the live uploads wait while it is not met.
+With a loud event every minute a measurement makes at most about 90 requests in its busiest hour,
+within the limit of 360 per device and hour (§8, server-live; app test `UploadCadenceTest`). A 429
+slows the live uploads down (no separate event uploads, full uploads every 4, 8, 16 minutes, one
+step faster per hour without 429), so with the old limit of 60 the app degrades gracefully; a 5xx
+or no network waits for the next full slot; the hourly job backs off from 10 minutes. Nothing is
+lost because the local database is the source of truth and markers move only on acknowledgement. Since 0.6.3 a measurement starts without a point and gets it once
 the fix is there; the app then moves its acknowledged markers back to the measurement's start so
 that the minutes before the fix are sent too (`Uploader.pointAttached`). The tab «Teilen» and the
-screen «Messen» show one status line («Wird geteilt – erste Werte in wenigen Minuten», «Auf der
+screen «Messen» show one status line («Wird geteilt – erste Werte in etwa einer Minute», «Auf der
 Karte · zuletzt gesendet …», «Kein Internet – wird nachgeholt», …); «Teilen» › «Weitere Angaben»
 shows the number of minutes still to send. Reports are sent with the next upload (the app agent
 documents the details in android/README.md).
@@ -663,18 +674,19 @@ Online-Version (0.5.x: «Karten-Version») are counted.
 - The page never uses the word «Nacht»: nothing about night is special any more.
 - Everything is static files plus JSON fetches (cells.json, reports.json, a cell's file on
   tap, a day's file on ‹ ›); works at 360 px; dark mode via the site's CSS variables.
-- **Keeping up to date** (0.6.3): while the page is visible (`document.visibilityState ===
-  'visible'`) it fetches cells.json again every 2 minutes through the same `getJson` (same host,
-  `credentials: "omit"`, no referrer, the browser's HTTP cache honoured — the files are served with
-  `Cache-Control: max-age=300`, so a change shows up at most about 5 minutes after it was
-  published, plus the 10-minute publishing cycle). Only when `generated_at` changed does it fetch
-  reports.json, redraw cells and reports, and re-fetch the open card's cell file — the view, metric,
-  period, the day shown (an older day stays shown; › then reaches the new one) and the open card
-  stay. Hidden page: no timer; visible again: one check at once. `window.KarteCheck()` runs the same
-  check (one at a time); the app's tab «Karte» calls it when it shows its kept page again. The
-  requests carry nothing about the viewer (no view, no chosen field, no location).
   Hash-stamped asset URLs (`scripts/stamp_assets.py`) so a phone never runs yesterday's script
   against today's JSON.
+- **Keeping up to date** (0.6.3, live map): while the page is visible (`document.visibilityState
+  === 'visible'`) it fetches cells.json again every **30 seconds** through the same `getJson`
+  (same host, `credentials: "omit"`, no referrer) with `cache: "no-cache"`: the browser always
+  revalidates, so with the server's `ETag`s and 304 answers (branch server-live, `max-age=15`) an
+  unchanged file costs a few hundred bytes. Only when `generated_at` changed does it fetch
+  reports.json (also revalidated), redraw cells and reports, and re-fetch the open card's cell
+  file — the view, metric, period, the day shown (an older day stays shown; › then reaches the
+  new one) and the open card stay. Hidden page: no timer; visible again: one check at once.
+  `window.KarteCheck()` runs the same check (one at a time); the app's tab «Karte» calls it when
+  it shows its kept page again. The requests carry nothing about the viewer (no view, no chosen
+  field, no location).
 - **View fragment** (0.6.3): `karte.html#lat=<WGS84 latitude>&lon=<longitude>&z=<zoom>`, e.g.
   `karte.html#lat=47.37690&lon=8.54170&z=16`, opens the map centred there. The page reads it on load
   and on `hashchange` (`KarteModel.parseView`): exactly these three keys, plain decimal numbers,

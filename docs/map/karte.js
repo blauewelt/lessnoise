@@ -91,8 +91,10 @@
 
   /* ---------- fetching ---------- */
 
-  function fetchFrom(root, path) {
-    return fetch(root + path, { credentials: "omit", referrerPolicy: "no-referrer" }).then(function (r) {
+  function fetchFrom(root, path, cache) {
+    var opts = { credentials: "omit", referrerPolicy: "no-referrer" };
+    if (cache) opts.cache = cache;
+    return fetch(root + path, opts).then(function (r) {
       apiSettled = true;
       if (r.status === 404) { var e = new Error("404"); e.notFound = true; throw e; }
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -102,12 +104,12 @@
 
   /** GET a map file. While no host has answered yet, a network failure of the first host
    *  (no DNS record, no certificate) switches to the fallback host for the rest of the visit. */
-  function getJson(path) {
-    return fetchFrom(api, path).catch(function (e) {
+  function getJson(path, cache) {
+    return fetchFrom(api, path, cache).catch(function (e) {
       if (apiSettled || !apiFallback || e.notFound || !(e instanceof TypeError)) throw e;
       api = apiFallback;
       apiFallback = null;
-      return fetchFrom(api, path);
+      return fetchFrom(api, path, cache);
     });
   }
 
@@ -748,22 +750,24 @@
 
   /* ---------- keeping the page up to date ---------- */
 
-  // The server rebuilds the map files every 10 minutes (DESIGN §6). While the page is visible it
-  // asks for cells.json every 2 minutes, through the same getJson as above (same hosts, no
-  // credentials, no referrer, the browser's HTTP cache honoured: max-age=300). Only when its
-  // generated_at changed are the cells, the reports and an open card redrawn; the view, the
-  // metric, the period, the day shown and the open card stay as they are. Hidden page: no
-  // checks; visible again: one check at once.
-  var POLL_MS = 2 * 60 * 1000;
+  // The server publishes the map files about every 30 seconds when there is new data (DESIGN §6).
+  // While the page is visible it asks for cells.json every 30 seconds, through the same getJson as
+  // above (same hosts, no credentials, no referrer) with cache "no-cache": the browser always
+  // revalidates, so an unchanged file comes back as a small 304 from a server that answers
+  // conditional requests. Only when its generated_at changed are the cells, the reports and an
+  // open card redrawn; the view, the metric, the period, the day shown and the open card stay as
+  // they are. Hidden page: no checks; visible again: one check at once.
+  var POLL_MS = 30 * 1000;
   var shownGenerated = null;   // generated_at of the newest cells.json in use
   var pollTimer = null;
   var polling = false;         // true once the first load is over
   var checking = null;         // the running check, so that checks never overlap
+  var checksDone = 0;          // for the tests: data-checks on #karte
 
   function checkForUpdate() {
     if (!polling) return Promise.resolve(false);   // the first load is still running
     if (checking) return checking;
-    checking = getJson("cells.json").then(function (file) {
+    checking = getJson("cells.json", "no-cache").then(function (file) {
       if (!file || !M.isDate(file.day) || !Array.isArray(file.cells) || file.generated_at === shownGenerated) return false;
       shownGenerated = file.generated_at;
       var showingNewest = !state.day || state.day === state.latest;
@@ -780,7 +784,7 @@
         if (state.selected) renderCard();
       }
       mapEl.setAttribute("data-ready", "1");
-      return getJson("reports.json").then(function (r) {
+      return getJson("reports.json", "no-cache").then(function (r) {
         if (Array.isArray(r.reports)) state.reports = r.reports;
       }).catch(function () { /* keep the reports shown */ }).then(function () {
         drawReports();
@@ -789,6 +793,8 @@
       });
     }).catch(function () { return false; }).then(function (changed) {
       checking = null;
+      checksDone++;
+      mapEl.setAttribute("data-checks", String(checksDone));
       mapEl.setAttribute("data-generated", shownGenerated || "");
       return changed;
     });

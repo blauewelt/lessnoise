@@ -48,8 +48,9 @@ class ShareTextsTest {
             assertFalse(t.contains("Ereignis"), "the app says «Lärmspitzen»: $t")
         }
         // The cadence and the network setting of 0.6.3 (server/DESIGN.md §4.6).
-        assertTrue(SHARE_WHEN_BULLETS[0].contains("alle 10 Minuten") && SHARE_WHEN_BULLETS[0].contains("Stoppen"))
-        assertTrue(SHARE_WHEN_BULLETS[1].contains("mobile Daten") && SHARE_WHEN_BULLETS[1].contains("0,1 MB"))
+        // The live map (0.6.3): loud moments after about 30 s, minutes every 2 minutes; UploadCadenceTest backs the 3 MB.
+        assertTrue(SHARE_WHEN_BULLETS[0].contains("30 Sekunden") && SHARE_WHEN_BULLETS[0].contains("alle 2 Minuten") && SHARE_WHEN_BULLETS[0].contains("Stoppen"))
+        assertTrue(SHARE_WHEN_BULLETS[1].contains("mobile Daten") && SHARE_WHEN_BULLETS[1].contains("3 MB"))
         // The location is read after «Starten», while the app is open (never in the background).
         assertTrue(shareLocationBullets(50)[0].contains("Nach dem Starten") && shareLocationBullets(50)[0].contains("solange die App offen ist"))
         // Switching on during a measurement shares that whole measurement, never an earlier one.

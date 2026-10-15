@@ -47,8 +47,8 @@ val SHARE_DELETE_BULLETS: List<String> = listOf(
 
 /** «Wann»: the cadence of 0.6.3 (server/DESIGN.md §4.6). */
 val SHARE_WHEN_BULLETS: List<String> = listOf(
-    "Während einer Messung alle 10 Minuten, nach dem Stoppen sofort, sonst stündlich.",
-    "Über WLAN oder mobile Daten, weniger als 0,1 MB pro Tag.",
+    "Während einer Messung jede Lärmspitze nach etwa 30 Sekunden und die Minutenwerte alle 2 Minuten, nach dem Stoppen sofort, sonst stündlich.",
+    "Über WLAN oder mobile Daten, höchstens etwa 3 MB pro Tag.",
 )
 
 // ---- «Auf die Lärmkarte?» (0.6.3): the one question at the first «Starten» -----------------------
@@ -75,7 +75,7 @@ const val CONSENT_MORE = "Mehr dazu"
 const val STATUS_OFF = "Nicht auf der Karte – tippen zum Teilen"
 const val STATUS_LOCATING = "Standort wird bestimmt …"
 const val STATUS_NO_POINT = "Kein Standort – tippen"
-const val STATUS_FIRST_VALUES = "Wird geteilt – erste Werte in wenigen Minuten"
+const val STATUS_FIRST_VALUES = "Wird geteilt – erste Werte in etwa einer Minute"
 const val STATUS_ON_IDLE = "Teilen ist an – deine nächste Messung kommt auf die Karte"
 const val STATUS_NO_INTERNET = "Kein Internet – wird nachgeholt"
 const val STATUS_SERVER_BUSY = "Nicht gesendet: Server nicht erreichbar – wird nachgeholt"
@@ -89,10 +89,10 @@ fun statusSent(hm: String): String = "Auf der Karte · zuletzt gesendet $hm"
 
 const val BANNER_NOT_SHARING = "Du teilst nicht – tippen zum Teilen"
 const val BANNER_NO_POINT = "Noch kein Standort – Werte erscheinen danach"
-const val BANNER_FIRST_VALUES = "Erste Werte werden gesendet – auf der Karte nach etwa 10 Minuten"
+const val BANNER_FIRST_VALUES = "Erste Werte werden gesendet – auf der Karte in etwa einer Minute"
 
-/** «Gesendet 14:05 – die Karte aktualisiert sich alle 10 Minuten». */
-fun bannerSent(hm: String): String = "Gesendet $hm – die Karte aktualisiert sich alle 10 Minuten"
+/** «Gesendet 14:05 – die Karte aktualisiert sich laufend». */
+fun bannerSent(hm: String): String = "Gesendet $hm – die Karte aktualisiert sich laufend"
 
 /** The setting under «Teilen → Weitere Angaben». */
 const val SIGMA_LABEL = "Standort verschieben"

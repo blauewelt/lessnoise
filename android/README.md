@@ -343,7 +343,7 @@ Instead:
    Lärmkarte?» («Ja, auf die Karte» / «Nur auf dem Telefon»). The measurement starts at once; with
    sharing on the phone takes one location fix for the measurement's place in parallel, moved at
    random on the phone, and a status line below «Läuft seit …» says how sharing stands («Standort
-   wird bestimmt …», «Wird geteilt – erste Werte in wenigen Minuten», «Auf der Karte · zuletzt
+   wird bestimmt …», «Wird geteilt – erste Werte in etwa einer Minute», «Auf der Karte · zuletzt
    gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
    «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
@@ -507,7 +507,7 @@ The «Online-Version» and the internal Labor build with the map have a fifth ta
 only into the flavours `public` and `laborKarte`, the others get the stand-in `src/nomap/…/MapTab.kt`
 and contain no WebView). The page is loaded only when the tab is opened; the WebView is then kept until the app's screen is
 closed — invisible and paused while another tab is shown (a page still loading is stopped;
-`MapCentring`), never reloaded for freshness: the page checks `cells.json` every 2 minutes while
+`MapCentring`), never reloaded for freshness: the page checks `cells.json` every 30 seconds while
 visible (docs/map/karte.js), and when the tab is shown again the app asks it to check at once
 (`MapLinks.CHECK_SCRIPT` = `window.KarteCheck && window.KarteCheck()`) —; a thin progress bar while it loads, «Karte nicht erreichbar – Internet
 prüfen» and «Nochmals» when it cannot be loaded. The address comes from `ui/MapLinks.kt` only:
@@ -525,8 +525,8 @@ point with `location.replace('#lat=…&lon=…&z=16')` if the page is not centre
 fragment: no reload, no history entry; after `onPageFinished` if the page is still loading;
 `MapCentring`, `MapLinks.recentreScript`). A banner above the map says while this phone's values are
 not visible yet (`mapBanner`: «Noch kein Standort – Werte erscheinen danach», «Erste Werte werden
-gesendet – auf der Karte nach etwa 10 Minuten», «Gesendet HH:MM – die Karte aktualisiert sich alle
-10 Minuten» for 12 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
+gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte aktualisiert sich
+laufend» for 2 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
 on «Messen» does). The WebView's history is never used: the system back gesture is an undo stack of the
 tabs opened (`TabHistory`: every switch, tapped or opened from a status line or banner, pushes the
 tab left; back pops; with nothing left back leaves the app; at most 30 entries). No permission is
@@ -553,12 +553,12 @@ on counts as «yes», all others are asked once, and «Nur über WLAN» is reset
 
 1. **The switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
    **status line** (the same as on «Messen»: «Nicht auf der Karte – tippen zum Teilen», «Standort
-   wird bestimmt …», «Kein Standort – tippen», «Wird geteilt – erste Werte in wenigen Minuten»,
+   wird bestimmt …», «Kein Standort – tippen», «Wird geteilt – erste Werte in etwa einer Minute»,
    «Auf der Karte · zuletzt gesendet HH:MM» (tap: the tab «Karte»), «Kein Internet – wird
    nachgeholt», «Nicht gesendet: … – wird nachgeholt», «Unterbrochen – tippen für «Neu starten»»;
    `ui/ShareStatus.kt`, pure and JVM-tested), the count of records the server refused for good;
-   under «Weitere Angaben ▸» «Nur über WLAN» (default off since 0.6.3: mobile data allowed, less
-   than 0.1 MB a day), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
+   under «Weitere Angaben ▸» «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
+   most about 3 MB a day measuring round the clock), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
    macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice.
 2. **«Was gesendet wird ▸»** (folded): what is sent
@@ -571,8 +571,9 @@ on counts as «yes», all others are asked once, and «Nur über WLAN» is reset
    the background), where it goes (the project's server in Switzerland; public only values per 100 m
    square and reports, never the id, the point or the note; «Misst sonst niemand in der Nähe, sind es
    deine Werte, in einem Quadrat nahe bei dir.» as DESIGN.md §2 rule 2 asks; switched on during a
-   measurement, that whole measurement is shared, never an earlier one), when (every 10 minutes while
-   measuring, at once after «Stoppen», otherwise hourly; Wi-Fi or mobile data), how to delete
+   measurement, that whole measurement is shared, never an earlier one), when (each loud moment about
+   30 s after it ended and the minutes every 2 minutes while measuring, at once after «Stoppen»,
+   otherwise hourly; Wi-Fi or mobile data), how to delete
    (switching off, «Vom Server löschen», 60 days), and a link to wenigerlaerm.ch/datenschutz.html.
 3. **«Wo liegt das Telefon? (freiwillig) ▸»** (folded): «Das Telefon liegt» am offenen Fenster / auf
    dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
@@ -638,14 +639,18 @@ runs there is no «Melden» button: its loud events are uploaded with the measur
 **What happens in the background.** At the first opt-in the shared measurements of the last 7 days
 are included; afterwards nothing measured while sharing is off is ever sent (except the measurement
 running when sharing is switched on, as a whole). Since 0.6.3, while a shared measurement runs
-(it has its point, sharing on), `UploadModule.start` enqueues a one-shot job about 2 minutes after
-the point is attached and then every 10 minutes (`UploadCadence`; a coroutine in the app's process
-scope, which lives as long as the measuring foreground service, also with the app closed; unique
-work with KEEP, so a job waiting for a network or in its backoff is not doubled). A WorkManager job
-runs 5 minutes after every full hour as the fallback, and one-shot jobs 15 s after a measurement
-stops and 5 s after a report. Network constraint: any connection, Wi-Fi/unmetered only with «Nur
-über WLAN». A two-hour measurement makes at most about 16 requests in its busiest hour
-(`UploadCadenceTest`). Each first sends waiting reports (`POST /v1/devices/{id}/reports`, ≤ 50 per request), then
+(it has its point, sharing on), `UploadModule.start` runs the live map's uploads in the app's
+process (`LiveUploadPlan`; a coroutine in the process scope, which lives as long as the measuring
+foreground service, also with the app closed): a full run about 30 s after the point is attached
+and then every 2 minutes, and an events-only run (usually one request) about 30 s after each loud
+event ended (`LiveState.lastEvent`; at most one run per 30 s; due within 30 s of a full run: merged
+into it). No network, or «Nur über WLAN» without Wi-Fi: the run is skipped and waits for the next
+full slot; a 429 backs off (full runs every 4/8/16 minutes, events folded in, one step faster per
+hour without 429). A WorkManager job runs 5 minutes after every full hour as the fallback, and
+one-shot jobs 15 s after a measurement stops and 5 s after a report. Network constraint for those:
+any connection, Wi-Fi/unmetered only with «Nur über WLAN». With a loud event every minute a
+measurement makes at most about 90 requests in its busiest hour (server limit 360 per device and
+hour; with the old 60 it backs off once and loses nothing; `UploadCadenceTest`). Each first sends waiting reports (`POST /v1/devices/{id}/reports`, ≤ 50 per request), then
 every minute and event newer than the last start the server acknowledged, in batches of ≤ 1440
 minutes / ≤ 2000 events (gzip JSON, `Authorization: Bearer <token>`), each with `"cell":
 "h<E100>_<N100>"` of its measurement; records of measurements without a cell are skipped (the
@@ -655,8 +660,8 @@ acknowledged, so an interrupted upload resumes where it stopped; the server is i
 server without the reports call (404/405) keeps the reports for a later run; any other refusal of a
 report batch drops it. The site call (`PUT …/site`) sends the placement details with the cell of
 the newest shared measurement. After «Alte Messungen neu bewerten» the last 7 days are sent again
-with the new levels. At most 24 requests per run (the server allows 60 per device and hour); a
-longer backlog continues 30 min later. Errors back off exponentially from 10 minutes; a refused
+with the new levels. At most 24 requests per run (the server allows 360 per device and hour since
+server-live, 60 before); a longer backlog continues 30 min later. Errors back off exponentially from 10 minutes; a refused
 token (401) stops uploads until «Neu starten». The local database stays the source of truth:
 nothing is deleted on the phone except the coordinates of sent reports.
 

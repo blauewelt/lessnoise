@@ -84,7 +84,7 @@ object UploadPrefsMigration {
             // 0.6.2 and older: sharing on means the person already said yes; everybody else is
             // asked once, at the next «Starten».
             ?: if (s.enabled) ShareDecision.YES else ShareDecision.UNDECIDED
-        // 0.6.3: mobile data allowed by default (< 0.1 MB a day). The 0.6.2 default (Wi-Fi only) is
+        // 0.6.3: mobile data allowed by default (at most about 3 MB a day with the live map). The 0.6.2 default (Wi-Fi only) is
         // reset once on the update; a later choice in «Weitere Angaben» is kept.
         val wifiOnly = if (s.version < 2) false else s.wifiOnly
         return Result(decision, wifiOnly, CURRENT)

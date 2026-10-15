@@ -659,7 +659,8 @@ class UploadTest {
 
     @Test
     fun aDayIsWellUnderATenthOfAMegabyteOnTheWire() = runBlocking {
-        // 24 h of minutes and 450 events, backing the settings screen's «weniger als 0,1 MB pro Tag».
+        // 24 h of minutes and 450 events in ONE run (the hourly fallback after a day offline). The live
+        // map's many small requests are estimated in UploadCadenceTest («höchstens etwa 3 MB pro Tag»).
         addMinutes(1440, endMs = now - 60_000); addEvents(450, endMs = now - 60_000)
         val (up, _) = setup()
         up.run()

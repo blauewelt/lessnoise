@@ -13,11 +13,13 @@ and the Labor build behave exactly as before).
   runs while the app is open and its shifted point is attached to the running measurement, which is
   then shared as a whole (also the minutes before the fix). No fix: no dialog, a line «Kein Standort –
   tippen» with the options. Switching sharing on during a measurement shares that measurement.
-- **Faster on the map:** while a shared measurement runs, the first upload about 2 minutes after the
-  point is known, then every 10 minutes; at once after «Stoppen»; hourly as before. Mobile data is
-  allowed by default (less than 0.1 MB a day; «Nur über WLAN» is reset once to off).
+- **Live map:** while a shared measurement runs, the first upload about 30 s after the point is
+  known, each loud moment about 30 s after it ended (usually one request), the minutes every 2
+  minutes; at once after «Stoppen»; hourly as before. After a 429 the app slows down, nothing is
+  lost. Mobile data is allowed by default (at most about 3 MB a day measuring round the clock;
+  «Nur über WLAN» is reset once to off). The map page refreshes every 30 s while visible.
 - **One status line** on «Messen» and «Teilen»: «Standort wird bestimmt …», «Wird geteilt – erste
-  Werte in wenigen Minuten», «Auf der Karte · zuletzt gesendet 14:05», «Kein Internet – wird
+  Werte in etwa einer Minute», «Auf der Karte · zuletzt gesendet 14:05», «Kein Internet – wird
   nachgeholt» …
 - **«Teilen» shorter:** status and switch on top; «Was gesendet wird ▸» and «Wo liegt das Telefon?
   (freiwillig) ▸» folded.
@@ -28,11 +30,12 @@ and the Labor build behave exactly as before).
   «Messen»), and only with nothing left does back leave the app; the map page's history no longer
   swallows it.
 - **The map centres on your point whenever the tab is shown:** the page is kept across tab switches
-  (paused while hidden; the page refreshes its data itself every 2 minutes while visible) and moved
+  (paused while hidden; the page refreshes its data itself every 30 seconds while visible) and moved
   with `location.replace('#lat=…')` as soon as the point exists or changes — no reload, no history
-  entry. The website's map page checks for new data every 2 minutes while visible (also on the web).
+  entry. The website's map page checks for new data every 30 seconds while visible (also on the web).
 - **A banner above the map** while your values are not visible yet: «Noch kein Standort», «Erste
-  Werte werden gesendet …», «Gesendet HH:MM …» (12 minutes) or «Du teilst nicht – tippen zum Teilen».
+  Werte werden gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte
+  aktualisiert sich laufend» (2 minutes) or «Du teilst nicht – tippen zum Teilen».
 
 ## 0.6.2 — 2026-10-14 (versionCode 15)
 

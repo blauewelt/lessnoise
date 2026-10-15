@@ -30,8 +30,8 @@ longer material goes to `anleitung.html`, whose anchors the app links (see below
   (`https://api.stadtlaerm.ch/v1/map/`, the same server) for the rest of the visit. The page's
   CSP allows `connect-src` only to these two hosts, so a different API host needs a CSP change
   too. Remove the fallback and its CSP entry once api.lessnoise.ch has served the map for a while.
-- Keeps itself up to date (0.6.3): while visible, `cells.json` again every 2 minutes (same fetch,
-  HTTP cache honoured); a changed `generated_at` redraws cells, reports and an open card without
+- Keeps itself up to date (0.6.3, live map): while visible, `cells.json` again every 30 seconds
+  (same fetch, `cache: "no-cache"`: always revalidated, a 304 when unchanged); a changed `generated_at` redraws cells, reports and an open card without
   moving the view; hidden: no checks; visible again: one check at once. `window.KarteCheck()` runs
   the same check (the app's tab «Karte» calls it). Tests: `tests/map.spec.js` (redraw, no redraw,
   timer and visibility with Playwright's clock).

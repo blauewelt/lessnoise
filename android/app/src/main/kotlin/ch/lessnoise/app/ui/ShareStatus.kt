@@ -104,8 +104,8 @@ fun shareStatus(
 /** The banner above the map (0.6.3 map tab fix): its text and what a tap does (the status line's action). */
 data class MapBanner(val text: String, val action: ShareAction)
 
-/** How long after the last acknowledged upload the banner «Gesendet HH:MM …» stays (the map is published every 10 minutes). */
-const val BANNER_SENT_MS = 12 * 60_000L
+/** How long after the last acknowledged upload the banner «Gesendet HH:MM …» stays (the live map publishes within about 30 s). */
+const val BANNER_SENT_MS = 2 * 60_000L
 
 /**
  * The banner above the map in the tab «Karte» while this phone's values are not visible there yet

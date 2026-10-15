@@ -183,7 +183,7 @@ class ShareScreenshots {
     @Test
     fun karteBannerSent() = karteBanner(
         "karte-banner-sent",
-        banner(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, true).also { check(it?.text == bannerSent("18:42")) },
+        banner(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, true, now = ms(18, 43)).also { check(it?.text == bannerSent("18:42")) },
     )
 
     @Test

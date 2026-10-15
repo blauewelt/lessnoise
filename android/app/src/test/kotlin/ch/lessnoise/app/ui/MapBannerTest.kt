@@ -65,21 +65,21 @@ class MapBannerTest {
     }
 
     @Test
-    fun acknowledgedLessThan12MinutesAgoThenHidden() {
+    fun acknowledgedLessThan2MinutesAgoThenHidden() {
         val acked = on.copy(lastSuccessAtMs = start + 20 * min, minutesSentUpToMs = start + 19 * min)
         val shown = banner(acked, now = start + 20 * min)!!
         assertEquals(bannerSent("14:05"), shown.text)
-        assertEquals("Gesendet 14:05 – die Karte aktualisiert sich alle 10 Minuten", shown.text)
+        assertEquals("Gesendet 14:05 – die Karte aktualisiert sich laufend", shown.text)
         // The status line opens the map; on the map that is nothing to do (no «›»).
         assertEquals(ShareAction.OPEN_MAP, lineAction(acked))
         assertEquals(ShareAction.NONE, shown.action)
-        assertEquals(shown, banner(acked, now = start + 31 * min + 59_999))
-        assertNull(banner(acked, now = start + 32 * min))
+        assertEquals(shown, banner(acked, now = start + 21 * min + 59_999))
+        assertNull(banner(acked, now = start + 22 * min))
         assertNull(banner(acked, now = start + 3 * 60 * min))
         // After «Stoppen»: the last upload counts.
-        assertEquals(bannerSent("14:05"), banner(acked, running = false, hasPoint = false, hasAnyPoint = true, now = start + 25 * min)!!.text)
-        assertNull(banner(acked, running = false, hasPoint = false, hasAnyPoint = true, now = start + 40 * min))
-        assertEquals(12 * min, BANNER_SENT_MS)
+        assertEquals(bannerSent("14:05"), banner(acked, running = false, hasPoint = false, hasAnyPoint = true, now = start + 21 * min)!!.text)
+        assertNull(banner(acked, running = false, hasPoint = false, hasAnyPoint = true, now = start + 23 * min))
+        assertEquals(2 * min, BANNER_SENT_MS)
     }
 
     @Test
@@ -104,8 +104,8 @@ class MapBannerTest {
             listOf(
                 "Du teilst nicht – tippen zum Teilen",
                 "Noch kein Standort – Werte erscheinen danach",
-                "Erste Werte werden gesendet – auf der Karte nach etwa 10 Minuten",
-                "Gesendet 14:05 – die Karte aktualisiert sich alle 10 Minuten",
+                "Erste Werte werden gesendet – auf der Karte in etwa einer Minute",
+                "Gesendet 14:05 – die Karte aktualisiert sich laufend",
             ),
             texts,
         )
