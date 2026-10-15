@@ -64,15 +64,16 @@ simulator tests without signing; the test summary is in the run's summary, logs 
 4. Select the iPhone as destination and run (⌘R). The first launch on a device needs
    Settings → General → VPN & Device Management → trust the developer (only for development builds).
 
-## Classifier (not built in yet)
+## Classifier
 
-The owner chose TensorFlow Lite with Android's `yamnet.tflite` (DESIGN.md §9). There is no official
-Swift Package Manager distribution of it, so this version runs with the classifier off (categories
-empty, as on Android with the classifier off; «Sehr laut» needs the categories and stays silent).
-`App/Platform/YamnetClassifier.swift` is ready behind `#if canImport(TensorFlowLite)`: once the
-`TensorFlowLite` module is linked to the app target (TensorFlowLiteSwift through CocoaPods, or an
-xcframework built from source) and `../android/app/src/main/assets/yamnet.tflite` is added as a
-resource in `project.yml`, `ClassifierFactory` uses it — that file has never been compiled yet.
+The iPhone recognises sounds with **Apple's built-in classifier** (SoundAnalysis,
+`SNClassifySoundRequest(classifierIdentifier: .version1)`; on the phone, no download, no
+dependency) instead of Android's YAMNet, which has no supported Swift package (DESIGN.md §9).
+`App/categories-ios.json` maps Apple's label identifiers to the app's categories (same ids, names,
+order and thresholds as `android/app/src/main/assets/categories.json`). To see Apple's identifiers:
+`swift ios/scripts/apple-sound-labels.swift` on a Mac (CI writes them to `apple-sound-labels.txt`
+in the run's artifact; a copy is in `LessNoiseKit/Tests/Fixtures/apple-sound-labels.txt`). Categories
+can differ from Android's for the same sound — DESIGN.md §9 «Categories differ by platform».
 
 ## TestFlight (owner)
 

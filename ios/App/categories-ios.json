@@ -1,18 +1,96 @@
 {
   "version": 1,
   "model": "Apple SoundAnalysis SNClassifySoundRequest(classifierIdentifier: .version1)",
-  "comment": "The iOS analogue of android/app/src/main/assets/categories.json: same ids, names, order and thresholds; members are Apple's label identifiers (SNClassifySoundRequest.knownClassifications). Category score = max of member confidences. Dominant: (a) the category of the top-1 label if that label is mapped and its score >= top1_threshold; (b) else the highest category score if >= category_threshold; (c) else 'unclassified'. Category order is the tie-break priority (earlier wins). Every identifier must be one of knownClassifications; AppTests checks this on the iOS Simulator, LessNoiseKit's tests against the committed list. PROVISIONAL: members are filled from the list CI dumps.",
+  "comment": "The iOS analogue of android/app/src/main/assets/categories.json: same ids, names, order and thresholds; members are Apple's label identifiers (SNClassifySoundRequest.knownClassifications). Category score = max of member confidences. Dominant: (a) the category of the top-1 label if that label is mapped and its score >= top1_threshold; (b) else the highest category score if >= category_threshold; (c) else 'unclassified'. Category order is the tie-break priority (earlier wins). Every identifier must be one of knownClassifications; AppTests checks this on the iOS Simulator, LessNoiseKit's tests against the committed list. Members chosen as the closest analogues of Android's AudioSet members from Apple's 303 identifiers (CI run 38810186677).",
   "top1_threshold": 0.1,
   "category_threshold": 0.2,
   "tie_margin": 0.0,
-  "fallback": { "id": "unclassified", "name_de": "Sonstiges" },
+  "fallback": {
+    "id": "unclassified",
+    "name_de": "Sonstiges"
+  },
   "categories": [
-    { "id": "loud_vehicle", "name_de": "Töff & Poser", "apple": [] },
-    { "id": "road_traffic", "name_de": "Strassenverkehr", "apple": [] },
-    { "id": "rail_tram", "name_de": "Tram & Bahn", "apple": [] },
-    { "id": "aircraft", "name_de": "Flugzeug", "apple": [] },
-    { "id": "construction", "name_de": "Baustelle", "apple": [] },
-    { "id": "voices", "name_de": "Stimmen", "apple": [] },
-    { "id": "music", "name_de": "Musik", "apple": [] }
+    {
+      "id": "loud_vehicle",
+      "name_de": "Töff & Poser",
+      "apple": [
+        "motorcycle",
+        "engine_accelerating_revving",
+        "race_car",
+        "engine_starting"
+      ]
+    },
+    {
+      "id": "road_traffic",
+      "name_de": "Strassenverkehr",
+      "apple": [
+        "car_passing_by",
+        "traffic_noise",
+        "truck",
+        "bus",
+        "engine",
+        "engine_idling",
+        "engine_knocking",
+        "vehicle_skidding",
+        "car_horn",
+        "air_horn"
+      ]
+    },
+    {
+      "id": "rail_tram",
+      "name_de": "Tram & Bahn",
+      "apple": [
+        "rail_transport",
+        "train",
+        "railroad_car",
+        "train_wheels_squealing",
+        "subway_metro",
+        "train_horn",
+        "train_whistle"
+      ]
+    },
+    {
+      "id": "aircraft",
+      "name_de": "Flugzeug",
+      "apple": [
+        "aircraft",
+        "airplane",
+        "helicopter"
+      ]
+    },
+    {
+      "id": "construction",
+      "name_de": "Baustelle",
+      "apple": [
+        "drill",
+        "power_tool",
+        "saw",
+        "hammer",
+        "chainsaw"
+      ]
+    },
+    {
+      "id": "voices",
+      "name_de": "Stimmen",
+      "apple": [
+        "speech",
+        "shout",
+        "yell",
+        "children_shouting",
+        "crowd",
+        "chatter",
+        "laughter",
+        "babble",
+        "cheering"
+      ]
+    },
+    {
+      "id": "music",
+      "name_de": "Musik",
+      "apple": [
+        "music",
+        "singing"
+      ]
+    }
   ]
 }

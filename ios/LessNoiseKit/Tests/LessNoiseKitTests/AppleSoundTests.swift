@@ -86,10 +86,15 @@ final class AppleSoundTests: XCTestCase {
         XCTAssertEqual(ids(i).first, "loud_vehicle", "tie priority")
         // Every identifier is one of Apple's (the list CI dumped from knownClassifications, committed).
         let listURL = here.appendingPathComponent("../Fixtures/apple-sound-labels.txt").standardized
-        if let list = try? String(contentsOf: listURL, encoding: .utf8) {
-            let known = CategoryMapper.parseLabels(list)
-            XCTAssertNoThrow(try AppleSoundCategories.mapper(json: ios, labels: known))
-        }
+        let known = CategoryMapper.parseLabels(try String(contentsOf: listURL, encoding: .utf8))
+        XCTAssertEqual(known.count, 303)
+        let m = try AppleSoundCategories.mapper(json: ios, labels: known)
+        let counts = try AppleSoundCategories.memberIdentifiers(json: ios).mapValues { $0.count }
+        XCTAssertEqual(counts, ["loud_vehicle": 4, "road_traffic": 10, "rail_tram": 7, "aircraft": 3, "construction": 5, "voices": 9, "music": 2])
+        // A motorbike pass on the real label set: loud_vehicle; wind only by the detector.
+        let sc = LabelScores(m.labels)
+        XCTAssertEqual(m.decide(sc.scores([(identifier: "motorcycle", confidence: 0.7), (identifier: "traffic_noise", confidence: 0.5)])).dominant, "loud_vehicle")
+        XCTAssertEqual(m.decide(sc.scores([(identifier: "wind_noise_microphone", confidence: 0.9)])).dominant, CategoryMapper.UNCLASSIFIED)
     }
 
     /** End to end: Apple-like results through the session's classifier pipeline → a «Töff & Poser» event and the «Sehr laut» alert. */

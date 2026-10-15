@@ -42,13 +42,12 @@ final class SoundAnalysisClassifier: NSObject, SoundClassifier, SNResultsObservi
         self.labels = labels
         format = f
         scorer = LabelScores(labels)
-        let c = request.windowDurationConstraint
         var enumerated: [Double]? = nil
         var range: ClosedRange<Double>? = nil
-        switch c.type {
-        case .enumeratedDurations: enumerated = c.enumeratedDurations.map { $0.timeValue.seconds }
-        case .durationRange:
-            let r = c.durationRange
+        // In Swift SNTimeDurationConstraint is an enum with the values as payloads (CI run 38810186677).
+        switch request.windowDurationConstraint {
+        case let .enumeratedDurations(ds): enumerated = ds.map { $0.seconds }
+        case let .durationRange(r):
             if r.start.seconds.isFinite && r.end.seconds.isFinite && r.end.seconds >= r.start.seconds { range = r.start.seconds...r.end.seconds }
         @unknown default: break
         }

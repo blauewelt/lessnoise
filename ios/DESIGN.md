@@ -154,20 +154,41 @@ Recommendation: start with TensorFlow Lite for parity (same categories, same thr
 size and battery, then decide on Core ML. Either plugs into `classifierDue` /
 `copyClassifierWindow` / `onClassifierFrame` of the core with `ClassifierPreprocessor.normalize`.
 
-**Status (first version):** the owner chose TensorFlow Lite. It is not built in: Google distributes
-TensorFlowLiteSwift/TensorFlowLiteC for iOS through CocoaPods; there is no official Swift Package
-Manager package that I know of (only unofficial re-packagings of the prebuilt binary on GitHub — a
-supply-chain question for a privacy app; not re-checked on the web in this task). The app
-therefore runs with the classifier off (`ClassifierFactory` returns nil): categories are empty
-(«Klingt nach» «–», `dominant_category` null, events `unclassified` on the map), exactly like
-Android with the classifier off, and «Sehr laut» never fires (it needs «Töff & Poser» /
-«Strassenverkehr»). Everything around the model is built and tested (`MeasurementSession`: window
-copy, normalisation, inference queue, frames back to the engine; a fake classifier in the tests).
-Options for the owner: (a) an official LiteRT/TFLite SwiftPM package if Google provides one,
-(b) TensorFlowLiteC as a vendored xcframework built from source, (c) Core ML (convert YAMNet once
-with coremltools, log-mel front end in Swift/vDSP, new golden test of scores against
-`tools/verify_yamnet.py`). The `SoundClassifier` protocol is the same for all three;
-`categories.json` and `yamnet_labels.txt` are already bundled.
+**As built (planner's decision, 2026-10-15):** TensorFlow Lite has no supported Swift Package
+Manager package, so the iPhone uses **Apple's built-in sound classifier**: SoundAnalysis
+`SNClassifySoundRequest(classifierIdentifier: .version1)` — part of iOS, no model file, no download,
+no dependency, nothing leaves the phone. `App/Platform/SoundAnalysisClassifier.swift` implements
+the core's `SoundClassifier`: the engine hands over the latest 0.975 s at 16 kHz about once a
+second (Android's window and cadence), one long-lived `SNAudioStreamAnalyzer` (overlap 0, window
+0.975 s or the closest the classifier allows) classifies it, and the newest result's confidences
+come back aligned with `knownClassifications`. `App/categories-ios.json` maps Apple's identifiers
+to the app's categories with Android's ids, names, order (tie priority: «loud_vehicle» first) and
+thresholds; the decision is the same `CategoryMapper` code. Wind stays the detector's. With
+categories, «Sehr laut» works as on Android. Checks: LessNoiseKit tests on fake label streams; on
+the iOS Simulator every identifier of the file must be in `knownClassifications`, and the
+classifier must produce scores for the engine's windows. The removed TFLite variant and the Core ML
+conversion of YAMNet remain options if parity with Android becomes more important than having no
+dependency.
+
+**Categories differ by platform.** iPhone categories come from a different model (Apple's, with
+its own label set and training data) than Android's (YAMNet/AudioSet); category shares and event
+categories of the same sound can differ between platforms, yet the map shows them together
+(«Klingt nach», the category shares of a cell, the loud-vehicle highlight). Proposal before release:
+1. *Compare on the same recordings:* replay the three WAVs of `android/dsp/src/test/resources/replay`
+   and a set of labelled street recordings (motorbike, car, truck, tram, aircraft, construction,
+   voices, music, wind) through both classifiers (Android: `tools/verify_yamnet.py`/the replay
+   test; iOS: SoundAnalysis on macOS with `SNAudioFileAnalyzer` + `AppleSoundCategories`, a
+   small macOS test in CI), and report per category: agreement of the dominant category per
+   window, share differences per minute, and the confusion between loud_vehicle and road_traffic.
+   Accept if the dominant category agrees in, say, ≥ 80 % of windows for loud_vehicle/road_traffic.
+2. *Tune only the mapping, not the rules:* add/remove Apple identifiers in categories-ios.json
+   (the thresholds stay Android's) until the comparison passes; record the result in the WORKLOG.
+3. *Label the data:* the server already stores `audio_source` per minute (`IOS` vs
+   `UNPROCESSED`/`VOICE_RECOGNITION`), so shares can be compared or separated per platform later
+   without an app change; the map legend/«Über die Karte» should say that categories are estimated
+   on the phone by two different recognisers (Android: YAMNet, iPhone: Apple) and can differ.
+4. If they differ too much: show iPhone category shares on the map only after (1) passes, or
+   publish them separately per platform (server change).
 
 ## 10. What must be tested on a device
 
@@ -230,7 +251,8 @@ with coremltools, log-mel front end in Swift/vDSP, new golden test of scores aga
 2. Bundle id `ch.lessnoise.app`, app name «Weniger Lärm», individual developer account first.
 3. Default calibration offset 112.35 dB as on Android, data flagged uncalibrated.
 4. GRDB (MIT) as the one dependency.
-5. Classifier: TensorFlow Lite for parity — pending, see §9 «Status».
+5. Classifier: TensorFlow Lite for parity; replaced by the planner (no supported SwiftPM package) with
+   Apple's built-in SoundAnalysis classifier, see §9 «As built».
 
 ## 15. Before an iOS release: changes outside `ios/` (not made in this branch)
 
@@ -264,7 +286,12 @@ with coremltools, log-mel front end in Swift/vDSP, new golden test of scores aga
    opened; while measuring every 2 minutes as on Android.
 7. «How to verify» for iPhone: no APK to inspect — the source in `ios/`, the CI run of the commit,
    the network test with a proxy (ios/README.md «Device test checklist» 6, 8).
-8. Classifier: say that the iPhone version has no sound recognition yet (categories empty).
+8. Classifier: the iPhone uses Apple's built-in on-device sound recognition (SoundAnalysis), not
+   YAMNet; no audio leaves the phone for it; categories can differ from Android's (§9).
+
+**Map** (`docs/karte.html`, server publishing): before iPhone data appears, the category
+comparison of §9 «Categories differ by platform» (1)–(2), and a line in the map's legend that
+the categories come from two different on-phone recognisers.
 
 **Website** (`docs/`): the start page and `anleitung.html` mention the iPhone (TestFlight first:
 «Beta, Einladung auf Anfrage»), the iOS location prompt names, and that «Akku-Optimierung» is
