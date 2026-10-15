@@ -33,14 +33,11 @@ final class AudioCapture: AudioInput {
 
     private var engine = AVAudioEngine()
     private weak var handler: AudioInputHandler?
-    private var converter: AVAudioConverter?
-    private var converterInput: AVAudioFormat?
-    private let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: AudioCapture.targetRate, channels: 1, interleaved: false)!
+    private var resampler: MonoResampler?
     private var observers: [NSObjectProtocol] = []
     private let lock = NSLock()
     private var running = false
     private var interrupted = false
-    private var mono = [Float](repeating: 0, count: 0)
 
     /** The microphone permission (asked at the first «Starten»). */
     static var permission: AVAudioSession.RecordPermission { AVAudioSession.sharedInstance().recordPermission }
@@ -83,7 +80,7 @@ final class AudioCapture: AudioInput {
         engine.stop()
         running = false
         handler = nil
-        converter = nil
+        resampler = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
@@ -93,15 +90,8 @@ final class AudioCapture: AudioInput {
         let input = engine.inputNode
         let hw = input.outputFormat(forBus: 0)
         guard hw.sampleRate > 0, hw.channelCount > 0 else { throw CaptureError.noInput }
-        if hw.sampleRate == AudioCapture.targetRate {
-            converter = nil
-            converterInput = nil
-        } else {
-            // Some routes run at 44.1 kHz: resample the first channel to 48 kHz.
-            let monoHw = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: hw.sampleRate, channels: 1, interleaved: false)!
-            converter = AVAudioConverter(from: monoHw, to: target)
-            converterInput = monoHw
-        }
+        // Some routes run at 44.1 kHz: then the first channel is resampled to 48 kHz.
+        resampler = hw.sampleRate == AudioCapture.targetRate ? nil : MonoResampler(inputRate: hw.sampleRate)
         let frames = AVAudioFrameCount(hw.sampleRate / 10) // ≈ 100 ms
         input.installTap(onBus: 0, bufferSize: frames, format: hw) { [weak self] buffer, _ in self?.deliver(buffer) }
         engine.prepare()
@@ -118,22 +108,9 @@ final class AudioCapture: AudioInput {
         guard let h = handler, let ch = buffer.floatChannelData else { return }
         let n = Int(buffer.frameLength)
         if n == 0 { return }
-        if let conv = converter, let inFormat = converterInput {
-            guard let monoBuf = AVAudioPCMBuffer(pcmFormat: inFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
-            monoBuf.frameLength = AVAudioFrameCount(n)
-            monoBuf.floatChannelData![0].update(from: ch[0], count: n)
-            let outCap = AVAudioFrameCount(Double(n) * AudioCapture.targetRate / inFormat.sampleRate) + 64
-            guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: outCap) else { return }
-            var fed = false
-            var error: NSError?
-            conv.convert(to: out, error: &error) { _, status in
-                if fed { status.pointee = .noDataNow; return nil }
-                fed = true
-                status.pointee = .haveData
-                return monoBuf
-            }
-            if error != nil || out.frameLength == 0 { return }
-            h.audioBlock(UnsafeBufferPointer(start: out.floatChannelData![0], count: Int(out.frameLength)))
+        if let r = resampler {
+            guard let out = r.convert(ch[0], n), !out.isEmpty else { return }
+            out.withUnsafeBufferPointer { h.audioBlock($0) }
         } else {
             h.audioBlock(UnsafeBufferPointer(start: ch[0], count: n))
         }
@@ -232,6 +209,47 @@ final class AudioCapture: AudioInput {
         let s = AVAudioSession.sharedInstance()
         let port = s.currentRoute.inputs.first?.portName ?? "?"
         let rate = Int(engine.inputNode.outputFormat(forBus: 0).sampleRate)
-        return "\(port) · \(rate) Hz · \(s.mode == .measurement ? "Messmodus" : s.mode.rawValue)" + (converter != nil ? " → 48000 Hz" : "")
+        return "\(port) · \(rate) Hz · \(s.mode == .measurement ? "Messmodus" : s.mode.rawValue)" + (resampler != nil ? " → 48000 Hz" : "")
+    }
+}
+
+/**
+ * Mono Float32 at the hardware rate → mono Float32 at 48 kHz, as a stream (AVAudioConverter keeps
+ * its filter state between blocks). Used only when the input does not run at 48 kHz.
+ */
+final class MonoResampler {
+    let inputRate: Double
+    private let inFormat: AVAudioFormat
+    private let outFormat: AVAudioFormat
+    private let converter: AVAudioConverter
+
+    init?(inputRate: Double) {
+        guard inputRate > 0,
+              let i = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: inputRate, channels: 1, interleaved: false),
+              let o = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: AudioCapture.targetRate, channels: 1, interleaved: false),
+              let c = AVAudioConverter(from: i, to: o) else { return nil }
+        self.inputRate = inputRate
+        inFormat = i
+        outFormat = o
+        converter = c
+    }
+
+    /** [n] samples → the 48 kHz samples available now (a few fewer at the very start: filter delay). */
+    func convert(_ samples: UnsafePointer<Float>, _ n: Int) -> [Float]? {
+        guard n > 0, let inBuf = AVAudioPCMBuffer(pcmFormat: inFormat, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+        inBuf.frameLength = AVAudioFrameCount(n)
+        inBuf.floatChannelData![0].update(from: samples, count: n)
+        let cap = AVAudioFrameCount(Double(n) * AudioCapture.targetRate / inputRate) + 64
+        guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: cap) else { return nil }
+        var fed = false
+        var error: NSError?
+        _ = converter.convert(to: out, error: &error) { _, status in
+            if fed { status.pointee = .noDataNow; return nil }
+            fed = true
+            status.pointee = .haveData
+            return inBuf
+        }
+        if error != nil { return nil }
+        return Array(UnsafeBufferPointer(start: out.floatChannelData![0], count: Int(out.frameLength)))
     }
 }

@@ -1,3 +1,4 @@
+import AVFoundation
 import LessNoiseKit
 import UserNotifications
 import WebKit
@@ -187,5 +188,32 @@ final class NotificationTests: XCTestCase {
         XCTAssertEqual(c.body, "Antippen zum Melden")
         XCTAssertEqual(c.interruptionLevel, .timeSensitive)
         XCTAssertEqual(LoudAlertWatcher.preset(c.userInfo), ReportPreset(epochMs: 1_792_092_600_000, suggested: [.MOTORRAD, .POSER]))
+    }
+}
+
+final class AudioTests: XCTestCase {
+    /** A 44.1 kHz route: 1 s of a 1 kHz sine comes out as ≈ 1 s at 48 kHz with the same RMS (the level is kept). */
+    func testResampler44100To48000KeepsLengthAndLevel() throws {
+        let r = try XCTUnwrap(MonoResampler(inputRate: 44_100))
+        var out: [Float] = []
+        let amp: Float = 0.5
+        for block in 0..<20 {
+            let samples = (0..<4410).map { i -> Float in
+                let t = Double(block * 4410 + i) / 44_100
+                return amp * Float(sin(2 * Double.pi * 1000 * t))
+            }
+            out += try XCTUnwrap(samples.withUnsafeBufferPointer { r.convert($0.baseAddress!, $0.count) })
+        }
+        // 2 s in: 96 000 samples out, less the converter's start-up delay.
+        XCTAssertEqual(Double(out.count), 96_000, accuracy: 600)
+        let steady = out.suffix(48_000)
+        let rms = sqrt(steady.reduce(0.0) { $0 + Double($1) * Double($1) } / Double(steady.count))
+        XCTAssertEqual(rms, Double(amp) / 2.0.squareRoot(), accuracy: 0.005)
+        XCTAssertNil(MonoResampler(inputRate: 0))
+    }
+
+    func testMicrophonePermissionIsNotAskedAtLaunch() {
+        // The app asks at the first «Starten» only; in the test host nobody tapped it.
+        XCTAssertNotEqual(AudioCapture.permission, .granted)
     }
 }

@@ -59,6 +59,7 @@ final class AppModel: ObservableObject {
     @Published var notificationsDenied = false
     @Published var toast: String?
     private var refreshPending = false
+    private var savedTabs: [String] = []
 
     private init() {
         let keychain = KeychainStore()
@@ -110,7 +111,8 @@ final class AppModel: ObservableObject {
             guard let self = self else { return }
             self.refreshPending = false
             self.objectWillChange.send()
-            UserDefaults.standard.set(self.services.tabs.history.save(), forKey: "tabs.history")
+            let tabs = self.services.tabs.history.save()
+            if tabs != self.savedTabs { self.savedTabs = tabs; UserDefaults.standard.set(tabs, forKey: "tabs.history") }
         }
     }
 
