@@ -73,7 +73,8 @@ final class MapWebController: NSObject, ObservableObject, WKNavigationDelegate, 
 
     /** The tab is shown (or the point changed while shown). */
     func show(_ point: LocationNoise.Point?) {
-        guard let w = webView else { return }
+        // onAppear can come before the representable made the view: make it here (same instance).
+        let w = makeWebView()
         guard rulesReady else { pendingShow = .some(point); return }
         if let step = centring.show(point) { perform(w, step) }
     }

@@ -60,14 +60,14 @@ final class AppModel: ObservableObject {
             ?? FileManager.default.temporaryDirectory
         let dir = support.appendingPathComponent("LessNoise", isDirectory: true)
         var db: AppDatabase
-        var error: String? = nil
+        var problem: String? = nil
         do {
             db = try AppDatabase.open(directory: dir)
         } catch {
             db = try! AppDatabase.inMemory()
-            error = "Speicher nicht verfügbar – Messungen werden nicht behalten."
+            problem = "Speicher nicht verfügbar – Messungen werden nicht behalten."
         }
-        storageError = error
+        storageError = problem
         let mapper = AppModel.loadMapper()
         let capture = AudioCapture()
         let net = NetworkMonitor()

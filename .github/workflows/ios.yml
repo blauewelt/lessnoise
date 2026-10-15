@@ -81,11 +81,13 @@ jobs:
         working-directory: ios
         run: |
           set +e
-          xcodebuild build-for-testing \
+          # -continueBuildingAfterErrors and the compiler's -continue-building-after-errors: one
+          # round shows the errors of every file, not only of the first batch that failed.
+          xcodebuild build-for-testing -continueBuildingAfterErrors \
             -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
             -destination "id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO > build-for-testing.log 2>&1; status=$?
+            CODE_SIGNING_ALLOWED=NO 'OTHER_SWIFT_FLAGS=$(inherited) -continue-building-after-errors' > build-for-testing.log 2>&1; status=$?
           grep -E "error:|\*\* .* \*\*" build-for-testing.log | sort -u | head -150
           exit $status
 

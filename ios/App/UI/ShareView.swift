@@ -110,7 +110,8 @@ struct ShareView: View {
         busy = "Wird gelöscht …"
         result = nil
         Task {
-            let r = newIdentity ? await model.services.uploads.newIdentity() : await model.services.uploads.deleteServerData()
+            let r: Uploader.DeleteOutcome
+            if newIdentity { r = await model.services.uploads.newIdentity() } else { r = await model.services.uploads.deleteServerData() }
             busy = nil
             switch r {
             case .deleted: result = newIdentity ? "Neu gestartet." : "Vom Server gelöscht. Teilen ist aus."
