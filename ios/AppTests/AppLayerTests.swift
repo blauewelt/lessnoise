@@ -146,12 +146,11 @@ final class BundleTests: XCTestCase {
         XCTAssertNil(info["NSAppTransportSecurity"], "no ATS exceptions")
     }
 
-    @MainActor
-    func testCategoriesAreBundledFromTheAndroidAssets() throws {
-        let m = try XCTUnwrap(AppModel.loadMapper())
-        XCTAssertEqual(m.labels.count, 521)
+    func testCategoriesFileIsBundled() throws {
+        let json = try XCTUnwrap(CategoriesFile.json())
+        let m = try AppleSoundCategories.namesOnly(json: json)
+        XCTAssertEqual(m.categoryIds, ["loud_vehicle", "road_traffic", "rail_tram", "aircraft", "construction", "voices", "music"])
         XCTAssertEqual(m.nameDe("loud_vehicle"), "Töff & Poser")
-        XCTAssertNil(ClassifierFactory.make(mapper: m), "decision 5 pending: no classifier yet")
     }
 }
 
@@ -215,5 +214,42 @@ final class AudioTests: XCTestCase {
     func testMicrophonePermissionIsNotAskedAtLaunch() {
         // The app asks at the first «Starten» only; in the test host nobody tapped it.
         XCTAssertNotEqual(AudioCapture.permission, .granted)
+    }
+}
+
+final class SoundAnalysisTests: XCTestCase {
+    /** Writes Apple's label list to the test log (CI keeps it); the mapping is built from exactly this list. */
+    func testKnownClassificationsAreListedAndTheMappingUsesOnlyThem() throws {
+        let known = try XCTUnwrap(SoundAnalysisClassifier.knownLabels())
+        print("APPLE_SOUND_LABELS_BEGIN \(known.count)")
+        for id in known { print("APPLE_SOUND_LABEL \(id)") }
+        print("APPLE_SOUND_LABELS_END")
+        XCTAssertGreaterThan(known.count, 100)
+        let json = try XCTUnwrap(CategoriesFile.json())
+        for (cat, members) in try AppleSoundCategories.memberIdentifiers(json: json) {
+            for m in members { XCTAssertTrue(known.contains(m), "\(cat): «\(m)» is not one of knownClassifications") }
+        }
+        let mapper = try AppleSoundCategories.mapper(json: json, labels: known)
+        XCTAssertEqual(mapper.labels, known)
+    }
+
+    /** The classifier runs on the simulator: windows of a tone give scores aligned with the labels. */
+    func testClassifierGivesScoresForTheEnginesWindows() throws {
+        let known = try XCTUnwrap(SoundAnalysisClassifier.knownLabels())
+        let c = try XCTUnwrap(SoundAnalysisClassifier(labels: known))
+        print("SOUND_ANALYSIS_WINDOW_S \(c.windowSeconds)")
+        XCTAssertGreaterThan(c.windowSeconds, 0)
+        var nonEmpty = 0
+        for k in 0..<6 {
+            let w = (0..<c.inputLength).map { i in Float(0.3 * sin(2 * Double.pi * 440 * Double(k * c.inputLength + i) / 16_000)) }
+            let s = c.classify(w)
+            if !s.isEmpty {
+                nonEmpty += 1
+                XCTAssertEqual(s.count, known.count)
+                XCTAssertTrue(s.allSatisfy { $0 >= 0 && $0 <= 1 })
+            }
+        }
+        print("SOUND_ANALYSIS_RESULTS \(nonEmpty) of 6")
+        XCTAssertGreaterThan(nonEmpty, 0, "SoundAnalysis produced no result for 6 windows")
     }
 }

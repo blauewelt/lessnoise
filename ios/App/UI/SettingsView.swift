@@ -28,7 +28,7 @@ struct SettingsView: View {
                         Text("Ins Internet geht nur, was du unter «Teilen» einschaltest, und die Karte, wenn du sie öffnest.").font(.footnote)
                         Text("Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB).").font(.footnote)
                         if model.services.classifierAvailable {
-                            Text("Geräuscherkennung: YAMNet (Google, Apache-2.0).").font(.footnote)
+                            Text("Geräuscherkennung: Apples eingebaute Erkennung (SoundAnalysis), auf dem Telefon.").font(.footnote)
                         }
                         MoreLink(url: Links.PRIVACY)
                     }

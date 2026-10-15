@@ -33,11 +33,6 @@ targets:
       - path: App
         excludes:
           - Info.plist
-      # Single source of the categories: the Android app's asset files, as they are.
-      - path: ../android/app/src/main/assets/categories.json
-        buildPhase: resources
-      - path: ../android/app/src/main/assets/yamnet_labels.txt
-        buildPhase: resources
     dependencies:
       # Both products are dynamic frameworks (embedded in the app): the app uses the core's types
       # directly, and the test bundle must see the same single copy of them.
@@ -45,6 +40,7 @@ targets:
       - package: LessNoiseCore
       - sdk: WebKit.framework
       - sdk: BackgroundTasks.framework
+      - sdk: SoundAnalysis.framework
     entitlements:
       path: App/WenigerLaerm.entitlements
       properties:

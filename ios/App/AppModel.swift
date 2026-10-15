@@ -5,21 +5,24 @@ import SwiftUI
 import UIKit
 
 /**
- * The classifier (owner's decision 5: TensorFlow Lite with the same yamnet.tflite as Android).
- * Not built in yet: TensorFlow Lite has no official Swift Package Manager distribution (Google
- * ships TensorFlowLiteSwift/TensorFlowLiteC for iOS through CocoaPods; the SwiftPM wrappers on
- * GitHub are unofficial re-packagings of a prebuilt binary). Until that is settled (ios/DESIGN.md
- * §9) the app runs without one: categories stay empty («–»), exactly like Android with the
- * classifier off; [SoundClassifier] is the protocol a TFLite or Core ML implementation plugs into.
+ * The classifier (milestone 7, planner's decision): Apple's built-in SoundAnalysis classifier
+ * (Platform/SoundAnalysisClassifier.swift) with ios/App/categories-ios.json mapping its labels to
+ * the app's categories. The TensorFlow Lite variant was removed (no supported SwiftPM package).
+ * Without SoundAnalysis results, or if the mapping names an identifier the classifier does not
+ * know, the app runs without categories (names and CSV columns from the same file).
  */
-// With TensorFlowLiteSwift linked and yamnet.tflite in the bundle, Platform/YamnetClassifier.swift
-// compiles and is used (not verified: the module is not available in this build).
 enum ClassifierFactory {
-    static func make(mapper: CategoryMapper?) -> SoundClassifier? {
-        #if canImport(TensorFlowLite)
-        if let m = mapper { return Yamnet.make(m) }
-        #endif
-        return nil
+    struct Setup {
+        let mapper: CategoryMapper?
+        let classifier: SoundClassifier?
+    }
+
+    static func make() -> Setup {
+        guard let json = CategoriesFile.json() else { return Setup(mapper: nil, classifier: nil) }
+        if let labels = SoundAnalysisClassifier.knownLabels(), let m = try? AppleSoundCategories.mapper(json: json, labels: labels) {
+            return Setup(mapper: m, classifier: SoundAnalysisClassifier(labels: m.labels))
+        }
+        return Setup(mapper: try? AppleSoundCategories.namesOnly(json: json), classifier: nil)
     }
 }
 
@@ -76,7 +79,7 @@ final class AppModel: ObservableObject {
             problem = "Speicher nicht verfügbar – Messungen werden nicht behalten."
         }
         storageError = problem
-        let mapper = AppModel.loadMapper()
+        let sound = ClassifierFactory.make()
         let capture = AudioCapture()
         let net = NetworkMonitor()
         network = net
@@ -85,7 +88,7 @@ final class AppModel: ObservableObject {
             secrets: RoutingSecretStore(keychain: keychain, files: ProtectedFileStore(directory: dir.appendingPathComponent("queue", isDirectory: true))),
             measureInput: capture, calibrationInput: capture, locator: OneShotLocator(), transport: URLSessionTransport(),
             network: net, notifier: LocalNotifications(), scheduler: BackgroundUploads(), activity: UIKitBackgroundActivity(),
-            classifier: ClassifierFactory.make(mapper: mapper), mapper: mapper, deviceModel: DeviceInfo.model,
+            classifier: sound.classifier, mapper: sound.mapper, deviceModel: DeviceInfo.model,
             appVersion: DeviceInfo.version, appBuild: DeviceInfo.build
         )
         // UploadClient refuses a non-https base only; the base is the constant https://api.lessnoise.ch.
@@ -93,14 +96,6 @@ final class AppModel: ObservableObject {
         map = MapWebController()
         services.changes.add { [weak self] in Task { @MainActor in self?.scheduleRefresh() } }
         net.changes.add { [weak self] in Task { @MainActor in self?.scheduleRefresh() } }
-    }
-
-    /** categories.json and yamnet_labels.txt from the bundle (the Android assets). */
-    static func loadMapper() -> CategoryMapper? {
-        guard let c = Bundle.main.url(forResource: "categories", withExtension: "json"),
-              let l = Bundle.main.url(forResource: "yamnet_labels", withExtension: "txt"),
-              let cj = try? String(contentsOf: c, encoding: .utf8), let lt = try? String(contentsOf: l, encoding: .utf8) else { return nil }
-        return Categories.mapper(categoriesJson: cj, labelsText: lt)
     }
 
     private func scheduleRefresh() {

@@ -32,6 +32,14 @@ jobs:
           swift --version
           sw_vers
 
+      # Apple's sound classifier labels (SoundAnalysis version 1), the list categories-ios.json maps
+      # from; also checked on the iOS Simulator (AppTests prints them as APPLE_SOUND_LABEL lines).
+      - name: Apple sound labels (macOS)
+        run: |
+          swift ios/scripts/apple-sound-labels.swift > ios/apple-sound-labels.txt
+          echo "APPLE_SOUND_LABELS $(wc -l < ios/apple-sound-labels.txt)"
+          cat ios/apple-sound-labels.txt
+
       - name: LessNoiseCore swift test (CryptoKit, Compression-framework gzip)
         working-directory: ios/LessNoiseCore
         run: |
@@ -135,6 +143,7 @@ jobs:
             ios/build-for-testing.log
             ios/test.log
             ios/test-summary.json
+            ios/apple-sound-labels.txt
             ios/build/WenigerLaermTests.xcresult
           if-no-files-found: ignore
           retention-days: 14

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "model": "Apple SoundAnalysis SNClassifySoundRequest(classifierIdentifier: .version1)",
+  "comment": "The iOS analogue of android/app/src/main/assets/categories.json: same ids, names, order and thresholds; members are Apple's label identifiers (SNClassifySoundRequest.knownClassifications). Category score = max of member confidences. Dominant: (a) the category of the top-1 label if that label is mapped and its score >= top1_threshold; (b) else the highest category score if >= category_threshold; (c) else 'unclassified'. Category order is the tie-break priority (earlier wins). Every identifier must be one of knownClassifications; AppTests checks this on the iOS Simulator, LessNoiseKit's tests against the committed list. PROVISIONAL: members are filled from the list CI dumps.",
+  "top1_threshold": 0.1,
+  "category_threshold": 0.2,
+  "tie_margin": 0.0,
+  "fallback": { "id": "unclassified", "name_de": "Sonstiges" },
+  "categories": [
+    { "id": "loud_vehicle", "name_de": "Töff & Poser", "apple": [] },
+    { "id": "road_traffic", "name_de": "Strassenverkehr", "apple": [] },
+    { "id": "rail_tram", "name_de": "Tram & Bahn", "apple": [] },
+    { "id": "aircraft", "name_de": "Flugzeug", "apple": [] },
+    { "id": "construction", "name_de": "Baustelle", "apple": [] },
+    { "id": "voices", "name_de": "Stimmen", "apple": [] },
+    { "id": "music", "name_de": "Musik", "apple": [] }
+  ]
+}
