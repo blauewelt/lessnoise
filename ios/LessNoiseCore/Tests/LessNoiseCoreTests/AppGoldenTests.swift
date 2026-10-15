@@ -51,7 +51,8 @@ private func point(_ j: JSONValue) -> LocationNoise.Point? {
         let gz = Gzip.compress(body)
         #expect(gz.prefix(10).map { String(format: "%02x", $0) }.joined() == g["header_hex"].str)
         #expect(gz.suffix(8).map { String(format: "%02x", $0) }.joined() == g["trailer_hex"].str)
-        #expect(try inflateStoredOrNil(gz) == body) // Linux: stored blocks; on Apple the deflate stream differs (checked on the Mac)
+        // Linux: stored blocks; Apple: real deflate, inflated with the Compression framework (Support/FakeTransport.swift).
+        #expect(try inflateStoredOrNil(gz) == body)
         #expect(Payloads.register("0.6.3", 16).description == #"{"app_version":"0.6.3","app_build":16}"#)
     }
 }

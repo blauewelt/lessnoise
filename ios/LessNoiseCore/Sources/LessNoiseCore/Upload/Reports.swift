@@ -57,6 +57,7 @@ public struct SentReport: Equatable {
     public let epochMs: Int
     public let category: String
     public let cell: String?
+    public init(epochMs: Int, category: String, cell: String?) { self.epochMs = epochMs; self.category = category; self.cell = cell }
 }
 
 public struct ReportSnapshot: Equatable {

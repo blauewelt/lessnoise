@@ -4,23 +4,26 @@ import Foundation
  * Calibration model on iOS. Android keeps one active calibration per (phone model, audio source):
  * UNPROCESSED and VOICE_RECOGNITION are calibrated separately, because the two inputs differ in
  * gain. iOS has exactly one input path for this app (AVAudioSession category `.record`, mode
- * `.measurement`: no AGC, no noise suppression), so there is one calibration per phone. It is
- * stored and sent under the source string [AudioSource.IOS_MEASUREMENT] = "UNPROCESSED", because
- * the server accepts only `UNPROCESSED | VOICE_RECOGNITION` (server/stadtlaerm_server/schemas.py)
- * and "unprocessed" is what `.measurement` delivers. The offset model itself is unchanged:
- * level = 10·log10(mean square) + offset, default [Acoustics.DEFAULT_CALIBRATION_OFFSET_DB].
+ * `.measurement`: no AGC, no noise suppression), so there is one calibration per phone, stored and
+ * sent under its own source value [AudioSource.IOS_MEASUREMENT] = "IOS" (owner's decision,
+ * 2026-10-15). THE SERVER MUST ACCEPT "IOS" BEFORE THE APP IS RELEASED: today
+ * server/stadtlaerm_server/schemas.py accepts only `UNPROCESSED | VOICE_RECOGNITION` (site and
+ * minutes) and would refuse every record of an iPhone (ios/DESIGN.md «Before an iOS release»).
+ * The offset model itself is unchanged: level = 10·log10(mean square) + offset, default
+ * [Acoustics.DEFAULT_CALIBRATION_OFFSET_DB].
  */
 public enum AudioSource {
     public static let UNPROCESSED = "UNPROCESSED"
     public static let VOICE_RECOGNITION = "VOICE_RECOGNITION"
-    /** The one source of the iOS app (see the type doc; an open question for the owner in ios/DESIGN.md). */
-    public static let IOS_MEASUREMENT = UNPROCESSED
+    /** The one source of the iOS app: the single place where the value is defined. */
+    public static let IOS_MEASUREMENT = "IOS"
 
-    /** «unbearbeitet» / «Sprachmodus» (AudioSourceSelector.labelDe). */
+    /** «unbearbeitet» / «Sprachmodus» (AudioSourceSelector.labelDe); iOS: «iPhone (Messmodus)». */
     public static func labelDe(_ name: String) -> String {
         switch name {
         case UNPROCESSED: return "unbearbeitet"
         case VOICE_RECOGNITION: return "Sprachmodus"
+        case IOS_MEASUREMENT: return "iPhone (Messmodus)"
         default: return name
         }
     }

@@ -91,7 +91,7 @@ func inflateStoredOrNil(_ gz: [UInt8]) throws -> [UInt8]? {
     var out: [UInt8] = []
     while true {
         let header = gz[p]
-        if header & 0b110 != 0 { return nil } // not a stored block (Apple's Compression output)
+        if header & 0b110 != 0 { return inflateWithCompression(gz) } // not a stored block (Apple's Compression output)
         let len = Int(gz[p + 1]) | Int(gz[p + 2]) << 8
         let nlen = Int(gz[p + 3]) | Int(gz[p + 4]) << 8
         precondition(len == (~nlen & 0xffff), "LEN/NLEN")
@@ -104,3 +104,31 @@ func inflateStoredOrNil(_ gz: [UInt8]) throws -> [UInt8]? {
     precondition(crc == Gzip.crc32(out) && size == UInt32(out.count) && p + 8 == gz.count, "gzip trailer")
     return out
 }
+
+#if canImport(Compression)
+import Compression
+
+/**
+ * Apple platforms: the body is real deflate from the Compression framework; inflate it with the
+ * same framework (COMPRESSION_ZLIB = raw RFC 1951) and check the gzip trailer (CRC-32, size).
+ * This is the Mac-only check ios/DESIGN.md §13 asked for.
+ */
+func inflateWithCompression(_ gz: [UInt8]) -> [UInt8]? {
+    let payload = Array(gz[10..<(gz.count - 8)])
+    let t = gz.count - 8
+    let crc = UInt32(gz[t]) | UInt32(gz[t + 1]) << 8 | UInt32(gz[t + 2]) << 16 | UInt32(gz[t + 3]) << 24
+    let size = Int(UInt32(gz[t + 4]) | UInt32(gz[t + 5]) << 8 | UInt32(gz[t + 6]) << 16 | UInt32(gz[t + 7]) << 24)
+    var out = [UInt8](repeating: 0, count: size + 1)
+    let n = payload.withUnsafeBufferPointer { src in
+        out.withUnsafeMutableBufferPointer { dst in
+            compression_decode_buffer(dst.baseAddress!, size + 1, src.baseAddress!, payload.count, nil, COMPRESSION_ZLIB)
+        }
+    }
+    let result = Array(out.prefix(n))
+    precondition(n == size && Gzip.crc32(result) == crc, "gzip trailer (Compression path)")
+    return result
+}
+#else
+/** Elsewhere only stored blocks are written; anything else is unexpected. */
+func inflateWithCompression(_ gz: [UInt8]) -> [UInt8]? { nil }
+#endif

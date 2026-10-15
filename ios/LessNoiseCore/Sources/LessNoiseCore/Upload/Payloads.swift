@@ -4,7 +4,7 @@ import Foundation
 public struct SiteExtras: Equatable {
     /** The phone model (iOS: the `utsname.machine` identifier, e.g. "iPhone16,1"; Android: Build.MODEL). */
     public let deviceModel: String
-    /** UNPROCESSED | VOICE_RECOGNITION (iOS: always [AudioSource.IOS_MEASUREMENT]). */
+    /** UNPROCESSED | VOICE_RECOGNITION (Android); iOS: always [AudioSource.IOS_MEASUREMENT] = "IOS". */
     public let audioSource: String
     public let calibrated: Bool
     public let calibrationOffsetDb: Double

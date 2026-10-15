@@ -20,6 +20,7 @@ public struct LiveEvent: Equatable {
 public struct ReportPreset: Equatable {
     public let epochMs: Int
     public let suggested: [ReportCategory]
+    public init(epochMs: Int, suggested: [ReportCategory]) { self.epochMs = epochMs; self.suggested = suggested }
 }
 
 /** The category buttons with [suggested] first, in their own order; the rest as always. */
