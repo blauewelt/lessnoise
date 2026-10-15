@@ -208,13 +208,14 @@ test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» 
     "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
     "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "mobile Daten",  // cadence, network
     "etwa alle 30 Sekunden neu berechnet", "auf etwa eine Minute genau", // DESIGN §2 rule 8, the live map
+    "Mit «Unterwegs»", "sie bleibt auf dem Telefon und sendet nichts",   // the «Sehr laut» notification
     "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
   ]) expect(text, fact).toContain(fact);
   expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone
   await expect(page.locator("#karte-in-der-app")).toHaveCount(1);
   await page.goto("/anleitung.html");
   const guide = await allText(page);
-  for (const fact of ["Auf die Lärmkarte?", "Ja, auf die Karte", "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "Karte in der App"]) expect(guide, fact).toContain(fact);
+  for (const fact of ["Auf die Lärmkarte?", "Ja, auf die Karte", "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "Karte in der App", "Unterwegs", "«Sehr laut»"]) expect(guide, fact).toContain(fact);
   expect(text).not.toContain("0,1");
   expect(guide).not.toContain("alle 10 Minuten");
   expect(guide).not.toContain("«Weiter»");

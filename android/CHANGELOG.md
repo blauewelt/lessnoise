@@ -33,6 +33,11 @@ and the Labor build behave exactly as before).
   (paused while hidden; the page refreshes its data itself every 30 seconds while visible) and moved
   with `location.replace('#lat=…')` as soon as the point exists or changes — no reload, no history
   entry. The website's map page checks for new data every 30 seconds while visible (also on the web).
+- **«Unterwegs» and «Sehr laut»:** a switch under «Starten» (off by default). While it is on and you
+  measure, a very loud vehicle (≥ 75 dB, «Töff & Poser» or «Strassenverkehr», never wind) shows a
+  notification «Sehr laut: Töff & Poser, 84 dB – Antippen zum Melden», at most one every 2 minutes;
+  a tap opens «Laut! Melden» with the time of the noise and the fitting categories highlighted, also
+  during a measurement. Online-Version only.
 - **A banner above the map** while your values are not visible yet: «Noch kein Standort», «Erste
   Werte werden gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte
   aktualisiert sich laufend» (2 minutes) or «Du teilst nicht – tippen zum Teilen».

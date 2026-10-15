@@ -94,6 +94,42 @@ class ShareScreenshots {
         }
     }
 
+    // 0.6.3 «Unterwegs»: the switch under «Starten» (idle) and under «Stoppen» (measuring), on.
+    @Test
+    fun messenUnterwegsIdle() {
+        paparazzi.snapshot("messen-unterwegs-idle") {
+            LessNoiseTheme(dark = false) {
+                MeasureContent(
+                    live = LiveState(), events = emptyList(), calibrating = false,
+                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    shareStatus = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42)), false, 0, false, LocateState.Idle, true) { "18:42" },
+                    unterwegs = { UnterwegsSwitchContent(checked = false) {} },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun messenUnterwegsRunning() {
+        val live = LiveState(
+            running = true, startedAtMs = ms(18, 30), measurementStartMs = ms(18, 30), lafDb = 81.4, backgroundDb = 52.0,
+            dominantCategory = "loud_vehicle", dominantScore = 0.6f, classifierEnabled = true, sharedPoint = point,
+        )
+        val events = listOf(event(2, ms(18, 41, 5), 84.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
+        paparazzi.snapshot("messen-unterwegs-running") {
+            LessNoiseTheme(dark = false) {
+                MeasureContent(
+                    live = live, events = events, calibrating = false,
+                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {},
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    shareStatus = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, ms(18, 30), true, LocateState.Idle, true) { "18:42" },
+                    unterwegs = { UnterwegsSwitchContent(checked = true) {} },
+                )
+            }
+        }
+    }
+
     @Test
     fun messenLocating() = messen("messen-status-locating", shareStatus(on, true, ms(18, 30), false, LocateState.Locating, true, Fmt::hm)!!)
 

@@ -1,7 +1,9 @@
 package ch.lessnoise.app.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -43,10 +45,28 @@ import ch.lessnoise.app.edition.EditionUi
 import ch.lessnoise.chart.LessNoiseTheme
 
 class MainActivity : ComponentActivity() {
+    // A tap on the «Sehr laut» notification (0.6.3, editions with the map; always null elsewhere):
+    // «Laut! Melden» with the event's time and suggested categories.
+    private var alertPreset by mutableStateOf<ReportPreset?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { LessNoiseTheme { AppRoot() } }
+        // Not again after a rotation: the intent was taken the first time.
+        if (savedInstanceState == null) takeAlert(intent)
+        setContent { LessNoiseTheme { AppRoot(alertPreset) { alertPreset = null } } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeAlert(intent)
+    }
+
+    private fun takeAlert(intent: Intent?) {
+        val preset = LoudAlerts.presetFrom(intent) ?: return
+        alertPreset = preset
+        // Taken: a later recreation must not start the report again.
+        setIntent(Intent(this, MainActivity::class.java))
     }
 }
 
@@ -109,7 +129,7 @@ private val TabHistorySaver = Saver<TabHistory, ArrayList<String>>(
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {}) {
     val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
     // The undo stack of tabs opened (TabHistory): every switch, tapped or opened from a status
     // line or banner, pushes the tab left; back pops it; with nothing left back leaves the app
@@ -122,6 +142,8 @@ fun AppRoot() {
     val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareController() else null
     val open: (Screen) -> Unit = { s -> if (s in screens) history = history.select(s) }
     BackHandler(enabled = history.canGoBack) { history = history.back() }
+    // «Laut! Melden» from the notification runs on «Messen» (a tab switch like any other).
+    LaunchedEffect(alertPreset) { if (alertPreset != null) open(Screen.MEASURE) }
     // The map tab's WebView is created the first time the tab is shown and then kept (paused while
     // another tab is shown) until the activity ends, so that switching tabs does not reload it.
     var mapOpened by remember { mutableStateOf(false) }
@@ -140,7 +162,7 @@ fun AppRoot() {
                     MapTab.Content(m, visible = current == Screen.MAP, onOpen = open)
                 }
                 when (current) {
-                    Screen.MEASURE -> MeasureScreen(m, onOpen = open)
+                    Screen.MEASURE -> MeasureScreen(m, onOpen = open, reportPreset = alertPreset, onReportPresetUsed = onAlertPresetUsed)
                     Screen.MEASUREMENTS -> MeasurementsScreen(m)
                     Screen.MAP -> Unit
                     Screen.SHARE -> ShareScreen(m, onOpen = open)

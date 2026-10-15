@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,15 +56,21 @@ private sealed interface ReportStep {
  * Senden?» → queued and uploaded (UploadModule.uploadSoon). The time is the tap on the button,
  * to the second. [onQueued] is called after «Senden».
  *
+ * Since 0.6.3 the same flow also starts from the «Sehr laut» notification (src/karte/…/alert,
+ * «Unterwegs»), also while a measurement runs: [preset] then carries the event's time (used as the
+ * report time instead of the tap) and the categories to suggest (highlighted, nothing is picked);
+ * [onPresetUsed] is called once the flow has taken it.
+ *
  * Returns the action for the button.
  */
 @Composable
-fun rememberReportAction(onQueued: () -> Unit): () -> Unit {
+fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onPresetUsed: () -> Unit = {}): () -> Unit {
     val context = LocalContext.current
     val c = context.container
     val scope = rememberCoroutineScope()
     var step by remember { mutableStateOf<ReportStep?>(null) }
     var tapMs by remember { mutableStateOf(0L) }
+    var suggested by remember { mutableStateOf<List<ReportCategory>>(emptyList()) }
     var job by remember { mutableStateOf<Job?>(null) }
 
     fun locate(category: ReportCategory) {
@@ -113,8 +120,21 @@ fun rememberReportAction(onQueued: () -> Unit): () -> Unit {
             title = { Text("Was war laut?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ReportCategory.entries.forEach { cat ->
-                        Button(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                    if (suggested.isEmpty()) {
+                        ReportCategory.entries.forEach { cat ->
+                            Button(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                        }
+                    } else {
+                        // From the «Sehr laut» notification: the categories that fit the detected
+                        // sound first and filled, the others outlined; the person still chooses.
+                        Text("Erkannt um ${Fmt.hm(tapMs)}", style = MaterialTheme.typography.bodySmall)
+                        reportCategoryOrder(suggested).forEach { cat ->
+                            if (cat in suggested) {
+                                Button(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                            } else {
+                                OutlinedButton(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                            }
+                        }
                     }
                 }
             },
@@ -169,12 +189,32 @@ fun rememberReportAction(onQueued: () -> Unit): () -> Unit {
         )
     }
 
-    return {
-        tapMs = System.currentTimeMillis()
+    fun begin(timeMs: Long, suggest: List<ReportCategory>) {
+        tapMs = timeMs
+        suggested = suggest
         // Skipped when sharing is already on (the person said «Ja, auf die Karte» or switched it on).
         step = if (c.upload.store.state.value.enabled) ReportStep.Category else ReportStep.Consent
     }
+
+    LaunchedEffect(preset) {
+        if (preset != null) {
+            begin(preset.epochMs, preset.suggested)
+            onPresetUsed()
+        }
+    }
+
+    return { begin(System.currentTimeMillis(), emptyList()) }
 }
+
+/**
+ * A report started from the «Sehr laut» notification (0.6.3): [epochMs] the detected event's time
+ * (the report's time), [suggested] the categories that fit the detected sound (highlighted).
+ */
+data class ReportPreset(val epochMs: Long, val suggested: List<ReportCategory>)
+
+/** The category buttons with [suggested] first, in their own order; the rest as always. */
+fun reportCategoryOrder(suggested: List<ReportCategory>): List<ReportCategory> =
+    suggested.filter { it in ReportCategory.entries } + ReportCategory.entries.filter { it !in suggested }
 
 /**
  * The short consent before the first report while «Teilen» is off: what is sent, never audio, that

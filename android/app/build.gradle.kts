@@ -157,6 +157,11 @@ android {
         }
         named("testLaborKarte") {
             kotlin.srcDir("src/testLabor/kotlin")
+            kotlin.srcDir("src/testKarte/kotlin")
+        }
+        // JVM tests of src/karte (0.6.3: the «Sehr laut» alert), run for both editions with the map.
+        named("testPublic") {
+            kotlin.srcDir("src/testKarte/kotlin")
         }
     }
 

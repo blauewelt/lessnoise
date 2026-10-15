@@ -44,7 +44,12 @@ import ch.lessnoise.app.service.LiveState
 import ch.lessnoise.app.service.MeasurementService
 
 @Composable
-fun MeasureScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) {
+fun MeasureScreen(
+    modifier: Modifier = Modifier,
+    onOpen: (Screen) -> Unit = {},
+    reportPreset: ReportPreset? = null,
+    onReportPresetUsed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val c = context.container
     val live by c.live.collectAsStateWithLifecycle()
@@ -61,7 +66,11 @@ fun MeasureScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) 
         if (granted) startMeasurement()
     }
     val report = if (BuildConfig.UPLOAD_AVAILABLE) {
-        rememberReportAction { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } }
+        rememberReportAction(
+            onQueued = { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } },
+            // From the «Sehr laut» notification (0.6.3, editions with the map): also while measuring.
+            preset = reportPreset, onPresetUsed = onReportPresetUsed,
+        )
     } else null
     val status = if (share != null) rememberShareStatus() else null
 
@@ -75,6 +84,8 @@ fun MeasureScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) 
         eventMarker = { EditionUi.EventMarker(it) },
         shareStatus = status,
         onShareStatus = { a -> handleShareAction(a, share, onOpen) },
+        // «Unterwegs» (0.6.3): only in the editions with the map (src/karte); nothing elsewhere.
+        unterwegs = { LoudAlerts.Switch() },
     )
 }
 
@@ -141,6 +152,7 @@ fun MeasureContent(
     eventMarker: @Composable (Long) -> Unit = {},
     shareStatus: ShareStatus? = null,
     onShareStatus: (ShareAction) -> Unit = {},
+    unterwegs: @Composable () -> Unit = {},
 ) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -205,6 +217,7 @@ fun MeasureContent(
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
+                    unterwegs()
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
                     shareStatus?.let { ShareStatusLine(it, onShareStatus) }
                 } else {
@@ -213,6 +226,7 @@ fun MeasureContent(
                         enabled = !live.starting && !calibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) { Text(if (live.starting) "Startet …" else "Starten", fontSize = 18.sp) }
+                    unterwegs()
                     // «Laut! Melden»: Karten editions only, while no measurement runs.
                     if (onReport != null && !live.starting) {
                         OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }

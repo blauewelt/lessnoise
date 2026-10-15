@@ -31,6 +31,9 @@ class LessNoiseApp : Application() {
         // Started off the main thread (the token is read through the Android Keystore).
         if (BuildConfig.UPLOAD_AVAILABLE) {
             container.appScope.launch { container.upload.start(container.appScope, container.live, container.recalibrator) }
+            // «Unterwegs» (0.6.3): the «Sehr laut» notification; only the editions with the map
+            // have it (src/karte), the stand-in in src/nomap does nothing.
+            ch.lessnoise.app.ui.LoudAlerts.start(this, container)
         } else {
             // An edition without upload installed over one with sharing on (Offline-Version over
             // Online-Version, Labor over the Labor edition with the map): switch it off, cancel the jobs.

@@ -498,6 +498,27 @@ recorded before). The export is per minute and per event; it has no night or mea
 aggregation (v0.6.0 changed no CSV column). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
+## «Unterwegs» and the «Sehr laut» notification (0.6.3)
+
+Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/alert/`, the facade
+`ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`).
+A switch **«Unterwegs»** under «Starten» (and under «Stoppen» while measuring), off by default,
+remembered (SharedPreferences `loud_alert`). Turning it on asks for `POST_NOTIFICATIONS` on Android
+13+ (already declared for the measurement's notification). While it is on and a measurement runs,
+`LoudAlertWatcher` (process scope) watches `LiveState.lastEvent`: an event that is not wind, with
+LAFmax ≥ 75 dB(A) (`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's
+«Sehr laut»; the level as shown — calibrated if the phone is, else with the default offset) and
+category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» / «Antippen zum
+Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default sound and
+vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. The tap opens
+`MainActivity` with the event's start time and category (`LoudAlertIntent`); «Laut! Melden» opens on
+«Messen» — also during a measurement, while the button stays hidden then — with that time as the
+report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
+`road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
+precise fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
+nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
+(every flavour), renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
+
 ## The tab «Karte» (0.6.3)
 
 The «Online-Version» and the internal Labor build with the map have a fifth tab, **«Karte»**
@@ -1024,7 +1045,9 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `ACCESS_BACKGROUND_LOCATION`); the dex contains no Labor classes (PRIVACY.md → «Labor-Build», on both APKs);
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/ui/MapScreen*` and no class of
    `ch/lessnoise/` that refers to `Landroid/webkit/WebView;` (`dexdump -d`; the only reference in it
-   is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them.
+   is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
+   (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
+   and no string `loud_alert`; the public one has them.
 3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
    `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
