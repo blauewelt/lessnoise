@@ -12,6 +12,10 @@ public struct UploadRequest: Equatable {
     /** The gzip-compressed body that goes on the wire (nil without body). */
     public let body: [UInt8]?
 
+    public init(method: String, url: String, path: String, headers: [(String, String)], json: String?, body: [UInt8]?) {
+        self.method = method; self.url = url; self.path = path; self.headers = headers; self.json = json; self.body = body
+    }
+
     public static func == (a: UploadRequest, b: UploadRequest) -> Bool {
         a.method == b.method && a.url == b.url && a.path == b.path && a.json == b.json && a.body == b.body &&
             a.headers.map { $0.0 + ":" + $0.1 } == b.headers.map { $0.0 + ":" + $0.1 }

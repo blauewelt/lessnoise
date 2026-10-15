@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "LessNoiseKit",
     platforms: [.iOS(.v16), .macOS(.v13)],
-    products: [.library(name: "LessNoiseKit", targets: ["LessNoiseKit"])],
+    // Dynamic: the iOS app and its test bundle then share ONE copy of the types at run time.
+    products: [.library(name: "LessNoiseKit", type: .dynamic, targets: ["LessNoiseKit"])],
     dependencies: [
         .package(path: "../LessNoiseCore"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),

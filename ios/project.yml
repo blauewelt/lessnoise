@@ -39,7 +39,10 @@ targets:
       - path: ../android/app/src/main/assets/yamnet_labels.txt
         buildPhase: resources
     dependencies:
+      # Both products are dynamic frameworks (embedded in the app): the app uses the core's types
+      # directly, and the test bundle must see the same single copy of them.
       - package: LessNoiseKit
+      - package: LessNoiseCore
       - sdk: WebKit.framework
       - sdk: BackgroundTasks.framework
     entitlements:
@@ -88,6 +91,7 @@ targets:
     dependencies:
       - target: WenigerLaerm
       - package: LessNoiseKit
+      - package: LessNoiseCore
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

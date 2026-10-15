@@ -12,8 +12,15 @@ import UIKit
  * §9) the app runs without one: categories stay empty («–»), exactly like Android with the
  * classifier off; [SoundClassifier] is the protocol a TFLite or Core ML implementation plugs into.
  */
+// With TensorFlowLiteSwift linked and yamnet.tflite in the bundle, Platform/YamnetClassifier.swift
+// compiles and is used (not verified: the module is not available in this build).
 enum ClassifierFactory {
-    static func make(mapper: CategoryMapper?) -> SoundClassifier? { nil }
+    static func make(mapper: CategoryMapper?) -> SoundClassifier? {
+        #if canImport(TensorFlowLite)
+        if let m = mapper { return Yamnet.make(m) }
+        #endif
+        return nil
+    }
 }
 
 /** The sheets of the app (one at a time). */

@@ -11,7 +11,8 @@ let package = Package(
     name: "LessNoiseCore",
     platforms: [.iOS(.v16), .macOS(.v13)],
     products: [
-        .library(name: "LessNoiseCore", targets: ["LessNoiseCore"]),
+        // Dynamic: the iOS app and its test bundle then share ONE copy of the types at run time.
+        .library(name: "LessNoiseCore", type: .dynamic, targets: ["LessNoiseCore"]),
     ],
     dependencies: [
         // Linux only (CryptoKit is not available there); never linked into the iOS app.
