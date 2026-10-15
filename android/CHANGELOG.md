@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.6.3 — not published (versionCode 16)
+## 0.6.3 — 2026-10-15 (published) (versionCode 16)
+
+In short: one question «Auf die Lärmkarte?» at the first «Starten» replaces the old sharing gate;
+measuring starts at once and the location is taken in parallel; shared values reach the map within
+about a minute (the 30-second map server); the Online-Version gets a tab «Karte» with the website's
+map and an optional «Unterwegs» notification for very loud traffic. The Offline-Version still has
+no internet and no location permission and contains no map, WebView or notification code of ours.
 
 Built on 0.6.2. Sharing made simple and the map in the app («Online-Version» only; the Offline-Version
 and the Labor build behave exactly as before).

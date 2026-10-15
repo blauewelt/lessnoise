@@ -129,17 +129,17 @@ What the project counts, and who counts it — totals over the whole project, al
   under «Messungen» with its own chart and a 24-hour profile. In «Weniger Lärm · Karte» every shared
   measurement gets its own 100 m cell from one location fix at Start, and «Laut! Melden» reports a
   loud moment with its exact place. Server host `api.lessnoise.ch`.
-- **Phone app v0.6.1 (published 2026-10-13, the current version):** «weniger Text, weniger
+- **Phone app v0.6.1 (published 2026-10-13):** «weniger Text, weniger
   Optionen» — tabs Messen · Messungen · Einstellungen (plus «Teilen» in «Weniger Lärm · Karte»);
   Kalibrieren and the two remaining detector settings under Einstellungen › Erweitert; ten
   options removed and fixed at their former defaults (see [android/CHANGELOG.md](android/CHANGELOG.md));
   about half the words of 0.6.0. Nothing about what is stored or sent changes.
-- **Phone app v0.6.2 (2026-10-14):** the place of a shared measurement is moved on the phone by a
+- **Phone app v0.6.2 (published 2026-10-14):** the place of a shared measurement is moved on the phone by a
   Gaussian offset that is the same every time for the same place (σ 50 m by default, setting
   «Standort verschieben»: 25/50/100/200 m), instead of being snapped to the 100 m hectare; server
   schema v4 stores the shifted point and shows it in the 100 m square that contains it. The two
   editions are now called «Offline-Version» and «Online-Version» (the app is still «Weniger Lärm»).
-- **Phone app v0.6.3 (not published yet):** sharing made simple — one question «Auf die
+- **Phone app v0.6.3 (published 2026-10-15, the current version):** sharing made simple — one question «Auf die
   Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
   the fix arrives (all its minutes are sent); the live map: loud moments about 30 s after they end,
   minutes every 2 minutes, the map page refreshes every 30 s; over mobile data by default; one status line on «Messen» and «Teilen»; the new tab «Karte» shows the website's

@@ -254,7 +254,7 @@ so a better model can be swapped in without touching the measurement code.
 | Gradle flavour | `public` | `offline` (default variant) | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"karte"` | `"offline"` | `"labor"` | `"labor-karte"` |
 | App id (since 0.6.0; before `ch.stadtlaerm.*`) | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
-| Version name | `0.6.2` | `0.6.2` | `0.6.2-labor` | `0.6.2-labor-karte` |
+| Version name | `0.6.3` | `0.6.3` | `0.6.3-labor` | `0.6.3-labor-karte` |
 | Launcher label | «Weniger Lärm» | «Weniger Lärm» | «Weniger Lärm Labor» | «Weniger Lärm Labor» |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
@@ -759,7 +759,15 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.2 (versionCode 15, 2026-10-14) = v0.6.1 plus three changes: the place of a shared measurement
+v0.6.3 (versionCode 16) is **published (2026-10-15)**, the current version: one question «Auf die
+Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
+the fix arrives; the live map (loud moments about 30 s after they end, minutes every 2 minutes,
+needs the 30-second map server); the tab «Karte» and the «Unterwegs» notification in the
+Online-Version only (see [CHANGELOG.md](CHANGELOG.md)). Verified on the JVM (unit tests of all
+flavours, dsp, chart; server pytest; website Playwright) and on the signed APKs (`apksigner`,
+`aapt2`, `dexdump`); not run on a device.
+
+v0.6.2 (versionCode 15, published 2026-10-14) = v0.6.1 plus three changes: the place of a shared measurement
 is moved on the phone by a deterministic Gaussian offset (location noise, σ = «Standort verschieben»
 25 / 50 / 100 / 200 m, database v6 → v7, server schema v4 with `point`; see
 [«Location per measurement»](#messwerte-teilen-opt-in-upload)); the two published editions are
