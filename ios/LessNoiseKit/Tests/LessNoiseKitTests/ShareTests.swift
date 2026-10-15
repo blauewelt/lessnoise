@@ -125,15 +125,16 @@ final class UploadTests: XCTestCase {
         var noise = Noise()
         feed(rig, seconds: 150, noise: &noise)
         sv.session.drain()
-        // The live loop runs on the fake clock: the first full run 30 s after the point.
-        XCTAssertTrue(eventually(10) { !rig.server.minutes.isEmpty })
+        // The live loop runs on the fake clock: full runs 30 s after the point, then every 2 min.
+        // The clock moves on (10 s per 10 ms) until the next full run has sent the minutes.
+        XCTAssertTrue(eventually(15) { rig.clock.advance(10_000); Thread.sleep(forTimeInterval: 0.01); return !rig.server.minutes.isEmpty })
         sv.session.stop()
         let paths = rig.server.requests.map { "\($0.method) \($0.path)" }
         XCTAssertEqual(paths.first, "POST /v1/devices")
         XCTAssertTrue(paths.contains { $0.hasSuffix("/site") })
         XCTAssertTrue(paths.contains { $0.hasSuffix("/minutes") })
         XCTAssertEqual(Set(rig.server.hosts), ["api.lessnoise.ch"])
-        let m = rig.server.minutes.values.first!
+        let m = try XCTUnwrap(rig.server.minutes.values.first)
         XCTAssertEqual(m.member("audio_source")?.stringValue, "IOS")
         XCTAssertEqual(m.member("point")?.member("sigma_m")?.intValue, 50)
         XCTAssertTrue(sv.uploadStore.state.registered)

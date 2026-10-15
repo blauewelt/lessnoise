@@ -124,9 +124,10 @@ public final class PersistentUploadStore: UploadStore {
 
 /**
  * The «Laut! Melden» queue (ReportState.kt). Pending reports hold exact coordinates until the
- * server acknowledged them; they are written to the [SecretStore] (Keychain) rather than to
- * UserDefaults, so that they are never part of a backup. Sent ones (time, category, cell, no
- * coordinates) go to the [KeyValueStore].
+ * server acknowledged them; they go to the [SecretStore] under «reports.pending» (the iOS app
+ * routes that key to a protected file in Application Support: excluded from backup, deleted with
+ * the app — not UserDefaults, which is backed up, and not the Keychain, which survives deleting
+ * the app). Sent ones (time, category, cell, no coordinates) go to the [KeyValueStore].
  */
 public final class PersistentReportStore: ReportStore {
     static let PENDING = "reports.pending"

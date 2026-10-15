@@ -49,12 +49,15 @@ jobs:
           exit $status
 
       - name: XcodeGen
+        # Runs also when a package test failed, so one round shows everything.
+        if: success() || failure()
         working-directory: ios
         run: |
           brew install xcodegen
           xcodegen --spec project.yml
 
       - name: Pick an iPhone simulator
+        if: success() || failure()
         id: sim
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c '
@@ -73,6 +76,8 @@ jobs:
           xcrun simctl list devices available | grep "$UDID"
 
       - name: Build for testing (iOS Simulator, no signing)
+        id: build
+        if: success() || failure()
         working-directory: ios
         run: |
           set +e
@@ -85,6 +90,7 @@ jobs:
           exit $status
 
       - name: Test (iOS Simulator)
+        if: (success() || failure()) && steps.build.outcome == 'success'
         working-directory: ios
         run: |
           set +e
