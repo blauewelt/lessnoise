@@ -252,4 +252,10 @@ tasks.withType<Test>().configureEach {
         "stadtlaerm.generatedDb",
         layout.buildDirectory.dir("generated/ksp/$variant/kotlin/ch/lessnoise/app/data").get().asFile.absolutePath,
     )
+    // Golden fixtures for the iOS port (src/testPublic/…/golden): build/ios-golden/ by default, or
+    // this directory (ios/LessNoiseCore/regenerate-fixtures.sh sets it).
+    System.getenv("LESSNOISE_GOLDEN_DIR")?.let {
+        systemProperty("lessnoise.goldenDir", it)
+        outputs.upToDateWhen { false }
+    }
 }

@@ -1,0 +1,84 @@
+{
+ "about": "Every German text of the pure app logic the iOS core carries (single source: the Kotlin constants)",
+ "SHARE_INTRO": "Deine Messwerte erscheinen auf der Lärmkarte – als Wert pro 100-m-Quadrat.",
+ "LOCATION_NEVER_SENT": "Dein genauer Standort (ausser bei einer Meldung); nie im Hintergrund gelesen.",
+ "SHARE_SENT_BULLETS": ["Lärmwerte pro Minute und Lärmspitzen, mit Geräuschart (z. B. «Töff & Poser»).","Ein zufällig verschobener Punkt statt deines Standorts, und wo das Telefon liegt.","Meldungen: Zeit, genauer Standort, Art des Lärms.","Telefonmodell, Audioquelle, Kalibrierung und eine zufällige Kennung."],
+ "SHARE_WHERE_BULLETS": ["An unseren Server in der Schweiz, an keinen anderen.","Öffentlich sind nur Werte pro 100-m-Quadrat und Meldungen, nie die Kennung, der Punkt oder die Notiz.","Misst sonst niemand in der Nähe, sind es deine Werte, in einem Quadrat nahe bei dir.","Schaltest du Teilen während einer Messung ein, kommt diese ganze Messung auf die Karte, frühere nie."],
+ "SHARE_DELETE_BULLETS": ["Ausschalten stoppt das Senden; «Vom Server löschen» entfernt alles, auch Meldungen.","Nach 60 Tagen ohne neue Werte löscht der Server alles."],
+ "SHARE_WHEN_BULLETS": ["Während einer Messung jede Lärmspitze nach etwa 30 Sekunden und die Minutenwerte alle 2 Minuten, nach dem Stoppen sofort, sonst stündlich.","Über WLAN oder mobile Daten, höchstens etwa 3 MB pro Tag."],
+ "CONSENT_TITLE": "Auf die Lärmkarte?",
+ "CONSENT_YES": "Ja, auf die Karte",
+ "CONSENT_NO": "Nur auf dem Telefon",
+ "CONSENT_MORE": "Mehr dazu",
+ "STATUS_OFF": "Nicht auf der Karte – tippen zum Teilen",
+ "STATUS_LOCATING": "Standort wird bestimmt …",
+ "STATUS_NO_POINT": "Kein Standort – tippen",
+ "STATUS_FIRST_VALUES": "Wird geteilt – erste Werte in etwa einer Minute",
+ "STATUS_ON_IDLE": "Teilen ist an – deine nächste Messung kommt auf die Karte",
+ "STATUS_NO_INTERNET": "Kein Internet – wird nachgeholt",
+ "STATUS_SERVER_BUSY": "Nicht gesendet: Server nicht erreichbar – wird nachgeholt",
+ "STATUS_REJECTED": "Nicht gesendet: vom Server abgelehnt",
+ "STATUS_AUTH": "Unterbrochen – tippen für «Neu starten»",
+ "BANNER_NOT_SHARING": "Du teilst nicht – tippen zum Teilen",
+ "BANNER_NO_POINT": "Noch kein Standort – Werte erscheinen danach",
+ "BANNER_FIRST_VALUES": "Erste Werte werden gesendet – auf der Karte in etwa einer Minute",
+ "SIGMA_LABEL": "Standort verschieben",
+ "SIGMA_EXPLANATION": "Mehr verbirgt deine genaue Adresse besser, macht die Karte aber ungenauer; gilt ab der nächsten Messung.",
+ "statusSent": "Auf der Karte · zuletzt gesendet 14:05",
+ "bannerSent": "Gesendet 14:05 – die Karte aktualisiert sich laufend",
+ "per_sigma": [
+  {
+   "sigma": 25,
+   "consentLines": ["Gesendet: Lärmwerte pro Minute und Lärmspitzen, mit einem um etwa 25 m verschobenen Punkt statt deines Standorts – an unseren Server in der Schweiz.","Nie gesendet: Audio, Name, dein genauer Standort (ausser bei «Laut! Melden»).","Ausschalten und löschen jederzeit unter «Teilen»; nach 60 Tagen ohne neue Werte löscht der Server alles."],
+   "shareLocationBullets": ["Nach dem Starten liest das Telefon einmal den Standort, solange die App offen ist, und verschiebt ihn sofort zufällig um etwa 25 m; nur dieser Punkt wird gespeichert und gesendet.","Am selben Ort immer gleich verschoben – auch viele Messungen verraten den genauen Ort nicht.","Meist (86 von 100 Mal) liegt dein echter Ort trotzdem näher als 50 m beim gesendeten Punkt.","Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht."],
+   "sigmaChoice": "25 m",
+   "pastedText": "Gefunden; gesendet wird ein um etwa 25 m verschobener Punkt."
+  },
+  {
+   "sigma": 50,
+   "consentLines": ["Gesendet: Lärmwerte pro Minute und Lärmspitzen, mit einem um etwa 50 m verschobenen Punkt statt deines Standorts – an unseren Server in der Schweiz.","Nie gesendet: Audio, Name, dein genauer Standort (ausser bei «Laut! Melden»).","Ausschalten und löschen jederzeit unter «Teilen»; nach 60 Tagen ohne neue Werte löscht der Server alles."],
+   "shareLocationBullets": ["Nach dem Starten liest das Telefon einmal den Standort, solange die App offen ist, und verschiebt ihn sofort zufällig um etwa 50 m; nur dieser Punkt wird gespeichert und gesendet.","Am selben Ort immer gleich verschoben – auch viele Messungen verraten den genauen Ort nicht.","Meist (86 von 100 Mal) liegt dein echter Ort trotzdem näher als 100 m beim gesendeten Punkt.","Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht."],
+   "sigmaChoice": "50 m",
+   "pastedText": "Gefunden; gesendet wird ein um etwa 50 m verschobener Punkt."
+  },
+  {
+   "sigma": 100,
+   "consentLines": ["Gesendet: Lärmwerte pro Minute und Lärmspitzen, mit einem um etwa 100 m verschobenen Punkt statt deines Standorts – an unseren Server in der Schweiz.","Nie gesendet: Audio, Name, dein genauer Standort (ausser bei «Laut! Melden»).","Ausschalten und löschen jederzeit unter «Teilen»; nach 60 Tagen ohne neue Werte löscht der Server alles."],
+   "shareLocationBullets": ["Nach dem Starten liest das Telefon einmal den Standort, solange die App offen ist, und verschiebt ihn sofort zufällig um etwa 100 m; nur dieser Punkt wird gespeichert und gesendet.","Am selben Ort immer gleich verschoben – auch viele Messungen verraten den genauen Ort nicht.","Meist (86 von 100 Mal) liegt dein echter Ort trotzdem näher als 200 m beim gesendeten Punkt.","Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht."],
+   "sigmaChoice": "100 m",
+   "pastedText": "Gefunden; gesendet wird ein um etwa 100 m verschobener Punkt."
+  },
+  {
+   "sigma": 200,
+   "consentLines": ["Gesendet: Lärmwerte pro Minute und Lärmspitzen, mit einem um etwa 200 m verschobenen Punkt statt deines Standorts – an unseren Server in der Schweiz.","Nie gesendet: Audio, Name, dein genauer Standort (ausser bei «Laut! Melden»).","Ausschalten und löschen jederzeit unter «Teilen»; nach 60 Tagen ohne neue Werte löscht der Server alles."],
+   "shareLocationBullets": ["Nach dem Starten liest das Telefon einmal den Standort, solange die App offen ist, und verschiebt ihn sofort zufällig um etwa 200 m; nur dieser Punkt wird gespeichert und gesendet.","Am selben Ort immer gleich verschoben – auch viele Messungen verraten den genauen Ort nicht.","Meist (86 von 100 Mal) liegt dein echter Ort trotzdem näher als 400 m beim gesendeten Punkt.","Bei einer Meldung der genaue Standort; danach wird er auf dem Telefon gelöscht."],
+   "sigmaChoice": "200 m",
+   "pastedText": "Gefunden; gesendet wird ein um etwa 200 m verschobener Punkt."
+  }
+ ],
+ "AUTH_FAILED_TEXT": "Nach 60 Tagen ohne Werte hat der Server deine Daten gelöscht. Tippe auf «Neu starten», um wieder zu teilen.",
+ "RETRY_TEXT": "Senden klappt gerade nicht. Neuer Versuch folgt.",
+ "NO_CONNECTION_TEXT": "Keine Verbindung zum Server. Neuer Versuch folgt.",
+ "PROGRESS_TEXT": "Standort wird bestimmt …",
+ "LOUD_TEXT": "Antippen zum Melden",
+ "LOUD_CHANNEL_NAME": "Sehr laut",
+ "screens": [
+  ["MEASURE","Messen"],
+  ["MEASUREMENTS","Messungen"],
+  ["MAP","Karte"],
+  ["SHARE","Teilen"],
+  ["SETTINGS","Einstellungen"]
+ ],
+ "report_categories": [
+  ["motorrad","Töff"],
+  ["auto","Auto"],
+  ["lastwagen","Lastwagen"],
+  ["poser","Poser"],
+  ["andere","anderes"]
+ ],
+ "shapes": ["Buckel","zackig","Impuls","lang","other","–"],
+ "audio_sources": ["unbearbeitet","Sprachmodus","x"],
+ "links": ["https://wenigerlaerm.ch/anleitung.html#messen","https://wenigerlaerm.ch/anleitung.html#kalibrieren","https://wenigerlaerm.ch/anleitung.html#teilen","https://wenigerlaerm.ch/anleitung.html#daten","https://wenigerlaerm.ch/datenschutz.html","https://wenigerlaerm.ch/karte.html"],
+ "map_hosts": ["api.lessnoise.ch","api.stadtlaerm.ch","wenigerlaerm.ch","wmts.geo.admin.ch"],
+ "signed_example": "−3,3"
+}

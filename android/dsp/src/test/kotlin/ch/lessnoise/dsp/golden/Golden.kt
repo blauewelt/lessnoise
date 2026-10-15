@@ -3,7 +3,6 @@ package ch.lessnoise.dsp.golden
 import ch.lessnoise.dsp.EventFeatures
 import ch.lessnoise.dsp.MinuteRecord
 import ch.lessnoise.dsp.NoiseEvent
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -29,13 +28,11 @@ import java.security.MessageDigest
  * `Double(String)` reads back bit-exactly); NaN and ±∞ as the strings "NaN", "Infinity", "-Infinity".
  */
 object Golden {
-    private val json = Json { prettyPrint = true; prettyPrintIndent = " " }
-
     val dir: File = File(System.getProperty("lessnoise.goldenDir") ?: "build/ios-golden").also { it.mkdirs() }
 
     fun write(name: String, root: JsonElement) {
         val f = File(dir, name)
-        f.writeText(json.encodeToString(JsonElement.serializer(), root) + "\n")
+        f.writeText(goldenFormat(root) + "\n")
     }
 
     fun d(v: Double): JsonPrimitive = when {
@@ -91,6 +88,23 @@ object Golden {
         put("recalibrated_from_id", str(e.recalibratedFromId)); put("recalibration_offset_db", d(e.recalibrationOffsetDb))
         put("features", features(e.features))
     }
+}
+
+/**
+ * The fixtures' layout: objects one key per line; arrays of numbers/strings on one line; arrays
+ * of rows (arrays) one row per line; arrays of objects one object per element. Compact enough
+ * for the repository, readable in a diff.
+ */
+fun goldenFormat(e: JsonElement, indent: String = ""): String = when (e) {
+    is JsonObject -> if (e.isEmpty()) "{}" else e.entries.joinToString(",\n", "{\n", "\n$indent}") { (k, v) ->
+        "$indent " + JsonPrimitive(k).toString() + ": " + goldenFormat(v, "$indent ")
+    }
+    is JsonArray -> when {
+        e.isEmpty() -> "[]"
+        e.all { it is JsonPrimitive || it is JsonNull } -> e.toString()
+        else -> e.joinToString(",\n", "[\n", "\n$indent]") { v -> "$indent " + if (v is JsonArray) v.toString() else goldenFormat(v, "$indent ") }
+    }
+    else -> e.toString()
 }
 
 /**

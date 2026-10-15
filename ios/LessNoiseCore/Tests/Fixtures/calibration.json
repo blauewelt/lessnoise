@@ -30,21 +30,14 @@
    "complete": true,
    "raw_laeq_db": -13.467878124901201,
    "raw_lzeq_db": -13.467877705267433,
-   "second_levels": [
-    -13.46789786871248,
-    -13.467859391264065,
-    -13.467877114812561
-   ],
+   "second_levels": [-13.46789786871248,-13.467859391264065,-13.467877114812561],
    "std_dev_db": 1.9258602275654138E-5,
    "measured_s": 3.0,
    "tone_hz": 999.9093498181818,
    "tonality": 0.9999877256329425,
    "clipped_fraction": 0.0,
    "reference_warnings_94": [],
-   "reference_warnings_45": [
-    "TOO_QUIET",
-    "IMPLAUSIBLE_OFFSET"
-   ],
+   "reference_warnings_45": ["TOO_QUIET","IMPLAUSIBLE_OFFSET"],
    "calibrator_warnings_94": [],
    "reference_offset_94": 107.4678781249012
   },
@@ -79,30 +72,15 @@
    "complete": true,
    "raw_laeq_db": -27.870509194156007,
    "raw_lzeq_db": -24.651359843004812,
-   "second_levels": [
-    -37.15429801989277,
-    -24.16750386644303,
-    -24.256214008808804,
-    -37.137389582149005,
-    -37.10012257481007
-   ],
+   "second_levels": [-37.15429801989277,-24.16750386644303,-24.256214008808804,-37.137389582149005,-37.10012257481007],
    "std_dev_db": 7.075984405974421,
    "measured_s": 5.0,
    "tone_hz": null,
    "tonality": null,
    "clipped_fraction": 0.0,
-   "reference_warnings_94": [
-    "UNSTEADY"
-   ],
-   "reference_warnings_45": [
-    "UNSTEADY",
-    "TOO_QUIET",
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "calibrator_warnings_94": [
-    "FREQUENCY_OFF",
-    "NOT_TONAL"
-   ],
+   "reference_warnings_94": ["UNSTEADY"],
+   "reference_warnings_45": ["UNSTEADY","TOO_QUIET","IMPLAUSIBLE_OFFSET"],
+   "calibrator_warnings_94": ["FREQUENCY_OFF","NOT_TONAL"],
    "reference_offset_94": 121.870509194156
   },
   {
@@ -127,26 +105,15 @@
    "complete": true,
    "raw_laeq_db": 0.02138315118409383,
    "raw_lzeq_db": 0.0,
-   "second_levels": [
-    0.02138315118603508,
-    0.021383151186033164
-   ],
+   "second_levels": [0.02138315118603508,0.021383151186033164],
    "std_dev_db": 1.354204745614756E-15,
    "measured_s": 2.0,
    "tone_hz": 999.9093509495491,
    "tonality": 0.8117180879644262,
    "clipped_fraction": 1.0,
-   "reference_warnings_94": [
-    "CLIPPING"
-   ],
-   "reference_warnings_45": [
-    "CLIPPING",
-    "TOO_QUIET",
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "calibrator_warnings_94": [
-    "CLIPPING"
-   ],
+   "reference_warnings_94": ["CLIPPING"],
+   "reference_warnings_45": ["CLIPPING","TOO_QUIET","IMPLAUSIBLE_OFFSET"],
+   "calibrator_warnings_94": ["CLIPPING"],
    "reference_offset_94": 93.9786168488159
   },
   {
@@ -177,18 +144,9 @@
    "tone_hz": null,
    "tonality": null,
    "clipped_fraction": 0.0,
-   "reference_warnings_94": [
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "reference_warnings_45": [
-    "TOO_QUIET",
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "calibrator_warnings_94": [
-    "FREQUENCY_OFF",
-    "NOT_TONAL",
-    "IMPLAUSIBLE_OFFSET"
-   ],
+   "reference_warnings_94": ["IMPLAUSIBLE_OFFSET"],
+   "reference_warnings_45": ["TOO_QUIET","IMPLAUSIBLE_OFFSET"],
+   "calibrator_warnings_94": ["FREQUENCY_OFF","NOT_TONAL","IMPLAUSIBLE_OFFSET"],
    "reference_offset_94": 137.0869204490083
   },
   {
@@ -219,18 +177,9 @@
    "tone_hz": null,
    "tonality": null,
    "clipped_fraction": 0.0,
-   "reference_warnings_94": [
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "reference_warnings_45": [
-    "TOO_QUIET",
-    "IMPLAUSIBLE_OFFSET"
-   ],
-   "calibrator_warnings_94": [
-    "FREQUENCY_OFF",
-    "NOT_TONAL",
-    "IMPLAUSIBLE_OFFSET"
-   ],
+   "reference_warnings_94": ["IMPLAUSIBLE_OFFSET"],
+   "reference_warnings_45": ["TOO_QUIET","IMPLAUSIBLE_OFFSET"],
+   "calibrator_warnings_94": ["FREQUENCY_OFF","NOT_TONAL","IMPLAUSIBLE_OFFSET"],
    "reference_offset_94": 137.19564913835552
   }
  ],
@@ -312,100 +261,18 @@
   }
  ],
  "fft_in": [
-  [
-   0.0,
-   0.894217687237691,
-   1.4854497299884601,
-   1.6132093666488738,
-   1.334988150155905,
-   0.8992167723103801,
-   0.6284242275864123,
-   0.7675473873756674,
-   1.3687333621276783,
-   2.2668139004843497,
-   3.156986598718789,
-   3.7381682338770004,
-   3.854598908088281,
-   3.569098362349352,
-   3.133520870748073,
-   2.87030424002833
-  ],
-  [
-   1.0,
-   0.955336489125606,
-   0.8253356149096783,
-   0.6216099682706645,
-   0.3623577544766736,
-   0.0707372016677029,
-   -0.2272020946930869,
-   -0.5048461045998576,
-   -0.7373937155412454,
-   -0.904072142017061,
-   -0.9899924966004454,
-   -0.9874797699088649,
-   -0.8967584163341472,
-   -0.7259323042001402,
-   -0.4902608213406994,
-   -0.2107957994307797
-  ]
+  [0.0,0.894217687237691,1.4854497299884601,1.6132093666488738,1.334988150155905,0.8992167723103801,0.6284242275864123,0.7675473873756674,1.3687333621276783,2.2668139004843497,3.156986598718789,3.7381682338770004,3.854598908088281,3.569098362349352,3.133520870748073,2.87030424002833],
+  [1.0,0.955336489125606,0.8253356149096783,0.6216099682706645,0.3623577544766736,0.0707372016677029,-0.2272020946930869,-0.5048461045998576,-0.7373937155412454,-0.904072142017061,-0.9899924966004454,-0.9874797699088649,-0.8967584163341472,-0.7259323042001402,-0.4902608213406994,-0.2107957994307797]
  ],
  "fft_out": [
-  [
-   31.581277797725242,
-   5.654221795819651,
-   -4.6572140651344665,
-   -1.4460881320554657,
-   -1.3684800564249253,
-   -1.4190935033352627,
-   -1.4907563412065041,
-   -1.5695201364454867,
-   -1.6558741028980464,
-   -1.7553417860235137,
-   -1.8788812584125103,
-   -2.049159617490575,
-   -2.323641956914816,
-   -2.918255271728305,
-   -7.256563119712551,
-   -5.446630245762469
-  ],
-  [
-   -2.839356636216002,
-   16.368201958978833,
-   -0.11852501641416024,
-   2.5229048229131115,
-   1.9702079258739327,
-   1.5084453156497977,
-   1.138025360325592,
-   0.8214558887628058,
-   0.5315282859694574,
-   0.2476991620771365,
-   -0.04844355169891057,
-   -0.37592756664485694,
-   -0.7495570852222639,
-   -1.0963285428112817,
-   2.2169709930523913,
-   -6.097301314595583
-  ]
+  [31.581277797725242,5.654221795819651,-4.6572140651344665,-1.4460881320554657,-1.3684800564249253,-1.4190935033352627,-1.4907563412065041,-1.5695201364454867,-1.6558741028980464,-1.7553417860235137,-1.8788812584125103,-2.049159617490575,-2.323641956914816,-2.918255271728305,-7.256563119712551,-5.446630245762469],
+  [-2.839356636216002,16.368201958978833,-0.11852501641416024,2.5229048229131115,1.9702079258739327,1.5084453156497977,1.138025360325592,0.8214558887628058,0.5315282859694574,0.2476991620771365,-0.04844355169891057,-0.37592756664485694,-0.7495570852222639,-1.0963285428112817,2.2169709930523913,-6.097301314595583]
  ],
  "std_dev": 0.6782329983125259,
- "implausible": [
-  true,
-  false,
-  false,
-  true,
-  false
- ],
+ "implausible": [true,false,false,true,false],
  "recalibration": {
-  "target_a": [
-   11,
-   121.9,
-   "UNPROCESSED"
-  ],
-  "target_b": [
-   12,
-   118.4,
-   "UNPROCESSED"
-  ],
+  "target_a": [11,121.9,"UNPROCESSED"],
+  "target_b": [12,118.4,"UNPROCESSED"],
   "minute_default": {
    "start_ms": 1790000000000,
    "start_iso": "2026-09-21T16:53:20+02:00",
@@ -420,14 +287,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": null,
@@ -457,14 +318,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 11,
@@ -473,15 +328,7 @@
    "calibrated": true,
    "valid_s": 59.5,
    "clock_corrections": 0,
-   "original": [
-    42.34,
-    61.07,
-    33.12,
-    55.0,
-    47.25,
-    41.05,
-    "NaN"
-   ],
+   "original": [42.34,61.07,33.12,55.0,47.25,41.05,"NaN"],
    "recalibrated_from_id": "default",
    "recalibration_offset_db": 112.35019852575361,
    "local_floor_db": 45.94980147424639,
@@ -502,14 +349,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 12,
@@ -518,15 +359,7 @@
    "calibrated": true,
    "valid_s": 59.5,
    "clock_corrections": 0,
-   "original": [
-    42.34,
-    61.07,
-    33.12,
-    55.0,
-    47.25,
-    41.05,
-    "NaN"
-   ],
+   "original": [42.34,61.07,33.12,55.0,47.25,41.05,"NaN"],
    "recalibrated_from_id": "default",
    "recalibration_offset_db": 112.35019852575361,
    "local_floor_db": 42.44980147424639,
@@ -547,14 +380,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 12,
@@ -563,15 +390,7 @@
    "calibrated": true,
    "valid_s": 59.5,
    "clock_corrections": 0,
-   "original": [
-    42.34,
-    61.07,
-    33.12,
-    55.0,
-    47.25,
-    41.05,
-    "NaN"
-   ],
+   "original": [42.34,61.07,33.12,55.0,47.25,41.05,"NaN"],
    "recalibrated_from_id": "default",
    "recalibration_offset_db": 112.35019852575361,
    "local_floor_db": 42.44980147424639,
@@ -592,14 +411,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 11,
@@ -629,14 +442,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 12,
@@ -645,15 +452,7 @@
    "calibrated": true,
    "valid_s": 59.5,
    "clock_corrections": 0,
-   "original": [
-    42.34,
-    61.07,
-    33.12,
-    55.0,
-    47.25,
-    41.05,
-    "NaN"
-   ],
+   "original": [42.34,61.07,33.12,55.0,47.25,41.05,"NaN"],
    "recalibrated_from_id": "11",
    "recalibration_offset_db": 121.9,
    "local_floor_db": 32.9,
@@ -674,14 +473,8 @@
    "event_count": 2,
    "dominant_category": "road_traffic",
    "category_shares": [
-    [
-     "road_traffic",
-     0.41
-    ],
-    [
-     "unclassified",
-     0.59
-    ]
+    ["road_traffic",0.41],
+    ["unclassified",0.59]
    ],
    "classifier_frames": 60,
    "calibration_id": 11,
@@ -745,11 +538,7 @@
    "audio_source": "UNPROCESSED",
    "calibrated": true,
    "min_level_db": 30.0,
-   "original": [
-    71.44,
-    74.04,
-    38.15
-   ],
+   "original": [71.44,74.04,38.15],
    "recalibrated_from_id": "default",
    "recalibration_offset_db": 112.35019852575361,
    "features": {
@@ -781,11 +570,7 @@
    "audio_source": "UNPROCESSED",
    "calibrated": true,
    "min_level_db": 30.0,
-   "original": [
-    71.44,
-    74.04,
-    38.15
-   ],
+   "original": [71.44,74.04,38.15],
    "recalibrated_from_id": "default",
    "recalibration_offset_db": 112.35019852575361,
    "features": {
@@ -843,22 +628,11 @@
    "recalibration_offset_db": null,
    "features": null
   },
-  "in_scope": [
-   true,
-   false,
-   false,
-   true
-  ]
+  "in_scope": [true,false,false,true]
  },
  "event_floor": [
   {
-   "in": [
-    30.0,
-    112.35,
-    121.9,
-    20.0,
-    70.0
-   ],
+   "in": [30.0,112.35,121.9,20.0,70.0],
    "unclamped": 39.5,
    "new": 39.5,
    "delta": 9.550000000000011,
@@ -866,13 +640,7 @@
    "changed": true
   },
   {
-   "in": [
-    30.0,
-    121.9,
-    112.35,
-    20.0,
-    70.0
-   ],
+   "in": [30.0,121.9,112.35,20.0,70.0],
    "unclamped": 20.5,
    "new": 20.5,
    "delta": -9.550000000000011,
@@ -880,13 +648,7 @@
    "changed": true
   },
   {
-   "in": [
-    65.0,
-    112.35,
-    125.0,
-    20.0,
-    70.0
-   ],
+   "in": [65.0,112.35,125.0,20.0,70.0],
    "unclamped": 77.5,
    "new": 70.0,
    "delta": 12.650000000000006,
@@ -894,13 +656,7 @@
    "changed": true
   },
   {
-   "in": [
-    30.0,
-    112.35,
-    112.35,
-    20.0,
-    70.0
-   ],
+   "in": [30.0,112.35,112.35,20.0,70.0],
    "unclamped": 30.0,
    "new": 30.0,
    "delta": 0.0,
@@ -908,13 +664,7 @@
    "changed": false
   },
   {
-   "in": [
-    30.25,
-    100.0,
-    100.0,
-    20.0,
-    70.0
-   ],
+   "in": [30.25,100.0,100.0,20.0,70.0],
    "unclamped": 30.5,
    "new": 30.5,
    "delta": 0.0,
@@ -922,13 +672,7 @@
    "changed": true
   },
   {
-   "in": [
-    21.0,
-    120.0,
-    110.0,
-    20.0,
-    70.0
-   ],
+   "in": [21.0,120.0,110.0,20.0,70.0],
    "unclamped": 11.0,
    "new": 20.0,
    "delta": -10.0,
@@ -937,53 +681,14 @@
   }
  ],
  "signed": [
-  [
-   9.55,
-   "+9,6",
-   "+9,55"
-  ],
-  [
-   -3.2,
-   "−3,2",
-   "−3,20"
-  ],
-  [
-   0.0,
-   "±0,0",
-   "±0,00"
-  ],
-  [
-   -0.04,
-   "±0,0",
-   "−0,04"
-  ],
-  [
-   0.05,
-   "+0,1",
-   "+0,05"
-  ],
-  [
-   12.345,
-   "+12,3",
-   "+12,35"
-  ],
-  [
-   -0.0,
-   "±0,0",
-   "±0,00"
-  ],
-  [
-   100.0,
-   "+100,0",
-   "+100,00"
-  ]
+  [9.55,"+9,6","+9,55"],
+  [-3.2,"−3,2","−3,20"],
+  [0.0,"±0,0","±0,00"],
+  [-0.04,"±0,0","−0,04"],
+  [0.05,"+0,1","+0,05"],
+  [12.345,"+12,3","+12,35"],
+  [-0.0,"±0,0","±0,00"],
+  [100.0,"+100,0","+100,00"]
  ],
- "round_to_half": [
-  30.0,
-  30.5,
-  30.5,
-  31.0,
-  -1.0,
-  0.0
- ]
+ "round_to_half": [30.0,30.5,30.5,31.0,-1.0,0.0]
 }
