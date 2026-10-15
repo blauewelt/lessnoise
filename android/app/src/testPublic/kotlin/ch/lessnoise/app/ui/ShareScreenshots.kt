@@ -152,6 +152,40 @@ class ShareScreenshots {
         }
     }
 
+    // 0.6.3 map tab fix: the banner above the map in its four states. The WebView does not render
+    // on the JVM; a grey area stands for the map below the banner.
+    private fun karteBanner(name: String, banner: MapBanner?) {
+        val screens = appScreens(uploadAvailable = true, mapAvailable = true)
+        paparazzi.snapshot(name) {
+            LessNoiseTheme(dark = false) {
+                Scaffold(bottomBar = { AppBottomBar(screens, screens.indexOf(Screen.MAP)) {} }) { padding ->
+                    Column(Modifier.padding(padding).fillMaxSize()) {
+                        banner?.let { MapBannerContent(it, onTap = {}) }
+                        Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFFDDE3E0)))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun banner(s: UploadSnapshot, running: Boolean, hasPoint: Boolean, locate: LocateState = LocateState.Idle, now: Long = ms(18, 45)) =
+        mapBanner(s, running, ms(18, 30), hasPoint, hasPoint, locate, true, now) { "18:42" }
+
+    @Test
+    fun karteBannerNotSharing() = karteBanner("karte-banner-not-sharing", banner(UploadSnapshot(shareDecision = ShareDecision.NO), true, false))
+
+    @Test
+    fun karteBannerNoPoint() = karteBanner("karte-banner-no-point", banner(on, true, false, LocateState.Locating))
+
+    @Test
+    fun karteBannerFirstValues() = karteBanner("karte-banner-first-values", banner(on, true, true))
+
+    @Test
+    fun karteBannerSent() = karteBanner(
+        "karte-banner-sent",
+        banner(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, true).also { check(it?.text == bannerSent("18:42")) },
+    )
+
     @Test
     fun karteTabLoading() {
         val screens = appScreens(uploadAvailable = true, mapAvailable = true)

@@ -2,6 +2,12 @@ package ch.lessnoise.app.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.Saver
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
@@ -27,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -97,30 +102,49 @@ private fun BarLabel(text: String, all: List<String>, style: TextStyle) {
     }
 }
 
+/** Saves the tab history across configuration changes (as the tab names). */
+private val TabHistorySaver = Saver<TabHistory, ArrayList<String>>(
+    save = { ArrayList(it.save()) },
+    restore = { TabHistory.restore(it) },
+)
+
 @Composable
 fun AppRoot() {
     val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
-    var selected by rememberSaveable { mutableIntStateOf(0) }
+    // The tabs visited, «Messen» at the bottom (TabHistory): back returns to the tab before; back
+    // on «Messen» leaves the app (no handler then).
+    var history by rememberSaveable(stateSaver = TabHistorySaver) { mutableStateOf(TabHistory()) }
+    val current = history.current.takeIf { it in screens } ?: Screen.MEASURE
     val snackbar = remember { SnackbarHostState() }
     // Karten editions: the consent at the first «Starten», the fix for the running measurement and
     // its dialogs (ShareFlow.kt). Null in the Offline and Labor builds.
     val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareController() else null
-    val open: (Screen) -> Unit = { s -> screens.indexOf(s).takeIf { it >= 0 }?.let { selected = it } }
+    val open: (Screen) -> Unit = { s -> if (s in screens) history = history.select(s) }
+    BackHandler(enabled = history.canGoBack) { history = history.back() }
+    // The map tab's WebView is created the first time the tab is shown and then kept (paused while
+    // another tab is shown) until the activity ends, so that switching tabs does not reload it.
+    var mapOpened by remember { mutableStateOf(false) }
+    SideEffect { if (current == Screen.MAP) mapOpened = true }
     Scaffold(
         // Public: emits nothing (same as Scaffold's default). Labor: the red warning banner.
         topBar = { EditionUi.Banner() },
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = { AppBottomBar(screens, selected) { selected = it } },
+        bottomBar = { AppBottomBar(screens, screens.indexOf(current)) { i -> open(screens[i]) } },
     ) { padding ->
         val m = Modifier.padding(padding)
         CompositionLocalProvider(LocalSnackbarHost provides snackbar, LocalShareController provides share) {
-            when (screens.getOrNull(selected) ?: Screen.MEASURE) {
-                Screen.MEASURE -> MeasureScreen(m, onOpen = open)
-                Screen.MEASUREMENTS -> MeasurementsScreen(m)
-                // Loaded only while this tab is shown (MapScreen.kt); nothing in the background.
-                Screen.MAP -> MapTab.Content(m)
-                Screen.SHARE -> ShareScreen(m, onOpen = open)
-                Screen.SETTINGS -> SettingsScreen(m)
+            Box(Modifier.fillMaxSize()) {
+                // Below the other tabs; invisible and paused unless «Karte» is shown (MapScreen.kt).
+                if (MapTab.AVAILABLE && (mapOpened || current == Screen.MAP)) {
+                    MapTab.Content(m, visible = current == Screen.MAP, onOpen = open)
+                }
+                when (current) {
+                    Screen.MEASURE -> MeasureScreen(m, onOpen = open)
+                    Screen.MEASUREMENTS -> MeasurementsScreen(m)
+                    Screen.MAP -> Unit
+                    Screen.SHARE -> ShareScreen(m, onOpen = open)
+                    Screen.SETTINGS -> SettingsScreen(m)
+                }
             }
             share?.Dialogs()
             // Public: nothing. Labor: the clip player sheet.

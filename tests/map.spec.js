@@ -391,3 +391,30 @@ test("the app's address without a point, karte.html#metric, opens at the map wit
   expect(v.z).toBe(plain.z);
   if (isMobile) expect(await page.locator("#metric").evaluate((e) => e.getBoundingClientRect().top)).toBeLessThan(40);
 });
+
+// 0.6.3 map tab fix: the app keeps the page alive and re-centres it by replacing only the fragment
+// (WebView evaluateJavascript "location.replace('#lat=…')"): no reload, no new history entry, so
+// the system back gesture is never swallowed by the page's history.
+test("location.replace of the view fragment after load moves the map without a history entry or reload", async ({ page }) => {
+  // The field case: the tab was opened before the phone had a point (karte.html#metric).
+  await page.goto("about:blank");
+  await page.goto("/karte.html#metric");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await page.evaluate(() => { window.__notReloaded = true; });
+  const before = await page.evaluate(() => history.length);
+  await page.evaluate(() => { location.replace("#lat=46.94800&lon=7.44740&z=16"); });
+  await expect.poll(async () => (await viewOf(page)).z).toBe(16);
+  let v = await viewOf(page);
+  expect(Math.abs(v.lat - 46.948)).toBeLessThan(1e-4);
+  expect(Math.abs(v.lon - 7.4474)).toBeLessThan(1e-4);
+  expect(v.hashView).toEqual({ lat: 46.948, lon: 7.4474, z: 16 });
+  // The point changed while the tab was shown: replaced again.
+  await page.evaluate(() => { location.replace("#lat=47.37690&lon=8.54170&z=16"); });
+  await expect.poll(async () => Math.abs((await viewOf(page)).lat - 47.3769) < 1e-4).toBe(true);
+  v = await viewOf(page);
+  expect(Math.abs(v.lon - 8.5417)).toBeLessThan(1e-4);
+  expect(await page.evaluate(() => history.length)).toBe(before);
+  expect(await page.evaluate(() => window.__notReloaded)).toBe(true);
+  expect(await layersNear(page, 47.3769, 8.5417)).toBe(0);
+  expect(consoleErrors).toEqual([]);
+});

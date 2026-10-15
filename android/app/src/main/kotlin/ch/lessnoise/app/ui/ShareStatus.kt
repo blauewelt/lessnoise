@@ -100,3 +100,52 @@ fun shareStatus(
         else -> ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE)
     }
 }
+
+/** The banner above the map (0.6.3 map tab fix): its text and what a tap does (the status line's action). */
+data class MapBanner(val text: String, val action: ShareAction)
+
+/** How long after the last acknowledged upload the banner «Gesendet HH:MM …» stays (the map is published every 10 minutes). */
+const val BANNER_SENT_MS = 12 * 60_000L
+
+/**
+ * The banner above the map in the tab «Karte» while this phone's values are not visible there yet
+ * (0.6.3 map tab fix; pure, MapBannerTest). The same state as [shareStatus], plus [hasAnyPoint]
+ * (the phone has a shifted point: the running measurement's or the newest shared one's — the point
+ * the map is centred on) and [nowMs]. A tap does what a tap on the status line on «Messen» does
+ * (except «open the map», which is nothing to do on the map: no tap there).
+ *
+ * - sharing off or not decided yet: [BANNER_NOT_SHARING];
+ * - no point: [BANNER_NO_POINT];
+ * - a point, but nothing acknowledged by the server yet (for a running measurement with its point:
+ *   nothing of this measurement, as in [shareStatus]): [BANNER_FIRST_VALUES];
+ * - acknowledged less than [BANNER_SENT_MS] ago: [bannerSent];
+ * - acknowledged longer ago: null (no banner; the values are on the map).
+ */
+fun mapBanner(
+    s: UploadSnapshot,
+    running: Boolean,
+    measurementStartMs: Long,
+    hasPoint: Boolean,
+    hasAnyPoint: Boolean,
+    locate: LocateState,
+    online: Boolean,
+    nowMs: Long,
+    hm: (Long) -> String,
+): MapBanner? {
+    // Null only before the question was asked (not running, undecided): a tap asks it.
+    // «Open the map» is a no-op on the map itself: no tap, no «›».
+    val action = (shareStatus(s, running, measurementStartMs, hasPoint, locate, online, hm)?.action ?: ShareAction.TURN_ON)
+        .takeIf { it != ShareAction.OPEN_MAP } ?: ShareAction.NONE
+    if (!s.enabled) return MapBanner(BANNER_NOT_SHARING, action)
+    if (!hasPoint && !hasAnyPoint) return MapBanner(BANNER_NO_POINT, action)
+    val ackAt = if (running && hasPoint) {
+        s.lastSuccessAtMs?.takeIf { s.minutesSentUpToMs >= measurementStartMs }
+    } else {
+        s.lastSuccessAtMs
+    }
+    return when {
+        ackAt == null -> MapBanner(BANNER_FIRST_VALUES, action)
+        nowMs - ackAt < BANNER_SENT_MS -> MapBanner(bannerSent(hm(ackAt)), action)
+        else -> null
+    }
+}

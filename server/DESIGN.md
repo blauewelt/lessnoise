@@ -102,7 +102,7 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    0.5.1 and while the website moves). The website's main page still loads nothing from third
    parties; the map page is the one exception and says so (swisstopo tiles and our own API
    host only; see section 7). Since app 0.6.3 the Online-Version shows that map page in its tab
-   «Karte» (a WebView, only while the tab is open): it then loads the page from wenigerlaerm.ch
+   «Karte» (a WebView, loaded when the tab is opened, kept paused while another tab is shown): it then loads the page from wenigerlaerm.ch
    (GitHub Pages), the tiles from swisstopo and the published files from our API host, exactly
    like a browser, and nothing from any other host (the app refuses other hosts). It sends no
    measurement and no location; the centre of the view (the shifted point of the newest shared

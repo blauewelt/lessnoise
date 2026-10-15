@@ -11,7 +11,7 @@ each with its likely source using an on-device sound classifier, and summarises 
 [two editions](#editions): the **«Online-Version»** (the default download since 0.6.2) uses the
 internet only for the opt-in upload [«Messwerte teilen»](#messwerte-teilen-opt-in-upload) and for
 «Laut! Melden» reports (off until you say yes, one host, one network class, no third-party SDK) and,
-since 0.6.3, for the tab [«Karte»](#the-tab-karte-063) (the website's map page while the tab is open),
+since 0.6.3, for the tab [«Karte»](#the-tab-karte-063) (the website's map page once the tab is opened),
 and the location only for one fix right after the start of a shared measurement and one per report; the
 **«Offline-Version»**, for even more privacy, has no internet and no location permission at all (and
 so no map and no reports). See [PRIVACY.md](../PRIVACY.md). (A separate,
@@ -505,8 +505,9 @@ The «Online-Version» and the internal Labor build with the map have a fifth ta
 `https://wenigerlaerm.ch/karte.html` in an Android `WebView`
 (`app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt`; the source folder `src/karte/` is compiled
 only into the flavours `public` and `laborKarte`, the others get the stand-in `src/nomap/…/MapTab.kt`
-and contain no WebView). The page is loaded only when the tab is opened and the WebView is destroyed
-when another tab is chosen; a thin progress bar while it loads, «Karte nicht erreichbar – Internet
+and contain no WebView). The page is loaded only when the tab is opened; the WebView is then kept until the app's screen is
+closed — invisible and paused while another tab is shown (a page still loading is stopped), loaded
+again when shown 10 minutes or more after loading (`MapCentring`) —; a thin progress bar while it loads, «Karte nicht erreichbar – Internet
 prüfen» and «Nochmals» when it cannot be loaded. The address comes from `ui/MapLinks.kt` only:
 `Links.MAP` plus, when the phone has a shared measurement, the view fragment
 `#lat=…&lon=…&z=16` with the **shifted** point of the newest one (the running measurement's
@@ -517,7 +518,15 @@ content access, JavaScript interface, geolocation (denied), cookies, mixed conte
 off (manifest meta-data); Safe Browsing as Android's default. Only the map page stays in the tab;
 every other link opens in the browser (`MapLinks.staysInApp`), and requests to any host other than
 wenigerlaerm.ch, wmts.geo.admin.ch, api.lessnoise.ch and api.stadtlaerm.ch (= the page's CSP) are
-refused (`MapLinks.allowedHost`). Back goes back within the page's history first. No permission is
+refused (`MapLinks.allowedHost`). Whenever the tab is shown, and when the point changes while it is shown, the view is moved to the
+point with `location.replace('#lat=…&lon=…&z=16')` if the page is not centred on it yet (only the
+fragment: no reload, no history entry; after `onPageFinished` if the page is still loading;
+`MapCentring`, `MapLinks.recentreScript`). A banner above the map says while this phone's values are
+not visible yet (`mapBanner`: «Noch kein Standort – Werte erscheinen danach», «Erste Werte werden
+gesendet – auf der Karte nach etwa 10 Minuten», «Gesendet HH:MM – die Karte aktualisiert sich alle
+10 Minuten» for 12 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
+on «Messen» does). The WebView's history is never used: the system back gesture returns to the tab
+visited before (`TabHistory`; «Messen» is the root, back there leaves the app). No permission is
 added. Privacy: [PRIVACY.md](../PRIVACY.md), «The tab «Karte»».
 
 ## «Messwerte teilen» (opt-in upload)

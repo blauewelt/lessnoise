@@ -59,7 +59,7 @@ with no third-party SDK; deletable on the server from the app at any time («Dat
 löschen», reports included), and deleted by the server automatically after 60 days without
 uploads. (2) Since 0.6.3 the tab «Karte», a locked-down WebView
 (`android/app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt`, only in the editions with the map)
-that shows `https://wenigerlaerm.ch/karte.html` while the tab is open, like a browser: the page, the
+that shows `https://wenigerlaerm.ch/karte.html` once the tab is opened (kept paused while another tab is shown), like a browser: the page, the
 swisstopo tiles and the published map files, no other host, no cookies, no measurement and no
 location sent (the view is in the part after `#`, which never leaves the phone; swisstopo sees which
 map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». Its

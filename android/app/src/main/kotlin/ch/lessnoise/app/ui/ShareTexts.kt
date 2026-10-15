@@ -85,6 +85,15 @@ const val STATUS_AUTH = "Unterbrochen – tippen für «Neu starten»"
 /** «Auf der Karte · zuletzt gesendet 14:05». */
 fun statusSent(hm: String): String = "Auf der Karte · zuletzt gesendet $hm"
 
+// ---- The banner above the map in the tab «Karte» (0.6.3 map tab fix, ShareStatus.kt mapBanner) ----
+
+const val BANNER_NOT_SHARING = "Du teilst nicht – tippen zum Teilen"
+const val BANNER_NO_POINT = "Noch kein Standort – Werte erscheinen danach"
+const val BANNER_FIRST_VALUES = "Erste Werte werden gesendet – auf der Karte nach etwa 10 Minuten"
+
+/** «Gesendet 14:05 – die Karte aktualisiert sich alle 10 Minuten». */
+fun bannerSent(hm: String): String = "Gesendet $hm – die Karte aktualisiert sich alle 10 Minuten"
+
 /** The setting under «Teilen → Weitere Angaben». */
 const val SIGMA_LABEL = "Standort verschieben"
 

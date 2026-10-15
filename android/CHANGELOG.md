@@ -21,9 +21,17 @@ and the Labor build behave exactly as before).
   nachgeholt» …
 - **«Teilen» shorter:** status and switch on top; «Was gesendet wird ▸» and «Wo liegt das Telefon?
   (freiwillig) ▸» folded.
-- **New tab «Karte»:** the website's noise map in the app (WebView, loaded only while the tab is
-  open, no other host, no cookies, no location; opens at the shifted point of the newest shared
+- **New tab «Karte»:** the website's noise map in the app (WebView, loaded only when the tab is
+  opened, no other host, no cookies, no location; opens at the shifted point of the newest shared
   measurement via `karte.html#lat=…&lon=…&z=16`). The website's map page reads that new view fragment.
+- **Back returns to the previous tab:** on every tab but «Messen» the back gesture goes to the tab
+  used before (each tab once, «Messen» is the root and leaves the app); the map page's history no
+  longer swallows it.
+- **The map centres on your point whenever the tab is shown:** the page is kept across tab switches
+  (paused, reloaded only after 10 minutes) and moved with `location.replace('#lat=…')` as soon as the
+  point exists or changes — no reload, no history entry.
+- **A banner above the map** while your values are not visible yet: «Noch kein Standort», «Erste
+  Werte werden gesendet …», «Gesendet HH:MM …» (12 minutes) or «Du teilst nicht – tippen zum Teilen».
 
 ## 0.6.2 — 2026-10-14 (versionCode 15)
 

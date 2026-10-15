@@ -2,6 +2,8 @@ package ch.lessnoise.app.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
@@ -12,7 +14,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,10 +27,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,8 +44,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.lessnoise.app.container
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 
@@ -51,16 +57,23 @@ import java.io.ByteArrayInputStream
 // WebView. This file is the app's second and last network path besides upload/UploadClient.kt
 // (UploadSourceIsolationTest). What it does, and what PRIVACY.md promises about it:
 //
-// - It loads only while the tab is open: nothing is prefetched, nothing runs in the background; the
-//   WebView is destroyed when another tab is chosen.
+// - Nothing is loaded before the tab is first opened. The WebView is then kept until the app's
+//   screen is closed, so that switching tabs does not reload the page; while another tab is shown
+//   it is invisible and paused (WebView.onPause, JavaScript timers paused; a page still loading is
+//   stopped, MapCentring.hidden), and nothing is loaded or re-centred. Shown again after 10 minutes
+//   or more, it is loaded again (the server publishes the map every 10 minutes).
 // - It loads the map page like a browser would: the page from wenigerlaerm.ch (GitHub Pages), map
 //   tiles from wmts.geo.admin.ch (swisstopo) and the published map files from api.lessnoise.ch
 //   (or api.stadtlaerm.ch, the same server). Any other host is refused here (MapLinks.allowedHost),
 //   on top of the page's own Content-Security-Policy. Links to other pages open in the browser.
-// - It sends no measurement and no location. The centre (the SHIFTED point of the newest shared
-//   measurement, MapLinks.url) is in the URL fragment, which the WebView never sends to a server;
-//   the page's script reads it on the phone. The map tiles for the area on screen are requested
-//   from swisstopo, as for anyone who looks at that area on the website.
+// - It sends no measurement and no location. The centre (the SHIFTED point of the running
+//   measurement, else of the newest shared one) is in the URL fragment, which the WebView never
+//   sends to a server; the page's script reads it on the phone. When the point appears or changes
+//   after the page was loaded, the app replaces only the fragment (MapLinks.recentreScript, the one
+//   script it ever runs in the page; no reload, no history entry). The map tiles for the area on
+//   screen are requested from swisstopo, as for anyone who looks at that area on the website.
+// - Back never goes back in the page's history (fragment changes would swallow it): the system
+//   back gesture belongs to the tabs (TabHistory). Links leaving the map page open in the browser.
 // - Locked down: JavaScript on (Leaflet needs it); no DOM storage (the page uses none); no file or
 //   content access; no JavaScript bridge; geolocation off and every permission request denied; no
 //   cookies at all; mixed content never; Safe Browsing as Android's default (on).
@@ -69,8 +82,13 @@ import java.io.ByteArrayInputStream
 object MapTab {
     const val AVAILABLE = true
 
+    /**
+     * [visible]: whether «Karte» is the tab shown. The caller keeps this composable once the tab was
+     * opened (below the other tabs), so the WebView survives tab switches.
+     */
     @Composable
-    fun Content(modifier: Modifier = Modifier) = MapScreen(modifier)
+    fun Content(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}) =
+        MapScreen(modifier, visible, onOpen)
 }
 
 /** Loading state of the page. */
@@ -80,28 +98,59 @@ enum class MapLoad { LOADING, LOADED, ERROR }
 const val MAP_ERROR_TEXT = "Karte nicht erreichbar – Internet prüfen"
 
 @Composable
-fun MapScreen(modifier: Modifier = Modifier) {
+fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}) {
     val c = LocalContext.current.container
-    // The centre: the running measurement's shifted point, else the newest shared measurement's.
-    // Resolved once when the tab opens; null = no shared measurement yet: the plain page.
-    val url by produceState<String?>(initialValue = null) {
-        val point = c.live.value.sharedPoint ?: withContext(Dispatchers.IO) { runCatching { c.measurements.latestSharedPoint() }.getOrNull() }
-        value = MapLinks.url(point)
-    }
-    var load by remember { mutableStateOf(MapLoad.LOADING) }
-    var progress by remember { mutableStateOf(0) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var web by remember { mutableStateOf<WebView?>(null) }
     val context = LocalContext.current
+    val live by c.live.collectAsStateWithLifecycle()
+    // The centre: the running measurement's shifted point, else the newest shared measurement's.
+    val livePoint = live.sharedPoint
+    val centring = remember { MapCentring() }
+    var load by remember { mutableStateOf(MapLoad.LOADING) }
+    var progress by remember { mutableIntStateOf(0) }
+    var web by remember { mutableStateOf<WebView?>(null) }
+    // Whether the phone has a point at all (for the banner); null until known.
+    var anyPoint by remember { mutableStateOf<Boolean?>(null) }
+    // Counts the activity's ON_RESUME (coming back to the app with «Karte» shown counts as showing
+    // it) and «Nochmals».
+    var reshow by remember { mutableIntStateOf(0) }
+    val shown by rememberUpdatedState(visible)
 
-    BackHandler(enabled = canGoBack) { web?.goBack() }
+    fun perform(w: WebView, step: MapCentring.Step) {
+        when (step) {
+            is MapCentring.Step.Load -> {
+                load = MapLoad.LOADING
+                progress = 0
+                val target = step.url
+                w.loadUrl(target)
+            }
+            // location.replace('#lat=…&lon=…&z=16'): only the fragment; the page's hashchange
+            // handler re-centres (docs/map/karte.js). No reload, no history entry.
+            is MapCentring.Step.Recentre -> w.evaluateJavascript(step.script, null)
+        }
+    }
+
+    // Shown, hidden, back in the app, or the point changed while shown.
+    LaunchedEffect(visible, livePoint, web, reshow) {
+        val w = web ?: return@LaunchedEffect
+        if (!visible) {
+            if (centring.hidden()) w.stopLoading()
+            w.onPause()
+            w.pauseTimers()
+            return@LaunchedEffect
+        }
+        w.resumeTimers()
+        w.onResume()
+        val point = livePoint ?: withContext(Dispatchers.IO) { runCatching { c.measurements.latestSharedPoint() }.getOrNull() }
+        anyPoint = point != null
+        centring.show(point, SystemClock.elapsedRealtime())?.let { perform(w, it) }
+    }
 
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, e ->
             when (e) {
-                Lifecycle.Event.ON_PAUSE -> web?.onPause()
-                Lifecycle.Event.ON_RESUME -> web?.onResume()
+                Lifecycle.Event.ON_PAUSE -> web?.let { it.onPause(); it.pauseTimers() }
+                Lifecycle.Event.ON_RESUME -> if (shown) reshow++
                 else -> Unit
             }
         }
@@ -109,24 +158,37 @@ fun MapScreen(modifier: Modifier = Modifier) {
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
 
-    Box(modifier.fillMaxSize()) {
-        val target = url
-        if (target != null) {
+    Column(modifier.fillMaxSize()) {
+        if (visible) {
+            anyPoint?.let { MapBannerSlot(hasAnyPoint = it, onOpen = onOpen) }
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     WebView(ctx).also { w ->
                         configure(
                             w,
-                            onLoad = { load = it },
                             onProgress = { progress = it },
-                            onHistory = { canGoBack = w.canGoBack() },
+                            onStarted = {
+                                centring.pageStarted()
+                                load = MapLoad.LOADING
+                            },
+                            onFinished = {
+                                load = MapLoad.LOADED
+                                centring.pageFinished()?.let { perform(w, it) }
+                            },
+                            onFailed = {
+                                centring.failed()
+                                load = MapLoad.ERROR
+                            },
                             onExternal = { openLink(context, it) },
                         )
                         web = w
-                        w.loadUrl(target)
                     }
                 },
+                // Hidden: not drawn, no touches, not read out; the page is paused (above).
+                update = { w -> w.visibility = if (visible) View.VISIBLE else View.INVISIBLE },
                 onRelease = { w ->
                     w.stopLoading()
                     w.webChromeClient = null
@@ -134,12 +196,45 @@ fun MapScreen(modifier: Modifier = Modifier) {
                     web = null
                 },
             )
+            if (visible) {
+                // «Nochmals»: the error already made MapCentring forget the page; showing loads it.
+                MapStatusContent(load = load, progress = progress, onRetry = { reshow++ })
+            }
         }
-        MapStatusContent(load = if (target == null) MapLoad.LOADING else load, progress = progress, onRetry = {
-            load = MapLoad.LOADING
-            web?.let { w -> if (target != null) w.loadUrl(target) }
-        })
     }
+}
+
+/** The banner above the map while this phone's values are not visible there yet (mapBanner). */
+@Composable
+private fun MapBannerSlot(hasAnyPoint: Boolean, onOpen: (Screen) -> Unit) {
+    val c = LocalContext.current.container
+    val share = LocalShareController.current
+    val live by c.live.collectAsStateWithLifecycle()
+    val s by c.upload.store.state.collectAsStateWithLifecycle()
+    val locate by c.shareLocate.collectAsStateWithLifecycle()
+    val online = rememberOnline()
+    // «Gesendet HH:MM …» disappears 12 minutes after the upload: look at the clock now and then.
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) {
+            delay(30_000)
+            value = System.currentTimeMillis()
+        }
+    }
+    val banner = mapBanner(
+        s = s, running = live.running, measurementStartMs = live.measurementStartMs, hasPoint = live.sharedPoint != null,
+        hasAnyPoint = hasAnyPoint, locate = locate, online = online, nowMs = now, hm = Fmt::hm,
+    ) ?: return
+    MapBannerContent(banner, onTap = { a -> handleShareAction(a, share, onOpen) })
+}
+
+/** One banner row (also rendered on the JVM, ShareScreenshots): the status line's look and tap. */
+@Composable
+fun MapBannerContent(banner: MapBanner, onTap: (ShareAction) -> Unit, modifier: Modifier = Modifier) {
+    ShareStatusLine(
+        ShareStatus(banner.text, banner.action),
+        onTap,
+        modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+    )
 }
 
 /**
@@ -171,9 +266,10 @@ fun MapStatusContent(load: MapLoad, progress: Int, onRetry: () -> Unit, modifier
 @SuppressLint("SetJavaScriptEnabled")
 private fun configure(
     web: WebView,
-    onLoad: (MapLoad) -> Unit,
     onProgress: (Int) -> Unit,
-    onHistory: () -> Unit,
+    onStarted: () -> Unit,
+    onFinished: () -> Unit,
+    onFailed: () -> Unit,
     onExternal: (String) -> Unit,
 ) {
     web.settings.apply {
@@ -224,21 +320,19 @@ private fun configure(
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
             failed = false
-            onLoad(MapLoad.LOADING)
+            onStarted()
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
-            if (!failed) onLoad(MapLoad.LOADED)
+            if (!failed) onFinished()
         }
 
         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-            if (request?.isForMainFrame == true) { failed = true; onLoad(MapLoad.ERROR) }
+            if (request?.isForMainFrame == true) { failed = true; onFailed() }
         }
 
         override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
-            if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) { failed = true; onLoad(MapLoad.ERROR) }
+            if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) { failed = true; onFailed() }
         }
-
-        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) = onHistory()
     }
 }

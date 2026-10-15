@@ -12,5 +12,5 @@ object MapTab {
     const val AVAILABLE = false
 
     @Composable
-    fun Content(modifier: Modifier = Modifier) = Unit
+    fun Content(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}) = Unit
 }
