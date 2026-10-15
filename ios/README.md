@@ -19,7 +19,9 @@ and `docs/`. Three parts:
 - **`App/`** (Xcode target `WenigerLaerm`, display name «Weniger Lärm») — the thin iOS adapters
   (AVAudioSession/AVAudioEngine, CoreLocation, URLSession, Keychain, UserNotifications,
   BackgroundTasks, WKWebView) and the SwiftUI screens; **`AppTests/`** tests what only runs on iOS
-  (transport, stores, bundle, WebKit rules, notifications) on the simulator.
+  (transport, stores, Info.plist, WebKit rules and lock-down, notifications, the 44.1 → 48 kHz
+  resampler) on the simulator: 15 tests, of which the Keychain test is skipped in the unsigned CI
+  build (no Keychain entitlement without signing).
 
 **[DESIGN.md](DESIGN.md)** is the design of the app layer, with the list of what must change on the
 server, the website and in PRIVACY.md before an iOS release.
