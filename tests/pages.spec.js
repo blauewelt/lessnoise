@@ -87,6 +87,8 @@ test("the home page: two buttons, which to choose, the version line and the link
   await expect(page.locator("#download .release")).toHaveText("Version 0.6.2, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
+  // «Source Code ist hier» links the repository (owner's text, 2026-10-15).
+  await expect(page.locator('#download a[href="https://github.com/blauewelt/lessnoise"]')).toHaveText("hier");
 });
 
 test("the home page shows the app screenshot, light and dark", async ({ page }) => {
@@ -110,13 +112,37 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
     await expect(page.locator("#" + id), "#" + id).toHaveCount(1);
     await expect(page.locator(`nav.toc a[href="#${id}"]`), "toc → #" + id).toHaveCount(1);
   }
-  await expect(page.locator("#installation .note")).toContainText("deinstallieren");
-  await expect(page.locator("#installation .note")).toContainText("CSV");
+  // The «Stadtlärm» 0.5.x note left the Anleitung (owner, 2026-10-15); update.html#new-app still explains it.
+  await expect(page.locator("#stadtlaerm, #installation .note")).toHaveCount(0);
   await expect(page.locator("#installation")).toContainText("«Dateien»");
   await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.2");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
   await expect(page.locator("#teilen")).toContainText("Laut! Melden");
   await expect(page.locator("#daten")).toContainText("CSV");
+});
+
+test("footnotes: each marker links to its note right below, and the note links back", async ({ page }) => {
+  for (const [p, n] of [["/", 1], ["/anleitung.html", 2]]) {
+    await page.goto(p);
+    const markers = page.locator("sup.fn a");
+    await expect(markers, p).toHaveCount(n);
+    await expect(page.locator("p.footnote.small"), p).toHaveCount(n);
+    for (let i = 1; i <= n; i++) {
+      const m = page.locator(`sup.fn a#fnref${i}`);
+      await expect(m, `${p} marker ${i}`).toHaveAttribute("href", `#fn${i}`);
+      await expect(m).toHaveText(String(i));
+      const note = page.locator(`p.footnote#fn${i}`);
+      await expect(note, `${p} note ${i}`).toBeVisible();
+      await expect(note.locator("a").first()).toHaveAttribute("href", `#fnref${i}`);
+      // The note sits in the same section as its marker.
+      expect(await note.evaluate((el) => el.closest("section").id)).toBe(await m.evaluate((el) => el.closest("section").id));
+    }
+  }
+  await page.goto("/");
+  await expect(page.locator("#fn1")).toContainText("ein altes Telefon");
+  await page.goto("/anleitung.html");
+  await expect(page.locator("#fn1")).toContainText("nie mit dem genauen Standort");
+  await expect(page.locator('#fn2 a[href="https://github.com/blauewelt/lessnoise"]')).toHaveText("Quellcode der App");
 });
 
 test("every link to anleitung.html#… or ./#… on any page lands on an existing element", async ({ page }) => {

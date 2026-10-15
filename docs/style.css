@@ -195,6 +195,15 @@ section {
 
 .small { font-size: 0.9375rem; color: var(--muted); }
 
+/* Footnotes: marker <sup class="fn"><a href="#fn1" id="fnref1">1</a></sup> in the text, the note
+   <p class="footnote small" id="fn1"><a href="#fnref1">1</a> …</p> right after that paragraph or list.
+   Numbers restart on each page. Colours come from the tokens, so dark mode follows. */
+sup.fn { font-size: 0.75em; line-height: 0; margin-left: 0.05em; }
+sup.fn a, .footnote > a:first-child { text-decoration: none; }
+sup.fn a:hover, .footnote > a:first-child:hover { text-decoration: underline; }
+.footnote { margin-top: 0.5rem; }
+.footnote > a:first-child { margin-right: 0.2em; }
+
 /* ---------- Footer ---------- */
 
 footer.wrap {

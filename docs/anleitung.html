@@ -33,14 +33,15 @@
 
 <section id="version">
   <h2>Welche Version?</h2>
-  <p>Beide Versionen messen gleich. Die Online-Version kann zusätzlich Messwerte für die Lärmkarte teilen und unterwegs melden; die Offline-Version ist für alle, die noch mehr Privatsphäre möchten und dafür auf Karte und Meldungen verzichten.</p>
+  <p>Beide Versionen messen die Lautstärke und identifizieren die Lärmquelle bei Ihnen auf dem Telefon. Die Online-Version kann zusätzlich Messwerte<sup class="fn"><a href="#fn1" id="fnref1">1</a></sup> für die Lärmkarte teilen und unterwegs melden; die Offline-Version ist für alle, die noch mehr Privatsphäre möchten und dafür auf Karte und Meldungen verzichten.</p>
+  <p class="footnote small" id="fn1"><a href="#fnref1">1</a> Geteilt werden der Lärmpegel pro Minute und jedes laute Ereignis mit Uhrzeit, Spitzenpegel in Dezibel und erkannter Lärmart (etwa «Strassenverkehr» oder «Flugzeug»), dazu Telefonmodell und Kalibrierung – immer mit einem verschobenen Ort (standardmässig um etwa 50&nbsp;m, in der App einstellbar), nie mit dem genauen Standort. Nur eine Meldung, die Sie selbst absenden, enthält den genauen Ort.</p>
   <dl class="editions">
     <dt>Online-Version</dt>
     <dd>Sendet erst, wenn Sie beim ersten «Starten» «Ja, auf die Karte» tippen (oder «Auf die Karte senden» einschalten) oder etwas melden – nie Ton. Was genau, steht im <a href="datenschutz.html#teilen">Datenschutz</a>.</dd>
     <dt>Offline-Version</dt>
-    <dd>Ohne Internet und ohne Standort. Ihre Messwerte verlassen das Telefon nur, wenn Sie sie selbst exportieren.</dd>
+    <dd>Ohne Internet und ohne Standort. Ihre Messwerte verlassen das Telefon nur, wenn Sie sie selbst als Datei exportieren und speichern oder versenden.</dd>
   </dl>
-  <p>Wechseln geht jederzeit: die andere Version über die installierte installieren, die Messwerte bleiben. Wer zur Offline-Version wechselt, löscht seine Daten auf dem Server vorher in der Online-Version im Tab «Teilen» mit «Vom Server löschen»; sonst löscht der Server sie nach 60 Tagen selbst.</p>
+  <p>Wechseln geht jederzeit: Wenn Sie eine neue Version installieren, wird die vorige App ersetzt, die Messwerte bleiben. Wenn Sie zur Offline-Version wechseln, können Sie vorher in der Online-Version Ihre Daten auf dem Server löschen (Tab «Teilen», «Vom Server löschen»); sonst löscht der Server sie nach 60 Tagen selbst.</p>
   <p class="downloads"><a class="button" href="download/lessnoise-karte.apk" type="application/vnd.android.package-archive">Online-Version herunterladen</a>
      <a class="button button-secondary" href="download/lessnoise.apk" type="application/vnd.android.package-archive">Offline-Version herunterladen</a></p>
 </section>
@@ -52,14 +53,10 @@
     <li>Die Online-Version oder die Offline-Version herunterladen.</li>
     <li>Die Datei in der App «Dateien» öffnen (Ordner «Downloads»), nicht im Browser – der verweigert das oft.</li>
     <li>Falls Android fragt: «Unbekannte Apps installieren» erlauben, zurück, installieren.</li>
-    <li>Falls Google Play Protect warnt: «Weitere Details» → «Trotzdem installieren».</li>
+    <li>Falls Google Play Protect warnt: «Weitere Details» → «Trotzdem installieren».<sup class="fn"><a href="#fn2" id="fnref2">2</a></sup></li>
     <li>Die App öffnen und Mikrofon und Benachrichtigungen erlauben (die Benachrichtigung zeigt, dass gemessen wird).</li>
   </ol>
-  <p>Updates ab 0.6.0 installieren sich über die installierte Version, die Messwerte bleiben.</p>
-
-  <div class="note" id="stadtlaerm">
-    <p><strong>Haben Sie noch «Stadtlärm» (0.5.x)?</strong> Ab 0.6.0 ist Weniger Lärm eine neue App und installiert sich nicht über die alte. Exportieren Sie in Stadtlärm unter «Daten» Ihre Messwerte als CSV, wenn Sie sie behalten möchten; wer geteilt hat, löscht dort unter «Messwerte teilen» die Daten auf dem Server (sonst löscht der Server sie nach 60 Tagen). Dann Stadtlärm deinstallieren und Weniger Lärm installieren.</p>
-  </div>
+  <p class="footnote small" id="fn2"><a href="#fnref2">2</a> Der <a href="https://github.com/blauewelt/lessnoise">Quellcode der App</a> ist offen, und Sie können ihn entweder selbst lesen oder einen KI-Assistenten Ihrer Wahl (Claude, Gemini, ChatGPT) bitten, den Quellcode zu untersuchen.</p>
 </section>
 
 <section id="pruefsummen">
