@@ -125,9 +125,8 @@ enum DeviceInfo {
         if let sim = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return sim }
         var u = utsname()
         uname(&u)
-        return withUnsafePointer(to: &u.machine) { p in
-            p.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: u.machine)) { String(cString: $0) }
-        }
+        let machine = u.machine
+        return withUnsafeBytes(of: machine) { raw in String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self) }
     }
 
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0" }

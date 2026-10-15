@@ -50,13 +50,13 @@ final class URLSessionTransport: NSObject, UploadTransport, URLSessionTaskDelega
 
     func send(_ r: UploadRequest) async throws -> UploadResponse {
         guard let req = URLSessionTransport.urlRequest(r) else { throw UploadFailure.noConnection("host refused") }
-        let data: Data
-        let response: URLResponse
+        let result: (Data, URLResponse)
         do {
-            (data, response) = try await session.data(for: req)
+            result = try await session.data(for: req)
         } catch {
             throw UploadFailure.noConnection((error as NSError).localizedDescription)
         }
+        let (data, response) = result
         guard let http = response as? HTTPURLResponse else { throw UploadFailure.noConnection("no HTTP answer") }
         return UploadResponse(status: http.statusCode, body: String(decoding: data, as: UTF8.self), retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
     }

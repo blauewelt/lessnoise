@@ -82,11 +82,11 @@ private struct MeasurementsDataCard: View {
         let s = model.services
         let dir = model.exportDir
         let ids = s.bucketIds
-        DispatchQueue.global(qos: .userInitiated).async {
-            let urls = (try? CsvExport.write(s.measurements, bucketIds: ids, dir: dir, nowMs: s.clock.nowMs())) ?? []
-            DispatchQueue.main.async {
-                if urls.isEmpty { info = "Export fehlgeschlagen." } else { exported = ExportedFiles(urls: urls) }
-            }
+        Task {
+            let urls = await Task.detached(priority: .userInitiated) {
+                (try? CsvExport.write(s.measurements, bucketIds: ids, dir: dir, nowMs: s.clock.nowMs())) ?? []
+            }.value
+            if urls.isEmpty { info = "Export fehlgeschlagen." } else { exported = ExportedFiles(urls: urls) }
         }
     }
 }

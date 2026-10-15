@@ -61,7 +61,7 @@ struct MeasureView: View {
                         .tint(.red)
                         UnterwegsSwitch()
                         Text(MeasureTexts.runningSince(Fmt.hm(live.startedAtMs))).font(.footnote)
-                        if let s = model.shareStatus { StatusLine(status: s, onTap: model.handle) }
+                        if let s = model.shareStatus { StatusLine(status: s, onTap: { model.handle($0) }) }
                     } else {
                         Button { model.start() } label: {
                             Text(live.starting ? "Startet …" : "Starten").font(.title3).frame(maxWidth: .infinity, minHeight: 44)
@@ -77,7 +77,7 @@ struct MeasureView: View {
                         }
                     }
                     if calibrating { Text(MeasureTexts.CALIBRATING).font(.footnote) }
-                    if !live.running && !live.starting, let s = model.shareStatus { StatusLine(status: s, onTap: model.handle) }
+                    if !live.running && !live.starting, let s = model.shareStatus { StatusLine(status: s, onTap: { model.handle($0) }) }
                     if let e = live.error {
                         Text(e).foregroundColor(.red).font(.subheadline)
                         if model.micDenied { Button("App-Einstellungen") { model.openSettingsApp() } }

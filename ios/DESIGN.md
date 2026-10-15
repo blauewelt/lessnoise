@@ -1,4 +1,4 @@
-# Weniger Lärm for iPhone — app design (plan, not built yet)
+# Weniger Lärm for iPhone — app design (first version built, not released)
 
 Scope of the first version: the **Online-Version** of android/README.md («Messen», «Messungen»,
 «Karte», «Teilen», «Einstellungen», «Laut! Melden», «Unterwegs»), German UI, same server and API
@@ -11,21 +11,32 @@ the app is open, opt-in, delete means delete.
 
 ```
 ios/
-  LessNoiseCore/          Swift package: DSP, detector, calibration, geo, payloads, uploader, texts (done, golden-tested)
-  project.yml             XcodeGen spec (to write on the Mac)
-  App/                    SwiftUI app target «WenigerLaerm» (to write)
-    Audio/                AudioCapture (AVAudioEngine) → MeasurementEngine on one serial queue
-    Data/                 SQLite (GRDB): minutes, events, measurements, calibrations; CSV export
-    Upload/               URLSessionTransport (UploadTransport), LiveUploader (LiveUploadPlan), BG task
-    Location/             OneShotLocator (CLLocationManager, when in use)
-    UI/                   tabs, screens, map tab (WKWebView), notifications
-  AppTests/               XCTest on the simulator: data layer, transport against a local fake, UI state
+  LessNoiseCore/          Swift package: DSP, detector, calibration, geo, payloads, uploader, texts (golden-tested)
+  LessNoiseKit/           Swift package (GRDB + LessNoiseCore), everything without Apple UI/hardware frameworks,
+                          tested on Linux and macOS:
+    Storage/              AppDatabase (GRDB, Room v7 tables), repositories, CSV export, re-evaluation,
+                          upload state / report queue / settings persistence
+    Measure/              MeasurementSession: AudioInput → MeasurementEngine on one serial queue, DB queue,
+                          live state, interruption gap fill, classifier pipeline
+    Share/                ShareController («Auf die Lärmkarte?», one fix, attach point), ReportFlow, Locator protocol
+    Upload/               UploadCoordinator (LiveUploadPlan loop, after-stop, soon, hourly fallback), DB upload source
+    Alerts/ Calibration/ Map/ UI/   «Unterwegs», calibration flow, map lock-down rules + tab history, German formatting
+    AppServices.swift     the wiring (Android's AppContainer)
+  project.yml             XcodeGen spec (app «WenigerLaerm», unit tests, scheme)
+  App/                    SwiftUI app target «WenigerLaerm» (display name «Weniger Lärm»)
+    Platform/             AudioCapture (AVAudioSession/AVAudioEngine), OneShotLocator (CoreLocation),
+                          URLSessionTransport + NetworkMonitor, Keychain/UserDefaults/protected-file stores,
+                          BGAppRefreshTask, background task, local notifications
+    UI/                   tabs, «Messen», «Messungen» (Swift Charts), «Karte» (WKWebView), «Teilen», sheets,
+                          «Einstellungen» / «Erweitert» (calibration)
+  AppTests/               XCTest on the simulator: transport (URLProtocol stub), stores, Info.plist, WebKit rules
 ```
 
 `project.yml` (XcodeGen) keeps the Xcode project out of git: the Mac only needs
 `brew install xcodegen && cd ios && xcodegen && xcodebuild -scheme WenigerLaerm -destination 'platform=iOS Simulator,name=iPhone 16' test`.
-Targets: app (iOS 16.0, iPhone only, portrait), local package `LessNoiseCore`, GRDB via SPM.
-Bundle id proposal: `ch.lessnoise.app` (same as Android; stores are separate) — owner decides.
+Targets: app (iOS 16.0, iPhone only, portrait), local packages `LessNoiseKit` → `LessNoiseCore`,
+GRDB via SPM. Bundle id `ch.lessnoise.app` (owner's decision; same as Android, the stores are
+separate), individual developer account, Team ID still a placeholder in `project.yml`.
 
 ## 2. Audio
 
@@ -44,11 +55,18 @@ Bundle id proposal: `ch.lessnoise.app` (same as Android; stores are separate) �
   invalid exactly like Android's silenced mic (coverage, no events). Route changes: restart.
 - Calibration flow: the same three methods as Android (sound level meter, calibrator, manual)
   using `CalibrationMeasurement`, `CalibrationMath`, `Recalibration`, `EventFloor` from the core.
-  **One audio source** on iOS (see `Calibration/Recalibration.swift`): stored and sent as
-  `UNPROCESSED`, because the server accepts only `UNPROCESSED | VOICE_RECOGNITION`. The default
-  offset 112.35 dB comes from Android's CDD guideline, which does not bind Apple: uncalibrated
-  iPhone data stays flagged `calibrated=false` as on Android; a per-model default table is a later
-  improvement once calibrated iPhones exist.
+  **One audio source** on iOS (see `Calibration/Recalibration.swift`): stored and sent as `IOS`
+  (owner's decision; one constant, `AudioSource.IOS_MEASUREMENT`). The server accepts only
+  `UNPROCESSED | VOICE_RECOGNITION` today and must accept `IOS` first (§15). The default offset
+  112.35 dB comes from Android's CDD guideline, which does not bind Apple: uncalibrated iPhone data
+  stays flagged `calibrated=false` as on Android (owner's decision); a per-model default table is
+  a later improvement once calibrated iPhones exist.
+- As built: iOS delivers no buffers during an interruption (Android delivers silenced zeros). The
+  session feeds the missing time as silenced zeros when capture resumes (≤ 15 min; longer gaps are
+  left to the engine's clock re-anchoring), so the timeline stays on the wall clock and the gap is
+  recorded as invalid time (`valid_s`, `coverage`) exactly like Android. Engine configuration
+  changes (route, sample rate) are treated as an interruption followed by a restart; if iOS does
+  not allow the restart yet (call still running), it is retried every 5 s for 2 minutes.
 
 ## 3. Measuring with the screen locked
 
@@ -136,6 +154,21 @@ Recommendation: start with TensorFlow Lite for parity (same categories, same thr
 size and battery, then decide on Core ML. Either plugs into `classifierDue` /
 `copyClassifierWindow` / `onClassifierFrame` of the core with `ClassifierPreprocessor.normalize`.
 
+**Status (first version):** the owner chose TensorFlow Lite. It is not built in: Google distributes
+TensorFlowLiteSwift/TensorFlowLiteC for iOS through CocoaPods; there is no official Swift Package
+Manager package that I know of (only unofficial re-packagings of the prebuilt binary on GitHub — a
+supply-chain question for a privacy app; not re-checked on the web in this task). The app
+therefore runs with the classifier off (`ClassifierFactory` returns nil): categories are empty
+(«Klingt nach» «–», `dominant_category` null, events `unclassified` on the map), exactly like
+Android with the classifier off, and «Sehr laut» never fires (it needs «Töff & Poser» /
+«Strassenverkehr»). Everything around the model is built and tested (`MeasurementSession`: window
+copy, normalisation, inference queue, frames back to the engine; a fake classifier in the tests).
+Options for the owner: (a) an official LiteRT/TFLite SwiftPM package if Google provides one,
+(b) TensorFlowLiteC as a vendored xcframework built from source, (c) Core ML (convert YAMNet once
+with coremltools, log-mel front end in Swift/vDSP, new golden test of scores against
+`tools/verify_yamnet.py`). The `SoundClassifier` protocol is the same for all three;
+`categories.json` and `yamnet_labels.txt` are already bundled.
+
 ## 10. What must be tested on a device
 
 1. `.measurement` really disables AGC: level steps of a speaker (pink noise −10/−20/−30 dB) must
@@ -182,7 +215,7 @@ size and battery, then decide on Core ML. Either plugs into `classifierDue` /
   diagnostics (unless the owner enables App Store crash reports — Apple's, then declare
   Diagnostics).
 
-## 13. What needs the Mac
+## 13. What needed the Mac (now done by CI, except the devices)
 
 1. `cd ios/LessNoiseCore && swift test` on macOS: the first run of the Apple code paths that Linux
    cannot run — CryptoKit's HMAC/SHA-256 (Linux uses swift-crypto, same API) and the
@@ -191,11 +224,76 @@ size and battery, then decide on Core ML. Either plugs into `classifierDue` /
 2. Write `project.yml` and the app target; `xcodegen && xcodebuild test` on the simulator.
 3. The device tests of section 10; then TestFlight (section 11).
 
-## 14. Open questions for the owner
+## 14. Owner's decisions (2026-10-15)
 
-1. `audio_source` for iPhones: send `UNPROCESSED` (now) or add an iOS value to the server schema?
-2. Bundle id and app name in the App Store («Weniger Lärm»?), developer account type.
-3. Default calibration offset for iPhones: keep 112.35 dB (flagged uncalibrated) or collect a
-   per-model table first?
-4. GRDB as the one dependency of the app, or the system SQLite3 wrapper?
-5. Classifier: accept TensorFlow Lite in phase 2 for parity?
+1. `audio_source` for iPhones: its own value `IOS` (server change needed, §15).
+2. Bundle id `ch.lessnoise.app`, app name «Weniger Lärm», individual developer account first.
+3. Default calibration offset 112.35 dB as on Android, data flagged uncalibrated.
+4. GRDB (MIT) as the one dependency.
+5. Classifier: TensorFlow Lite for parity — pending, see §9 «Status».
+
+## 15. Before an iOS release: changes outside `ios/` (not made in this branch)
+
+**Server** (`server/`):
+1. `stadtlaerm_server/schemas.py`: accept `"IOS"` in `SiteIn.audio_source` (line ≈ 100, today
+   `Literal["UNPROCESSED", "VOICE_RECOGNITION"]`) and in the minutes' `audio_source` (line ≈ 178);
+   a test in `tests/test_api.py` with an iPhone site and minute (`device_model` like `iPhone16,1`).
+   Until then every iPhone upload is refused and the app shows «Nicht gesendet: vom Server
+   abgelehnt».
+2. `server/DESIGN.md` §4.2/§4.3: document `IOS` (an iPhone's built-in microphones in AVAudioSession
+   mode `.measurement`: no AGC, no noise suppression) next to the two Android values; say whether the
+   map treats it like `UNPROCESSED` (the aggregation does not use the source today).
+3. Nothing else: the request bodies, the cadence and the per-device limits are the Android 0.6.3 ones.
+
+**PRIVACY.md and docs/datenschutz.html** (an «iPhone» section, same promises):
+1. Audio: never stored or sent; measuring with the screen locked uses iOS's background audio mode,
+   iOS shows the orange microphone indicator the whole time.
+2. Location: «Beim Verwenden der App» only (never «Immer», no background location mode); one fix
+   after «Starten» while the app is open; «Genauer Standort» needed; only the shifted point is
+   stored; reports carry the exact place until the server has them (stored in a file that is not
+   backed up and is deleted with the app).
+3. Storage: the database in the app's own folder, excluded from iCloud/iTunes backups, protected
+   «until first unlock»; the upload token and the location-noise secret in the Keychain («this
+   device only», never synchronised; removed at the next installation if the app was deleted).
+4. Network: the same two paths as the Android Online-Version (api.lessnoise.ch for the upload; the
+   map tab loads wenigerlaerm.ch, wmts.geo.admin.ch, api.lessnoise.ch/api.stadtlaerm.ch, enforced
+   by a WebKit content rule list); a fixed «Accept-Language: de» and the User-Agent «LessNoise».
+5. Apple's own data: App Store / TestFlight analytics and crash reports are Apple's and only if the
+   person allowed them in iOS; the app adds no analytics.
+6. Background uploads: hourly when iOS grants a background refresh, otherwise when the app is
+   opened; while measuring every 2 minutes as on Android.
+7. «How to verify» for iPhone: no APK to inspect — the source in `ios/`, the CI run of the commit,
+   the network test with a proxy (ios/README.md «Device test checklist» 6, 8).
+8. Classifier: say that the iPhone version has no sound recognition yet (categories empty).
+
+**Website** (`docs/`): the start page and `anleitung.html` mention the iPhone (TestFlight first:
+«Beta, Einladung auf Anfrage»), the iOS location prompt names, and that «Akku-Optimierung» is
+Android-only; `datenschutz.html` as above. No download link until the App Store.
+
+**App Store privacy label** (App Store Connect → App Privacy; proposal, owner decides):
+- Data used to track you: **none**.
+- Data linked to you (the random device id + token link one install's records; declared to be safe):
+  - *Location → Precise Location*: «App Functionality» (reports carry 5-decimal coordinates; the
+    shifted point has metre resolution).
+  - *Other Data* (noise levels per minute, noise events, placement details): «App Functionality».
+  - *Identifiers → User ID*: «App Functionality» (the random device id; no account).
+- Not collected: contact info, health, financial, contacts, user content (no audio), browsing or
+  search history, purchases, usage data, diagnostics (unless the owner turns on App Store crash
+  reports — then *Diagnostics → Crash Data*, Apple's).
+- Privacy policy URL: wenigerlaerm.ch/datenschutz.html (the iPhone section must be there first).
+
+**App Store description** (German, draft):
+> **Weniger Lärm** misst den Strassenlärm vor deinem Fenster – mit dem Mikrofon deines iPhones,
+> stundenlang und auch bei gesperrtem Bildschirm. Die App zeigt den Pegel jetzt, das
+> Grundrauschen und die Lärmspitzen; jede Messung bleibt als Verlauf auf dem Telefon und lässt sich
+> als CSV exportieren. Wer will, teilt seine Messwerte auf die gemeinsame Lärmkarte von Zürich:
+> Minutenwerte und Lärmspitzen, mit einem zufällig verschobenen Punkt statt des Standorts.
+> Mit «Laut! Melden» meldest du einen lauten Töff oder Poser mit einem Tipp.
+> Es wird nie Audio gespeichert oder gesendet. Teilen ist freiwillig, ausschaltbar und mit einem
+> Tipp vom Server gelöscht. Offene Software vom Verein Weniger Lärm (Apache-2.0).
+> Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB); mit einem Schallpegelmesser lässt sich das
+> iPhone kalibrieren.
+
+Keywords: Lärm, Lärmmessung, Schallpegel, dB, Lärmkarte, Verkehrslärm, Töff, Zürich. Category:
+Utilities. Age rating 4+. Review notes: see §3 (why the app records in the background; a demo of
+«Starten» → lock the screen → «Stoppen»).

@@ -11,7 +11,6 @@ final class HistoryModel: ObservableObject {
     private let services: AppServices
     private var token: Int?
     private var pending = false
-    private let queue = DispatchQueue(label: "ch.lessnoise.history", qos: .userInitiated)
 
     init(_ services: AppServices) {
         self.services = services
@@ -21,7 +20,10 @@ final class HistoryModel: ObservableObject {
     func reloadSoon() {
         if pending { return }
         pending = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.reload() }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            self?.reload()
+        }
     }
 
     func reload() {
@@ -31,15 +33,16 @@ final class HistoryModel: ObservableObject {
         let floor = s.settings.state.eventMinLevelDb
         let selected = selectedId
         let now = s.clock.nowMs()
-        queue.async {
-            let items = (try? s.history.items(nowMs: now, running: live.running, eventMinLevelDb: floor)) ?? []
-            let chosen = items.first { $0.id == selected } ?? items.first
-            let data = chosen.flatMap { try? s.history.data($0.measurement) }
-            DispatchQueue.main.async {
-                self.items = items
-                if self.selectedId == nil || !items.contains(where: { $0.id == self.selectedId }) { self.selectedId = chosen?.id }
-                self.chart = data
-            }
+        Task { @MainActor [weak self] in
+            let loaded = await Task.detached(priority: .userInitiated) { () -> ([MeasurementItem], Int?, (minutes: [MinuteRecord], events: [NoiseEvent])?) in
+                let items = (try? s.history.items(nowMs: now, running: live.running, eventMinLevelDb: floor)) ?? []
+                let chosen = items.first { $0.id == selected } ?? items.first
+                return (items, chosen?.id, chosen.flatMap { try? s.history.data($0.measurement) })
+            }.value
+            guard let self = self else { return }
+            self.items = loaded.0
+            if self.selectedId == nil || !loaded.0.contains(where: { $0.id == self.selectedId }) { self.selectedId = loaded.1 }
+            self.chart = loaded.2
         }
     }
 

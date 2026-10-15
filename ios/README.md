@@ -1,18 +1,116 @@
-# Weniger Lärm for iPhone (in progress)
+# Weniger Lärm for iPhone (first version, not released)
 
-The iOS version of «Weniger Lärm», the **Online-Version** first (measuring, «Teilen» with the map
-upload, «Laut! Melden», the tab «Karte»). Native Swift, in this repository next to `android/`,
-`server/` and `docs/`. The app itself cannot be built yet (no Mac, no Apple developer account);
-what exists is the platform-independent core and its proof:
+The iOS version of «Weniger Lärm», the **Online-Version** (measuring with the screen locked,
+«Messungen», «Teilen» with the map upload, «Laut! Melden», «Unterwegs», the tab «Karte»,
+calibration). Native Swift (SwiftUI, iOS 16+), in this repository next to `android/`, `server/`
+and `docs/`. Three parts:
 
 - **`LessNoiseCore/`** — a Swift package (library `LessNoiseCore`, iOS 16+ / macOS 13+, also builds
   on Linux) with a line-by-line port of the measuring core of `android/dsp` and of the pure logic
-  of `android/app` that the iOS app reuses.
-- **Golden tests** — the Kotlin code writes reference results to `LessNoiseCore/Tests/Fixtures/`;
-  the Swift tests recompute everything and compare. Bit-for-bit in practice: the largest level
-  difference seen is 1.4·10⁻¹⁴ dB.
-- **[DESIGN.md](DESIGN.md)** — the plan for the app layer (audio, background, location, upload,
-  storage, map tab, classifier, privacy texts, signing).
+  of `android/app` that the iOS app reuses, proven by **golden tests**: the Kotlin code writes
+  reference results to `LessNoiseCore/Tests/Fixtures/`, the Swift tests recompute everything and
+  compare (largest level difference seen 1.4·10⁻¹⁴ dB).
+- **`LessNoiseKit/`** — a second Swift package with everything of the app that needs no Apple UI or
+  hardware framework, so that it is tested on Linux and macOS alike: storage (GRDB/SQLite, the same
+  tables and columns as Android's Room database), the measurement session around the engine
+  (interruptions recorded as invalid time), «Auf die Lärmkarte?» with the one location fix,
+  «Laut! Melden», the live upload cadence, «Unterwegs», calibration, the map's lock-down rules,
+  German formatting. 40 XCTest tests with fakes for the microphone, location, network and clock.
+- **`App/`** (Xcode target `WenigerLaerm`, display name «Weniger Lärm») — the thin iOS adapters
+  (AVAudioSession/AVAudioEngine, CoreLocation, URLSession, Keychain, UserNotifications,
+  BackgroundTasks, WKWebView) and the SwiftUI screens; **`AppTests/`** tests what only runs on iOS
+  (transport, stores, bundle, WebKit rules, notifications) on the simulator.
+
+**[DESIGN.md](DESIGN.md)** is the design of the app layer, with the list of what must change on the
+server, the website and in PRIVACY.md before an iOS release.
+
+## Build on a Mac
+
+```sh
+brew install xcodegen
+cd ios
+xcodegen                     # writes WenigerLaerm.xcodeproj and App/Info.plist from project.yml (not committed)
+open WenigerLaerm.xcodeproj  # scheme «WenigerLaerm»; ⌘R on a simulator, ⌘U runs AppTests
+```
+
+From the command line (what CI does, `.github/workflows/ios.yml`):
+
+```sh
+(cd LessNoiseCore && swift test) && (cd LessNoiseKit && swift test)
+xcodebuild test -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
+  -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+```
+
+The packages resolve GRDB (MIT, the app's one dependency) and, for the Linux tests only,
+swift-crypto from github.com. The category files are the Android app's
+(`android/app/src/main/assets/categories.json`, `yamnet_labels.txt`), referenced, not copied.
+
+**CI:** every push to the branch `ios-app` that touches `ios/**` runs the workflow «iOS» on GitHub's
+macOS runner: both packages' `swift test`, `xcodegen`, `xcodebuild build-for-testing` and the
+simulator tests without signing; the test summary is in the run's summary, logs and the
+`.xcresult` are an artifact.
+
+## Signing with a personal team
+
+1. Xcode → Settings → Accounts: add the Apple ID of the developer account (individual).
+2. In `project.yml` set `DEVELOPMENT_TEAM` to the Team ID (developer.apple.com → Membership), run
+   `xcodegen` again. Signing is automatic; the bundle id is `ch.lessnoise.app`.
+3. Capabilities the app uses: Background Modes → Audio (in Info.plist), Time Sensitive
+   Notifications (entitlement in `project.yml`; if the account cannot sign it, delete those two
+   lines — «Sehr laut» then arrives as a normal notification). No location background mode, no
+   iCloud, no push.
+4. Select the iPhone as destination and run (⌘R). The first launch on a device needs
+   Settings → General → VPN & Device Management → trust the developer (only for development builds).
+
+## TestFlight (owner)
+
+1. App Store Connect → My Apps → «+» → New App: platform iOS, name «Weniger Lärm», primary
+   language German, bundle id `ch.lessnoise.app`, SKU e.g. `wenigerlaerm-ios`.
+2. Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every upload (and `MARKETING_VERSION` for
+   a new version), `xcodegen`.
+3. Xcode → Product → Archive (scheme «WenigerLaerm», device «Any iOS Device») → Organizer →
+   Distribute App → App Store Connect → Upload. Export compliance: the app uses only Apple's TLS
+   and CryptoKit (`ITSAppUsesNonExemptEncryption = NO` is set).
+4. TestFlight → Internal Testing: add yourself; the build installs through the TestFlight app (no
+   review). External testers need the beta review: fill in «Test Information» (what to test,
+   contact) and the review notes of DESIGN.md §3 (why the app records in the background).
+5. Before external testing and before the App Store: the privacy label and texts of
+   DESIGN.md «Before an iOS release», and the server must accept the audio source `IOS`.
+
+## Device test checklist
+
+Nothing below can be tested on a simulator or in CI; each needs an iPhone (ideally two models).
+
+1. **Screen-locked measuring for 8 h** (on the charger): «Starten», lock the phone, leave it over
+   night. Afterwards: one measurement, minutes without gaps (CSV: `coverage` ≈ 1 in every row),
+   the orange microphone indicator was there the whole time, no crash. Repeat once on battery.
+2. **Battery:** the same night on battery: % per hour (Settings → Battery); Instruments «Energy
+   Log» once for an hour. Expected order: a few % per hour; report the number.
+3. **Calibration:** «Einstellungen › Erweitert › Mit Messgerät vergleichen» next to a sound level
+   meter with steady pink noise ≥ 60 dB(A) (30 s); then pink noise −10/−20 dB steps must come out
+   as the same steps (proves `.measurement` has no AGC); calibrator 94 dB at 1 kHz if available.
+   «Mikrofon» under «Erweitert» shows the input and its rate (48000 Hz expected).
+4. **Interruptions:** during a measurement, a phone call (accepted, 1 min), Siri, an alarm, a
+   voice memo in another app. Each: «Mikrofon ist stumm» while it lasts, measuring resumes by
+   itself afterwards, the CSV shows the lost time as `valid_s` < 60 in those minutes. Also with
+   the screen locked (resuming in the background is the uncertain case).
+5. **Notification delivery («Unterwegs»):** switch on (permission prompt appears then, not at
+   launch), measure, play a loud motorbike/traffic recording ≥ 75 dB(A): one «Sehr laut» per
+   2 min at most, also with the screen locked and in a Focus (only if «Time Sensitive» was
+   allowed); the tap opens «Laut! Melden» with the time of the event. (Needs the classifier for
+   the categories; without it no «Sehr laut» is ever posted — see DESIGN.md §9.)
+6. **Upload under poor network:** share a measurement with Low Data Mode, then airplane mode for
+   10 min, then a weak cellular signal: the status line says «Kein Internet – wird nachgeholt»,
+   nothing is lost (server count = phone count afterwards), «Nur über WLAN» holds on cellular.
+   Watch the requests with a proxy or the server log: only `api.lessnoise.ch`.
+7. **Location:** one fix after «Starten» only while the app is open (lock the phone right after
+   «Starten»: status «Standort wird bestimmt …» until the app is opened again); «Genauer
+   Standort» off → the message about it; denied → «Kein Standort – tippen» and «Koordinaten
+   einfügen». The location arrow never shows while the app is in the background.
+8. **Map tab:** loads only when opened, re-centres on the shifted point, links (Datenschutz,
+   GitHub) open in Safari; Safari's Web Inspector shows no request outside the four hosts.
+9. **«Vom Server löschen»**, **CSV export** (opens in Numbers / Files), **reinstall** (old token
+   and secret gone).
 
 ## What is ported (`LessNoiseCore/Sources/LessNoiseCore/`)
 
@@ -29,20 +127,26 @@ what exists is the platform-independent core and its proof:
 | `UI/` | `app/…/ui/ShareStatus.kt`, `ShareTexts.kt`, `MapLinks.kt`, `AppTabs.kt`, `karte/…/alert/LoudAlertRule.kt` | status line and map banner, all German texts of «Teilen», «Unterwegs» alert rule, map URL/fragment and host lock-down, tab back stack |
 | `Support/` | — | JVM semantics the port needs (`JavaMath.round` half-up, `JavaFormat.fixed` = `String.format(Locale.ROOT,"%.nf")`, `Double.toString`), an ordered JSON writer that prints like kotlinx.serialization |
 
-**Not ported:** the classifier model (YAMNet/LiteRT — phase 2 decides Core ML vs TensorFlow Lite,
-see DESIGN.md), the Room database (iOS: SQLite, DESIGN.md), Compose UI, Android services and
-WorkManager, the Labor build. Kotlin's `Long` is Swift's `Int` (64-bit on every supported platform).
+**Not ported:** the classifier model (YAMNet — DESIGN.md §9: TensorFlow Lite has no official
+SwiftPM package; the app runs with the classifier off for now), Compose UI, Android services and
+WorkManager (iOS: LessNoiseKit and App/), the Labor build. Kotlin's `Long` is Swift's `Int` (64-bit
+on every supported platform).
 
-## Build and test (Linux or macOS)
+**The audio source of iPhones** is `IOS` (`AudioSource.IOS_MEASUREMENT`, the one place it is
+defined). The server accepts only `UNPROCESSED | VOICE_RECOGNITION` today: it must accept `IOS`
+before the app is released (DESIGN.md «Before an iOS release»); no test sends to the live server.
+
+## Build and test the packages (Linux or macOS)
 
 ```sh
 export PATH=/home/claude/swift/swift-6.1.2-RELEASE-ubuntu24.04/usr/bin:$PATH   # this machine; on a Mac: Xcode's toolchain
-cd ios/LessNoiseCore
-swift test
+(cd ios/LessNoiseCore && swift test)   # 20 test functions (Swift Testing, 28 cases), ≈ 35 s
+(cd ios/LessNoiseKit && swift test)    # 40 XCTest tests, ≈ 40 s
 ```
 
-`swift test` runs 20 test functions (Swift Testing; 28 cases, the engine and replay tests are
-parameterized): 16 golden tests and 4 unit tests, about 35 s in a debug build.
+LessNoiseCore: 16 golden tests and 4 unit tests (the engine and replay tests are parameterized).
+On Apple platforms the gzip test inflates the Compression framework's real deflate output and
+checks CRC and size (on Linux the bodies are stored blocks).
 
 ## Golden tests
 
@@ -92,8 +196,7 @@ cd ios/LessNoiseCore && swift test
 Without `LESSNOISE_GOLDEN_DIR` the generators still run with every `:dsp:test` and
 `:app:testPublicDebugUnitTest` and write to `android/*/build/ios-golden/` (so they stay working).
 
-## Next, on the Mac
+## Next
 
-See [DESIGN.md](DESIGN.md) «What needs the Mac»: generate the project with XcodeGen, run
-`swift test` and the app's tests on macOS/iOS Simulator (CryptoKit and the Compression-framework
-gzip path are only exercised there), then the device tests.
+The device tests above, the classifier decision (DESIGN.md §9), then the server, website and
+privacy changes of DESIGN.md «Before an iOS release», then TestFlight.

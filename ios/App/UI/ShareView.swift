@@ -37,7 +37,7 @@ struct ShareView: View {
                     Toggle("Auf die Karte senden", isOn: Binding(get: { s.enabled }, set: { on in
                         if on { share.switchOn(ask: false) } else { share.switchOff() }
                     }))
-                    if let st = model.shareStatus { StatusLine(status: st, onTap: model.handle) }
+                    if let st = model.shareStatus { StatusLine(status: st, onTap: { model.handle($0) }) }
                     if s.refusedTotal > 0 {
                         Text("\(s.refusedTotal) Werte waren zu alt und wurden nicht übernommen.").font(.footnote)
                     }

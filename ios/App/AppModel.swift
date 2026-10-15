@@ -98,7 +98,8 @@ final class AppModel: ObservableObject {
     private func scheduleRefresh() {
         if refreshPending { return }
         refreshPending = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard let self = self else { return }
             self.refreshPending = false
             self.objectWillChange.send()
@@ -119,7 +120,7 @@ final class AppModel: ObservableObject {
     var sheet: AppSheet? {
         if let d = services.share.dialog {
             switch d {
-            case let .consent(s): return .consent(startMeasurement: s)
+            case let .consent(start): return .consent(startMeasurement: start)
             case .locationOptions: return .locationOptions
             case .paste: return .paste
             }
@@ -182,7 +183,10 @@ final class AppModel: ObservableObject {
 
     func show(_ message: String) {
         toast = message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in if self?.toast == message { self?.toast = nil } }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if self?.toast == message { self?.toast = nil }
+        }
     }
 
     var exportDir: URL { FileManager.default.temporaryDirectory.appendingPathComponent("exports", isDirectory: true) }

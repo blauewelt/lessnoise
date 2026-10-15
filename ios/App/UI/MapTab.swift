@@ -163,13 +163,9 @@ final class MapWebController: NSObject, ObservableObject, WKNavigationDelegate, 
         return nil
     }
 
-    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
+    // The async name of webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:.
+    func webView(_ webView: WKWebView, decideMediaCapturePermissionsFor origin: WKSecurityOrigin, initiatedBy frame: WKFrameInfo,
                  type: WKMediaCaptureType) async -> WKPermissionDecision {
-        .deny
-    }
-
-    func webView(_ webView: WKWebView, requestDeviceOrientationAndMotionPermissionFor origin: WKSecurityOrigin,
-                 initiatedByFrame frame: WKFrameInfo) async -> WKPermissionDecision {
         .deny
     }
 }
@@ -192,7 +188,7 @@ struct MapTabView: View {
         let point = model.services.mapPoint()
         VStack(spacing: 0) {
             if let b = banner(point) {
-                StatusLine(status: ShareStatus(b.text, b.action), onTap: model.handle)
+                StatusLine(status: ShareStatus(b.text, b.action), onTap: { model.handle($0) })
                     .padding(.horizontal, 8).padding(.vertical, 6)
             }
             ZStack(alignment: .top) {
