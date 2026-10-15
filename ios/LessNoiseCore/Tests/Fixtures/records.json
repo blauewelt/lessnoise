@@ -1,0 +1,4723 @@
+{
+ "iso": [
+  [
+   "Europe/Zurich",
+   1790000000000,
+   "2026-09-21T16:13:20+02:00",
+   "2026-09-21T16:13:20.000+02:00"
+  ],
+  [
+   "Europe/Zurich",
+   1774745999999,
+   "2026-03-29T01:59:59+01:00",
+   "2026-03-29T01:59:59.999+01:00"
+  ],
+  [
+   "Europe/Zurich",
+   1774746000000,
+   "2026-03-29T03:00:00+02:00",
+   "2026-03-29T03:00:00.000+02:00"
+  ],
+  [
+   "Europe/Zurich",
+   1792630799000,
+   "2026-10-22T02:59:59+02:00",
+   "2026-10-22T02:59:59.000+02:00"
+  ],
+  [
+   "Europe/Zurich",
+   1792630800500,
+   "2026-10-22T03:00:00+02:00",
+   "2026-10-22T03:00:00.500+02:00"
+  ],
+  [
+   "Europe/Zurich",
+   0,
+   "1970-01-01T01:00:00+01:00",
+   "1970-01-01T01:00:00.000+01:00"
+  ],
+  [
+   "Europe/Zurich",
+   -1,
+   "1970-01-01T00:59:59+01:00",
+   "1970-01-01T00:59:59.999+01:00"
+  ],
+  [
+   "Europe/Zurich",
+   1798758000000,
+   "2027-01-01T00:00:00+01:00",
+   "2027-01-01T00:00:00.000+01:00"
+  ],
+  [
+   "UTC",
+   1790000000000,
+   "2026-09-21T14:13:20Z",
+   "2026-09-21T14:13:20.000Z"
+  ],
+  [
+   "UTC",
+   1774745999999,
+   "2026-03-29T00:59:59Z",
+   "2026-03-29T00:59:59.999Z"
+  ],
+  [
+   "UTC",
+   1774746000000,
+   "2026-03-29T01:00:00Z",
+   "2026-03-29T01:00:00.000Z"
+  ],
+  [
+   "UTC",
+   1792630799000,
+   "2026-10-22T00:59:59Z",
+   "2026-10-22T00:59:59.000Z"
+  ],
+  [
+   "UTC",
+   1792630800500,
+   "2026-10-22T01:00:00Z",
+   "2026-10-22T01:00:00.500Z"
+  ],
+  [
+   "UTC",
+   0,
+   "1970-01-01T00:00:00Z",
+   "1970-01-01T00:00:00.000Z"
+  ],
+  [
+   "UTC",
+   -1,
+   "1969-12-31T23:59:59Z",
+   "1969-12-31T23:59:59.999Z"
+  ],
+  [
+   "UTC",
+   1798758000000,
+   "2026-12-31T23:00:00Z",
+   "2026-12-31T23:00:00.000Z"
+  ],
+  [
+   "America/New_York",
+   1790000000000,
+   "2026-09-21T10:13:20-04:00",
+   "2026-09-21T10:13:20.000-04:00"
+  ],
+  [
+   "America/New_York",
+   1774745999999,
+   "2026-03-28T20:59:59-04:00",
+   "2026-03-28T20:59:59.999-04:00"
+  ],
+  [
+   "America/New_York",
+   1774746000000,
+   "2026-03-28T21:00:00-04:00",
+   "2026-03-28T21:00:00.000-04:00"
+  ],
+  [
+   "America/New_York",
+   1792630799000,
+   "2026-10-21T20:59:59-04:00",
+   "2026-10-21T20:59:59.000-04:00"
+  ],
+  [
+   "America/New_York",
+   1792630800500,
+   "2026-10-21T21:00:00-04:00",
+   "2026-10-21T21:00:00.500-04:00"
+  ],
+  [
+   "America/New_York",
+   0,
+   "1969-12-31T19:00:00-05:00",
+   "1969-12-31T19:00:00.000-05:00"
+  ],
+  [
+   "America/New_York",
+   -1,
+   "1969-12-31T18:59:59-05:00",
+   "1969-12-31T18:59:59.999-05:00"
+  ],
+  [
+   "America/New_York",
+   1798758000000,
+   "2026-12-31T18:00:00-05:00",
+   "2026-12-31T18:00:00.000-05:00"
+  ],
+  [
+   "Asia/Kolkata",
+   1790000000000,
+   "2026-09-21T19:43:20+05:30",
+   "2026-09-21T19:43:20.000+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   1774745999999,
+   "2026-03-29T06:29:59+05:30",
+   "2026-03-29T06:29:59.999+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   1774746000000,
+   "2026-03-29T06:30:00+05:30",
+   "2026-03-29T06:30:00.000+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   1792630799000,
+   "2026-10-22T06:29:59+05:30",
+   "2026-10-22T06:29:59.000+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   1792630800500,
+   "2026-10-22T06:30:00+05:30",
+   "2026-10-22T06:30:00.500+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   0,
+   "1970-01-01T05:30:00+05:30",
+   "1970-01-01T05:30:00.000+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   -1,
+   "1970-01-01T05:29:59+05:30",
+   "1970-01-01T05:29:59.999+05:30"
+  ],
+  [
+   "Asia/Kolkata",
+   1798758000000,
+   "2027-01-01T04:30:00+05:30",
+   "2027-01-01T04:30:00.000+05:30"
+  ],
+  [
+   "Pacific/Chatham",
+   1790000000000,
+   "2026-09-22T02:58:20+12:45",
+   "2026-09-22T02:58:20.000+12:45"
+  ],
+  [
+   "Pacific/Chatham",
+   1774745999999,
+   "2026-03-29T14:44:59+13:45",
+   "2026-03-29T14:44:59.999+13:45"
+  ],
+  [
+   "Pacific/Chatham",
+   1774746000000,
+   "2026-03-29T14:45:00+13:45",
+   "2026-03-29T14:45:00.000+13:45"
+  ],
+  [
+   "Pacific/Chatham",
+   1792630799000,
+   "2026-10-22T14:44:59+13:45",
+   "2026-10-22T14:44:59.000+13:45"
+  ],
+  [
+   "Pacific/Chatham",
+   1792630800500,
+   "2026-10-22T14:45:00+13:45",
+   "2026-10-22T14:45:00.500+13:45"
+  ],
+  [
+   "Pacific/Chatham",
+   0,
+   "1970-01-01T12:45:00+12:45",
+   "1970-01-01T12:45:00.000+12:45"
+  ],
+  [
+   "Pacific/Chatham",
+   -1,
+   "1970-01-01T12:44:59+12:45",
+   "1970-01-01T12:44:59.999+12:45"
+  ],
+  [
+   "Pacific/Chatham",
+   1798758000000,
+   "2027-01-01T12:45:00+13:45",
+   "2027-01-01T12:45:00.000+13:45"
+  ]
+ ],
+ "minutes": [
+  {
+   "start_ms": 1790971200000,
+   "start_iso": "2026-10-02T22:00:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.80152068975901,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.8107487531119,
+   "l50_db": 41.05,
+   "l90_db": 44.40526569569424,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971260000,
+   "start_iso": "2026-10-02T22:01:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.49009116989904,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 42.24193165670873,
+   "l50_db": 41.05,
+   "l90_db": 39.20643760418731,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971320000,
+   "start_iso": "2026-10-02T22:02:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 47.66652233092738,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 49.37232768718847,
+   "l50_db": 41.05,
+   "l90_db": 44.045879002921914,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971380000,
+   "start_iso": "2026-10-02T22:03:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.75712637072348,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.30393569602747,
+   "l50_db": 41.05,
+   "l90_db": 41.51162278468133,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 18.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 0.3
+  },
+  {
+   "start_ms": 1790971440000,
+   "start_iso": "2026-10-02T22:04:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.790608428517515,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.609323579251615,
+   "l50_db": 41.05,
+   "l90_db": 41.15675723502142,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971500000,
+   "start_iso": "2026-10-02T22:05:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 52.46653111084515,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 54.31073488719512,
+   "l50_db": 41.05,
+   "l90_db": 51.52264161281804,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971560000,
+   "start_iso": "2026-10-02T22:06:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.722968200040185,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 45.672828384334245,
+   "l50_db": 41.05,
+   "l90_db": 40.64248452820575,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971620000,
+   "start_iso": "2026-10-02T22:07:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": "NaN",
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.75892519227955,
+   "l50_db": 41.05,
+   "l90_db": 48.8590486092255,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971680000,
+   "start_iso": "2026-10-02T22:08:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 54.04551265358167,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 54.53370458873487,
+   "l50_db": 41.05,
+   "l90_db": 51.29413123011167,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971740000,
+   "start_iso": "2026-10-02T22:09:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 52.66397960030213,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.7517243762522,
+   "l50_db": 41.05,
+   "l90_db": 51.49716771104284,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971800000,
+   "start_iso": "2026-10-02T22:10:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.86723336652274,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 49.75024194610867,
+   "l50_db": 41.05,
+   "l90_db": 41.61487530688636,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971860000,
+   "start_iso": "2026-10-02T22:11:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.591013244538864,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.38256607142912,
+   "l50_db": 41.05,
+   "l90_db": 44.85426460621269,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971920000,
+   "start_iso": "2026-10-02T22:12:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 40.0252101397006,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 42.141346414082385,
+   "l50_db": 41.05,
+   "l90_db": 36.251773339718724,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971980000,
+   "start_iso": "2026-10-02T22:13:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.989101597521525,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.123928629295484,
+   "l50_db": 41.05,
+   "l90_db": 43.08003939150227,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972040000,
+   "start_iso": "2026-10-02T22:14:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 43.2346833756164,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.15159102933084,
+   "l50_db": 41.05,
+   "l90_db": 42.372665981494286,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972100000,
+   "start_iso": "2026-10-02T22:15:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.2053910198997,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.09205896823501,
+   "l50_db": 41.05,
+   "l90_db": 45.83462987178625,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972160000,
+   "start_iso": "2026-10-02T22:16:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.724922110594854,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.80299575540436,
+   "l50_db": 41.05,
+   "l90_db": 40.247081602150146,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972220000,
+   "start_iso": "2026-10-02T22:17:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.32829060514118,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.937133759843704,
+   "l50_db": 41.05,
+   "l90_db": 42.24442830676293,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972280000,
+   "start_iso": "2026-10-02T22:18:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 44.15984249874567,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.63820305026532,
+   "l50_db": 41.05,
+   "l90_db": 42.26635025235942,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972340000,
+   "start_iso": "2026-10-02T22:19:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.082773946477964,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 45.085162739460344,
+   "l50_db": 41.05,
+   "l90_db": 40.279732552919356,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972400000,
+   "start_iso": "2026-10-02T22:20:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 48.00344477968061,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.91990415109263,
+   "l50_db": 41.05,
+   "l90_db": 46.40078554515449,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 18.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 0.3
+  },
+  {
+   "start_ms": 1790972460000,
+   "start_iso": "2026-10-02T22:21:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 47.92793834538578,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 51.89447845393376,
+   "l50_db": 41.05,
+   "l90_db": 44.51538807521049,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972520000,
+   "start_iso": "2026-10-02T22:22:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 47.65109375565392,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.04436393660864,
+   "l50_db": 41.05,
+   "l90_db": 44.40775397857406,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972580000,
+   "start_iso": "2026-10-02T22:23:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 40.0252380993859,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 40.560577210638144,
+   "l50_db": 41.05,
+   "l90_db": 38.80634599837565,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972640000,
+   "start_iso": "2026-10-02T22:24:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 48.82897023884706,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.56302075364108,
+   "l50_db": 41.05,
+   "l90_db": 43.155575821932246,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972700000,
+   "start_iso": "2026-10-02T22:25:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 42.51185209225926,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 43.46204850159534,
+   "l50_db": 41.05,
+   "l90_db": 42.26320716169715,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972760000,
+   "start_iso": "2026-10-02T22:26:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.695209791747835,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 43.96540185298038,
+   "l50_db": 41.05,
+   "l90_db": 36.07004893823381,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972820000,
+   "start_iso": "2026-10-02T22:27:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.10920046649666,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.02171237931032,
+   "l50_db": 41.05,
+   "l90_db": 42.421948933208085,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972880000,
+   "start_iso": "2026-10-02T22:28:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.00080179280555,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 49.357503533485634,
+   "l50_db": 41.05,
+   "l90_db": 43.66596022563086,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790972940000,
+   "start_iso": "2026-10-02T22:29:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 54.80614563292151,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 56.227599635545346,
+   "l50_db": 41.05,
+   "l90_db": 53.323314946442956,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973000000,
+   "start_iso": "2026-10-02T22:30:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 53.609074218457906,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 57.26586039968033,
+   "l50_db": 41.05,
+   "l90_db": 50.97017445482188,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973060000,
+   "start_iso": "2026-10-02T22:31:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.920093551005465,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.33405653599662,
+   "l50_db": 41.05,
+   "l90_db": 44.677331906490345,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973120000,
+   "start_iso": "2026-10-02T22:32:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 51.75111686198059,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.70090175121331,
+   "l50_db": 41.05,
+   "l90_db": 46.67747951114679,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973180000,
+   "start_iso": "2026-10-02T22:33:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.270100861669825,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 45.294433401231096,
+   "l50_db": 41.05,
+   "l90_db": 43.240437338260634,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973240000,
+   "start_iso": "2026-10-02T22:34:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 53.53944573841396,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.6064031567413,
+   "l50_db": 41.05,
+   "l90_db": 51.68189031104431,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973300000,
+   "start_iso": "2026-10-02T22:35:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 50.72159011139556,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 52.25726194172728,
+   "l50_db": 41.05,
+   "l90_db": 44.87313486943111,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973360000,
+   "start_iso": "2026-10-02T22:36:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 54.99444476114434,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 56.98694385796534,
+   "l50_db": 41.05,
+   "l90_db": 52.06893108325679,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973420000,
+   "start_iso": "2026-10-02T22:37:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.55862391518908,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 48.7547620896549,
+   "l50_db": 41.05,
+   "l90_db": 44.25832347551325,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 18.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 0.3
+  },
+  {
+   "start_ms": 1790973480000,
+   "start_iso": "2026-10-02T22:38:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 40.17915875731826,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 41.89707919658015,
+   "l50_db": 41.05,
+   "l90_db": 37.316979712978686,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790973540000,
+   "start_iso": "2026-10-02T22:39:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 49.238763824006995,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 51.37712922433989,
+   "l50_db": 41.05,
+   "l90_db": 43.732980953817645,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974560000,
+   "start_iso": "2026-10-02T22:56:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.249348594182194,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 44.00999992668426,
+   "l50_db": 41.05,
+   "l90_db": 36.720595407668284,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974620000,
+   "start_iso": "2026-10-02T22:57:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 44.79985849353496,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 44.90983681339812,
+   "l50_db": 41.05,
+   "l90_db": 39.68748804209095,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974680000,
+   "start_iso": "2026-10-02T22:58:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 44.34732024634533,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.52813429324688,
+   "l50_db": 41.05,
+   "l90_db": 39.869923299280515,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974740000,
+   "start_iso": "2026-10-02T22:59:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 54.418576978932165,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 57.883120710639865,
+   "l50_db": 41.05,
+   "l90_db": 52.47989590726302,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974800000,
+   "start_iso": "2026-10-02T23:00:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 40.17210678305307,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 41.86248055915312,
+   "l50_db": 41.05,
+   "l90_db": 39.416208506182265,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": "default",
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974860000,
+   "start_iso": "2026-10-02T23:01:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 50.17945051005765,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.324338662335606,
+   "l50_db": 41.05,
+   "l90_db": 46.96729755729273,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974920000,
+   "start_iso": "2026-10-02T23:02:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 42.52799596179043,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 44.74084793312194,
+   "l50_db": 41.05,
+   "l90_db": 39.97364293204994,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790974980000,
+   "start_iso": "2026-10-02T23:03:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 44.56649651499886,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 44.85176288653487,
+   "l50_db": 41.05,
+   "l90_db": 40.11681776628836,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975040000,
+   "start_iso": "2026-10-02T23:04:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 51.11466438400358,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 51.285404437004196,
+   "l50_db": 41.05,
+   "l90_db": 47.86757895401636,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975100000,
+   "start_iso": "2026-10-02T23:05:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.60726896546099,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 46.577106456415684,
+   "l50_db": 41.05,
+   "l90_db": 42.92982988384347,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975160000,
+   "start_iso": "2026-10-02T23:06:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 42.80129128025757,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 46.59423123227272,
+   "l50_db": 41.05,
+   "l90_db": 39.028542711949484,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975220000,
+   "start_iso": "2026-10-02T23:07:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 53.38282498911612,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 54.1514996529754,
+   "l50_db": 41.05,
+   "l90_db": 47.87410725431697,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975280000,
+   "start_iso": "2026-10-02T23:08:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.5406979286847,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 43.14696705498899,
+   "l50_db": 41.05,
+   "l90_db": 38.46772340134239,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975340000,
+   "start_iso": "2026-10-02T23:09:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 50.02357695697929,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 52.90148027136578,
+   "l50_db": 41.05,
+   "l90_db": 45.82046501021529,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975400000,
+   "start_iso": "2026-10-02T23:10:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 49.88216046316745,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.44816187156341,
+   "l50_db": 41.05,
+   "l90_db": 47.04947678937632,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975460000,
+   "start_iso": "2026-10-02T23:11:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 43.47188389221218,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 46.49340386050624,
+   "l50_db": 41.05,
+   "l90_db": 39.621391698194195,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 18.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 0.3
+  },
+  {
+   "start_ms": 1790975520000,
+   "start_iso": "2026-10-02T23:12:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 53.08273956627675,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 56.727923362195874,
+   "l50_db": 41.05,
+   "l90_db": 48.424168800662585,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975580000,
+   "start_iso": "2026-10-02T23:13:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.25765148209287,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.369588542068485,
+   "l50_db": 41.05,
+   "l90_db": 45.00779594494947,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975640000,
+   "start_iso": "2026-10-02T23:14:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 49.506274833321925,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 51.803930038183566,
+   "l50_db": 41.05,
+   "l90_db": 45.62089772342161,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975700000,
+   "start_iso": "2026-10-02T23:15:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.16935301938757,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.80009193405519,
+   "l50_db": 41.05,
+   "l90_db": 40.28821353567586,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975760000,
+   "start_iso": "2026-10-02T23:16:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 52.72007636137578,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 54.708120866853925,
+   "l50_db": 41.05,
+   "l90_db": 51.3194556471711,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975820000,
+   "start_iso": "2026-10-02T23:17:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.10846437593165,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 47.060793587952524,
+   "l50_db": 41.05,
+   "l90_db": 42.147680521250436,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975880000,
+   "start_iso": "2026-10-02T23:18:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 47.02364317687519,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.4593155426836,
+   "l50_db": 41.05,
+   "l90_db": 43.365359677006246,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790975940000,
+   "start_iso": "2026-10-02T23:19:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 51.32613025971337,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 51.71823301232053,
+   "l50_db": 41.05,
+   "l90_db": 46.09839339249869,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976000000,
+   "start_iso": "2026-10-02T23:20:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.41156787721332,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 46.58605479392064,
+   "l50_db": 41.05,
+   "l90_db": 43.637044019086844,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976060000,
+   "start_iso": "2026-10-02T23:21:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 42.59844839127173,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 45.6506187955376,
+   "l50_db": 41.05,
+   "l90_db": 40.543218125865714,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976120000,
+   "start_iso": "2026-10-02T23:22:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 45.37575830844774,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 49.318389102122715,
+   "l50_db": 41.05,
+   "l90_db": 39.492029087561214,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976180000,
+   "start_iso": "2026-10-02T23:23:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 43.295000975864205,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 45.04983261951489,
+   "l50_db": 41.05,
+   "l90_db": 40.061527312431856,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976240000,
+   "start_iso": "2026-10-02T23:24:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 47.47311814718166,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 50.7917526138552,
+   "l50_db": 41.05,
+   "l90_db": 46.023327894399316,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976300000,
+   "start_iso": "2026-10-02T23:25:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 49.740886488937,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.166439227856884,
+   "l50_db": 41.05,
+   "l90_db": 47.268675025549705,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976360000,
+   "start_iso": "2026-10-02T23:26:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 46.44847318303251,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 49.51262306468585,
+   "l50_db": 41.05,
+   "l90_db": 46.22993173914764,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976420000,
+   "start_iso": "2026-10-02T23:27:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 49.04190455990685,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 52.164625922235615,
+   "l50_db": 41.05,
+   "l90_db": 45.97235499720462,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790976480000,
+   "start_iso": "2026-10-02T23:28:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 50.17580774168982,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 53.4953409908235,
+   "l50_db": 41.05,
+   "l90_db": 46.44068053554037,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "valid_s": 18.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 0.3
+  },
+  {
+   "start_ms": 1790976540000,
+   "start_iso": "2026-10-02T23:29:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 40.705188205592265,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 43.099922258244476,
+   "l50_db": 41.05,
+   "l90_db": 35.62072337513759,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  }
+ ],
+ "events": [
+  {
+   "start_ms": 1790971272375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.56690571579558,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790971512375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 63.65695786106357,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790971752375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.323158984686,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": null,
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790971992375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 72.8604169546573,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "unclassified",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790972232375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 76.26846883055524,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790972472375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 70.33838273892422,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790972712375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 78.01014639067196,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": null,
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790972952375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 55.35860050557441,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "unclassified",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790973192375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 71.10194067243066,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790973432375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 78.85503438343142,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790974632375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 76.83528483424445,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": null,
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790974872375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 58.538238909325884,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "unclassified",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790975112375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 54.80718218067163,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790975352375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 74.23645210508661,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790975592375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 73.61613746845752,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": null,
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790975832375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.13771416415636,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "unclassified",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790976072375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 77.56875578164448,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790976312375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.69296022207335,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790976552375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 76.57377621402173,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": null,
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  }
+ ],
+ "spans": [
+  [
+   1790971200000,
+   1790973600000
+  ],
+  [
+   1790974560000,
+   1790976600000
+  ]
+ ],
+ "event_min_level_db": 55.0,
+ "summaries": [
+  {
+   "span": [
+    1790974560000,
+    1790976600000
+   ],
+   "measured_s": 1920.0,
+   "laeq_db": 48.56626080158692,
+   "event_count": 5,
+   "strong_event_count": 5,
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "events_by_category": [
+    [
+     "n/a",
+     2
+    ],
+    [
+     "road_traffic",
+     1
+    ],
+    [
+     "unclassified",
+     1
+    ],
+    [
+     "loud_vehicle",
+     1
+    ]
+   ],
+   "loudest_start_ms": 1790975832375,
+   "all_calibrated": false,
+   "excluded_minutes": 2,
+   "events_per_hour": 9.375,
+   "dynamics_db": 5.312786787342009,
+   "any_recalibrated": true,
+   "hum_db": 43.50120184804655,
+   "wind_event_count": 3,
+   "coverage": 0.9411764705882353
+  },
+  {
+   "span": [
+    1790971200000,
+    1790973600000
+   ],
+   "measured_s": 2160.0,
+   "laeq_db": 49.15438795634125,
+   "event_count": 6,
+   "strong_event_count": 6,
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "events_by_category": [
+    [
+     "road_traffic",
+     2
+    ],
+    [
+     "n/a",
+     1
+    ],
+    [
+     "loud_vehicle",
+     2
+    ],
+    [
+     "unclassified",
+     1
+    ]
+   ],
+   "loudest_start_ms": 1790971752375,
+   "all_calibrated": false,
+   "excluded_minutes": 4,
+   "events_per_hour": 10.0,
+   "dynamics_db": 5.037116546960856,
+   "any_recalibrated": false,
+   "hum_db": 43.453198781945744,
+   "wind_event_count": 4,
+   "coverage": 0.9
+  }
+ ],
+ "owner_index": [
+  [
+   1790971190000,
+   -1
+  ],
+  [
+   1790971195000,
+   0
+  ],
+  [
+   1790971200000,
+   0
+  ],
+  [
+   1790973900000,
+   0
+  ],
+  [
+   1790974555000,
+   1
+  ],
+  [
+   1790974554999,
+   0
+  ],
+  [
+   1791071199999,
+   1
+  ]
+ ],
+ "median_l90": 43.65150212235885,
+ "median_spread": 5.164874720489532,
+ "csv_minutes_records": [
+  {
+   "start_ms": 1790971260000,
+   "start_iso": "2026-10-02T22:01:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 41.49009116989904,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 55.0,
+   "l10_db": 42.24193165670873,
+   "l50_db": 41.05,
+   "l90_db": 39.20643760418731,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790971320000,
+   "start_iso": "2026-10-02T22:02:00+02:00",
+   "duration_s": 60.0,
+   "laeq_db": 55.566522330927384,
+   "lafmax_db": 68.97,
+   "lafmin_db": 41.02,
+   "l1_db": 62.900000000000006,
+   "l10_db": 57.27232768718848,
+   "l50_db": 48.95,
+   "l90_db": 51.94587900292192,
+   "event_count": 2,
+   "dominant_category": "road_traffic",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "loud_vehicle",
+     0.05
+    ],
+    [
+     "unclassified",
+     0.7
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": 3,
+   "calibration_offset_db": 120.25,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "valid_s": 60.0,
+   "clock_corrections": 0,
+   "original": [
+    47.66652233092738,
+    61.07,
+    33.12,
+    55.0,
+    49.37232768718847,
+    41.05,
+    44.045879002921914
+   ],
+   "recalibrated_from_id": "default",
+   "recalibration_offset_db": 112.35,
+   "local_floor_db": 44.300000000000004,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  },
+  {
+   "start_ms": 1790000000000,
+   "start_iso": "2026-09-21T16:53:20+02:00",
+   "duration_s": 7.25,
+   "laeq_db": -0.04,
+   "lafmax_db": 61.07,
+   "lafmin_db": 33.12,
+   "l1_db": 7.25,
+   "l10_db": 47.25,
+   "l50_db": 41.05,
+   "l90_db": "NaN",
+   "event_count": 2,
+   "dominant_category": "x,y",
+   "category_shares": [
+    [
+     "road_traffic",
+     0.41
+    ],
+    [
+     "unclassified",
+     0.59
+    ]
+   ],
+   "classifier_frames": 60,
+   "calibration_id": null,
+   "calibration_offset_db": 112.35,
+   "audio_source": "a \"quoted\", source",
+   "calibrated": false,
+   "valid_s": 7.25,
+   "clock_corrections": 0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "local_floor_db": 36.4,
+   "wind_event_count": 1,
+   "coverage": 1.0
+  }
+ ],
+ "csv_events_records": [
+  {
+   "start_ms": 1790971272375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.56690571579558,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": true,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790971512375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 63.65695786106357,
+   "sel_db": 74.04,
+   "background_db": 38.0,
+   "threshold_db": 6.5,
+   "dominant_category": "road_traffic",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [],
+   "classifier_frames": 3,
+   "calibration_id": null,
+   "audio_source": "UNPROCESSED",
+   "calibrated": false,
+   "min_level_db": 30.0,
+   "original": null,
+   "recalibrated_from_id": null,
+   "recalibration_offset_db": null,
+   "features": {
+    "local_floor_db": 40.0,
+    "excess_db": 20.0,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  },
+  {
+   "start_ms": 1790000012375,
+   "start_iso": "2026-09-21T16:53:32.375+02:00",
+   "duration_s": 2.75,
+   "lafmax_db": 79.34,
+   "sel_db": 81.94000000000001,
+   "background_db": 46.050000000000004,
+   "threshold_db": 6.5,
+   "dominant_category": "loud_vehicle",
+   "dominant_score": 0.3100000023841858,
+   "top_labels": [
+    [
+     "Motorcycle",
+     0.612500011920929
+    ],
+    [
+     "Car, \"fast\"",
+     0.25
+    ]
+   ],
+   "classifier_frames": 3,
+   "calibration_id": 3,
+   "audio_source": "UNPROCESSED",
+   "calibrated": true,
+   "min_level_db": 30.0,
+   "original": [
+    71.44,
+    74.04,
+    38.15
+   ],
+   "recalibrated_from_id": "default",
+   "recalibration_offset_db": 112.35,
+   "features": {
+    "local_floor_db": 47.900000000000006,
+    "excess_db": 31.44,
+    "rise_s": 1.2,
+    "decay_s": 1.5,
+    "jaggedness": 0.05,
+    "mid_band_rise_db": 9.0,
+    "lf_share": 0.1,
+    "lf_flutter_db": 1.0,
+    "wind": false,
+    "shape": "hump"
+   }
+  }
+ ],
+ "csv_bucket_ids": [
+  "road_traffic",
+  "loud_vehicle",
+  "unclassified"
+ ],
+ "csv_minutes": "start,duration_s,valid_s,coverage,laeq_db,lafmax_db,lafmin_db,l1_db,l10_db,l50_db,l90_db,event_count,dominant_category,share_road_traffic,share_loud_vehicle,share_unclassified,classifier_frames,calibration_id,calibration_offset_db,audio_source,calibrated,clock_corrections,orig_laeq_db,orig_lafmax_db,orig_lafmin_db,orig_l1_db,orig_l10_db,orig_l50_db,orig_l90_db,recalibrated_from_id,recalibration_offset_db,local_floor_db,wind_event_count\n2026-10-02T22:01:00+02:00,60.0,60.0,1.000,41.5,61.1,33.1,55.0,42.2,41.1,39.2,2,road_traffic,0.250,0.050,0.700,60,,112.35,UNPROCESSED,true,0,,,,,,,,,,36.4,1\n2026-10-02T22:02:00+02:00,60.0,60.0,1.000,55.6,69.0,41.0,62.9,57.3,49.0,51.9,2,road_traffic,0.250,0.050,0.700,60,3,120.25,UNPROCESSED,true,0,47.7,61.1,33.1,55.0,49.4,41.1,44.0,default,112.35,44.3,1\n2026-09-21T16:53:20+02:00,7.3,7.3,1.000,-0.0,61.1,33.1,7.3,47.3,41.1,,2,\"x,y\",0.410,,0.590,60,,112.35,\"a \"\"quoted\"\", source\",false,0,,,,,,,,,,36.4,1\n",
+ "csv_events": "start,duration_s,lafmax_db,sel_db,background_db,threshold_db,min_level_db,dominant_category,dominant_score,label1,score1,label2,score2,label3,score3,classifier_frames,calibration_id,audio_source,calibrated,orig_lafmax_db,orig_sel_db,orig_background_db,recalibrated_from_id,recalibration_offset_db,local_floor_db,excess_db,rise_s,decay_s,jaggedness,mid_band_rise_db,lf_share,lf_flutter_db,wind,shape\n2026-09-21T16:53:32.375+02:00,2.750,79.6,74.0,38.0,6.5,30.0,loud_vehicle,0.310,,,,,,,3,,UNPROCESSED,false,,,,,,40.0,20.0,1.200,1.500,0.050,9.0,0.100,1.00,true,hump\n2026-09-21T16:53:32.375+02:00,2.750,63.7,74.0,38.0,6.5,30.0,road_traffic,0.310,,,,,,,3,,UNPROCESSED,false,,,,,,40.0,20.0,1.200,1.500,0.050,9.0,0.100,1.00,false,hump\n2026-09-21T16:53:32.375+02:00,2.750,79.3,81.9,46.1,6.5,30.0,loud_vehicle,0.310,Motorcycle,0.613,\"Car, \"\"fast\"\"\",0.250,,,3,3,UNPROCESSED,true,71.4,74.0,38.2,default,112.35,47.9,31.4,1.200,1.500,0.050,9.0,0.100,1.00,false,hump\n",
+ "csv_fields": [
+  "",
+  "",
+  "plain",
+  "\"a,b\"",
+  "\"say \"\"hi\"\"\"",
+  "\"line\nbreak\"",
+  "\"cr\rx\""
+ ],
+ "category_decisions": [
+  {
+   "k": 0,
+   "override": "none",
+   "dominant": "loud_vehicle",
+   "score": 0.6000000238418579,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.6000000238418579
+    ],
+    [
+     "road_traffic",
+     0.2852836847305298
+    ],
+    [
+     "rail_tram",
+     0.2982071340084076
+    ],
+    [
+     "aircraft",
+     0.28607261180877686
+    ],
+    [
+     "construction",
+     0.2810690402984619
+    ],
+    [
+     "voices",
+     0.2814190983772278
+    ],
+    [
+     "music",
+     0.2875545024871826
+    ]
+   ],
+   "top3": [
+    [
+     "Motorcycle",
+     0.6000000238418579
+    ],
+    [
+     "Railroad car, train wagon",
+     0.2982071340084076
+    ],
+    [
+     "Fly, housefly",
+     0.2975895404815674
+    ]
+   ]
+  },
+  {
+   "k": 1,
+   "override": "none",
+   "dominant": "road_traffic",
+   "score": 0.5,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.29304176568984985
+    ],
+    [
+     "road_traffic",
+     0.5
+    ],
+    [
+     "rail_tram",
+     0.29827454686164856
+    ],
+    [
+     "aircraft",
+     0.2986420691013336
+    ],
+    [
+     "construction",
+     0.2919432520866394
+    ],
+    [
+     "voices",
+     0.2681407630443573
+    ],
+    [
+     "music",
+     0.2670578360557556
+    ]
+   ],
+   "top3": [
+    [
+     "Car",
+     0.5
+    ],
+    [
+     "Quack",
+     0.29920294880867004
+    ],
+    [
+     "Tabla",
+     0.29889822006225586
+    ]
+   ]
+  },
+  {
+   "k": 2,
+   "override": "none",
+   "dominant": "road_traffic",
+   "score": 0.2945852279663086,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.08796960860490799
+    ],
+    [
+     "road_traffic",
+     0.2945852279663086
+    ],
+    [
+     "rail_tram",
+     0.27913251519203186
+    ],
+    [
+     "aircraft",
+     0.2874238193035126
+    ],
+    [
+     "construction",
+     0.2803022861480713
+    ],
+    [
+     "voices",
+     0.2800515294075012
+    ],
+    [
+     "music",
+     0.22909772396087646
+    ]
+   ],
+   "top3": [
+    [
+     "Inside, small room",
+     0.299449622631073
+    ],
+    [
+     "Microwave oven",
+     0.2990606427192688
+    ],
+    [
+     "Wood",
+     0.2983795404434204
+    ]
+   ]
+  },
+  {
+   "k": 3,
+   "override": "none",
+   "dominant": "loud_vehicle",
+   "score": 0.6000000238418579,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.6000000238418579
+    ],
+    [
+     "road_traffic",
+     0.28534266352653503
+    ],
+    [
+     "rail_tram",
+     0.2813858091831207
+    ],
+    [
+     "aircraft",
+     0.2042190432548523
+    ],
+    [
+     "construction",
+     0.24385279417037964
+    ],
+    [
+     "voices",
+     0.26336780190467834
+    ],
+    [
+     "music",
+     0.278072714805603
+    ]
+   ],
+   "top3": [
+    [
+     "Motorcycle",
+     0.6000000238418579
+    ],
+    [
+     "Gurgling",
+     0.2994466722011566
+    ],
+    [
+     "Mosquito",
+     0.29898256063461304
+    ]
+   ]
+  },
+  {
+   "k": 4,
+   "override": "none",
+   "dominant": "road_traffic",
+   "score": 0.5,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.1426761895418167
+    ],
+    [
+     "road_traffic",
+     0.5
+    ],
+    [
+     "rail_tram",
+     0.15463440120220184
+    ],
+    [
+     "aircraft",
+     0.27087122201919556
+    ],
+    [
+     "construction",
+     0.28082364797592163
+    ],
+    [
+     "voices",
+     0.2917467951774597
+    ],
+    [
+     "music",
+     0.28339526057243347
+    ]
+   ],
+   "top3": [
+    [
+     "Car",
+     0.5
+    ],
+    [
+     "Gargling",
+     0.29992911219596863
+    ],
+    [
+     "Owl",
+     0.29979339241981506
+    ]
+   ]
+  },
+  {
+   "k": 5,
+   "override": "none",
+   "dominant": "music",
+   "score": 0.2961423695087433,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.2757195234298706
+    ],
+    [
+     "road_traffic",
+     0.24436399340629578
+    ],
+    [
+     "rail_tram",
+     0.2942361533641815
+    ],
+    [
+     "aircraft",
+     0.19944153726100922
+    ],
+    [
+     "construction",
+     0.2918504476547241
+    ],
+    [
+     "voices",
+     0.2794358730316162
+    ],
+    [
+     "music",
+     0.2961423695087433
+    ]
+   ],
+   "top3": [
+    [
+     "Speech synthesizer",
+     0.2987493872642517
+    ],
+    [
+     "Moo",
+     0.29819372296333313
+    ],
+    [
+     "Arrow",
+     0.29636770486831665
+    ]
+   ]
+  },
+  {
+   "k": 6,
+   "override": "none",
+   "dominant": "loud_vehicle",
+   "score": 0.6000000238418579,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.6000000238418579
+    ],
+    [
+     "road_traffic",
+     0.2969387173652649
+    ],
+    [
+     "rail_tram",
+     0.27962642908096313
+    ],
+    [
+     "aircraft",
+     0.28263238072395325
+    ],
+    [
+     "construction",
+     0.2918142080307007
+    ],
+    [
+     "voices",
+     0.22917981445789337
+    ],
+    [
+     "music",
+     0.2831093370914459
+    ]
+   ],
+   "top3": [
+    [
+     "Motorcycle",
+     0.6000000238418579
+    ],
+    [
+     "Soul music",
+     0.29963555932044983
+    ],
+    [
+     "Psychedelic rock",
+     0.299513578414917
+    ]
+   ]
+  },
+  {
+   "k": 7,
+   "override": "none",
+   "dominant": "road_traffic",
+   "score": 0.5,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.20142477750778198
+    ],
+    [
+     "road_traffic",
+     0.5
+    ],
+    [
+     "rail_tram",
+     0.2472904622554779
+    ],
+    [
+     "aircraft",
+     0.23150672018527985
+    ],
+    [
+     "construction",
+     0.26195743680000305
+    ],
+    [
+     "voices",
+     0.26978635787963867
+    ],
+    [
+     "music",
+     0.2993648052215576
+    ]
+   ],
+   "top3": [
+    [
+     "Car",
+     0.5
+    ],
+    [
+     "Dance music",
+     0.2993648052215576
+    ],
+    [
+     "Cupboard open or close",
+     0.2992294430732727
+    ]
+   ]
+  },
+  {
+   "k": 8,
+   "override": "none",
+   "dominant": "construction",
+   "score": 0.2956050634384155,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.26462045311927795
+    ],
+    [
+     "road_traffic",
+     0.27621132135391235
+    ],
+    [
+     "rail_tram",
+     0.2931555211544037
+    ],
+    [
+     "aircraft",
+     0.2163601666688919
+    ],
+    [
+     "construction",
+     0.2956050634384155
+    ],
+    [
+     "voices",
+     0.2798311710357666
+    ],
+    [
+     "music",
+     0.2927771508693695
+    ]
+   ],
+   "top3": [
+    [
+     "Pizzicato",
+     0.29963022470474243
+    ],
+    [
+     "Cricket",
+     0.2990182042121887
+    ],
+    [
+     "Cymbal",
+     0.29777100682258606
+    ]
+   ]
+  },
+  {
+   "k": 9,
+   "override": "all 0.05",
+   "dominant": "unclassified",
+   "score": 0.05000000074505806,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.05000000074505806
+    ],
+    [
+     "road_traffic",
+     0.05000000074505806
+    ],
+    [
+     "rail_tram",
+     0.05000000074505806
+    ],
+    [
+     "aircraft",
+     0.05000000074505806
+    ],
+    [
+     "construction",
+     0.05000000074505806
+    ],
+    [
+     "voices",
+     0.05000000074505806
+    ],
+    [
+     "music",
+     0.05000000074505806
+    ]
+   ],
+   "top3": [
+    [
+     "Speech",
+     0.05000000074505806
+    ],
+    [
+     "Child speech, kid speaking",
+     0.05000000074505806
+    ],
+    [
+     "Conversation",
+     0.05000000074505806
+    ]
+   ]
+  },
+  {
+   "k": 10,
+   "override": "zeros, Speech 0.15, Truck 0.25",
+   "dominant": "road_traffic",
+   "score": 0.25,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.0
+    ],
+    [
+     "road_traffic",
+     0.25
+    ],
+    [
+     "rail_tram",
+     0.0
+    ],
+    [
+     "aircraft",
+     0.0
+    ],
+    [
+     "construction",
+     0.0
+    ],
+    [
+     "voices",
+     0.15000000596046448
+    ],
+    [
+     "music",
+     0.0
+    ]
+   ],
+   "top3": [
+    [
+     "Truck",
+     0.25
+    ],
+    [
+     "Speech",
+     0.15000000596046448
+    ],
+    [
+     "Child speech, kid speaking",
+     0.0
+    ]
+   ]
+  },
+  {
+   "k": 11,
+   "override": "zeros, Motorcycle 0.3, Car 0.3",
+   "dominant": "loud_vehicle",
+   "score": 0.30000001192092896,
+   "category_scores": [
+    [
+     "loud_vehicle",
+     0.30000001192092896
+    ],
+    [
+     "road_traffic",
+     0.30000001192092896
+    ],
+    [
+     "rail_tram",
+     0.0
+    ],
+    [
+     "aircraft",
+     0.0
+    ],
+    [
+     "construction",
+     0.0
+    ],
+    [
+     "voices",
+     0.0
+    ],
+    [
+     "music",
+     0.0
+    ]
+   ],
+   "top3": [
+    [
+     "Car",
+     0.30000001192092896
+    ],
+    [
+     "Motorcycle",
+     0.30000001192092896
+    ],
+    [
+     "Speech",
+     0.0
+    ]
+   ]
+  }
+ ],
+ "bucket_ids": [
+  "loud_vehicle",
+  "road_traffic",
+  "rail_tram",
+  "aircraft",
+  "construction",
+  "voices",
+  "music",
+  "unclassified"
+ ]
+}
