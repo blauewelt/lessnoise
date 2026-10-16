@@ -117,15 +117,147 @@ test("legend: neutral scale for the mean level, no LSV values in the legend", as
 test("metric selector recolours the cells and changes the legend", async ({ page }) => {
   const fill = () => page.locator(`#karte path.cell[data-cell="${CAL}"]`).first().getAttribute("fill");
   const before = await fill();
-  await page.locator('#metric input[value="loud"]').check({ force: true });
-  await expect(page.locator("#legend-title")).toContainText("Töff & Poser");
+  await expect(page.locator('#metric input[value="loud"]')).toHaveCount(0);   // now the source «Töff & Poser»
+  await page.locator('#metric input[value="events"]').check({ force: true });
+  await expect(page.locator("#legend-title")).toHaveText(
+    "Laute Einzelereignisse pro Stunde Messzeit, Maschinen- und Motorenlärm (alle fünf Quellen) · Letzte 7 Tage");
   expect(await fill()).not.toBe(before);
   await page.locator('#metric input[value="peaks"]').check({ force: true });
-  await expect(page.locator("#legend-title")).toContainText("Ereignisse ab 75 dB(A) pro Stunde Messzeit");
+  await expect(page.locator("#legend-title")).toContainText("Ereignisse ab 75 dB(A) pro Stunde Messzeit, Maschinen- und Motorenlärm");
+  // «Sehr laut/h» says which sources count
+  await expect(page.locator("#legend-note")).toHaveText(
+    "Gezählt pro Stunde gültiger Messzeit: Ereignisse mit einem Spitzenpegel ab 75 dB(A), nur von Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle.");
   // keyboard: arrow keys move between the radio buttons
-  await page.locator('#metric input[value="loud"]').focus();
+  await page.locator('#metric input[value="peaks"]').focus();
   await page.keyboard.press("ArrowLeft");
   await expect(page.locator('#metric input[value="events"]')).toBeChecked();
+});
+
+// ---- one colour and one layer per source (the five map categories, server/DESIGN.md §6, §7) ----
+
+const SOURCE_NAMES = ["Alle", "Töff & Poser", "Strassenverkehr", "Tram & Bahn", "Flugzeug", "Baustelle"];
+
+test("source chips: «Alle» and the five sources, «Alle» chosen, no hue on an unchosen chip", async ({ page }) => {
+  await expect(page.locator("#source span")).toHaveText(SOURCE_NAMES);
+  const values = await page.locator('#source input[name="source"]').evaluateAll((i) => i.map((x) => x.value));
+  expect(values).toEqual(["alle", ...M.SOURCES.map((s) => s.id)]);
+  expect(M.SOURCES.map((s) => s.id)).toEqual(Object.keys(FX.last_7_days.events_per_h_by_category));
+  await expect(page.locator('#source input[value="alle"]')).toBeChecked();
+  await expect(page.locator("#karte")).toHaveAttribute("data-source", "alle");
+  const shadows = await page.locator("#source label[data-cat] span").evaluateAll((s) => s.map((x) => getComputedStyle(x).boxShadow));
+  expect(new Set(shadows)).toEqual(new Set(["none"]));
+  // the legend wording: machine and motor noise, not «alle Quellen» or «Strassenlärm»
+  const text = await page.evaluate(() => document.body.innerText);
+  expect(text).not.toMatch(/alle Quellen|Strassenlärm|gleich welcher Quelle/);
+  await expect(page.locator(".lead")).toContainText("Maschinen- und Motorenlärm");
+  await expect(page.locator("#erklaerung")).toContainText(
+    "Es zählen nur die fünf Quellen des Maschinen- und Motorenlärms: Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle.");
+});
+
+test("choosing a source recolours the cells in that source's ramp, legend and list follow, «Alle» goes back", async ({ page }) => {
+  const fills = () => page.locator("#karte path.cell").evaluateAll((ps) => ps.map((p) => p.getAttribute("fill")));
+  for (const s of M.SOURCES) {
+    await page.locator(`#source input[value="${s.id}"]`).check({ force: true });
+    await expect(page.locator("#karte")).toHaveAttribute("data-source", s.id);
+    await expect(page.locator('#metric input[value="events"]')).toBeChecked();
+    await expect(page.locator("#legend-title")).toHaveText(`Ereignisse «${s.name}» pro Stunde Messzeit · Letzte 7 Tage`);
+    await expect(page.locator("#legend-note")).toContainText(`Nur «${s.name}»`);
+    const bar = await page.locator("#legend-bar span").evaluateAll((x) => x.map((e) => e.style.background));
+    expect(bar.length).toBe(5);
+    expect(await page.locator("#legend-ticks span").allTextContents()).toEqual(["0,5", "1", "2", "5"]);
+    // every cell in this source's ramp, the class of its own rate
+    const f = await fills();
+    for (const c of f) expect(s.ramp).toContain(c);
+    const want = M.colourFor(M.sourceMetric(s.id), FX.last_7_days);
+    expect(await page.locator(`#karte path.cell[data-cell="${CAL}"]`).first().getAttribute("fill")).toBe(want);
+    const v = FX.last_7_days.events_per_h_by_category[s.id];
+    await expect(page.locator(`#celllist-items button[data-cell="${CAL}"] .val`)).toHaveText(dec(v) + " pro Stunde");
+    // the chosen chip carries the hue, the others do not
+    const marked = await page.locator("#source label[data-cat] span").evaluateAll((x) => x.filter((e) => getComputedStyle(e).boxShadow !== "none").length);
+    expect(marked).toBe(1);
+  }
+  await page.locator('#source input[value="alle"]').check({ force: true });
+  const all = await fills();
+  for (const c of all) expect(M.METRICS.events.colours).toContain(c);
+  // a level metric goes back to «Alle»
+  await page.locator('#source input[value="aircraft"]').check({ force: true });
+  await page.locator('#metric input[value="laeq"]').check({ force: true });
+  await expect(page.locator('#source input[value="alle"]')).toBeChecked();
+  await expect(page.locator("#legend-title")).toContainText("Mittlerer Pegel");
+});
+
+test("the card shows the chosen source's figures, in the chart too", async ({ page, isMobile }) => {
+  await hitCell(page, CAL, isMobile);
+  const rows = page.locator("#card-period .row");
+  // «Alle»: the total and the five sources
+  await expect(rows.filter({ hasText: /^davon / })).toHaveCount(5);
+  await expect(page.locator(".chart-keys")).toContainText("Ereignisse pro h");
+  const allBars = cellJson.profile.hours.filter((h) => h.laeq_db !== null && h.events_per_h > 0).length;
+  await expect(page.locator("#card svg.daychart rect.bar.hl")).toHaveCount(allBars);
+  const s = M.source("road_traffic");
+  await page.locator('#source input[value="road_traffic"]').check({ force: true });
+  await expect(rows.filter({ hasText: /^davon / })).toHaveCount(1);
+  await expect(page.locator('#card-period .row[data-source="road_traffic"]'))
+    .toContainText(`davon Strassenverkehr${dec(FX.last_7_days.events_per_h_by_category.road_traffic)} pro h`);
+  await expect(page.locator("#card-day .row", { hasText: "Strassenverkehr" })).toContainText(dec(FX.day.events_per_h_by_category.road_traffic) + " pro h");
+  await expect(page.locator("#counted-since")).toContainText("gezählt seit 16.10.2026");
+  await expect(page.locator(".chart-keys")).toContainText("Strassenverkehr pro h");
+  const bars = cellJson.profile.hours.filter((h) => h.laeq_db !== null && h.events_per_h_by_category.road_traffic > 0).length;
+  const chart = page.locator("#card svg.daychart");
+  await expect(chart.locator("rect.bar.hl")).toHaveCount(bars);
+  const fill = await chart.locator("rect.bar.hl").first().evaluate((r) => getComputedStyle(r).fill);
+  const hex = s.colour.toLowerCase();
+  expect(fill).toBe(`rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`);
+});
+
+test("the chosen source is kept in the fragment: written without a history entry, read on load and on hashchange", async ({ page }) => {
+  const before = await page.evaluate(() => history.length);
+  await page.locator('#source input[value="rail_tram"]').check({ force: true });
+  expect(await page.evaluate(() => location.hash)).toBe("#quelle=rail_tram");
+  expect(await page.evaluate(() => history.length)).toBe(before);
+  await page.reload();
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator('#source input[value="rail_tram"]')).toBeChecked();
+  await expect(page.locator('#metric input[value="events"]')).toBeChecked();
+  await expect(page.locator("#legend-title")).toContainText("«Tram & Bahn»");
+  // with a view: both kept, the view still works
+  await page.goto("about:blank");
+  await page.goto("/karte.html#lat=47.37690&lon=8.54170&z=16&quelle=aircraft");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  const v = await viewOf(page);
+  expect(v.hashView).toEqual({ lat: 47.3769, lon: 8.5417, z: 16 });
+  await expect(page.locator('#source input[value="aircraft"]')).toBeChecked();
+  await page.locator('#source input[value="construction"]').check({ force: true });
+  expect(await page.evaluate(() => location.hash)).toBe("#lat=47.37690&lon=8.54170&z=16&quelle=construction");
+  // «Alle» removes it again, the view stays
+  await page.locator('#source input[value="alle"]').check({ force: true });
+  expect(await page.evaluate(() => location.hash)).toBe("#lat=47.37690&lon=8.54170&z=16");
+  // hashchange to another source recolours
+  await page.evaluate(() => { location.hash = "quelle=loud_vehicle"; });
+  await expect(page.locator('#source input[value="loud_vehicle"]')).toBeChecked();
+  await expect(page.locator("#legend-title")).toContainText("«Töff & Poser»");
+  // the app replaces only the view: the source stays and is written back after the view
+  await page.evaluate(() => { location.replace("#lat=46.94800&lon=7.44740&z=15"); });
+  await expect.poll(async () => (await viewOf(page)).z).toBe(15);
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#lat=46.94800&lon=7.44740&z=15&quelle=loud_vehicle");
+  await expect(page.locator('#source input[value="loud_vehicle"]')).toBeChecked();
+  // an unknown source is ignored
+  await page.goto("about:blank");
+  await page.goto("/karte.html#quelle=voices");
+  await expect(page.locator("#karte")).toHaveAttribute("data-ready", "1");
+  await expect(page.locator('#source input[value="alle"]')).toBeChecked();
+});
+
+test("dark mode: a source uses its dark ramp", async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext({ colorScheme: "dark", viewport: { width: 360, height: 740 } });
+  const p = await ctx.newPage();
+  const s = await mockNetwork(p, { baseURL });
+  await p.goto("/karte.html#quelle=aircraft");
+  await expect(p.locator("#karte")).toHaveAttribute("data-ready", "1");
+  const fills = await p.locator("#karte path.cell").evaluateAll((ps) => ps.map((x) => x.getAttribute("fill")));
+  for (const f of fills) expect(M.source("aircraft").rampDark).toContain(f);
+  expect(s.foreign).toEqual([]);
+  await ctx.close();
 });
 
 test("period switch: «Letzte 30 Tage» changes the span, the legend, the list and the card", async ({ page, isMobile }) => {
@@ -164,13 +296,14 @@ test("tapping a cell opens the card: period figures with their span, the day, th
   await expect(card.locator("#counted-since")).toHaveText("Ereignisse: nur Maschinen- und Motorenlärm, gezählt seit 16.10.2026.");
   await expect(card.locator("#card-day h3")).toHaveText("Am Do 8. Oktober 2026");
   await expect(card.locator("#card-day .row").first()).toContainText(dec(FX.day.laeq_db) + " dB(A)");
-  // the chart: 24 hours, one run, band, Töff & Poser bars, the LSV bands by clock time
+  // the chart: 24 hours, one run, band, event bars, the LSV bands by clock time
   const chart = card.locator("svg.daychart");
   await expect(chart).toBeVisible();
   await expect(chart.locator("path.laeq")).toHaveCount(1);
   await expect(chart.locator("path.band")).toHaveCount(1);
   await expect(chart.locator("rect.hit")).toHaveCount(24);
-  const bars = cellJson.profile.hours.filter((h) => h.events_per_h_by_category.loud_vehicle > 0).length;
+  // under «Alle» the bars are all five sources together
+  const bars = cellJson.profile.hours.filter((h) => h.laeq_db !== null && h.events_per_h > 0).length;
   await expect(chart.locator("rect.bar.hl")).toHaveCount(bars);
   const bands = await chart.locator("rect.lsv-band").evaluateAll((r) => r.map((x) => [x.getAttribute("data-pw"), x.getAttribute("data-igw")]));
   expect(bands).toEqual([["45", "50"], ["55", "60"], ["45", "50"]]);

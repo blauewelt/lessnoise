@@ -7,22 +7,22 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Lärmkarte – Weniger Lärm</title>
-<meta name="description" content="Strassenlärm in der Schweiz, gemessen und gemeldet von Anwohnerinnen und Anwohnern: mittlerer Pegel, Hintergrund, Dynamik und laute Einzelereignisse pro 100-m-Feld.">
+<meta name="description" content="Maschinen- und Motorenlärm in der Schweiz, gemessen und gemeldet von Anwohnerinnen und Anwohnern: mittlerer Pegel, Hintergrund, Dynamik und laute Einzelereignisse pro 100-m-Feld, je Quelle.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css?v=c877ad1e">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=a7837102">
-<link rel="stylesheet" href="map/karte.css?v=7f6bfd31">
+<link rel="stylesheet" href="map/karte.css?v=7bc1db5e">
 <script src="vendor/leaflet/leaflet.js?v=db49d009" defer></script>
 <script src="map/lv95.js?v=ca0eeb2b" defer></script>
-<script src="map/model.js?v=5c25a8bf" defer></script>
-<script src="map/karte.js?v=272943ce" defer></script>
+<script src="map/model.js?v=a9877a97" defer></script>
+<script src="map/karte.js?v=2a4d7ce0" defer></script>
 </head>
 <body class="karte-page">
 
 <header class="wrap wide page-head">
   <a class="home" href="./">Weniger Lärm</a>
   <h1>Lärmkarte</h1>
-  <p class="lead">Strassenlärm in der Schweiz, gemessen von Anwohnerinnen und Anwohnern mit der App von Weniger Lärm – zu jeder Tageszeit, wann immer jemand misst. Die Karte fasst die Messungen in Feldern von 100&nbsp;×&nbsp;100&nbsp;m zusammen. Seit Version 0.6.2 verschiebt die App jeden Messort vorher zufällig, standardmässig um etwa 50&nbsp;m (in der App einstellbar); der genaue Messort verlässt das Telefon nie. (Ältere Versionen senden das Feld, in dem gemessen wurde.) Die Punkte sind Meldungen: Dort hat jemand eine laute Vorbeifahrt gemeldet.</p>
+  <p class="lead">Maschinen- und Motorenlärm in der Schweiz – Töff, Verkehr, Tram und Bahn, Flugzeuge, Baustellen –, gemessen von Anwohnerinnen und Anwohnern mit der App von Weniger Lärm – zu jeder Tageszeit, wann immer jemand misst. Die Karte fasst die Messungen in Feldern von 100&nbsp;×&nbsp;100&nbsp;m zusammen. Seit Version 0.6.2 verschiebt die App jeden Messort vorher zufällig, standardmässig um etwa 50&nbsp;m (in der App einstellbar); der genaue Messort verlässt das Telefon nie. (Ältere Versionen senden das Feld, in dem gemessen wurde.) Die Punkte sind Meldungen: Dort hat jemand eine laute Vorbeifahrt gemeldet.</p>
   <p class="small" id="quellen">Diese Seite lädt die Kartenbilder von swisstopo und die Messwerte und Meldungen vom Server des Projekts (api.lessnoise.ch, übergangsweise api.stadtlaerm.ch), sonst nichts von anderen Servern.</p>
 </header>
 
@@ -35,8 +35,18 @@
     <label><input type="radio" name="metric" value="l90"><span>Hintergrund</span></label>
     <label><input type="radio" name="metric" value="dynamics"><span>Dynamik</span></label>
     <label><input type="radio" name="metric" value="events"><span>Ereignisse/h</span></label>
-    <label><input type="radio" name="metric" value="loud"><span>Töff &amp; Poser/h</span></label>
     <label><input type="radio" name="metric" value="peaks"><span>Sehr laut/h</span></label>
+  </fieldset>
+
+  <fieldset class="source chips" id="source">
+    <legend>Quelle der Ereignisse</legend>
+    <b class="chips-label" aria-hidden="true">Quelle:</b>
+    <label><input type="radio" name="source" value="alle" checked><span>Alle</span></label>
+    <label data-cat="loud_vehicle"><input type="radio" name="source" value="loud_vehicle"><span>Töff &amp; Poser</span></label>
+    <label data-cat="road_traffic"><input type="radio" name="source" value="road_traffic"><span>Strassenverkehr</span></label>
+    <label data-cat="rail_tram"><input type="radio" name="source" value="rail_tram"><span>Tram &amp; Bahn</span></label>
+    <label data-cat="aircraft"><input type="radio" name="source" value="aircraft"><span>Flugzeug</span></label>
+    <label data-cat="construction"><input type="radio" name="source" value="construction"><span>Baustelle</span></label>
   </fieldset>
 
   <div class="periodbar">
@@ -100,11 +110,11 @@
     <dt>Dynamik</dt>
     <dd>Wie stark der Pegel innerhalb einer Minute schwankt: der Median über alle Minuten von L10&nbsp;−&nbsp;L90. Wenige dB bei gleichmässigem Verkehr, mehr bei einer ruhigen Strasse mit einzelnen lauten Fahrzeugen.</dd>
     <dt>Ereignisse/h</dt>
-    <dd>Laute Einzelereignisse pro Stunde Messzeit, alle Quellen zusammen.</dd>
-    <dt>Töff &amp; Poser/h</dt>
-    <dd>Nur die Ereignisse, die die App als Motorrad oder hochdrehenden Motor erkannt hat.</dd>
+    <dd>Laute Einzelereignisse pro Stunde Messzeit, nur Maschinen- und Motorenlärm: Töff &amp; Poser, Strassenverkehr, Tram &amp; Bahn, Flugzeug und Baustelle zusammen. Stimmen, Musik und andere Geräusche zählen nicht.</dd>
+    <dt>Quelle</dt>
+    <dd>«Alle» zeigt die fünf Quellen zusammen. Wählen Sie eine Quelle, färbt die Karte die Felder nach deren Ereignissen pro Stunde, in der Farbe dieser Quelle: hell wenige, dunkel viele (im dunklen Modus umgekehrt). Töff &amp; Poser sind Motorräder und hochdrehende Motoren. Die Quelle erkennt die App auf dem Telefon, ohne Audio zu speichern.</dd>
     <dt>Sehr laut/h</dt>
-    <dd>Ereignisse mit einem Spitzenpegel ab <span class="loud-db">75</span>&nbsp;dB(A), gleich welcher Quelle, pro Stunde Messzeit.</dd>
+    <dd>Ereignisse mit einem Spitzenpegel ab <span class="loud-db">75</span>&nbsp;dB(A) pro Stunde Messzeit. Es zählen nur die fünf Quellen des Maschinen- und Motorenlärms: Töff &amp; Poser, Strassenverkehr, Tram &amp; Bahn, Flugzeug und Baustelle.</dd>
     <dt>Meldungen</dt>
     <dd>Punkte, an denen jemand mit der App eine laute Vorbeifahrt gemeldet hat, mit der Art des Fahrzeugs. Der Ort ist so genau, wie er gemeldet wurde; die Zeit ist auf die volle Stunde abgerundet. Wer gemeldet hat, steht nirgends.</dd>
     <dt>unkalibriert</dt>

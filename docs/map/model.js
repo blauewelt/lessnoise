@@ -163,7 +163,7 @@
     },
     events: {
       id: "events", label: "Ereignisse/h", unit: "pro Stunde",
-      title: "Laute Einzelereignisse pro Stunde Messzeit, alle Quellen",
+      title: "Laute Einzelereignisse pro Stunde Messzeit, Maschinen- und Motorenlärm (alle fünf Quellen)",
       breaks: [2, 5, 10, 15, 20, 30], colours: RATE_COLOURS,
       ticks: [2, 5, 10, 15, 20, 30],
       get: blockGet("events_per_h"),
@@ -180,7 +180,7 @@
     peaks: {
       id: "peaks", label: "Sehr laut/h", unit: "pro Stunde",
       // the threshold comes from the file (loud_event_db); karte.js fills it in
-      title: "Ereignisse ab {db} dB(A) pro Stunde Messzeit, alle Quellen",
+      title: "Ereignisse ab {db} dB(A) pro Stunde Messzeit, Maschinen- und Motorenlärm",
       breaks: [0.2, 0.5, 1, 2, 3, 5], colours: RATE_COLOURS,
       ticks: [0.2, 0.5, 1, 2, 3, 5],
       get: blockGet("loud_events_per_h"),
@@ -201,9 +201,102 @@
     return i;
   }
 
+  /* ---------- one layer per source (the five map categories, server/DESIGN.md §6) ---------- */
+
+  // The five categories the server counts (config.MAP_CATEGORIES), in the server's order. Each
+  // has its own hue (light / dark mode; validated for colour-vision deficiency as a set), used
+  // only for its own layer: one hue per view, never several categories coloured at once. Each
+  // ramp is that hue in 5 steps of OKLCH lightness (light mode 0.76 → 0.36, light -> dark = few
+  // -> many; dark mode 0.52 → 0.91, dark -> light, so many stays the most visible on the dark
+  // map, as LEVEL_COLOURS_DARK); every ramp passes the ordinal checks of the dataviz validator
+  // (monotone lightness, steps ≥ 0.06 apart, end step ≥ 2:1 against the surface).
+  var SOURCES = [
+    { id: "loud_vehicle", name: "Töff & Poser", colour: "#EB6834", colourDark: "#D95926",
+      ramp: ["#f7936e", "#e46838", "#c24609", "#963300", "#6a2202"],
+      rampDark: ["#ac4319", "#d55c2d", "#fc7848", "#fead91", "#fed8ca"] },
+    { id: "road_traffic", name: "Strassenverkehr", colour: "#2A78D6", colourDark: "#3987E5",
+      ramp: ["#7bb4fd", "#4b93ee", "#2573d1", "#0055ab", "#023b79"],
+      rampDark: ["#2969b5", "#3e87e0", "#61a7ff", "#9cc7ff", "#cfe3fe"] },
+    { id: "rail_tram", name: "Tram & Bahn", colour: "#1BAF7A", colourDark: "#199E70",
+      ramp: ["#6ec69d", "#27ab79", "#078a5e", "#066947", "#014930"],
+      rampDark: ["#0c7c57", "#279d71", "#46bd8d", "#71ddae", "#a5f6cf"] },
+    { id: "aircraft", name: "Flugzeug", colour: "#4A3AA7", colourDark: "#9085E9",
+      ramp: ["#a7a6fe", "#8882ef", "#6b61d1", "#5144ac", "#382a83"],
+      rampDark: ["#655bac", "#8177d4", "#9f95fa", "#bfbbfe", "#deddff"] },
+    { id: "construction", name: "Baustelle", colour: "#EDA100", colourDark: "#C98500",
+      ramp: ["#dea551", "#c28410", "#9b690a", "#774f00", "#543602"],
+      rampDark: ["#8f5d00", "#b57802", "#da9525", "#f9b556", "#fedbae"] },
+  ];
+  // One scale for all five, so that the same step means the same rate whichever source is shown.
+  var SOURCE_BREAKS = [0.5, 1, 2, 5];
+  var ALL_SOURCES = "alle";
+
+  function source(id) {
+    for (var i = 0; i < SOURCES.length; i++) if (SOURCES[i].id === id) return SOURCES[i];
+    return null;
+  }
+
+  /** The colour scale of one source's events per hour (a metric like those of METRICS). */
+  function sourceMetric(id) {
+    var s = source(id);
+    if (!s) return null;
+    return {
+      id: "source:" + s.id, source: s.id, label: s.name + "/h", unit: "pro Stunde",
+      title: "Ereignisse «" + s.name + "» pro Stunde Messzeit",
+      breaks: SOURCE_BREAKS, colours: s.ramp, coloursDark: s.rampDark, ticks: SOURCE_BREAKS,
+      get: function (b) {
+        var c = b && b.events_per_h_by_category;
+        return c && c[s.id] !== undefined ? c[s.id] : null;
+      },
+    };
+  }
+
+  /** The metric the map colours by: one source's events/h when «Ereignisse/h» is chosen with a
+   *  source other than «Alle»; otherwise the metric itself. */
+  function metricFor(metricId, sourceId) {
+    if (metricId === "events" && sourceId && sourceId !== ALL_SOURCES) {
+      var sm = sourceMetric(sourceId);
+      if (sm) return sm;
+    }
+    return METRICS[metricId];
+  }
+
+  function metricOf(m) { return typeof m === "string" ? METRICS[m] : m; }
+
+  /* ---------- the source in the fragment: karte.html#quelle=<id>, also with a view ---------- */
+
+  function hashParts(hash) {
+    var h = typeof hash === "string" ? (hash.charAt(0) === "#" ? hash.slice(1) : hash) : "";
+    return h ? h.split("&") : [];
+  }
+
+  /** The source in a location hash ("quelle=road_traffic"), or null if absent or unknown. */
+  function parseSource(hash) {
+    var found = null;
+    hashParts(hash).forEach(function (p) {
+      var kv = p.split("=");
+      if (kv.length === 2 && kv[0] === "quelle" && (kv[1] === ALL_SOURCES || source(kv[1]))) found = kv[1];
+    });
+    return found;
+  }
+
+  /** The hash without its `quelle=` part (what parseView reads). */
+  function hashWithoutSource(hash) {
+    return hashParts(hash).filter(function (p) { return p.split("=")[0] !== "quelle"; }).join("&");
+  }
+
+  /** The hash for a chosen source: the view part of `hash` (if it is a valid view, else nothing)
+   *  plus `quelle=<id>`; «Alle» (the default) adds nothing. Returns "" or "#…". */
+  function hashFor(hash, sourceId, bounds, minZoom, maxZoom) {
+    var rest = hashWithoutSource(hash);
+    var parts = rest && parseView(rest, bounds, minZoom, maxZoom) ? [rest] : [];
+    if (sourceId && sourceId !== ALL_SOURCES && source(sourceId)) parts.push("quelle=" + sourceId);
+    return parts.length ? "#" + parts.join("&") : "";
+  }
+
   /** Fill colour of a cell for a metric, or null when the block has no value. */
   function colourFor(metricId, block, dark) {
-    var m = METRICS[metricId];
+    var m = metricOf(metricId);
     var v = m.get(block);
     if (v === null || v === undefined || !isFinite(v)) return null;
     var colours = dark && m.coloursDark ? m.coloursDark : m.colours;
@@ -212,9 +305,9 @@
 
   /** Legend-bar position (0..1) of a class edge: classes are drawn with equal width. */
   function tickPosition(metricId, value) {
-    var m = METRICS[metricId];
+    var m = metricOf(metricId);
     var i = m.breaks.indexOf(value);
-    if (i < 0) throw new Error("not a class edge of " + metricId + ": " + value);
+    if (i < 0) throw new Error("not a class edge of " + m.id + ": " + value);
     return (i + 1) / (m.breaks.length + 1);
   }
 
@@ -302,8 +395,11 @@
   /** Data -> drawing model of the 24-hour chart. `hours` are the 24 rows of
    *  cells/{cell}.json `profile.hours` (hour 0–23). x positions are fractions 0..1 of the day.
    *  `runs` are maximal stretches of consecutive hours with levels: band and line are drawn per
-   *  run, so nothing is drawn across an hour without enough data (a `gap`). */
-  function chartModel(hours) {
+   *  run, so nothing is drawn across an hour without enough data (a `gap`). The bars under the
+   *  plot (`highlighted`) are the events per hour of `highlight`: a source id, "alle" for all five
+   *  together (`events_per_h`), or by default HIGHLIGHT (Töff & Poser). */
+  function chartModel(hours, highlight) {
+    var hlKey = highlight === undefined || highlight === null ? HIGHLIGHT : highlight;
     if (!hours || !hours.length) return null;
     var byHour = {};
     hours.forEach(function (h) { byHour[h.hour] = h; });
@@ -314,7 +410,8 @@
       slots.push({
         hour: hr, x0: hr / 24, x1: (hr + 1) / 24, valid: hasLevels(h),
         laeq: h.laeq_db, l90: h.l90_db, l10: h.l10_db,
-        highlighted: cats[HIGHLIGHT] === undefined ? null : cats[HIGHLIGHT],
+        highlighted: hlKey === ALL_SOURCES ? (h.events_per_h === undefined ? null : h.events_per_h)
+          : cats[hlKey] === undefined ? null : cats[hlKey],
         eventsPerH: h.events_per_h === undefined ? null : h.events_per_h,
         measuredHours: h.measured_hours,
       });
@@ -385,6 +482,9 @@
     METRICS: METRICS, METRIC_ORDER: METRIC_ORDER, PERIODS: PERIODS, LSV_BANDS: LSV_BANDS,
     classIndex: classIndex, colourFor: colourFor, tickPosition: tickPosition,
     CATEGORY_NAMES: CATEGORY_NAMES, HIGHLIGHT: HIGHLIGHT,
+    SOURCES: SOURCES, SOURCE_BREAKS: SOURCE_BREAKS, ALL_SOURCES: ALL_SOURCES, source: source,
+    sourceMetric: sourceMetric, metricFor: metricFor,
+    parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
     REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };

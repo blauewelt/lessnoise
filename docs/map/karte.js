@@ -36,6 +36,7 @@
 
   var state = {
     metric: "laeq",
+    source: "alle",   // «Quelle»: "alle" or one of the five map categories (KarteModel.SOURCES)
     period: "last_7_days",
     latest: null,       // the day of cells.json (today)
     day: null,          // the last day of the period shown
@@ -57,6 +58,7 @@
   function el(tag, attrs, children) {
     var n = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (attrs[k] === null || attrs[k] === undefined) return;
       if (k === "text") n.textContent = attrs[k];
       else if (k === "class") n.className = attrs[k];
       else n.setAttribute(k, attrs[k]);
@@ -86,6 +88,10 @@
   }
 
   function dark() { return !!(darkMq && darkMq.matches); }
+  /** What the cells are coloured by: the metric, or one source's events/h (KarteModel.metricFor). */
+  function curMetric() { return M.metricFor(state.metric, state.source); }
+  function sourceOf() { return M.source(state.source); }
+  function sourceColour(s) { return dark() ? s.colourDark : s.colour; }
   function period() { return M.PERIODS[state.period]; }
   function blockOf(entry) { return entry ? entry[state.period] : null; }
   function dbText(v) { return M.fmt1(v).replace(/,0$/, ""); }
@@ -138,7 +144,10 @@
   // A view in the fragment (karte.html#lat=…&lon=…&z=…, server/DESIGN.md §7; the app's tab
   // «Karte» opens the map like this) wins over the default view and over fitting the data; it sets
   // only the view, no marker. Invalid or missing: the default view.
-  var hashView = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+  var hashView = M.parseView(M.hashWithoutSource(location.hash), BOUNDS, MIN_ZOOM, MAX_ZOOM);
+  // The chosen source is kept in the fragment too: karte.html#quelle=road_traffic, also after a
+  // view (#lat=…&lon=…&z=…&quelle=…). Read here; set by setSource below.
+  var hashSource = M.parseSource(location.hash);
   if (hashView) {
     map.setView([hashView.lat, hashView.lon], hashView.z, { animate: false });
     // A link to a place on the map: show the map, not the page head (on a phone the head fills
@@ -155,7 +164,15 @@
     map.setView([v.lat, v.lon], v.z, { animate: false });
   }
   window.addEventListener("hashchange", function () {
-    var v = M.parseView(location.hash, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+    var src = M.parseSource(location.hash);
+    if (src && src !== state.source) {
+      setSource(src, true);
+      drawLegend();
+      drawCells();
+      if (state.selected) renderCard();
+    }
+    else if (!src && state.source !== M.ALL_SOURCES) writeSourceHash();   // e.g. the app replaced only the view
+    var v = M.parseView(M.hashWithoutSource(location.hash), BOUNDS, MIN_ZOOM, MAX_ZOOM);
     if (!v) return;
     hashView = v;
     applyView(v);
@@ -175,22 +192,21 @@
   var canHover = window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   var tip = L.tooltip({ className: "cell-tip", direction: "top", offset: [0, -6], opacity: 1 });
 
-  function valueText(metricId, block) {
-    var m = M.METRICS[metricId];
+  function valueText(m, block) {
     var v = m.get(block);
     if (v === null || v === undefined) return "kein Wert";
     return M.fmt1(v) + " " + m.unit;
   }
 
   function cellStyle(entry) {
-    var fill = M.colourFor(state.metric, blockOf(entry), dark());
+    var fill = M.colourFor(curMetric(), blockOf(entry), dark());
     return { fillColor: fill || "#ffffff", fillOpacity: fill ? 0.78 : 0 };
   }
 
   function cellClasses(entry) {
     var c = ["cell"];
     if (!entry.calibrated) c.push("uncal");
-    if (!M.colourFor(state.metric, blockOf(entry))) c.push("nodata");
+    if (!M.colourFor(curMetric(), blockOf(entry))) c.push("nodata");
     if (entry.cell === state.selected) c.push("selected");
     return c.join(" ");
   }
@@ -210,7 +226,7 @@
         var e = state.byCell[entry.cell];
         if (!e) return;
         tip.setLatLng(Lv95.cellCenter(entry.cell))
-          .setContent(el("span", { text: valueText(state.metric, blockOf(e)) + (e.calibrated ? "" : " · unkalibriert") }));
+          .setContent(el("span", { text: valueText(curMetric(), blockOf(e)) + (e.calibrated ? "" : " · unkalibriert") }));
         map.openTooltip(tip);
       });
       layer.on("mouseout", function () { map.closeTooltip(tip); });
@@ -226,7 +242,7 @@
   }
 
   function metricValue(entry) {
-    var v = M.METRICS[state.metric].get(blockOf(entry));
+    var v = curMetric().get(blockOf(entry));
     return v === null || v === undefined ? null : v;
   }
 
@@ -347,7 +363,7 @@
   }
 
   function drawLegend() {
-    var m = M.METRICS[state.metric];
+    var m = curMetric();
     document.getElementById("legend-title").textContent = metricTitle(m) + " · " + period().label;
     var bar = document.getElementById("legend-bar");
     clear(bar);
@@ -360,7 +376,7 @@
     clear(ticks);
     m.ticks.forEach(function (v) {
       var t = el("span", { "data-value": String(v), text: M.fmt1(v).replace(/,0$/, "") });
-      t.style.left = (M.tickPosition(state.metric, v) * 100) + "%";
+      t.style.left = (M.tickPosition(m, v) * 100) + "%";
       ticks.appendChild(t);
     });
     var note = {
@@ -368,10 +384,16 @@
         "Die Werte der Lärmschutz-Verordnung stehen im Tagesverlauf jedes Felds (antippen).",
       l90: "Der Hintergrund ist der Pegel ohne die einzelnen lauten Momente.",
       dynamics: "Wenige dB: gleichmässiger Verkehr. Viele dB: ruhige Strasse mit einzelnen lauten Fahrzeugen.",
-      events: "Gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
-      loud: "Gezählt pro Stunde gültiger Messzeit; die Quelle erkennt die App auf dem Telefon, ohne Audio zu speichern.",
-      peaks: "Gezählt pro Stunde gültiger Messzeit: Ereignisse mit einem Spitzenpegel ab " + dbText(state.loudDb) + " dB(A).",
+      events: "Nur Maschinen- und Motorenlärm: Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle zusammen, " +
+        "gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
+      peaks: "Gezählt pro Stunde gültiger Messzeit: Ereignisse mit einem Spitzenpegel ab " + dbText(state.loudDb) +
+        " dB(A), nur von Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle.",
     }[state.metric];
+    var s = m.source ? sourceOf() : null;
+    if (s) {
+      note = "Nur «" + s.name + "», gezählt pro Stunde gültiger Messzeit; die Quelle erkennt die App auf dem Telefon, " +
+        "ohne Audio zu speichern. «Alle» zeigt die fünf Quellen des Maschinen- und Motorenlärms zusammen.";
+    }
     document.getElementById("legend-note").textContent = note;
   }
 
@@ -389,11 +411,11 @@
     });
     cells.forEach(function (c) {
       var sw = el("span", { class: "swatch", "aria-hidden": "true" });
-      sw.style.background = M.colourFor(state.metric, blockOf(c), dark()) || "transparent";
+      sw.style.background = M.colourFor(curMetric(), blockOf(c), dark()) || "transparent";
       var b = el("button", { type: "button", "data-cell": c.cell }, [
         sw,
         el("span", { text: c.cell + (c.calibrated ? "" : " (unkalibriert)") }),
-        el("span", { class: "val", text: valueText(state.metric, blockOf(c)) }),
+        el("span", { class: "val", text: valueText(curMetric(), blockOf(c)) }),
       ]);
       b.addEventListener("click", function () { openCard(c.cell, true); });
       ol.appendChild(el("li", null, [b]));
@@ -403,9 +425,16 @@
 
   /* ---------- the card ---------- */
 
-  function row(label, value, when) {
-    return el("div", { class: "row" }, [
-      el("dt", { text: label }),
+  function row(label, value, when, src) {
+    var dt = el("dt", null, [label]);
+    if (src) {
+      // the chosen source's row carries its hue as a small mark (text stays in ink)
+      var mark = el("i", { class: "src-mark", "aria-hidden": "true" });
+      mark.style.background = sourceColour(src);
+      dt.insertBefore(mark, dt.firstChild);
+    }
+    return el("div", { class: src ? "row src-row" : "row", "data-source": src ? src.id : null }, [
+      dt,
       el("dd", { text: value }),
       when ? el("span", { class: "when", text: when }) : null,
     ]);
@@ -415,35 +444,53 @@
     return M.fmtHours(b.measured_hours) + (n > 1 ? " an " + b.days_with_data + " von " + n + " Tagen" : "");
   }
 
+  /** The events per hour of each source: all five under «Alle», else only the chosen one. */
+  function sourceRows(b, when) {
+    var cats = b.events_per_h_by_category || {};
+    var chosen = sourceOf();
+    return (chosen ? [chosen] : M.SOURCES).map(function (s) {
+      return row("davon " + s.name, M.fmt1(cats[s.id]) + " pro h", when, chosen ? s : null);
+    });
+  }
+
   /** Every figure of a block, each with the span it was measured in. */
   function fullRows(b, when, n) {
-    var cats = b.events_per_h_by_category || {};
     return el("dl", { class: "rows" }, [
       row("Mittlerer Pegel (LAeq)", M.fmt1(b.laeq_db) + " dB(A)", when),
       row("Hintergrund (L90)", M.fmt1(b.l90_db) + " dB(A)", when),
       row("Laut (L10)", M.fmt1(b.l10_db) + " dB(A)", when),
       row("Dynamik", M.fmt1(b.dynamics_db) + " dB", when),
       row("Ereignisse", M.fmt1(b.events_per_h) + " pro h", when),
-      row("Töff & Poser", M.fmt1(cats.loud_vehicle) + " pro h", when),
+    ].concat(sourceRows(b, when), [
       row("Ab " + dbText(state.loudDb) + " dB(A)", M.fmt1(b.loud_events_per_h) + " pro h", when),
       row("Lautestes", M.fmt1(b.loudest_event_db) + " dB(A)", when),
       row("Gemessen", measuredText(b, n), when),
-    ]);
+    ]));
   }
 
   function shortRows(b, when, n) {
+    var s = sourceOf();
+    var cats = b.events_per_h_by_category || {};
     return el("dl", { class: "rows" }, [
       row("Mittlerer Pegel", M.fmt1(b.laeq_db) + " dB(A)", when),
       row("Dynamik", M.fmt1(b.dynamics_db) + " dB", when),
-      row("Ereignisse", M.fmt1(b.events_per_h) + " pro h", when),
+      s ? row(s.name, M.fmt1(cats[s.id]) + " pro h", when, s) : row("Ereignisse", M.fmt1(b.events_per_h) + " pro h", when),
       row("Gemessen", measuredText(b, n), when),
     ]);
   }
 
+  /** The bars under the chart: the chosen source's events per hour, or all five together. */
+  function barLabel() {
+    var s = sourceOf();
+    return s ? s.name : "Ereignisse";
+  }
+
   /** The 24-hour profile of cells/{cell}.json: band L90–L10, LAeq line, the LSV reference
-   *  values as two clock-time bands, Töff & Poser per hour as small bars under the plot. */
+   *  values as two clock-time bands, the chosen source's events per hour (or all five) as small
+   *  bars under the plot. */
   function profileChart(hours) {
-    var cm = M.chartModel(hours);
+    var src = sourceOf();
+    var cm = M.chartModel(hours, src ? src.id : M.ALL_SOURCES);
     if (!cm) return null;
     var W = 320, left = 26, right = 6, top = 6, plotH = 112;
     var stripTop = top + plotH + 4, stripH = 16;
@@ -497,21 +544,23 @@
       root.appendChild(svg("path", { class: "laeq", d: line }));
     });
 
-    // Töff & Poser per hour of measurement, scaled to the busiest hour; and a hover target per
+    // The chosen source (or all five) per hour of measurement, scaled to the busiest hour; and a hover target per
     // hour with its numbers (the native SVG tooltip)
     var slotW = plotW / 24;
     cm.slots.forEach(function (s) {
       var x0 = X(s.x0);
       if (s.valid && s.highlighted && cm.highlightMax > 0) {
         var h = Math.max(1.5, s.highlighted / cm.highlightMax * stripH);
-        root.appendChild(svg("rect", {
+        var bar = svg("rect", {
           class: "bar hl", "data-hour": s.hour, rx: 1,
           x: (x0 + 1).toFixed(1), y: (stripTop + stripH - h).toFixed(1), width: (slotW - 2).toFixed(1), height: h.toFixed(1),
-        }));
+        });
+        if (src) bar.style.fill = sourceColour(src);   // CSSOM, allowed by the CSP
+        root.appendChild(bar);
       }
       var label = s.hour + "–" + (s.hour + 1) + " Uhr: " + (s.valid
         ? "LAeq " + M.fmt1(s.laeq) + " dB(A), L90 " + M.fmt1(s.l90) + ", L10 " + M.fmt1(s.l10) +
-          ", Töff & Poser " + M.fmt1(s.highlighted) + " pro h"
+          ", " + barLabel() + " " + M.fmt1(s.highlighted) + " pro h"
         : "zu wenig Messzeit") + ", gemessen " + M.fmtHours(s.measuredHours);
       root.appendChild(svg("rect", {
         class: "hit", "data-hour": s.hour, x: x0.toFixed(1), y: top, width: slotW.toFixed(1), height: (stripTop + stripH - top).toFixed(1),
@@ -539,10 +588,12 @@
       var n = M.daysBetween(p.from, p.to) + 1;
       sec.appendChild(el("h3", null, ["Tagesverlauf", el("small", { text: "Mittel pro Stunde, " + M.spanLabel(p.to, n) })]));
       sec.appendChild(profileChart(hours));
+      var key = el("i", { class: "k-hl" });
+      if (sourceOf()) key.style.background = sourceColour(sourceOf());
       sec.appendChild(el("ul", { class: "chart-keys" }, [
         el("li", null, [el("i", { class: "k-band" }), "L90–L10"]),
         el("li", null, [el("i", { class: "k-line" }), "LAeq"]),
-        el("li", null, [el("i", { class: "k-hl" }), "Töff & Poser pro h"]),
+        el("li", null, [key, barLabel() + " pro h"]),
         el("li", null, [el("i", { class: "k-lsv" }), "Lärmschutz-Verordnung"]),
       ]));
       var lsv = el("ul", { class: "lsv-list", id: "lsv-list" });
@@ -731,7 +782,42 @@
       });
     });
   }
-  onRadio("metric", function (v) { state.metric = v; });
+  function checkRadio(name, value) {
+    var r = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+    if (r) r.checked = true;
+  }
+
+  /** Keeps the chosen source in the fragment, after the view if there is one; replaces the
+   *  address (no history entry, no hashchange), so the back gesture is not taken by the page. */
+  function writeSourceHash() {
+    var h = M.hashFor(location.hash, state.source, BOUNDS, MIN_ZOOM, MAX_ZOOM);
+    if (h === location.hash || (!h && !location.hash)) return;
+    try {
+      // window.history: `history` in this file is the cell-file loader
+      window.history.replaceState(window.history.state, "", location.pathname + location.search + h);
+    } catch (e) { /* a sandboxed view without history: the selection still works */ }
+  }
+
+  /** One layer per source: a source other than «Alle» colours the cells by its events per hour
+   *  (so the metric becomes «Ereignisse/h»); «Alle» shows all five together. */
+  function setSource(id, fromHash) {
+    if (id !== M.ALL_SOURCES && !M.source(id)) id = M.ALL_SOURCES;
+    state.source = id;
+    checkRadio("source", id);
+    if (id !== M.ALL_SOURCES && state.metric !== "events") {
+      state.metric = "events";
+      checkRadio("metric", "events");
+    }
+    if (!fromHash) writeSourceHash();
+    mapEl.setAttribute("data-source", id);
+  }
+
+  onRadio("metric", function (v) {
+    state.metric = v;
+    // the levels and «Sehr laut/h» are not split by source: back to «Alle»
+    if (v !== "events" && state.source !== M.ALL_SOURCES) setSource(M.ALL_SOURCES);
+  });
+  onRadio("source", function (v) { setSource(v); });
   onRadio("period", function (v) {
     state.period = v;
     state.periodChosen = true;
@@ -741,7 +827,7 @@
   });
 
   if (darkMq && darkMq.addEventListener) {
-    darkMq.addEventListener("change", function () { drawLegend(); restyleCells(); fillList(); });
+    darkMq.addEventListener("change", function () { drawLegend(); restyleCells(); fillList(); if (state.selected) renderCard(); });
   }
 
   function showNetwork(file) {
@@ -837,6 +923,7 @@
 
   /* ---------- start ---------- */
 
+  setSource(hashSource || M.ALL_SOURCES, true);
   drawLegend();
   drawReportLegend();
   renderCard();

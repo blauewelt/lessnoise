@@ -54,6 +54,32 @@
 }
 .chips input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 
+/* «Quelle»: one hue per source (model.js SOURCES), shown only on the chosen chip, so the row
+ * never shows the five hues at once; the text stays in ink. «Alle» uses the normal chip style. */
+.source { width: 100%; }
+.source label[data-cat="loud_vehicle"] { --cat: #EB6834; }
+.source label[data-cat="road_traffic"] { --cat: #2A78D6; }
+.source label[data-cat="rail_tram"] { --cat: #1BAF7A; }
+.source label[data-cat="aircraft"] { --cat: #4A3AA7; }
+.source label[data-cat="construction"] { --cat: #EDA100; }
+@media (prefers-color-scheme: dark) {
+  .source label[data-cat="loud_vehicle"] { --cat: #D95926; }
+  .source label[data-cat="road_traffic"] { --cat: #3987E5; }
+  .source label[data-cat="rail_tram"] { --cat: #199E70; }
+  .source label[data-cat="aircraft"] { --cat: #9085E9; }
+  .source label[data-cat="construction"] { --cat: #C98500; }
+}
+.source label[data-cat] input:checked + span {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--cat);
+  box-shadow: inset 0 0 0 1px var(--cat), inset 0 -4px 0 var(--cat);
+}
+.src-mark {
+  display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px;
+  margin-right: 0.35rem; vertical-align: baseline;
+}
+
 /* period chips and the ‹ › day steps on one line when they fit */
 .periodbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.8rem; min-width: 0; }
 .periodbar .datebar { flex: 1 1 16rem; }
@@ -355,4 +381,11 @@ path.cell:focus { outline: none; }
   .mapgrid.no-card { grid-template-columns: minmax(0, 1fr); }
   .legend { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 1.5rem; }
   .legend-title, .legend-bar, .legend-ticks { grid-column: 1 / -1; }
+}
+
+/* a source's row: room for «Strassenverkehr» on one line at 360 px, never broken mid-word */
+.row.src-row dt, .row[data-source] dt { flex-basis: 48%; overflow-wrap: normal; }
+.rows .row dt { overflow-wrap: normal; }
+.source .chips-label {
+  align-self: center; font-weight: 400; font-size: 0.875rem; color: var(--muted); margin-right: 0.1rem;
 }

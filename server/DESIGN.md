@@ -742,9 +742,23 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   with credit «© swisstopo», bounded to Switzerland (swisstopo answers 400 outside).
 - Cells drawn as filled quadrilaterals (section 3), coloured by the chosen metric over the
   chosen period: **Mittlerer Pegel** (LAeq, default), **Hintergrund** (L90), **Dynamik**,
-  **Ereignisse/h**, **Töff & Poser/h**, **Sehr laut/h** (loud events). Period selector
+  **Ereignisse/h**, **Sehr laut/h** (loud events; only the five machine and motor sources, the
+  legend and the explanation say which). Period selector
   «Letzte 7 Tage» (default, from `default_period`) / «Letzte 30 Tage»; ‹ › move the period's
   last day back and forth through the last 90 days (`days/{date}.json`).
+- **One layer per source** (2026-10-16): chips «Quelle:» **Alle** (default) · **Töff & Poser** ·
+  **Strassenverkehr** · **Tram & Bahn** · **Flugzeug** · **Baustelle** (the five ids of §6). A
+  source other than «Alle» colours the cells by that source's `events_per_h_by_category` (and
+  switches the metric to «Ereignisse/h»; a level metric or «Sehr laut/h» switches back to «Alle»),
+  in a sequential ramp of that source's own hue, 5 steps light → dark (dark mode: dark → light,
+  as the level scale), one scale for all five: < 0.5 · 0.5–1 · 1–2 · 2–5 · ≥ 5 per hour.
+  Hues (light / dark mode), validated as a set for colour-vision deficiency: Töff & Poser
+  #EB6834 / #D95926, Strassenverkehr #2A78D6 / #3987E5, Tram & Bahn #1BAF7A / #199E70, Flugzeug
+  #4A3AA7 / #9085E9, Baustelle #EDA100 / #C98500; the ramps (`model.js` `SOURCES`) are those hues
+  in OKLCH lightness steps and pass the dataviz ordinal checks. Only one hue is ever shown at a
+  time — on the cells, the legend bar, the chosen chip, the card's row and the chart's bars —
+  never a rainbow across sources. «Alle» = all five together (`events_per_h`, the rate scale).
+  The chosen source is kept in the fragment (`#quelle=<id>`, below).
 - The level scale is **neutral** (one blue hue, light → dark = quiet → loud, 5-dB classes
   45 · 50 · 55 · 60 · 65): the map shows measurements, not a legal judgement. No legal values
   in the legend.
@@ -771,8 +785,11 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   P Poser, L Lastwagen, A Auto, + Andere; the colour only helps), tooltip «category · day,
   hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
 - Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
-  figures each with *when* they were measured, the 24-hour profile chart (L90–L10 band, LAeq
-  step line, Töff & Poser per hour as amber bars, hours without enough data as grey gaps, the
+  figures each with *when* they were measured (events: the total and, under «Alle», each of the
+  five sources; with a source chosen only that source, in its hue; «Ereignisse: nur Maschinen- und
+  Motorenlärm, gezählt seit 16.10.2026.» from `counted_since`, §6), the 24-hour profile chart
+  (L90–L10 band, LAeq step line, the chosen source's events per hour as bars in its hue, or all
+  five together as amber bars, hours without enough data as grey gaps, the
   LSV bands), the figures of the file's day, and the other period. «Unkalibriert» badge when
   any device in the cell is uncalibrated.
 - The page never uses the word «Nacht»: nothing about night is special any more.
@@ -801,9 +818,17 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   tab «Karte» uses it with the **shifted** point of the newest shared measurement (`MapLinks.url`,
   5 decimals, zoom 16), and the plain anchor `karte.html#metric` when there is none. WGS84 rather
   than LV95, because Leaflet works in WGS84 and any map link can be written by hand.
+- **Source in the fragment** (2026-10-16): `#quelle=<id>` (one of the five ids; `alle` or nothing
+  = «Alle»), alone or after a view (`#lat=…&lon=…&z=…&quelle=road_traffic`). `parseView` reads the
+  fragment without this key (`KarteModel.hashWithoutSource`), so the view rules above are
+  unchanged. Choosing a source replaces the address with `history.replaceState` (no history entry,
+  no `hashchange`); «Alle» removes the key. On `hashchange` a new `quelle` is applied; if the app
+  replaces only the view, the chosen source stays and is written back after it. An unknown id is
+  ignored.
 - Playwright tests at 360 px and 1280 px against the fixtures: renders, legend, period switch,
   card and chart, LSV bands, reports layer, day steps, fallback host, no «Nacht», CSP exact,
-  view fragment (valid, invalid, hashchange, no marker, not in any request).
+  view fragment (valid, invalid, hashchange, no marker, not in any request), source chips, one ramp
+  per source (light and dark), the card's source rows and bars, the source in the fragment.
 
 ## 8. Hosting
 
