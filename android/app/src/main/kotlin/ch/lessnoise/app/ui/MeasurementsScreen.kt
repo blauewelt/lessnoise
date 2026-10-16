@@ -43,6 +43,7 @@ fun MeasurementsScreen(modifier: Modifier = Modifier, vm: HistoryViewModel = vie
     val window by vm.window.collectAsStateWithLifecycle()
     val data by vm.data.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val noiseFloor by vm.noiseFloor.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     // The tooltip belongs to one window: navigating closes it.
@@ -80,6 +81,7 @@ fun MeasurementsScreen(modifier: Modifier = Modifier, vm: HistoryViewModel = vie
                             { ref: String -> play(ref, data?.clipRefsInTimeOrder(settings.eventMinLevelDb) ?: listOf(ref)) }
                         },
                         showWindEvents = settings.showWindEvents,
+                        noiseFloor = noiseFloor,
                     )
                 }
                 item {
@@ -99,6 +101,13 @@ fun MeasurementsScreen(modifier: Modifier = Modifier, vm: HistoryViewModel = vie
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
+
+/**
+ * «Grundrauschen» as shown: «41,2 dB(A)», or «≤ 34,0 dB(A)» when it is at the phone's noise floor
+ * (0.6.5, [limitDb] = floor + 3 dB, null otherwise).
+ */
+fun humText(humDb: Double?, limitDb: Double?): String =
+    if (limitDb != null) "≤ ${Fmt.db(limitDb)} dB(A)" else "${Fmt.db(humDb)} dB(A)"
 
 /** «Sa 10.10. 22:14 – So 11.10. 06:30», «läuft seit Sa 10.10. 22:14». */
 fun measurementTitle(m: ch.lessnoise.app.data.Measurement, zone: java.time.ZoneId): String =
@@ -130,7 +139,7 @@ private fun MeasurementCard(item: MeasurementItem, selected: Boolean, onClick: (
         }
         StatRow("Dauer", Fmt.hoursMinutes(m.span.durationMs))
         StatRow("Mittel", "${Fmt.db(s.laeqDb)} dB(A)")
-        StatRow("Grundrauschen", "${Fmt.db(s.humDb)} dB(A)")
+        StatRow("Grundrauschen", humText(s.humDb, s.humLimitDb))
         StatRow(
             "Lärmspitzen pro Stunde",
             if (s.eventsPerHour.isNaN()) "–" else ChartFmt.comma(s.eventsPerHour, if (s.eventsPerHour < 10) 1 else 0),

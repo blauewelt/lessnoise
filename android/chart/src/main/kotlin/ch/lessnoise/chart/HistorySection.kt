@@ -80,10 +80,12 @@ fun HistorySection(
     showWindEvents: Boolean = true,
     /** An older measurement exists («‹»). */
     canGoPrevious: Boolean = true,
+    /** 0.6.5: the phone's noise floor («Messgrenze» band, «≤» in «Grundrauschen»); null: none. */
+    noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
 ) {
     val windows = remember(zone) { Windows(zone) }
-    val model = remember(data, highlight, eventFloorDb, zone, showWindEvents) {
-        data?.let { ChartModel.build(it, zone, highlight, eventFloorDb, showWindEvents) }
+    val model = remember(data, highlight, eventFloorDb, zone, showWindEvents, noiseFloor) {
+        data?.let { ChartModel.build(it, zone, highlight, eventFloorDb, showWindEvents, noiseFloor) }
     }
     val loading = data == null || data.window != window
     val scheme = MaterialTheme.colorScheme
@@ -208,12 +210,18 @@ fun HistorySection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // The hum (steady background) and the bursts above it are separate quantities.
-            StatTile("Grundrauschen", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–", null, Modifier.weight(1f))
+            StatTile("Grundrauschen", s?.humText ?: "–", null, Modifier.weight(1f))
             StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", "pro Stunde", Modifier.weight(1f))
             val loud = s?.loudest
             StatTile(
                 "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
                 loud?.let { TimeFmt(zone, windows.crossesDates(window)).hm(it.startEpochMs) }, Modifier.weight(1f),
+            )
+        }
+        if (s?.humLimitDb != null && model?.isEmpty == false) {
+            Text(
+                AT_FLOOR_NOTE, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = margin),
             )
         }
         if (s != null && model?.isEmpty == false) {

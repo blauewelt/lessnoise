@@ -110,7 +110,7 @@ private fun MeasurementsDataCard() {
             OutlinedButton(onClick = {
                 scope.launch {
                     val files = withContext(Dispatchers.IO) {
-                        c.measurements.exportCsv(File(context.cacheDir, "exports"), c.categoryMapper.bucketIds)
+                        c.measurements.exportCsv(File(context.cacheDir, "exports"), c.categoryMapper.bucketIds, c.noiseFloor.limit.value)
                     }
                     shareFiles(context, files, "text/csv", "Weniger Lärm Messdaten")
                 }
@@ -136,6 +136,7 @@ private fun MeasurementsDataCard() {
                     confirmClear = false
                     scope.launch {
                         c.measurements.clear()
+                        c.noiseFloor.refresh()
                         File(context.cacheDir, "exports").listFiles()?.forEach { it.delete() }
                         info = "Gelöscht."
                     }

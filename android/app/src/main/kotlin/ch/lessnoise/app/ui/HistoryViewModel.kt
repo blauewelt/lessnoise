@@ -49,16 +49,25 @@ class HistoryViewModel(app: Application) : AndroidViewModel(app) {
     private val floor = settings.map { it.eventMinLevelDb }.distinctUntilChanged()
     private val running = c.live.map { it.running }.distinctUntilChanged()
 
+    /** The phone's noise floor (0.6.5), or null; changes only at app start, after a measurement, on calibrating. */
+    val noiseFloor: StateFlow<ch.lessnoise.dsp.NoiseFloor.Limit?> = c.noiseFloor.limit
+
     /** All measurements with their summaries, newest first; events below the current floor are not counted. */
     val items: StateFlow<List<MeasurementItem>?> =
-        combine(repo.measurementsFlow(), repo.minutesFlow(), repo.eventsFlow(), floor, running) { rows, m, e, f, run ->
+        combine(repo.measurementsFlow(), repo.minutesFlow(), repo.eventsFlow(), floor, running, noiseFloor) { args ->
+            @Suppress("UNCHECKED_CAST") val rows = args[0] as List<ch.lessnoise.app.data.MeasurementEntity>
+            @Suppress("UNCHECKED_CAST") val m = args[1] as List<ch.lessnoise.app.data.MinuteEntity>
+            @Suppress("UNCHECKED_CAST") val e = args[2] as List<ch.lessnoise.app.data.EventEntity>
+            val f = args[3] as Double
+            val run = args[4] as Boolean
+            val nf = args[5] as ch.lessnoise.dsp.NoiseFloor.Limit?
             val minutes = m.map { it.toRecord() }
             val events = e.map { it.toEvent() }
             val list = MeasurementList.resolve(
                 rows, minutes.map { it.startEpochMs to it.startEpochMs + Math.round(it.durationSeconds * 1000) },
                 System.currentTimeMillis(), run,
             )
-            val summaries = MeasurementSummarizer.summarizeAll(list.map { it.span }, minutes, events, f)
+            val summaries = MeasurementSummarizer.summarizeAll(list.map { it.span }, minutes, events, f, nf)
             val bySpan = summaries.associateBy { it.span }
             list.reversed().map { MeasurementItem(it, bySpan.getValue(it.span)) }
         }.flowOn(kotlinx.coroutines.Dispatchers.Default)

@@ -57,6 +57,7 @@ fun MeasureScreen(
     val live by c.live.collectAsStateWithLifecycle()
     val events by remember { c.measurements.recentEvents(30) }.collectAsStateWithLifecycle(emptyList())
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
+    val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
     // Karten editions: «Auf die Lärmkarte?» once, and the fix while measuring (ShareFlow.kt, 0.6.3).
@@ -89,6 +90,7 @@ fun MeasureScreen(
 
     MeasureContent(
         live = live, events = events, calibrating = calibrating, modifier = modifier,
+        noiseFloor = noiseFloor,
         categoryName = { categoryName(context, it) },
         onStart = { onStart(unterwegs = false) },
         onStop = { MeasurementService.stop(context) },
@@ -167,6 +169,8 @@ fun MeasureContent(
     onShareStatus: (ShareAction) -> Unit = {},
     /** 0.6.4, editions with the map: the second start button «Unterwegs»; null: one button «Starten». */
     onStartUnterwegs: (() -> Unit)? = null,
+    /** 0.6.5: the phone's noise floor; «Grundrauschen» shows «≤ …» at it. Null: no floor yet. */
+    noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
 ) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -209,7 +213,7 @@ fun MeasureContent(
                     }
                     LevelBar(live.lafDb)
                     Spacer(Modifier.height(4.dp))
-                    StatRow("Grundrauschen", "${Fmt.db(live.backgroundDb)} dB(A)")
+                    StatRow("Grundrauschen", humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
                 }
             }
             item {
@@ -347,4 +351,18 @@ fun EventRow(e: EventEntity, categoryName: (String?) -> String, marker: @Composa
         }
         HorizontalDivider(Modifier.padding(top = 6.dp), color = MaterialTheme.colorScheme.surfaceVariant)
     }
+}
+
+/**
+ * 0.6.5: the «≤» value of the live «Grundrauschen» (the 5-min L90, [LiveState.backgroundDb]) if it
+ * is at the phone's noise floor: converted to raw with the running measurement's offset and
+ * compared with floorRaw + 3 dB of the same audio source. Null otherwise.
+ */
+fun liveHumLimit(live: LiveState, floor: ch.lessnoise.dsp.NoiseFloor.Limit?): Double? {
+    val bg = live.backgroundDb ?: return null
+    val offset = live.calibrationOffsetDb ?: return null
+    val source = live.audioSource ?: return null
+    if (floor == null || !floor.atFloorRaw(bg - offset, source)) return null
+    // Shown with the running measurement's offset, like the level next to it.
+    return floor.floorRawDb + offset + ch.lessnoise.dsp.NoiseFloor.MARGIN_DB
 }

@@ -301,6 +301,16 @@ interface MeasurementDao {
     suspend fun lastMinuteEnd(fromMs: Long, toMs: Long): Long?
 
     @Query("DELETE FROM measurements") suspend fun clearMeasurements()
+
+    // ---- The phone's noise floor («Messgrenze», 0.6.5; dsp NoiseFloor.kt, data/NoiseFloorStore.kt) -------
+
+    /** Valid minutes with an L90 of [source]: the n of the estimate. */
+    @Query(NoiseFloorSql.COUNT)
+    suspend fun noiseFloorMinuteCount(source: String): Int
+
+    /** rawL90 (L90 − the minute's offset) at 0-based rank [offset] in ascending order, or null. */
+    @Query(NoiseFloorSql.RAW_L90_AT)
+    suspend fun noiseFloorRawL90At(source: String, offset: Int): Double?
 }
 
 @Dao

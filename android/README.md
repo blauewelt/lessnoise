@@ -152,7 +152,7 @@ No time of day is special.
 
 The **Messungen** tab lists all measurements, newest first: start and end («Sa 10.10. 22:14 – So
 11.10. 06:30», or «läuft seit …»), **Dauer**, **Mittel** (LAeq), **Grundrauschen** (the hum, median
-of the valid minutes' L90) and **Lärmspitzen pro Stunde** (bursts per hour of valid measurement,
+of the valid minutes' L90; «≤ …» at the phone's noise floor since 0.6.5, see «Noise floor») and **Lärmspitzen pro Stunde** (bursts per hour of valid measurement,
 without wind), and «geteilt» for a shared measurement. Above the list is the chart of the selected
 measurement (tap a card to select it; the newest one is shown first), drawn by the app (Compose
 `Canvas`, no chart library):
@@ -415,11 +415,47 @@ environmental offices and universities lend them).
 calibrated with method 1). Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
 uncalibrated CDD default.
 
-### Noise floor
+### Noise floor («Messgrenze», estimated per phone since 0.6.5)
 
-Levels within ~5 dB of the phone's own noise are not meaningful; many phones bottom out somewhere
-around 30–40 dB(A) (to be confirmed per model). The in-app check «Eigenrauschen messen» was removed
-in 0.6.1 (the website explains the limit); the code path (`CalMode.NOISE_FLOOR`) is still there.
+A phone microphone has its own self-noise: levels close to it are the phone, not the room. Since
+0.6.5 the app estimates this floor from the minutes it has already stored, per phone and per audio
+source, with no setting and no extra measurement (`dsp/.../NoiseFloor.kt`, arithmetic and tests;
+`app/.../data/NoiseFloorStore.kt`, the query and the in-memory cache):
+
+- **Raw levels.** Stored levels are `raw + calibration offset`. The estimate works on
+  `rawL90 = L90 − calibration_offset_db` of each minute (L90 is the level exceeded 90 % of the
+  minute, the quiet part), so it survives every calibration and the re-evaluation of old
+  measurements (level and offset move together).
+- **Minutes used:** the valid minutes of the audio source the app measures with (at least 50 % valid
+  audio and a LAeq — the equivalent continuous A-weighted level —, the rule of the list and the
+  chart) that have an L90.
+- **Floor:** the 2nd percentile of their rawL90, by nearest rank (0-based index ⌈0.02 · n⌉ − 1 of the
+  values sorted ascending), over **all** stored minutes of that source. Only from **60** such minutes
+  on; before that there is no floor and nothing about it is shown. From 60 minutes on the rank is at
+  least the second-lowest value, so a single glitch minute far below never sets it.
+- **Shown floor** = raw floor + the **active** calibration offset, so it moves with every new
+  calibration (also with **Zurücksetzen**).
+- **At the limit («an der Messgrenze»):** a minute whose rawL90 ≤ raw floor + **3 dB**. The value
+  shown for such levels is the shown floor + 3 dB, as «≤ 34,0 dB(A)».
+- **Computed** with two SQL queries (the count, then the one value at the rank via `ORDER BY … LIMIT 1
+  OFFSET`), once per app start, after every finished measurement and after «Alle löschen»; cached in
+  memory. Never during a measurement.
+
+Where it shows: **«Grundrauschen»** in the measurement list and the chart's summary tile reads
+«≤ 34,0 dB(A)» when at least half of the measurement's valid minutes are at the limit (i.e. the
+median minute is), with the line «Leiser als das Telefon messen kann.» under the tiles; the
+**chart** draws a light band from the bottom up to the shown floor + 3 dB, labelled «Messgrenze»
+at the right (only when a floor exists and the band reaches into the y range); the live
+**«Messen»** screen shows «≤ …» for «Grundrauschen» when the current 5-minute L90 is at the limit;
+**Erweitert › Kalibrieren** shows «Messgrenze dieses Telefons: ca. 34 dB(A) (aus N Minuten
+geschätzt)» (floor + 3 dB, whole dB); the minutes **CSV** gets the column `at_floor` (0/1). Events
+are unchanged (they already need 6.5 dB over the local floor and the absolute event floor).
+Nothing of it is sent: the upload's bodies (`upload/Payloads.kt`) are unchanged.
+
+What it is not: an estimate, not a measurement of the microphone's self-noise. On a phone that has
+only ever measured loud places the 2nd percentile is a quiet room level, not the phone's floor, and
+the band then sits too high; it can only fall as quieter minutes come in. The old in-app check
+«Eigenrauschen messen» was removed in 0.6.1; its code path (`CalMode.NOISE_FLOOR`) is still there.
 
 The calibration history can be exported as JSON (Erweitert → Verlauf → Exportieren).
 
@@ -495,7 +531,9 @@ for data that was never re-evaluated. Since v0.4.0 (appended after those): minut
 `wind_event_count`; events `local_floor_db`, `excess_db`, `rise_s`, `decay_s`, `jaggedness`,
 `mid_band_rise_db`, `lf_share`, `lf_flutter_db`, `wind`, `shape` (empty, `wind = false`, for events
 recorded before). The export is per minute and per event; it has no night or measurement
-aggregation (v0.6.0 changed no CSV column). The files are named `wenigerlaerm-minuten-<stamp>.csv`
+aggregation (v0.6.0 changed no CSV column). Since v0.6.5 the minutes file ends with `at_floor`
+(1 = the minute is at the phone's estimated noise floor, see «Noise floor»; 0 otherwise or while
+there is no estimate). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
 ## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4)

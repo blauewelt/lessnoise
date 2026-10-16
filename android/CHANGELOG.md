@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.5 — 2026-10-16 (versionCode 18)
+
+In short: the app estimates its own measurement limit («Messgrenze») from the minutes it has
+already measured and marks values at that limit with «≤». No new setting. Nothing new is sent.
+
+Built on 0.6.4.
+
+- **Noise floor per phone, estimated:** for the audio source the app measures with, the 2nd
+  percentile of the valid minutes' L90 without their calibration offset, over all stored minutes;
+  only from 60 such minutes on, so a single glitch minute far below is ignored. Shown with the active
+  calibration (it moves when you calibrate); a minute is «an der Messgrenze» if its L90 is at most
+  3 dB above the floor. Computed with one database query at app start and after each measurement,
+  never while measuring. It is an estimate, not a measurement of the microphone: a phone that has
+  only measured loud places has no quiet minutes, and its estimate is then too high until quieter
+  minutes come in.
+- **Where it shows:** «Grundrauschen» in the measurement list and the chart's tile reads «≤ 34,0
+  dB(A)» (floor + 3 dB) when at least half of the measurement's valid minutes are at the limit,
+  with the line «Leiser als das Telefon messen kann.»; the chart draws a light band «Messgrenze»
+  from the bottom up to floor + 3 dB; «Grundrauschen» on «Messen» shows «≤ …» when the current
+  5-minute L90 is at the limit; Erweitert › Kalibrieren says «Messgrenze dieses Telefons: ca. 34
+  dB(A) (aus N Minuten geschätzt)». Below 60 minutes none of this appears.
+- **Export:** the minutes CSV ends with a new column `at_floor` (0/1); no column was renamed or moved.
+- **Unchanged:** events (they already need 6.5 dB over the local floor and the event floor), the
+  upload and what it sends, PRIVACY.md. The removed check «Eigenrauschen messen» stays removed.
+
 ## 0.6.4 — 2026-10-16 (published on the website) (versionCode 17)
 
 In short: only machine and motor noise leaves the phone; «Unterwegs» is a way to start a

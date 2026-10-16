@@ -64,6 +64,9 @@ class ChartGeometry(val model: ChartModel, val plot: PlotRect) {
         }
     }
 
+    /** 0.6.5: y (pixels) of the top of the «Messgrenze» band (it runs down to the plot bottom), or null. */
+    val floorBandTop: Float? = model.floorBandTopDb?.let { yOf(it) }
+
     /** Gap rectangles as (left, right) pixel pairs. */
     val gaps: List<Pair<Float, Float>> = model.gaps.map { xOf(it.span.startMs) to xOf(it.span.endMs) }
     val gridX: List<Float> = model.gridTicks.map { xOf(it) }

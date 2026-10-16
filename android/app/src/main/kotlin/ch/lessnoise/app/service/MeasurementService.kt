@@ -489,6 +489,8 @@ class MeasurementService : Service() {
         val pending = synchronized(dbJobs) { dbJobs.toList() }
         scope.launch {
             withTimeoutOrNull(3_000) { pending.joinAll() }
+            // The measurement's minutes are stored: re-estimate the noise floor (0.6.5), once.
+            container.noiseFloor.refresh()
             withContext(Dispatchers.Main) {
                 synchronized(this@MeasurementService) {
                     // A new measurement may have been started in the meantime: leave it alone.

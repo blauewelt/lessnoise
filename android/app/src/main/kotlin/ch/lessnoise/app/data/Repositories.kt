@@ -252,12 +252,15 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     /** The shifted point of the newest shared measurement, or null (opens the «Karte» tab there). */
     suspend fun latestSharedPoint(): ch.lessnoise.dsp.geo.LocationNoise.Point? = dao.latestSharedMeasurement()?.sharedPoint()
 
-    /** Writes CSV exports into cache/exports (served via FileProvider). */
-    suspend fun exportCsv(dir: File, bucketIds: List<String>): List<File> {
+    /**
+     * Writes CSV exports into cache/exports (served via FileProvider). [noiseFloor]: the phone's
+     * noise floor (0.6.5) for the minutes' `at_floor` column (0 everywhere without one).
+     */
+    suspend fun exportCsv(dir: File, bucketIds: List<String>, noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null): List<File> {
         dir.mkdirs()
         dir.listFiles()?.forEach { it.delete() }
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT).format(java.util.Date())
-        val minutes = File(dir, "wenigerlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds)) }
+        val minutes = File(dir, "wenigerlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds, noiseFloor)) }
         val events = File(dir, "wenigerlaerm-ereignisse-$stamp.csv").apply { writeText(Csv.events(allEvents())) }
         return listOf(minutes, events)
     }

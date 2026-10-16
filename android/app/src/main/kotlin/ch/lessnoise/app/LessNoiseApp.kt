@@ -5,6 +5,7 @@ import android.content.Context
 import ch.lessnoise.app.data.AppDatabase
 import ch.lessnoise.app.data.CalibrationRepository
 import ch.lessnoise.app.data.MeasurementRepository
+import ch.lessnoise.app.data.NoiseFloorStore
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.data.SettingsStore
 import ch.lessnoise.app.service.LiveState
@@ -25,6 +26,8 @@ class LessNoiseApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // The phone's noise floor («Messgrenze», 0.6.5): estimated once per app start, off the main thread.
+        container.noiseFloor.refresh()
         // «Messwerte teilen»: keeps the upload schedule in line with the setting and uploads after
         // a measurement stops. Does nothing (no network) while sharing is off, and nothing at all
         // in the Offline and Labor builds.
@@ -54,6 +57,15 @@ class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val recalibrator: Recalibrator by lazy { Recalibrator(db, appScope) }
     val live = MutableStateFlow(LiveState())
+    /**
+     * The phone's noise floor («Messgrenze», 0.6.5) for the audio source the app measures with,
+     * estimated from the stored minutes (dsp NoiseFloor.kt); refreshed at app start and after each
+     * measurement. Stays on the phone.
+     */
+    val noiseFloor: NoiseFloorStore by lazy {
+        val source = ch.lessnoise.app.audio.AudioSourceSelector.select(appContext)
+        NoiseFloorStore(db.measurements(), calibrations.activeFlow(source), source, appScope)
+    }
     /**
      * The opt-in upload «Messwerte teilen» (server/DESIGN.md §4); with the tab «Karte» (0.6.3, a
      * WebView in src/karte/) one of the two network uses of the Karten editions.

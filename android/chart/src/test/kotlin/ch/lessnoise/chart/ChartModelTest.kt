@@ -48,6 +48,73 @@ class ChartModelTest {
     private fun build(ms: List<MinuteRecord>, evs: List<NoiseEvent> = emptyList(), w: TimeWindow = night, highlight: String = "loud_vehicle", floor: Double = 45.0, now: Long = after) =
         ChartModel.build(ChartData(w, ms, evs, now), zone, highlight, floor)
 
+    // ---- The phone's noise floor («Messgrenze», 0.6.5) -----------------------------------------
+
+    /** floorRaw such that the shown floor (offset 112.35, the minutes' offset) is [shownFloor]. */
+    private fun floorLimit(shownFloor: Double, activeOffset: Double = 112.35) = ch.lessnoise.dsp.NoiseFloor.Limit(
+        ch.lessnoise.dsp.NoiseFloor.Estimate("UNPROCESSED", shownFloor - 112.35, 500), activeOffset,
+    )
+
+    @Test
+    fun noFloorMeansNoBandAndNoLimit() {
+        val m = build(minutes(22, 0, 30) { 35.0 })
+        assertEquals(null, m.floorBandTopDb)
+        assertEquals(null, m.summary.humLimitDb)
+        assertEquals("32,0 dB(A)", m.summary.humText)
+    }
+
+    @Test
+    fun humAtTheFloorShowsLessOrEqualAndTheBand() {
+        // L90 = 32 everywhere; shown floor 30 → limit 33: every minute is at the floor.
+        val ms = minutes(22, 0, 30) { 35.0 }
+        val m = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(30.0))
+        assertEquals(33.0, m.summary.humLimitDb!!, 1e-9)
+        assertEquals("≤ 33,0 dB(A)", m.summary.humText)
+        // y range: floor5(32 − 5) = 25 → the band 25…33 is inside.
+        assertEquals(25.0, m.yRange.lo)
+        assertEquals(33.0, m.floorBandTopDb!!, 1e-9)
+        // Same y range and data as without a floor.
+        val plain = build(ms)
+        assertEquals(plain.yRange, m.yRange)
+        assertEquals(plain.points, m.points)
+    }
+
+    @Test
+    fun loudMeasurementKeepsItsHumButMayShowTheBand() {
+        // L90 = 47; limit 33 is below the y range's bottom (40): no band, no «≤».
+        val ms = minutes(22, 0, 30) { 50.0 }
+        val m = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(30.0))
+        assertEquals(null, m.summary.humLimitDb)
+        assertEquals("47,0 dB(A)", m.summary.humText)
+        assertEquals(40.0, m.yRange.lo)
+        assertEquals(null, m.floorBandTopDb)
+        // Limit above the bottom but the hum above the limit: band yes, «≤» no.
+        val m2 = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(40.0))
+        assertEquals(43.0, m2.floorBandTopDb!!, 1e-9)
+        assertEquals(null, m2.summary.humLimitDb)
+    }
+
+    @Test
+    fun floorBandTopIsClampedAndNeedsToBeAboveTheBottom() {
+        assertEquals(null, ChartModel.floorBandTop(30.0, YRange(30.0, 60.0)))
+        assertEquals(30.5, ChartModel.floorBandTop(30.5, YRange(30.0, 60.0)))
+        assertEquals(60.0, ChartModel.floorBandTop(70.0, YRange(30.0, 60.0)))
+        assertEquals(null, ChartModel.floorBandTop(Double.NaN, YRange(30.0, 60.0)))
+    }
+
+    @Test
+    fun calibrationMovesTheBandWithTheShownFloor() {
+        // Minutes stored with offset 112.35; the active calibration is now 9.6 dB higher (not re-evaluated):
+        // the shown floor moves up by 9.6, the flags (raw comparison) stay.
+        val ms = minutes(22, 0, 30) { 35.0 }
+        val before = floorLimit(30.0)
+        val after9 = floorLimit(30.0, activeOffset = 112.35 + 9.6)
+        val a = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = before)
+        val b = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = after9)
+        assertEquals(a.summary.humLimitDb!! + 9.6, b.summary.humLimitDb!!, 1e-9)
+        assertTrue(ms.all { before.atFloor(it) == after9.atFloor(it) })
+    }
+
     // ---- y range ---------------------------------------------------------------------------
 
     @Test

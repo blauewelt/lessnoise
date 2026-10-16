@@ -86,6 +86,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
     val history by vm.history.collectAsStateWithLifecycle()
     val recal by vm.recalibration.collectAsStateWithLifecycle()
     val live by c.live.collectAsStateWithLifecycle()
+    val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
     val requestPermission = rememberMicPermissionLauncher { granted -> if (granted) pendingMode?.let { vm.start(it) } }
@@ -161,6 +162,10 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                     else "Kalibriert am ${Fmt.dateTime(a.createdEpochMs)}: ${Fmt.db(a.offsetDb, 2)} dB (${methodName(a.method)})",
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                // 0.6.5: the phone's noise floor, estimated from the stored minutes (nothing without one).
+                noiseFloor?.takeIf { it.audioSource == vm.source }?.let { nf ->
+                    Text(floorLine(nf), style = MaterialTheme.typography.bodyMedium)
+                }
                 StatRow("Gerät", vm.deviceModel)
                 StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source))
             }
@@ -325,3 +330,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         )
     }
 }
+
+/** «Messgrenze dieses Telefons: ca. 34 dB(A) (aus 1234 Minuten geschätzt)» (0.6.5; floor + 3 dB, whole dB). */
+fun floorLine(nf: ch.lessnoise.dsp.NoiseFloor.Limit): String =
+    "Messgrenze dieses Telefons: ca. ${Fmt.db(nf.limitDb, 0)} dB(A) (aus ${nf.estimate.minutes} Minuten geschätzt)"

@@ -178,6 +178,20 @@ object RecalibrationSql {
     const val SCOPE = "audioSource = :source AND (calibrationId IS NULL OR calibrationId != :calibrationId)"
 }
 
+/**
+ * The minutes the noise floor estimate uses (0.6.5): the SQL form of `NoiseFloor.isValid` for one
+ * audio source — the app's valid-minute rule (≥ 50 % valid audio, a LAeq) plus an L90 (checked by a
+ * unit test against the Kotlin reference). [RAW_L90] is the level without the minute's own offset.
+ */
+object NoiseFloorSql {
+    const val VALID = "audioSource = :source AND coverage >= 0.5 AND laeqDb IS NOT NULL AND l90Db IS NOT NULL"
+    const val RAW_L90 = "(l90Db - calibrationOffsetDb)"
+    /** n: the number of valid minutes of `:source`. */
+    const val COUNT = "SELECT COUNT(*) FROM minutes WHERE $VALID"
+    /** The rawL90 at 0-based rank `:offset` in ascending order (one row, or none). */
+    const val RAW_L90_AT = "SELECT $RAW_L90 FROM minutes WHERE $VALID ORDER BY $RAW_L90 ASC LIMIT 1 OFFSET :offset"
+}
+
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_1_2.forEach { db.execSQL(it) }
