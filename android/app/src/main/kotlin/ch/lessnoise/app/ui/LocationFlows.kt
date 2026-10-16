@@ -59,7 +59,8 @@ private sealed interface ReportStep {
  * Since 0.6.3 the same flow also starts from the «Sehr laut» notification (src/karte/…/alert,
  * «Unterwegs»), also while a measurement runs: [preset] then carries the event's time (used as the
  * report time instead of the tap) and the categories to suggest (highlighted, nothing is picked);
- * [onPresetUsed] is called once the flow has taken it.
+ * [onPresetUsed] is called once the flow has taken it. Since 0.6.4 the button is also shown while
+ * a measurement started as «Unterwegs» runs (MeasureContent).
  *
  * Returns the action for the button.
  */

@@ -22,7 +22,8 @@ class ShareStatusTest {
         hasPoint: Boolean = true,
         locate: LocateState = LocateState.Idle,
         online: Boolean = true,
-    ) = shareStatus(s, running, if (running) start else 0, hasPoint, locate, online, hm)
+        unterwegs: Boolean = false,
+    ) = shareStatus(s, running, if (running) start else 0, hasPoint, locate, online, unterwegs, hm)
 
     @Test
     fun offOrNoShowsTheInvitationWhichAsksTheQuestion() {
@@ -91,5 +92,31 @@ class ShareStatusTest {
             assertFalse(t.endsWith("."), t)
         }
         assertEquals(LocationPolicy.PROGRESS_TEXT, STATUS_LOCATING)
+    }
+
+    @Test
+    fun anUnterwegsMeasurementSaysItIsNotShared() {
+        // 0.6.4: whatever the switch, the fix or the upload say, an «Unterwegs» measurement is not on the map.
+        for (st in listOf(on, UploadSnapshot(shareDecision = ShareDecision.NO), UploadSnapshot(), on.copy(lastSuccessAtMs = start + 1, minutesSentUpToMs = start + 1))) {
+            for (loc in listOf(LocateState.Idle, LocateState.Pending, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff))) {
+                assertEquals(ShareStatus(STATUS_UNTERWEGS, ShareAction.NONE), status(st, hasPoint = false, locate = loc, unterwegs = true))
+            }
+        }
+        // The flow: «Unterwegs» starts at once, without the question and without a fix; switching
+        // sharing on during it or coming back to the app never asks for a point (ShareFlow.kt).
+        val app = java.io.File(listOf(java.io.File("."), java.io.File("app")).first { java.io.File(it, "src/main").isDirectory }, "src/main/kotlin/ch/lessnoise/app")
+        val flow = java.io.File(app, "ui/ShareFlow.kt").readText()
+        assertTrue(flow.contains("if (unterwegs) {\n            MeasurementService.start(app, unterwegs = true)\n            return\n        }"))
+        assertTrue(flow.contains("l.sharedPoint == null && !l.unterwegs) wantPoint(prompt = true)"))
+        assertTrue(flow.contains("if (l != null && !l.unterwegs) {"))
+        assertTrue(flow.contains("l.running && !l.unterwegs && l.sharedPoint == null"))
+        // The service stores no point for it, and the live uploads never run for it.
+        assertTrue(java.io.File(app, "data/Repositories.kt").readText().contains("val p = point.takeUnless { unterwegs }"))
+        val worker = java.io.File(app, "upload/UploadWorker.kt").readText()
+        assertTrue(worker.contains("if (l.running && !l.unterwegs && l.sharedPoint != null"))
+        // Stopping it causes no upload request either.
+        assertTrue(worker.contains("if (wasRunning && !st.running && !wasUnterwegs) uploadSoon("))
+        // Not running: the usual idle line.
+        assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, unterwegs = true))
     }
 }

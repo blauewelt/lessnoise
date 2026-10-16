@@ -498,26 +498,42 @@ recorded before). The export is per minute and per event; it has no night or mea
 aggregation (v0.6.0 changed no CSV column). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
-## «Unterwegs» and the «Sehr laut» notification (0.6.3)
+## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4)
 
 Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/alert/`, the facade
-`ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`).
-A switch **«Unterwegs»** under «Starten» (and under «Stoppen» while measuring), off by default,
-remembered (SharedPreferences `loud_alert`). Turning it on asks for `POST_NOTIFICATIONS` on Android
-13+ (already declared for the measurement's notification). While it is on and a measurement runs,
-`LoudAlertWatcher` (process scope) watches `LiveState.lastEvent`: an event that is not wind, with
-LAFmax ≥ 75 dB(A) (`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's
-«Sehr laut»; the level as shown — calibrated if the phone is, else with the default offset) and
-category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» / «Antippen zum
-Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default sound and
-vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. The tap opens
-`MainActivity` with the event's start time and category (`LoudAlertIntent`); «Laut! Melden» opens on
-«Messen» — also during a measurement, while the button stays hidden then — with that time as the
+`ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`
+and keep the one button «Starten»).
+
+Since 0.6.4 «Unterwegs» is a **start mode**, not a switch: «Messen» shows two buttons, **«Messen»**
+and **«Unterwegs»**, and one line under them («Unterwegs: Mitteilung bei sehr lautem Verkehr (ab
+75 dB), nichts auf die Karte.»; `START_MEASURE`, `START_UNTERWEGS`, `UNTERWEGS_HINT` in
+`ui/MeasureScreen.kt`). «Messen» starts a measurement that is shared as before if sharing is on.
+«Unterwegs» starts one that **shares nothing**: no question «Auf die Lärmkarte?», no location fix, no
+point (`ShareController.start(unterwegs = true)` → `MeasurementService.start(…, unterwegs = true)`;
+the row gets `MeasurementEntity.unterwegs = true`, database v7 → v8; `MeasurementDao.attachPoint`
+refuses such a row and `sharedPoint()` is null for it, so `PlaceIndex` makes no field from it and
+none of its minutes and events is sent; the live uploads do not run for it). The status line and the
+map banner say «Unterwegs – diese Messung kommt nicht auf die Karte». While it runs, «Laut! Melden»
+is shown under «Stoppen» too. Tapping «Unterwegs» asks for `POST_NOTIFICATIONS` on Android 13+ if
+missing (already declared for the measurement's notification); the measurement starts either way.
+The 0.6.3 preference `loud_alert` is no longer read.
+
+While an «Unterwegs» measurement runs (`LiveState.unterwegs`), `LoudAlertWatcher` (process scope)
+watches `LiveState.lastEvent`: an event that is not wind, with LAFmax ≥ 75 dB(A)
+(`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's «Sehr laut»; the
+level as shown — calibrated if the phone is, else with the default offset; uncalibrated phones
+alert too) and category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» /
+«Antippen zum Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default
+sound and vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. A
+measurement started with «Messen» never alerts. The tap opens `MainActivity` with the event's start
+time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
 report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
 `road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
 precise fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
 nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
-(every flavour), renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
+(every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
+(`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
+7 → 8); renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
 
 ## The tab «Karte» (0.6.3)
 
@@ -570,7 +586,19 @@ location, to our server in Switzerland), what never (audio, name, the exact loca
 dialog. «Ja, auf die Karte» switches sharing on and starts the measurement; «Nur auf dem Telefon»
 starts it unshared; back starts nothing. The answer (`UploadSnapshot.shareDecision`: undecided /
 yes / no) is asked once; the switch changes it later. On the update from 0.6.2 a phone with sharing
-on counts as «yes», all others are asked once, and «Nur über WLAN» is reset once to off. The tab:
+on counts as «yes», all others are asked once, and «Nur über WLAN» is reset once to off.
+
+**Only map events leave the phone (0.6.4).** One rule, `Payloads.isMapEvent`, decides both which
+events an upload includes (`Uploader`, the events `include` filter) and which just-detected event
+starts an events-only live upload (`LiveUploadPlan.triggers`, `UploadModule`): category one of
+`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction` (`Payloads.MAP_CATEGORIES`,
+the same list as the server's `config.MAP_CATEGORIES`), not wind, the excess setting in force
+(`threshold_db`) ≥ 6.5 dB, LAFmax ≥ max(the event's floor setting `min_level_db`, 30 dB(A)) and
+duration ≥ 0.5 s — the server's gates (DESIGN.md §4.4, §6). Voices, music, unclassified and wind
+never leave the phone; the event marker moves past them, so they are never fetched again. No field
+was added to the bodies; the detector-v2 features stay on the phone. Not a setting (the project's
+definition of the map). Before 0.6.4 the app sent every category except wind and the server dropped
+the others on arrival. A measurement started as «Unterwegs» shares nothing (above). The tab:
 
 1. **The switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
    **status line** (the same as on «Messen»: «Nicht auf der Karte – tippen zum Teilen», «Standort
@@ -583,7 +611,8 @@ on counts as «yes», all others are asked once, and «Nur über WLAN» is reset
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
    macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice.
 2. **«Was gesendet wird ▸»** (folded): what is sent
-   (Lärmwerte pro Minute and Lärmspitzen with their category; a randomly shifted point instead of
+   (Lärmwerte pro Minute and, since 0.6.4, only Lärmspitzen of engines and machines, «Stimmen und
+   Musik nie»; a randomly shifted point instead of
    the location, and the placement answers; reports with time, exact place and kind; phone model,
    audio source, calibration and a random id), the location rule (one fix right after «Starten»
    while the app is open, moved at once by about σ; the same shift at the same place; usually (86 of
@@ -643,7 +672,7 @@ location is read and the measurement has no point; a measurement without a point
 (also not a row of 0.6.0 or 0.6.1, which has only a cell).
 
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
-Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes → ids `motorrad`, `auto`,
+Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes Fahrzeug — until 0.6.3 «anderes» → ids `motorrad`, `auto`,
 `lastwagen`, `poser`, `andere`) → one precise fix (`LocationFetcher.locateForReport`, accuracy
 ≤ 50 m, else the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
 every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
@@ -759,7 +788,15 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.3 (versionCode 16) is **published (2026-10-15)**, the current version: one question «Auf die
+v0.6.4 (versionCode 17, 2026-10-16) is the current version, signed APKs in `../docs/download/`:
+only map events leave the phone (`Payloads.isMapEvent`: the five machine and motor categories, not
+wind, the server's quality gates; also the live-upload trigger); «Unterwegs» is a start mode next to
+«Messen» that shares nothing (database v7 → v8); «Laut! Melden» says «anderes Fahrzeug». Verified on
+the JVM (unit tests of all flavours, dsp, chart; `RealServerTest` against a local server at 77e47ef)
+and on the signed APKs (`apksigner`, `aapt2`, `dexdump`); not run on a device; the website's
+Playwright tests were updated but not run.
+
+v0.6.3 (versionCode 16) was **published (2026-10-15)**: one question «Auf die
 Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
 the fix arrives; the live map (loud moments about 30 s after they end, minutes every 2 minutes,
 needs the 30-second map server); the tab «Karte» and the «Unterwegs» notification in the

@@ -337,7 +337,9 @@ class UploadTest {
     @Test
     fun minuteAndEventBodiesFollowDesignAndLeaveOutLabelsAndOriginals() = runBlocking {
         minuteRows += minute(now - 7_200_000, laeq = Double.NaN)
-        eventRows += event(now - 7_100_000, category = null)
+        // 0.6.4: an event without a category is no map event and is not sent (Payloads.isMapEvent),
+        // so the body is checked on a map event; the «no category → unclassified» mapping below.
+        eventRows += event(now - 7_100_000, category = "loud_vehicle")
         val (up, store) = setup()
         up.run()
         val id = store.state.value.deviceId!!
@@ -365,7 +367,8 @@ class UploadTest {
             e.keys,
         )
         assertEquals(a, e.point())
-        assertEquals("unclassified", e["category"]!!.jsonPrimitive.content, "no category → unclassified")
+        assertEquals("loud_vehicle", e["category"]!!.jsonPrimitive.content)
+        assertEquals("unclassified", Payloads.event(event(now - 7_000_000, category = null), pointA)["category"]!!.jsonPrimitive.content, "no category → unclassified")
         assertTrue(e["start"]!!.jsonPrimitive.content.contains("."), "event start with milliseconds")
         // Nothing of the raw classifier labels or the re-evaluation originals leaves the phone.
         for (r in server.requests) {
@@ -410,8 +413,107 @@ class UploadTest {
         assertEquals(Uploader.Outcome.Done(minutes = 5, events = 0, refused = 0, more = false), o)
         assertEquals(0, server.count("POST", "/events"))
         assertEquals(eventRows.last().startEpochMs, store.state.value.eventsSentUpToMs)
-        assertFalse(Payloads.isShared(eventRows.first()))
-        assertTrue(Payloads.isShared(event(now - 1)))
+        assertFalse(Payloads.isMapEvent(eventRows.first()))
+        assertTrue(Payloads.isMapEvent(event(now - 1)))
+    }
+
+    // ---- 0.6.4: only map events leave the phone (Payloads.isMapEvent) ----------------------------
+
+    @Test
+    fun onlyTheFiveMachineAndMotorCategoriesAreSent() = runBlocking {
+        val five = listOf("loud_vehicle", "road_traffic", "rail_tram", "aircraft", "construction")
+        val never = listOf("voices", "music", "unclassified", "wind", "speech", "dog", null)
+        var t = now - 7_200_000
+        for (cat in never + five) { eventRows += event(t, category = cat); t += 10_000 }
+        // Wind on the microphone stays home even when it was classified as a vehicle.
+        eventRows += event(t, category = "loud_vehicle").copy(wind = true); t += 10_000
+        addMinutes(3)
+        val (up, store) = setup()
+        val o = up.run()
+        assertEquals(Uploader.Outcome.Done(minutes = 3, events = 5, refused = 0, more = false), o)
+        val id = store.state.value.deviceId!!
+        assertEquals(five.toSet(), server.events[id]!!.values.map { it["category"]!!.jsonPrimitive.content }.toSet())
+        assertEquals(5, server.events[id]!!.size)
+        for (r in server.requests.filter { it.path.endsWith("/events") }) {
+            val text = r.body.toString()
+            for (bad in listOf("voices", "music", "unclassified", "speech", "dog", "\"wind")) assertFalse(text.contains(bad), "$bad in $text")
+        }
+        // The marker moves past every one of them: the others are never fetched again.
+        assertEquals(eventRows.maxOf { it.startEpochMs }, store.state.value.eventsSentUpToMs)
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), up.run())
+        assertEquals(1, server.count("POST", "/events"))
+    }
+
+    @Test
+    fun weakQuietOrShortEventsStayOnThePhone() = runBlocking {
+        val base = event(0)
+        // (event, sent?) — each varies one gate around its limit.
+        val cases = listOf(
+            base.copy(thresholdDb = 6.4) to false, // excess setting below 6.5 dB
+            base.copy(thresholdDb = 6.5) to true,
+            base.copy(lafMaxDb = 29.9, minLevelDb = null) to false, // quieter than 30 dB(A)
+            base.copy(lafMaxDb = 30.0, minLevelDb = null) to true,
+            base.copy(lafMaxDb = 29.9, minLevelDb = 20.0) to false, // a lower floor setting does not lower the 30
+            base.copy(lafMaxDb = 30.0, minLevelDb = Double.NaN) to true, // events before 0.3.0: no floor
+            base.copy(lafMaxDb = 44.9, minLevelDb = 45.0) to false, // below its own floor setting
+            base.copy(lafMaxDb = 45.0, minLevelDb = 45.0) to true,
+            base.copy(durationSeconds = 0.49) to false, // shorter than 0.5 s
+            base.copy(durationSeconds = 0.5) to true,
+        )
+        var t = now - 7_200_000
+        for ((e, _) in cases) { eventRows += e.copy(id = eventRows.size + 1L, startEpochMs = t, startIso = Iso.format(t, zone, millis = true)); t += 10_000 }
+        for ((i, c) in cases.withIndex()) assertEquals(c.second, Payloads.isMapEvent(eventRows[i]), "case $i: ${c.first}")
+        val (up, store) = setup()
+        val o = up.run()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 5, refused = 0, more = false), o)
+        val sent = server.events[store.state.value.deviceId!!]!!.keys
+        val expected = eventRows.filterIndexed { i, _ -> cases[i].second }.map { it.startIso }.toSet()
+        assertEquals(expected, sent)
+    }
+
+    @Test
+    fun theRuleIsTheServersAllowListAndGatesAndBothUploadPathsUseIt() {
+        val repo = listOf(java.io.File("../.."), java.io.File(".."), java.io.File(".")).first { java.io.File(it, "server/stadtlaerm_server").isDirectory }
+        val config = java.io.File(repo, "server/stadtlaerm_server/config.py").readText()
+        val ids = Regex("""MAP_CATEGORIES[^=]*=\s*\(([^)]*)\)""").find(config)!!.groupValues[1]
+            .split(",").map { it.trim().trim('"') }.filter { it.isNotEmpty() }
+        assertEquals(ids, Payloads.MAP_CATEGORIES)
+        fun num(name: String) = Regex("""$name\s*=\s*([0-9.]+)""").find(config)!!.groupValues[1].toDouble()
+        assertEquals(num("MIN_EVENT_THRESHOLD_DB"), Payloads.MIN_EXCESS_DB)
+        assertEquals(num("MIN_EVENT_LAFMAX_DB"), Payloads.MIN_LAFMAX_DB)
+        assertEquals(num("MIN_EVENT_DURATION_S"), Payloads.MIN_DURATION_S)
+        // One rule: the upload's include filter and the live trigger call it; no other filter.
+        val app = java.io.File(repo, "android/app/src/main/kotlin/ch/lessnoise/app/upload")
+        val uploader = java.io.File(app, "Uploader.kt").readText()
+        assertTrue(uploader.contains("include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs) != null }"))
+        val worker = java.io.File(app, "UploadWorker.kt").readText()
+        assertTrue(worker.contains("fun triggers(e: ch.lessnoise.app.service.LiveEvent?): Boolean = e != null && Payloads.isMapEvent(e)"))
+        assertTrue(worker.contains("if (e != null && LiveUploadPlan.triggers(e))"))
+        assertFalse(worker.contains("!e.wind"), "the old wind-only trigger is gone")
+    }
+
+    @Test
+    fun anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow() = runBlocking {
+        // 0.6.4: a measurement started as «Unterwegs» never gets a point (MeasurementDao.attachPoint
+        // refuses it); even a row that had one would not make a field: sharedPoint() is null.
+        val start = now - 7_200_000
+        measurementRows.clear()
+        measurementRows += shared(1, start - 3_600_000, start - 60_000, pointA)
+        measurementRows += shared(2, start, null, pointC).copy(unterwegs = true)
+        repeat(30) { minuteRows += minute(start + it * 60_000L) }
+        repeat(6) { eventRows += event(start + 5_000 + it * 120_000L, category = if (it % 2 == 0) "loud_vehicle" else "construction") }
+        val (up, store) = setup()
+        // As if the fix had arrived and the upload heard of it: still nothing.
+        up.pointAttached(start)
+        val o = up.run()
+        assertEquals(Uploader.Outcome.Done(minutes = 0, events = 0, refused = 0, more = false), o)
+        assertEquals(0, server.count("POST", "/minutes"))
+        assertEquals(0, server.count("POST", "/events"))
+        assertNull(PlaceIndex(measurementRows).pointAt(start + 10_000))
+        // The site call carries the point of the newest SHARED measurement (A), never C.
+        val site = server.sites[store.state.value.deviceId!!]!!
+        assertEquals(a, site.point())
+        assertTrue(store.state.value.registered)
     }
 
     @Test

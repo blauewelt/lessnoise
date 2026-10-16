@@ -69,6 +69,7 @@ class UploadSourceIsolationTest {
         "ch.lessnoise.app.data.MinuteEntity",
         "ch.lessnoise.app.data.Recalibrator",
         "ch.lessnoise.app.service.LiveState",
+        "ch.lessnoise.app.service.LiveEvent", // 0.6.4: a just-detected event (levels, category, wind, settings) for Payloads.isMapEvent, no audio
         "ch.lessnoise.dsp.geo.Lv95",
         "ch.lessnoise.dsp.geo.LocationNoise", // pure math of the location noise (shifted point, secret), no I/O
         "ch.lessnoise.dsp.MeasurementSplitter", // pure function: which measurement a record belongs to

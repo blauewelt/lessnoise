@@ -29,10 +29,10 @@ class LoudAlertIsolationTest {
                 t.contains("\"loud_alert\"") || t.contains("IMPORTANCE_HIGH")
         }.map { it.name }
         assertEquals(emptyList(), offenders)
-        // The stand-in does nothing: no channel, no notification, no switch.
+        // The stand-in does nothing: no channel, no notification, no permission prompt (0.6.4: no «Unterwegs» button either).
         val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         assertTrue(stub.contains("const val AVAILABLE = false"))
-        assertTrue(stub.contains("fun Switch() = Unit"))
+        assertTrue(stub.contains("fun rememberUnterwegsPermission(): () -> Unit = {}"))
         for (bad in listOf("Notification", "notify", "onCheckedChange", "SharedPreferences", "alert.")) assertFalse(stub.contains(bad), bad)
         // No new permission: POST_NOTIFICATIONS was already declared for the measurement's notification.
         assertTrue(File(app, "src/main/AndroidManifest.xml").readText().contains("android.permission.POST_NOTIFICATIONS"))

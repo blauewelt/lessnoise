@@ -23,11 +23,12 @@ class MapBannerTest {
         locate: LocateState = LocateState.Idle,
         online: Boolean = true,
         now: Long = start + 30 * min,
-    ) = mapBanner(s, running, if (running) start else 0, hasPoint, hasAnyPoint, locate, online, now, hm)
+        unterwegs: Boolean = false,
+    ) = mapBanner(s, running, if (running) start else 0, hasPoint, hasAnyPoint, locate, online, now, unterwegs, hm)
 
     /** The status line's action for the same state (a tap on the banner does the same). */
     private fun lineAction(s: UploadSnapshot, running: Boolean = true, hasPoint: Boolean = true, locate: LocateState = LocateState.Idle) =
-        shareStatus(s, running, if (running) start else 0, hasPoint, locate, true, hm)?.action
+        shareStatus(s, running, if (running) start else 0, hasPoint, locate, true, hm = hm)?.action
 
     @Test
     fun notSharing() {
@@ -110,5 +111,13 @@ class MapBannerTest {
             texts,
         )
         for (t in texts) assertTrue(t.length <= 70 && " Sie " !in t, t)
+    }
+
+    @Test
+    fun anUnterwegsMeasurementShowsThatItIsNotOnTheMap() {
+        // 0.6.4: also with sharing on and an older shared point the map is centred on.
+        for (st in listOf(on, UploadSnapshot())) {
+            assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE), banner(st, hasPoint = false, hasAnyPoint = true, unterwegs = true))
+        }
     }
 }

@@ -1,7 +1,9 @@
 package ch.lessnoise.app.alert
 
 import ch.lessnoise.app.service.LiveEvent
-import ch.lessnoise.app.ui.LoudAlerts
+import ch.lessnoise.app.ui.START_MEASURE
+import ch.lessnoise.app.ui.START_UNTERWEGS
+import ch.lessnoise.app.ui.UNTERWEGS_HINT
 import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.ui.reportCategoryOrder
 import ch.lessnoise.app.upload.ReportCategory
@@ -18,7 +20,10 @@ class LoudAlertTest {
     private val t0 = 1_760_000_000_000L
 
     private fun ev(db: Double = 84.0, category: String? = "loud_vehicle", wind: Boolean = false, start: Long = t0) =
-        LiveEvent(startEpochMs = start, endEpochMs = start + 3_000, lafMaxDb = db, category = category, wind = wind, calibrated = true)
+        LiveEvent(
+            startEpochMs = start, endEpochMs = start + 3_000, lafMaxDb = db, category = category, wind = wind, calibrated = true,
+            thresholdDb = 10.0, minLevelDb = 30.0,
+        )
 
     private fun alerts(e: LiveEvent, unterwegs: Boolean = true, running: Boolean = true, last: Long? = null, now: Long = t0 + 3_000) =
         LoudAlertRule.shouldAlert(e, unterwegs, running, last, now)
@@ -43,7 +48,12 @@ class LoudAlertTest {
     }
 
     @Test
-    fun onlyWithUnterwegsOnAndWhileMeasuring() {
+    fun onlyInAnUnterwegsMeasurementWhileMeasuring() {
+        // 0.6.4: «unterwegs» is LiveState.unterwegs (the start mode), which the watcher passes; a
+        // measurement started with «Messen» never alerts.
+        val watcher = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, l.unterwegs, l.running, lastAlertAtMs, now)"))
+        assertFalse(watcher.contains("SharedPreferences"), "no remembered switch any more")
         assertFalse(alerts(ev(), unterwegs = false))
         assertFalse(alerts(ev(), running = false))
         assertTrue(alerts(ev(), unterwegs = true, running = true))
@@ -67,7 +77,10 @@ class LoudAlertTest {
         // The category names are the app's (categories.json name_de).
         val names = File(repo(), "android/app/src/main/assets/categories.json").readText()
         assertTrue(names.contains("\"name_de\": \"Töff & Poser\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
-        assertTrue(LoudAlerts.SWITCH_LABEL == "Unterwegs" && LoudAlerts.SWITCH_HINT.length <= 70)
+        // 0.6.4: «Unterwegs» is the second start button, with one line.
+        assertEquals("Unterwegs", START_UNTERWEGS)
+        assertEquals("Messen", START_MEASURE)
+        assertTrue(UNTERWEGS_HINT.length <= 90 && UNTERWEGS_HINT.contains("75 dB") && UNTERWEGS_HINT.contains("nichts auf die Karte"), UNTERWEGS_HINT)
     }
 
     @Test

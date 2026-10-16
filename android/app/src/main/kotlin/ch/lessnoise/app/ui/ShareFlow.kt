@@ -108,8 +108,17 @@ class ShareController internal constructor(
     private val module get() = c.upload
     private val store get() = c.upload.store
 
-    /** «Starten» (the microphone is allowed): the question once, then the measurement at once. */
-    fun start() {
+    /**
+     * «Messen» (the microphone is allowed): the question once, then the measurement at once.
+     * [unterwegs] (0.6.4, the button «Unterwegs»): the measurement starts at once and is never
+     * shared — no question, no location, no point; only the «Sehr laut» notification and «Laut!
+     * Melden» (its own consent) are possible.
+     */
+    fun start(unterwegs: Boolean = false) {
+        if (unterwegs) {
+            MeasurementService.start(app, unterwegs = true)
+            return
+        }
         val s = store.state.value
         when {
             s.shareDecision == ShareDecision.UNDECIDED -> dialog = ShareDialog.Consent(startMeasurement = true)
@@ -182,7 +191,8 @@ class ShareController internal constructor(
     private fun enableAndLocate() {
         enable()
         val l = c.live.value
-        if ((l.running || l.starting) && l.sharedPoint == null) wantPoint(prompt = true)
+        // An «Unterwegs» measurement stays unshared (0.6.4): sharing on only affects the next «Messen».
+        if ((l.running || l.starting) && l.sharedPoint == null && !l.unterwegs) wantPoint(prompt = true)
     }
 
     /** A point for the running (or just starting) measurement is wanted. */
@@ -234,7 +244,8 @@ class ShareController internal constructor(
         c.appScope.launch {
             val l = withTimeoutOrNull(START_WAIT_MS) { c.live.first { it.running && it.measurementStartMs != 0L } }
             var ok = false
-            if (l != null) {
+            // Never for an «Unterwegs» measurement (0.6.4; the database refuses it too).
+            if (l != null && !l.unterwegs) {
                 // The service inserts the row right after «Starten»; give it a moment if the fix was faster.
                 for (attempt in 0 until 20) {
                     if (c.measurements.attachPoint(l.measurementStartMs, point)) { ok = true; break }
@@ -256,7 +267,7 @@ class ShareController internal constructor(
         val l = c.live.value
         val s = store.state.value
         val st = c.shareLocate.value
-        if (l.running && l.sharedPoint == null && s.enabled && (st is LocateState.Pending || st is LocateState.Failed)) {
+        if (l.running && !l.unterwegs && l.sharedPoint == null && s.enabled && (st is LocateState.Pending || st is LocateState.Failed)) {
             tryLocate(prompt = false)
         }
     }

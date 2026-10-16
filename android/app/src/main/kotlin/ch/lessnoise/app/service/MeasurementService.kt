@@ -101,6 +101,12 @@ data class LiveState(
      * alert while «Unterwegs» is on. Null until the first event.
      */
     val lastEvent: LiveEvent? = null,
+    /**
+     * 0.6.4: the running measurement was started as «Unterwegs»: it measures, may show the «Sehr
+     * laut» notification (editions with the map) and allows «Laut! Melden», but shares nothing —
+     * no point, no minutes, no events (MeasurementEntity.unterwegs).
+     */
+    val unterwegs: Boolean = false,
 )
 
 /** An event as it was detected (0.6.3, [LiveState.lastEvent]). Levels as shown (calibrated if the phone is). */
@@ -113,6 +119,10 @@ data class LiveEvent(
     /** Wind on the microphone (detector v2): not counted, not shared, never an alert. */
     val wind: Boolean,
     val calibrated: Boolean,
+    /** The excess setting in force at the start (NoiseEvent.thresholdDb, sent as `threshold_db`); 0.6.4, for Payloads.isMapEvent. */
+    val thresholdDb: Double,
+    /** The LAFmax floor setting in force (NoiseEvent.minLevelDb; NaN before 0.3.0); 0.6.4, for Payloads.isMapEvent. */
+    val minLevelDb: Double?,
 )
 
 /**
@@ -138,10 +148,14 @@ class MeasurementService : Service() {
         const val EXTRA_POINT_E = "point_e"
         const val EXTRA_POINT_N = "point_n"
         const val EXTRA_SIGMA_M = "sigma_m"
+        /** Extra of ACTION_START (0.6.4): started as «Unterwegs» (never shared). */
+        const val EXTRA_UNTERWEGS = "unterwegs"
 
-        fun start(context: Context, point: LocationNoise.Point? = null) {
+        fun start(context: Context, point: LocationNoise.Point? = null, unterwegs: Boolean = false) {
             val i = Intent(context, MeasurementService::class.java).setAction(ACTION_START)
-            if (point != null) {
+            if (unterwegs) {
+                i.putExtra(EXTRA_UNTERWEGS, true)
+            } else if (point != null) {
                 i.putExtra(EXTRA_POINT_E, point.e).putExtra(EXTRA_POINT_N, point.n).putExtra(EXTRA_SIGMA_M, point.sigmaM)
             }
             ContextCompat.startForegroundService(context, i)
@@ -197,12 +211,15 @@ class MeasurementService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopMeasurement(); return START_NOT_STICKY }
-            else -> startMeasurement(pointOf(intent))
+            else -> {
+                val unterwegs = intent?.getBooleanExtra(EXTRA_UNTERWEGS, false) == true
+                startMeasurement(if (unterwegs) null else pointOf(intent), unterwegs)
+            }
         }
         return START_NOT_STICKY
     }
 
-    private fun startMeasurement(point: LocationNoise.Point?) {
+    private fun startMeasurement(point: LocationNoise.Point?, unterwegs: Boolean) {
         val live = container.live
         createChannel()
         val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -225,7 +242,7 @@ class MeasurementService : Service() {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf(); return
         }
-        live.value = LiveState(starting = true)
+        live.value = LiveState(starting = true, unterwegs = unterwegs)
         stopping = false
         inferenceBusy.set(false)
         scope.launch {
@@ -284,7 +301,7 @@ class MeasurementService : Service() {
                     val startedAt = System.currentTimeMillis()
                     measurementRow = scope.async {
                         try {
-                            container.measurements.beginMeasurement(startedAt, point)
+                            container.measurements.beginMeasurement(startedAt, point, unterwegs)
                         } catch (e: Exception) {
                             Log.w(TAG, "measurement insert failed: ${e.javaClass.simpleName}")
                             null
@@ -310,7 +327,7 @@ class MeasurementService : Service() {
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
-                        measurementStartMs = startedAt,
+                        measurementStartMs = startedAt, unterwegs = unterwegs,
                     )
                 }
             } catch (e: Exception) {
@@ -411,7 +428,7 @@ class MeasurementService : Service() {
                         startEpochMs = event.startEpochMs,
                         endEpochMs = event.startEpochMs + (event.durationSeconds * 1000).toLong(),
                         lafMaxDb = event.lafMaxDb, category = event.dominantCategory, wind = event.wind,
-                        calibrated = event.calibrated,
+                        calibrated = event.calibrated, thresholdDb = event.thresholdDb, minLevelDb = event.minLevelDb,
                     ),
                 )
             }

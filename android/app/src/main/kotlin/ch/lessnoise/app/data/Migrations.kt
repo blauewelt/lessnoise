@@ -154,6 +154,16 @@ object MigrationSql {
         "CREATE TABLE IF NOT EXISTS `measurements` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, " +
             "`end_ms` INTEGER, `cell` TEXT, `point_e` INTEGER, `point_n` INTEGER, `sigma_m` INTEGER)"
 
+    /** v8 (app 0.6.4): «Unterwegs» measurements, never shared. */
+    val MIGRATE_7_8: List<String> = listOf(
+        "ALTER TABLE `measurements` ADD COLUMN `unterwegs` INTEGER NOT NULL DEFAULT 0",
+    )
+
+    /** v8 `measurements` table, exactly as Room generates it (verified by a unit test). */
+    const val CREATE_MEASUREMENTS_V8 =
+        "CREATE TABLE IF NOT EXISTS `measurements` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, " +
+            "`end_ms` INTEGER, `cell` TEXT, `point_e` INTEGER, `point_n` INTEGER, `sigma_m` INTEGER, `unterwegs` INTEGER NOT NULL DEFAULT 0)"
+
     /** v5 `events` table, exactly as Room generates it (verified by a unit test). */
     const val CREATE_EVENTS_V5 = CREATE_EVENTS_V4_PREFIX +
         ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
@@ -205,5 +215,11 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_6_7.forEach { db.execSQL(it) }
+    }
+}
+
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        MigrationSql.MIGRATE_7_8.forEach { db.execSQL(it) }
     }
 }

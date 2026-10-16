@@ -26,6 +26,8 @@ class ShareTextsTest {
             // Rule 2: the shift is stated, with the chosen σ; the true place is never sent.
             assertTrue(sent.startsWith("Gesendet:") && sent.contains("um etwa $sigma m verschobenen Punkt statt deines Standorts"), sent)
             assertTrue(sent.contains("pro Minute") && sent.contains("Lärmspitzen"), sent)
+            // 0.6.4: only machine and motor noise leaves the phone (Payloads.isMapEvent); say so.
+            assertTrue(sent.contains("Lärmspitzen von Motoren und Maschinen"), sent)
             // Where: our server in Switzerland.
             assertTrue(sent.contains("an unseren Server in der Schweiz"), sent)
             assertTrue(never.startsWith("Nie gesendet:") && never.contains("Audio") && never.contains("genauer Standort"), never)
@@ -47,6 +49,7 @@ class ShareTextsTest {
             assertEquals(0, t.trimEnd('.', '?').count { it == '.' }, "one sentence: $t")
             assertFalse(t.contains("Ereignis"), "the app says «Lärmspitzen»: $t")
         }
+        assertTrue(SHARE_SENT_BULLETS[0].contains("Motoren und Maschinen") && SHARE_SENT_BULLETS[0].contains("Stimmen und Musik nie"), SHARE_SENT_BULLETS[0])
         // The cadence and the network setting of 0.6.3 (server/DESIGN.md §4.6).
         // The live map (0.6.3): loud moments after about 30 s, minutes every 2 minutes; UploadCadenceTest backs the 3 MB.
         assertTrue(SHARE_WHEN_BULLETS[0].contains("30 Sekunden") && SHARE_WHEN_BULLETS[0].contains("alle 2 Minuten") && SHARE_WHEN_BULLETS[0].contains("Stoppen"))

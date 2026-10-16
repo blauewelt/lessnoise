@@ -52,6 +52,8 @@ data class ShareStatus(val text: String, val action: ShareAction, val problem: B
  * - [locate]: the fix for the running measurement.
  * - [online]: the phone has a connection (ConnectivityManager); only used while a shared
  *   measurement runs.
+ * - [unterwegs]: the running measurement was started as «Unterwegs» (0.6.4): it is never
+ *   shared, whatever the switch says ([STATUS_UNTERWEGS]).
  * - [hm]: formats a time as «HH:mm».
  *
  * Null: nothing to say (no measurement runs and the question «Auf die Lärmkarte?» has not been
@@ -64,6 +66,7 @@ fun shareStatus(
     hasPoint: Boolean,
     locate: LocateState,
     online: Boolean,
+    unterwegs: Boolean = false,
     hm: (Long) -> String,
 ): ShareStatus? {
     // Uploader.enable() records YES and disable() NO, so «on» is the switch.
@@ -77,6 +80,7 @@ fun shareStatus(
             else -> ShareStatus(STATUS_ON_IDLE, ShareAction.NONE)
         }
     }
+    if (unterwegs) return ShareStatus(STATUS_UNTERWEGS, ShareAction.NONE)
     if (!on) return ShareStatus(STATUS_OFF, ShareAction.TURN_ON)
     if (!hasPoint) {
         return when (locate) {
@@ -130,11 +134,14 @@ fun mapBanner(
     locate: LocateState,
     online: Boolean,
     nowMs: Long,
+    unterwegs: Boolean = false,
     hm: (Long) -> String,
 ): MapBanner? {
+    // «Unterwegs» (0.6.4): this measurement does not come on the map, whatever else holds.
+    if (running && unterwegs) return MapBanner(BANNER_UNTERWEGS, ShareAction.NONE)
     // Null only before the question was asked (not running, undecided): a tap asks it.
     // «Open the map» is a no-op on the map itself: no tap, no «›».
-    val action = (shareStatus(s, running, measurementStartMs, hasPoint, locate, online, hm)?.action ?: ShareAction.TURN_ON)
+    val action = (shareStatus(s, running, measurementStartMs, hasPoint, locate, online, hm = hm)?.action ?: ShareAction.TURN_ON)
         .takeIf { it != ShareAction.OPEN_MAP } ?: ShareAction.NONE
     if (!s.enabled) return MapBanner(BANNER_NOT_SHARING, action)
     if (!hasPoint && !hasAnyPoint) return MapBanner(BANNER_NO_POINT, action)

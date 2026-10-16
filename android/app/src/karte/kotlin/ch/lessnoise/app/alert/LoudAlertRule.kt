@@ -31,7 +31,8 @@ object LoudAlertRule {
     const val CHANNEL_NAME = "Sehr laut"
 
     /**
-     * Whether [e] alerts now ([nowMs]): «Unterwegs» on, a measurement running, not wind, one of
+     * Whether [e] alerts now ([nowMs]): the running measurement started as «Unterwegs» (0.6.4; in
+     * 0.6.3 a switch), a measurement running, not wind, one of
      * [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown: calibrated if the phone is, else
      * with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
      */

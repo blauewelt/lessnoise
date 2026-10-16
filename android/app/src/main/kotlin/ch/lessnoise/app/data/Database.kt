@@ -145,11 +145,17 @@ data class MeasurementEntity(
     @ColumnInfo(name = "point_e") val pointE: Int? = null,
     @ColumnInfo(name = "point_n") val pointN: Int? = null,
     @ColumnInfo(name = "sigma_m") val sigmaM: Int? = null,
+    /**
+     * v8 (app 0.6.4): started as «Unterwegs» — it measures and may show the «Sehr laut» notification,
+     * but it is never shared: it gets no point ([MeasurementDao.attachPoint] refuses it) and
+     * [sharedPoint] is null even if a point were present, so none of its minutes and events is sent.
+     */
+    @ColumnInfo(name = "unterwegs", defaultValue = "0") val unterwegs: Boolean = false,
 )
 
-/** The shifted point of a shared measurement (v7), or null if it is not shared. */
+/** The shifted point of a shared measurement (v7), or null if it is not shared (no point, or «Unterwegs», v8). */
 fun MeasurementEntity.sharedPoint(): LocationNoise.Point? =
-    if (pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
+    if (!unterwegs && pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
 
 @Entity(tableName = "calibrations", indices = [Index(value = ["deviceModel", "audioSource"])])
 data class CalibrationEntity(
@@ -254,7 +260,7 @@ interface MeasurementDao {
     /** Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent. */
     @Query(
         "SELECT COUNT(*) FROM minutes AS m WHERE m.startEpochMs > :afterMs AND " +
-            "(SELECT point_e FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
+            "(SELECT CASE WHEN unterwegs = 0 THEN point_e END FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
     )
     fun sharedMinuteCountAfter(afterMs: Long): Flow<Int>
 
@@ -278,16 +284,16 @@ interface MeasurementDao {
      * 0.6.3: gives the RUNNING measurement that started at [startMs] its shifted point (the fix
      * arrives after «Starten», or sharing was switched on during the measurement). Only a row that
      * is still open and has no point yet: a measurement that already ended unshared stays unshared.
-     * Returns the number of rows changed (0 or 1).
+     * Never a measurement started as «Unterwegs» (v8, 0.6.4). Returns the number of rows changed (0 or 1).
      */
     @Query(
         "UPDATE measurements SET cell = :cell, point_e = :e, point_n = :n, sigma_m = :sigmaM " +
-            "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL"
+            "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL AND unterwegs = 0"
     )
     suspend fun attachPoint(startMs: Long, cell: String, e: Int, n: Int, sigmaM: Int): Int
 
     /** The newest measurement with a shifted point (the «Karte» tab opens there), or null. */
-    @Query("SELECT * FROM measurements WHERE point_e IS NOT NULL ORDER BY start_ms DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM measurements WHERE point_e IS NOT NULL AND unterwegs = 0 ORDER BY start_ms DESC, id DESC LIMIT 1")
     suspend fun latestSharedMeasurement(): MeasurementEntity?
 
     /** End (ms) of the last minute starting in [fromMs, toMs), or null. */
@@ -319,7 +325,7 @@ interface CalibrationDao {
 
 @Database(
     entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class],
-    version = 7, exportSchema = false,
+    version = 8, exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
@@ -328,7 +334,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
     }
 }

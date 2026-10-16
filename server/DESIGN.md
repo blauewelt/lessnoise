@@ -327,8 +327,8 @@ Response `204`. Never rate limited.
 ### 4.6 Upload cadence in the app
 
 While «Messwerte teilen» is on, since app 0.6.3 (the live map): while a shared measurement runs,
-a full upload about 30 s after it got its point and then every 2 minutes, and each loud event about
-30 s after it ended in an events-only upload (usually one request; at most one upload per 30 s, so
+a full upload about 30 s after it got its point and then every 2 minutes, and each map event (since
+app 0.6.4 only an event the app sends at all, below) about 30 s after it ended in an events-only upload (usually one request; at most one upload per 30 s, so
 events close together go together; an events upload due within 30 s of the next full one is merged
 into it) — run in the app's process while the measurement's foreground service runs
 (`LiveUploadPlan`), not as a WorkManager job; shortly (15 s) after it stops; after a report; and at
@@ -350,7 +350,13 @@ Karte · zuletzt gesendet …», «Kein Internet – wird nachgeholt», …); «
 shows the number of minutes still to send. Reports are sent with the next upload (the app agent
 documents the details in android/README.md). Apps 0.5.x–0.6.3 upload the events of every category
 except wind; the server drops those that are not machine or motor noise on arrival (§4.4) with a
-`200`, so the app moves its markers past them and never sends them again.
+`200`, so the app moves its markers past them and never sends them again. Since app 0.6.4 the app
+itself sends only map events, by one rule (`Payloads.isMapEvent`) that decides both which events an
+upload includes and which ones start an events-only upload: category one of the five of §4.4, not
+wind, `threshold_db` ≥ 6.5, `lafmax_db` ≥ max(`min_level_db`, 30) and `duration_s` ≥ 0.5 (the
+server's checks of §4.4 and §6). Voices, music, unclassified and wind never leave the phone; no
+field was added to the bodies. A measurement started as «Unterwegs» (app 0.6.4, a start mode next
+to «Messen») is never shared: it gets no point, so none of its minutes and events is sent.
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
 

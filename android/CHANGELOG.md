@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.4 — 2026-10-16 (published on the website) (versionCode 17)
+
+In short: only machine and motor noise leaves the phone; «Unterwegs» is a way to start a
+measurement that shares nothing; «Laut! Melden» says «anderes Fahrzeug». Nothing new is sent.
+
+Built on 0.6.3 and on the map server of 2026-10-16 (which keeps only machine and motor noise).
+
+- **Only map events are sent:** one rule (`Payloads.isMapEvent`) for the upload and for the live
+  events upload: category «Töff & Poser», «Strassenverkehr», «Tram & Bahn», «Flugzeug» or
+  «Baustelle», not wind, excess setting ≥ 6.5 dB, LAFmax ≥ max(floor setting, 30 dB(A)), ≥ 0.5 s
+  long — the same checks as the server. Voices, music, unclassified sounds and wind never leave the
+  phone and no longer cause an upload request. Not a setting. No new field in the requests.
+- **«Unterwegs» is a start mode** (Online-Version): «Messen» shows two buttons, «Messen» and
+  «Unterwegs», with one line. A measurement started with «Unterwegs» measures, shows the «Sehr laut»
+  notification (unchanged, also uncalibrated) and offers «Laut! Melden» while it runs, but shares
+  nothing: no question, no location, no minutes, no events, whatever the sharing switch says; the
+  status line says «Unterwegs – diese Messung kommt nicht auf die Karte». «Messen» shares as before
+  and never shows the notification. The 0.6.3 switch is gone (database v7 → v8: column
+  `measurements.unterwegs`).
+- **«Laut! Melden»:** the category «anderes» is now «anderes Fahrzeug» (the id sent stays `andere`).
+- **Texts:** «Was gesendet wird» and the question «Auf die Lärmkarte?» say «Lärmspitzen von Motoren
+  und Maschinen»; PRIVACY.md, the website's privacy page and the guide describe the new rule and
+  «Unterwegs». The Labor export is named `lessnoise-labor-…zip`.
+
 ## 0.6.3 — 2026-10-15 (published) (versionCode 16)
 
 In short: one question «Auf die Lärmkarte?» at the first «Starten» replaces the old sharing gate;

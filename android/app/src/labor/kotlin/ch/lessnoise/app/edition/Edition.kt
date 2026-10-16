@@ -366,7 +366,7 @@ object EditionUi {
                                     val dir = File(context.externalCacheDir ?: context.cacheDir, "labor_share")
                                     dir.listFiles()?.forEach { it.delete() }
                                     val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm"))
-                                    File(dir, "stadtlaerm-labor-$stamp.zip").also { dirs.zipTo(it, withContinuous) }
+                                    File(dir, "lessnoise-labor-$stamp.zip").also { dirs.zipTo(it, withContinuous) }
                                 } catch (e: Exception) {
                                     null
                                 }

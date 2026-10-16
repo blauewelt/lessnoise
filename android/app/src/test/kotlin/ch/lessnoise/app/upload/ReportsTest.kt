@@ -50,7 +50,16 @@ class ReportsTest {
     @Test
     fun categoriesMapToTheServersIdsAndShortLabels() {
         assertEquals(listOf("motorrad", "auto", "lastwagen", "poser", "andere"), ReportCategory.entries.map { it.id })
-        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Poser", "anderes"), ReportCategory.entries.map { it.label })
+        // 0.6.4: «anderes Fahrzeug» (was «anderes»); the id stays «andere».
+        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Poser", "anderes Fahrzeug"), ReportCategory.entries.map { it.label })
+        assertEquals("andere", ReportCategory.ANDERE.id)
+        val t = java.time.ZonedDateTime.of(2026, 10, 16, 18, 42, 5, 0, java.time.ZoneId.of("Europe/Zurich")).toInstant().toEpochMilli()
+        assertEquals(
+            "Meldung: anderes Fahrzeug, 18:42, Standort ± 12 m – senden?",
+            ch.lessnoise.app.ui.reportConfirmText(ReportCategory.ANDERE, t, 12, java.time.ZoneId.of("Europe/Zurich")),
+        )
+        // What is sent is the id, never the label.
+        assertEquals("andere", Payloads.report(report().copy(category = ReportCategory.ANDERE.id))["category"]!!.jsonPrimitive.content)
         for (c in ReportCategory.entries) assertEquals(c, ReportCategory.fromId(c.id))
         assertEquals(null, ReportCategory.fromId("velo"))
     }

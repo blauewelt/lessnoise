@@ -157,16 +157,16 @@ class AppJvmTest {
             "`audioSource` TEXT NOT NULL, `calibrated` INTEGER NOT NULL)"
 
     @Test
-    fun v7CreateStatementsMatchRoomGeneratedSchema() {
+    fun v8CreateStatementsMatchRoomGeneratedSchema() {
         val dir = File(System.getProperty("stadtlaerm.generatedDb"))
         val impl = File(dir, "AppDatabase_Impl.kt").readText()
-        // v6 (app 0.6.0) added the measurements table, v7 (location noise) its point columns;
-        // minutes and events are as in v5.
+        // v6 (app 0.6.0) added the measurements table, v7 (location noise) its point columns,
+        // v8 (app 0.6.4) its «unterwegs» flag; minutes and events are as in v5.
         assertTrue(impl.contains(MigrationSql.CREATE_MINUTES_V5), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_EVENTS_V5), "Room schema changed: update MigrationSql")
-        assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_V7), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_V8), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_INDEX_V6), "Room schema changed: update MigrationSql")
-        assertTrue(impl.contains("RoomOpenHelper.Delegate(7)"), "Room schema version is not 7")
+        assertTrue(impl.contains("RoomOpenHelper.Delegate(8)"), "Room schema version is not 8")
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_minutes_startEpochMs` ON `minutes` (`startEpochMs`)"))
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_events_startEpochMs` ON `events` (`startEpochMs`)"))
     }

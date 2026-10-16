@@ -58,7 +58,7 @@ class ShareScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.6.3")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.6.4")),
         useDeviceResolution = true,
     )
 
@@ -94,7 +94,8 @@ class ShareScreenshots {
         }
     }
 
-    // 0.6.3 «Unterwegs»: the switch under «Starten» (idle) and under «Stoppen» (measuring), on.
+    // 0.6.4 «Unterwegs»: the two start buttons «Messen» | «Unterwegs» with one line (idle), and a
+    // running «Unterwegs» measurement (status line: not on the map; «Laut! Melden» available).
     @Test
     fun messenUnterwegsIdle() {
         paparazzi.snapshot("messen-unterwegs-idle") {
@@ -104,7 +105,7 @@ class ShareScreenshots {
                     categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
                     shareStatus = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42)), false, 0, false, LocateState.Idle, true) { "18:42" },
-                    unterwegs = { UnterwegsSwitchContent(checked = false) {} },
+                    onStartUnterwegs = {},
                 )
             }
         }
@@ -114,29 +115,29 @@ class ShareScreenshots {
     fun messenUnterwegsRunning() {
         val live = LiveState(
             running = true, startedAtMs = ms(18, 30), measurementStartMs = ms(18, 30), lafDb = 81.4, backgroundDb = 52.0,
-            dominantCategory = "loud_vehicle", dominantScore = 0.6f, classifierEnabled = true, sharedPoint = point,
+            dominantCategory = "loud_vehicle", dominantScore = 0.6f, classifierEnabled = true, unterwegs = true,
         )
         val events = listOf(event(2, ms(18, 41, 5), 84.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
         paparazzi.snapshot("messen-unterwegs-running") {
             LessNoiseTheme(dark = false) {
                 MeasureContent(
                     live = live, events = events, calibrating = false,
-                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {},
+                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    shareStatus = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, ms(18, 30), true, LocateState.Idle, true) { "18:42" },
-                    unterwegs = { UnterwegsSwitchContent(checked = true) {} },
+                    shareStatus = shareStatus(on, true, ms(18, 30), false, LocateState.Idle, true, unterwegs = true) { "18:42" },
+                    onStartUnterwegs = {},
                 )
             }
         }
     }
 
     @Test
-    fun messenLocating() = messen("messen-status-locating", shareStatus(on, true, ms(18, 30), false, LocateState.Locating, true, Fmt::hm)!!)
+    fun messenLocating() = messen("messen-status-locating", shareStatus(on, true, ms(18, 30), false, LocateState.Locating, true, hm = Fmt::hm)!!)
 
     @Test
     fun messenNoPoint() = messen(
         "messen-status-no-point",
-        shareStatus(on, true, ms(18, 30), false, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff), true, Fmt::hm)!!,
+        shareStatus(on, true, ms(18, 30), false, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff), true, hm = Fmt::hm)!!,
     )
 
     @Test

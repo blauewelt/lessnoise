@@ -27,7 +27,8 @@ enum class ReportCategory(val id: String, val label: String) {
     AUTO("auto", "Auto"),
     LASTWAGEN("lastwagen", "Lastwagen"),
     POSER("poser", "Poser"),
-    ANDERE("andere", "anderes");
+    /** 0.6.4: label «anderes Fahrzeug» (was «anderes»); the id stays «andere» (server, reports.json). */
+    ANDERE("andere", "anderes Fahrzeug");
 
     companion object {
         fun fromId(id: String): ReportCategory? = entries.firstOrNull { it.id == id }

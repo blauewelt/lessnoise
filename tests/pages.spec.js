@@ -84,7 +84,7 @@ test("the home page: two buttons, which to choose, the version line and the link
   // Online-Version first (the default), the Offline-Version as the more private alternative.
   await expect(page.locator("#version")).toContainText(/^Die Online-Version .* Die Offline-Version ist für alle, die noch mehr Privatsphäre möchten:/);
   await expect(page.locator("#download a.button").first()).toHaveText("Online-Version herunterladen");
-  await expect(page.locator("#download .release")).toHaveText("Version 0.6.3, Android 8 oder neuer.");
+  await expect(page.locator("#download .release")).toHaveText("Version 0.6.4, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
   // «Source Code ist hier» links the repository (owner's text, 2026-10-15).
@@ -115,7 +115,7 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
   // The «Stadtlärm» 0.5.x note left the Anleitung (owner, 2026-10-15); update.html#new-app still explains it.
   await expect(page.locator("#stadtlaerm, #installation .note")).toHaveCount(0);
   await expect(page.locator("#installation")).toContainText("«Dateien»");
-  await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.3");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("0.6.4");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
   await expect(page.locator("#teilen")).toContainText("Laut! Melden");
   await expect(page.locator("#daten")).toContainText("CSV");
@@ -202,6 +202,20 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
 });
 
+test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shares nothing; «anderes Fahrzeug»", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const text = await allText(page);
+  for (const fact of [
+    "Ab Version 0.6.4 sendet die App nur laute Ereignisse von Maschinen- und Motorenlärm",
+    "Stimmen, Musik, Sonstiges und Wind verlassen das Telefon nie",
+    "mindestens 0,5", "6,5",
+    "wird nie geteilt",
+  ]) expect(text, fact).toContain(fact);
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  for (const fact of ["anderes Fahrzeug", "zwei Knöpfe zum Starten", "Die Messung kommt nicht auf die Karte", "Stimmen und Musik nie"]) expect(guide, fact).toContain(fact);
+});
+
 test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
@@ -209,7 +223,7 @@ test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» 
     "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
     "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "mobile Daten",  // cadence, network
     "etwa alle 30 Sekunden neu berechnet", "auf etwa eine Minute genau", // DESIGN §2 rule 8, the live map
-    "Mit «Unterwegs»", "sie bleibt auf dem Telefon und sendet nichts",   // the «Sehr laut» notification
+    "mit «Unterwegs» statt mit «Messen»", "wird nie geteilt", "sie bleibt auf dem Telefon und sendet nichts",   // 0.6.4: «Unterwegs» shares nothing; the notification
     "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
   ]) expect(text, fact).toContain(fact);
   expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone

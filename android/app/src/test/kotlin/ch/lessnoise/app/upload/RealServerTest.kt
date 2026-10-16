@@ -70,7 +70,8 @@ class RealServerTest {
         val up = Uploader(UploadClient(base!!), store, source, MemoryReportStore(), "0.6.0-dev", 13, minuteBatch = 50, eventBatch = 15)
         up.enable()
         val o = up.run()
-        assertEquals(Uploader.Outcome.Done(minutes = 120, events = 40, refused = 0, more = false), o, "the 8-day-old minute is not even sent")
+        // 0.6.4: the 10 events without a category (classifier off) are not map events and stay on the phone.
+        assertEquals(Uploader.Outcome.Done(minutes = 120, events = 30, refused = 0, more = false), o, "the 8-day-old minute is not even sent")
         // Again after a re-evaluation: the server reports duplicates, stores nothing twice.
         up.rewindAfterReevaluation()
         val again = up.run()

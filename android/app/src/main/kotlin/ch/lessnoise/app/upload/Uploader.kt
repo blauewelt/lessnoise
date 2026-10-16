@@ -264,10 +264,10 @@ class Uploader(
                     kind = RefusedRecord.EVENT, batchSize = eventBatch, budget = { maxRequestsPerRun - requests },
                     marker = { it.eventsSentUpToMs },
                     fetch = { after, n -> source.eventsAfter(after, n) }, start = { it.startEpochMs },
-                    // Wind-flagged events (detector v2) are not shared, as they are left out of the app's
-                    // own counts, nor events of measurements without a point; the marker still moves
-                    // past them (server/DESIGN.md §4.4).
-                    include = { Payloads.isShared(it) && places.pointAt(it.startEpochMs) != null },
+                    // Only map events (0.6.4, Payloads.isMapEvent: the five machine and motor
+                    // categories, not wind, the quality gates) of measurements with a point; the
+                    // marker still moves past the others, so they are never fetched again (DESIGN.md §4.4).
+                    include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs) != null },
                     post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, places.pointAt(it.startEpochMs)!!) })) },
                     advance = { snap, t -> snap.copy(eventsSentUpToMs = maxOf(snap.eventsSentUpToMs, t)) },
                 ) ?: return Outcome.Disabled

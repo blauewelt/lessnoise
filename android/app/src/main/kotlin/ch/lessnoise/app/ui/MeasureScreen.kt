@@ -24,6 +24,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,11 +61,22 @@ fun MeasureScreen(
     val scope = rememberCoroutineScope()
     // Karten editions: «Auf die Lärmkarte?» once, and the fix while measuring (ShareFlow.kt, 0.6.3).
     val share = LocalShareController.current
-    fun startMeasurement() {
-        if (share != null) share.start() else MeasurementService.start(context)
+    // «Unterwegs» (0.6.4, editions with the map): a start mode that shares nothing.
+    val askUnterwegs = LoudAlerts.rememberUnterwegsPermission()
+    var pendingUnterwegs by remember { mutableStateOf(false) }
+    fun startMeasurement(unterwegs: Boolean) {
+        when {
+            share != null -> share.start(unterwegs)
+            else -> MeasurementService.start(context, unterwegs = unterwegs && LoudAlerts.AVAILABLE)
+        }
+        if (unterwegs) askUnterwegs()
     }
     val requestPermission = rememberMicPermissionLauncher { granted ->
-        if (granted) startMeasurement()
+        if (granted) startMeasurement(pendingUnterwegs)
+    }
+    fun onStart(unterwegs: Boolean) {
+        pendingUnterwegs = unterwegs
+        if (hasMicPermission(context)) startMeasurement(unterwegs) else requestPermission()
     }
     val report = if (BuildConfig.UPLOAD_AVAILABLE) {
         rememberReportAction(
@@ -77,15 +90,15 @@ fun MeasureScreen(
     MeasureContent(
         live = live, events = events, calibrating = calibrating, modifier = modifier,
         categoryName = { categoryName(context, it) },
-        onStart = { if (hasMicPermission(context)) startMeasurement() else requestPermission() },
+        onStart = { onStart(unterwegs = false) },
         onStop = { MeasurementService.stop(context) },
         onReport = report,
         updateLine = { UpdateReminderLine() },
         eventMarker = { EditionUi.EventMarker(it) },
         shareStatus = status,
         onShareStatus = { a -> handleShareAction(a, share, onOpen) },
-        // «Unterwegs» (0.6.3): only in the editions with the map (src/karte); nothing elsewhere.
-        unterwegs = { LoudAlerts.Switch() },
+        // «Unterwegs» (0.6.4 start mode): only in the editions with the map (src/karte); nothing elsewhere.
+        onStartUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,
     )
 }
 
@@ -108,7 +121,7 @@ fun rememberShareStatus(): ShareStatus? {
     val online = rememberOnline()
     return shareStatus(
         s = s, running = live.running, measurementStartMs = live.measurementStartMs,
-        hasPoint = live.sharedPoint != null, locate = locate, online = online, hm = Fmt::hm,
+        hasPoint = live.sharedPoint != null, locate = locate, online = online, unterwegs = live.unterwegs, hm = Fmt::hm,
     )
 }
 
@@ -152,7 +165,8 @@ fun MeasureContent(
     eventMarker: @Composable (Long) -> Unit = {},
     shareStatus: ShareStatus? = null,
     onShareStatus: (ShareAction) -> Unit = {},
-    unterwegs: @Composable () -> Unit = {},
+    /** 0.6.4, editions with the map: the second start button «Unterwegs»; null: one button «Starten». */
+    onStartUnterwegs: (() -> Unit)? = null,
 ) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -217,16 +231,36 @@ fun MeasureContent(
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
-                    unterwegs()
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
                     shareStatus?.let { ShareStatusLine(it, onShareStatus) }
+                    // «Unterwegs» (0.6.4): «Laut! Melden» also while it measures.
+                    if (onReport != null && live.unterwegs) {
+                        OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
+                    }
+                } else if (onStartUnterwegs != null) {
+                    // Editions with the map (0.6.4): «Messen» shares (if sharing is on), «Unterwegs» never.
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onStart,
+                            enabled = !live.starting && !calibrating,
+                            modifier = Modifier.weight(1f).height(56.dp),
+                        ) { Text(if (live.starting && !live.unterwegs) "Startet …" else START_MEASURE, fontSize = 18.sp) }
+                        OutlinedButton(
+                            onClick = onStartUnterwegs,
+                            enabled = !live.starting && !calibrating,
+                            modifier = Modifier.weight(1f).height(56.dp),
+                        ) { Text(if (live.starting && live.unterwegs) "Startet …" else START_UNTERWEGS, fontSize = 18.sp) }
+                    }
+                    Text(UNTERWEGS_HINT, style = MaterialTheme.typography.bodySmall)
+                    if (onReport != null && !live.starting) {
+                        OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
+                    }
                 } else {
                     Button(
                         onClick = onStart,
                         enabled = !live.starting && !calibrating,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                     ) { Text(if (live.starting) "Startet …" else "Starten", fontSize = 18.sp) }
-                    unterwegs()
                     // «Laut! Melden»: Karten editions only, while no measurement runs.
                     if (onReport != null && !live.starting) {
                         OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
@@ -256,6 +290,13 @@ fun MeasureContent(
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
+
+/** The two start buttons of the editions with the map (0.6.4). */
+const val START_MEASURE = "Messen"
+const val START_UNTERWEGS = "Unterwegs"
+
+/** The one line under them: what «Unterwegs» does and that it shares nothing. */
+const val UNTERWEGS_HINT = "Unterwegs: Mitteilung bei sehr lautem Verkehr (ab 75 dB), nichts auf die Karte."
 
 /** The one placement hint on «Messen» (0.6.1). */
 const val PLACEMENT_HINT = "Leg das Telefon ans offene Fenster. Für lange Messungen: ans Ladegerät."

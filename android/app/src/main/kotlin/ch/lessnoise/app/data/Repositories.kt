@@ -223,17 +223,19 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     fun measurementsFlow() = dao.measurementsFlow()
 
     /**
-     * «Start»: records a new measurement with its shifted [point] (null = not shared). Open rows left by a
+     * «Start»: records a new measurement with its shifted [point] (null = not shared). [unterwegs] (0.6.4):
+     * started as «Unterwegs», never shared — no point is stored, now or later. Open rows left by a
      * measurement the system killed before «Stop» are closed first, at the end of their last minute.
      */
-    suspend fun beginMeasurement(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point?): Long {
+    suspend fun beginMeasurement(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point?, unterwegs: Boolean = false): Long {
         val open = dao.openMeasurements().sortedBy { it.startMs }
         for ((i, m) in open.withIndex()) {
             val next = open.getOrNull(i + 1)?.startMs ?: startMs
             dao.endMeasurement(m.id, dao.lastMinuteEnd(m.startMs - ch.lessnoise.dsp.MeasurementSplitter.START_TOLERANCE_MS, next) ?: m.startMs)
         }
+        val p = point.takeUnless { unterwegs }
         return dao.insertMeasurement(
-            MeasurementEntity(startMs = startMs, cell = point?.cell, pointE = point?.e, pointN = point?.n, sigmaM = point?.sigmaM)
+            MeasurementEntity(startMs = startMs, cell = p?.cell, pointE = p?.e, pointN = p?.n, sigmaM = p?.sigmaM, unterwegs = unterwegs)
         )
     }
 

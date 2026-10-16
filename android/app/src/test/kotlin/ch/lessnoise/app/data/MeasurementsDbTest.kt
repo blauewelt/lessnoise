@@ -95,6 +95,45 @@ class MeasurementsDbTest {
     }
 
     @Test
+    fun migration7to8AddsUnterwegsAndKeepsEveryRow() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { c ->
+            c.createStatement().use { st ->
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_V7)
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_INDEX_V6)
+                st.execute("INSERT INTO measurements (start_ms, end_ms, cell, point_e, point_n, sigma_m) VALUES (0, 1000, NULL, NULL, NULL, NULL), (2000, NULL, 'h26824_12473', 2682437, 1247391, 50)")
+                MigrationSql.MIGRATE_7_8.forEach { st.execute(it) }
+                val rows = ArrayList<List<Any?>>()
+                st.executeQuery("SELECT id, start_ms, point_e, unterwegs FROM measurements ORDER BY id").use { rs ->
+                    while (rs.next()) rows += listOf(rs.getLong(1), rs.getLong(2), rs.getObject(3), rs.getInt(4))
+                }
+                assertEquals(listOf(listOf<Any?>(1L, 0L, null, 0), listOf<Any?>(2L, 2000L, 2682437, 0)), rows)
+                fun columns(table: String): List<String> {
+                    val out = ArrayList<String>()
+                    st.executeQuery("PRAGMA table_info(`$table`)").use { rs ->
+                        while (rs.next()) out += "${rs.getString("name")}|${rs.getString("type")}|${rs.getInt("notnull")}|${rs.getInt("pk")}|${rs.getString("dflt_value")}"
+                    }
+                    return out
+                }
+                st.execute(MigrationSql.CREATE_MEASUREMENTS_V8.replace("`measurements`", "`fresh`"))
+                assertEquals(columns("fresh"), columns("measurements"))
+                // The DAO's attachPoint never gives an «Unterwegs» row a point.
+                st.execute("INSERT INTO measurements (start_ms, unterwegs) VALUES (5000, 1)")
+                val attach = "UPDATE measurements SET cell = 'h26833_12479', point_e = 1, point_n = 2, sigma_m = 50 " +
+                    "WHERE start_ms = 5000 AND end_ms IS NULL AND point_e IS NULL AND unterwegs = 0"
+                assertEquals(0, st.executeUpdate(attach))
+                val dao = java.io.File(listOf(java.io.File("."), java.io.File("app")).first { java.io.File(it, "src/main").isDirectory }, "src/main/kotlin/ch/lessnoise/app/data/Database.kt").readText()
+                assertTrue(dao.contains("\"WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL AND unterwegs = 0\""), "the DAO uses the same WHERE")
+            }
+        }
+    }
+
+    @Test
+    fun anUnterwegsRowIsNeverShared() {
+        val p = LocationNoise.Point(2682437, 1247391, 50)
+        assertEquals(null, MeasurementEntity(id = 1, startMs = 0, cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = 50, unterwegs = true).sharedPoint())
+    }
+
+    @Test
     fun onlyRowsWithAPointAreShared() {
         val p = LocationNoise.Point(2682437, 1247391, 50)
         assertEquals(p, MeasurementEntity(id = 1, startMs = 0, cell = p.cell, pointE = p.e, pointN = p.n, sigmaM = 50).sharedPoint())
