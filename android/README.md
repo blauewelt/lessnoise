@@ -510,14 +510,24 @@ LAFmax ≥ 75 dB(A) (`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_E
 «Sehr laut»; the level as shown — calibrated if the phone is, else with the default offset) and
 category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» / «Antippen zum
 Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default sound and
-vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. The tap opens
+vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel — and only if the
+phone moved within the last 5 minutes (**motion gate**, so a phone left on the windowsill with
+«Unterwegs» on stays silent): `MotionMonitor` registers `TYPE_ACCELEROMETER` (no permission) only
+while «Unterwegs» is on and a measurement runs (`SENSOR_DELAY_NORMAL`, `maxReportLatencyUs` 5 s for
+batching) and unregisters it otherwise; the pure `MotionDetector` counts the phone as moving when the
+standard deviation of |a| over 2 s exceeds `MOVING_STD_MS2` = 0.5 m/s² (still < 0.05, walking and
+cycling several m/s²; a car on a smooth road is the hard case — a starting point, not yet tuned on a
+device) and keeps only `lastMotionAtMs` in memory; `isMoving` = within `MOTION_WINDOW_MS` = 5 min.
+No accelerometer at all (`getDefaultSensor` null) → the gate is open. Nothing of it is stored,
+logged, exported or sent. The tap opens
 `MainActivity` with the event's start time and category (`LoudAlertIntent`); «Laut! Melden» opens on
 «Messen» — also during a measurement, while the button stays hidden then — with that time as the
 report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
 `road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
 precise fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
-nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
-(every flavour), renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
+nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` and `MotionDetectorTest.kt` (public and laborKarte),
+`LoudAlertIsolationTest` (every flavour; also: sensor code only in `src/karte/…/alert/`, no new
+permission), renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
 
 ## The tab «Karte» (0.6.3)
 

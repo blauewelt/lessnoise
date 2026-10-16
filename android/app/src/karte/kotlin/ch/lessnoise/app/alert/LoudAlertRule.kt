@@ -31,12 +31,14 @@ object LoudAlertRule {
     const val CHANNEL_NAME = "Sehr laut"
 
     /**
-     * Whether [e] alerts now ([nowMs]): «Unterwegs» on, a measurement running, not wind, one of
-     * [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown: calibrated if the phone is, else
-     * with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
+     * Whether [e] alerts now ([nowMs]): «Unterwegs» on, a measurement running, the phone moved
+     * within the last 5 minutes ([movedRecently], [MotionMonitor]: a phone on the windowsill stays
+     * silent), not wind, one of [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown:
+     * calibrated if the phone is, else with the default offset), and the last alert [MIN_GAP_MS] or
+     * longer ago.
      */
-    fun shouldAlert(e: LiveEvent, unterwegs: Boolean, running: Boolean, lastAlertAtMs: Long?, nowMs: Long): Boolean =
-        unterwegs && running && !e.wind && e.category in CATEGORIES && e.lafMaxDb >= THRESHOLD_DB &&
+    fun shouldAlert(e: LiveEvent, unterwegs: Boolean, running: Boolean, movedRecently: Boolean, lastAlertAtMs: Long?, nowMs: Long): Boolean =
+        unterwegs && running && movedRecently && !e.wind && e.category in CATEGORIES && e.lafMaxDb >= THRESHOLD_DB &&
             (lastAlertAtMs == null || nowMs - lastAlertAtMs >= MIN_GAP_MS)
 
     /** «Töff & Poser» / «Strassenverkehr» (the names of categories.json). */

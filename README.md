@@ -66,7 +66,9 @@ map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The t
 location permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) is used only
 while the app is open: one fix right after «Starten» of a shared measurement (moved by the location
 noise on the phone; since 0.6.3 the measurement does not wait for it) and one per report; location is never read in the background (no
-`ACCESS_BACKGROUND_LOCATION`). On the server (schema v4) a minute or event carries the shifted point it was sent with and is
+`ACCESS_BACKGROUND_LOCATION`). The accelerometer (no permission) is read only in the editions with the map, only while «Unterwegs»
+is on and a measurement runs, to tell whether the phone is carried before a «Sehr laut» notification (0.6.3); its values stay in
+memory and are never stored or sent. On the server (schema v4) a minute or event carries the shifted point it was sent with and is
 shown in the 100 m field that contains it (the field is a display grid, not the protection);
 and manual reports of a loud vehicle are stored with their point and published on the
 map at that point, with the time rounded down to the full hour and no device id

@@ -14,6 +14,7 @@ import ch.lessnoise.app.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -86,15 +87,24 @@ class LoudAlertNotifier(private val context: Context) {
     }
 }
 
-/** Watches the live state: an event that passes [LoudAlertRule] shows the notification. */
+/**
+ * Watches the live state: an event that passes [LoudAlertRule] shows the notification. Also keeps
+ * the accelerometer ([MotionMonitor]) registered exactly while «Unterwegs» is on and a measurement
+ * runs.
+ */
 object LoudAlertWatcher {
-    fun start(scope: CoroutineScope, live: StateFlow<LiveState>, settings: LoudAlertSettings, notifier: LoudAlertNotifier) {
+    fun start(scope: CoroutineScope, live: StateFlow<LiveState>, settings: LoudAlertSettings, notifier: LoudAlertNotifier, motion: MotionMonitor) {
+        scope.launch {
+            combine(settings.on, live.map { it.running }) { on, running -> on && running }
+                .distinctUntilChanged()
+                .collect { motion.setActive(it) }
+        }
         scope.launch {
             var lastAlertAtMs: Long? = null
             live.map { it.lastEvent }.distinctUntilChanged().collect { e ->
                 if (e == null) return@collect
                 val now = System.currentTimeMillis()
-                if (LoudAlertRule.shouldAlert(e, settings.on.value, live.value.running, lastAlertAtMs, now)) {
+                if (LoudAlertRule.shouldAlert(e, settings.on.value, live.value.running, motion.movedRecently(), lastAlertAtMs, now)) {
                     lastAlertAtMs = now
                     notifier.show(e)
                 }

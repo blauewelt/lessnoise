@@ -20,8 +20,8 @@ class LoudAlertTest {
     private fun ev(db: Double = 84.0, category: String? = "loud_vehicle", wind: Boolean = false, start: Long = t0) =
         LiveEvent(startEpochMs = start, endEpochMs = start + 3_000, lafMaxDb = db, category = category, wind = wind, calibrated = true)
 
-    private fun alerts(e: LiveEvent, unterwegs: Boolean = true, running: Boolean = true, last: Long? = null, now: Long = t0 + 3_000) =
-        LoudAlertRule.shouldAlert(e, unterwegs, running, last, now)
+    private fun alerts(e: LiveEvent, unterwegs: Boolean = true, running: Boolean = true, moved: Boolean = true, last: Long? = null, now: Long = t0 + 3_000) =
+        LoudAlertRule.shouldAlert(e, unterwegs, running, moved, last, now)
 
     @Test
     fun thresholdIsTheMapsLoudLevel() {
@@ -50,6 +50,28 @@ class LoudAlertTest {
     }
 
     @Test
+    fun onlyWhenThePhoneMovedRecently() {
+        // The motion gate: a phone on the windowsill (not moved for 5 minutes) stays silent.
+        assertTrue(alerts(ev(), moved = true))
+        assertFalse(alerts(ev(), moved = false))
+        assertFalse(alerts(ev(84.0, "road_traffic"), moved = false))
+        // Moving does not lift any other condition.
+        assertFalse(alerts(ev(), moved = true, unterwegs = false))
+        assertFalse(alerts(ev(), moved = true, running = false))
+        assertFalse(alerts(ev(74.9), moved = true))
+        assertFalse(alerts(ev(wind = true), moved = true))
+        assertFalse(alerts(ev(category = "rail_tram"), moved = true))
+        assertFalse(alerts(ev(), moved = true, last = t0, now = t0 + 60_000))
+        // The watcher passes the monitor's answer; the monitor opens the gate without an accelerometer.
+        val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        assertTrue(notifier.contains("live.value.running, motion.movedRecently(), lastAlertAtMs, now)"))
+        assertTrue(notifier.contains("combine(settings.on, live.map { it.running }) { on, running -> on && running }"))
+        val monitor = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/MotionMonitor.kt").readText()
+        assertTrue(monitor.contains("fun movedRecently(): Boolean = !hasSensor || detector.isMoving("))
+        assertTrue(monitor.contains("SensorManager.SENSOR_DELAY_NORMAL, MAX_REPORT_LATENCY_US"))
+    }
+
+    @Test
     fun atMostOneEveryTwoMinutes() {
         val last = t0
         assertFalse(alerts(ev(), last = last, now = last + 30_000))
@@ -67,7 +89,8 @@ class LoudAlertTest {
         // The category names are the app's (categories.json name_de).
         val names = File(repo(), "android/app/src/main/assets/categories.json").readText()
         assertTrue(names.contains("\"name_de\": \"Töff & Poser\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
-        assertTrue(LoudAlerts.SWITCH_LABEL == "Unterwegs" && LoudAlerts.SWITCH_HINT.length <= 70)
+        assertTrue(LoudAlerts.SWITCH_LABEL == "Unterwegs" && LoudAlerts.SWITCH_HINT.length <= 120)
+        assertTrue(LoudAlerts.SWITCH_HINT.endsWith("Nur wenn sich das Telefon bewegt, nicht am Fenster."))
     }
 
     @Test

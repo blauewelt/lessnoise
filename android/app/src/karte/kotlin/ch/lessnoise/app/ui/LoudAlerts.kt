@@ -25,21 +25,23 @@ import ch.lessnoise.app.alert.LoudAlertIntent
 import ch.lessnoise.app.alert.LoudAlertNotifier
 import ch.lessnoise.app.alert.LoudAlertSettings
 import ch.lessnoise.app.alert.LoudAlertWatcher
+import ch.lessnoise.app.alert.MotionMonitor
 
 /**
  * «Unterwegs» (0.6.3, editions with the map only; the Offline and Labor builds get the stand-in in
  * src/nomap): a switch under «Starten» on «Messen», off by default and remembered. While it is on
  * and a measurement runs, a very loud vehicle (≥ 75 dB(A), «Töff & Poser» or «Strassenverkehr»)
  * shows the «Sehr laut» notification, at most one every 2 minutes; a tap opens «Laut! Melden» with
- * the event's time. Off by default because a phone on the windowsill must not wake its owner at
- * every loud pass, and the app cannot tell a pocket from a windowsill.
+ * the event's time, and only if the phone moved within the last 5 minutes (accelerometer,
+ * alert/MotionMonitor.kt): a phone left on the windowsill with «Unterwegs» on stays silent. Still
+ * off by default: the gate is a heuristic, not verified on many devices.
  */
 object LoudAlerts {
     const val AVAILABLE = true
 
     /** Short and in the app's «du». */
     const val SWITCH_LABEL = "Unterwegs"
-    const val SWITCH_HINT = "Sehr laut (ab 75 dB): eine Mitteilung, antippen zum Melden."
+    const val SWITCH_HINT = "Sehr laut (ab 75 dB): eine Mitteilung, antippen zum Melden. Nur wenn sich das Telefon bewegt, nicht am Fenster."
 
     @Volatile private var settings: LoudAlertSettings? = null
 
@@ -48,7 +50,10 @@ object LoudAlerts {
 
     /** Called once per process (LessNoiseApp): watches the live state for very loud events. */
     fun start(context: Context, container: AppContainer) {
-        LoudAlertWatcher.start(container.appScope, container.live, settings(context), LoudAlertNotifier(context.applicationContext))
+        LoudAlertWatcher.start(
+            container.appScope, container.live, settings(context), LoudAlertNotifier(context.applicationContext),
+            MotionMonitor(context.applicationContext),
+        )
     }
 
     /** The prefilled report when [intent] is the notification's tap, else null. */
