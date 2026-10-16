@@ -15,6 +15,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import aggregate as agg
+from .config import (
+    MAP_CATEGORIES,
+    MAX_SPEECH_MUSIC_SHARE,
+    MIN_EVENT_DURATION_S,
+    MIN_EVENT_LAFMAX_DB,
+    MIN_EVENT_THRESHOLD_DB,
+    SPEECH_MUSIC_CATEGORIES,
+)
 from .schemas import EventIn, MinuteIn, ReportIn
 
 MIGRATIONS: list[str] = [
@@ -254,6 +262,16 @@ def upsert_rows(
     return accepted, duplicates
 
 
+def delete_rows(conn: sqlite3.Connection, table: str, device_id: str, starts: Sequence[int]) -> int:
+    """Deletes the device's rows with these `start_utc`; returns how many there were."""
+    n = 0
+    for i in range(0, len(starts), 900):
+        chunk = starts[i : i + 900]
+        q = f"DELETE FROM {table} WHERE device_id = ? AND start_utc IN ({','.join('?' * len(chunk))})"
+        n += conn.execute(q, [device_id, *chunk]).rowcount
+    return n
+
+
 def delete_device_rows(conn: sqlite3.Connection, device_id: str) -> bool:
     """Deletes every row of the device; the caller holds the transaction. True if a device row existed."""
     for table in ("minutes", "events", "hourly", "reports", "sites"):
@@ -289,6 +307,21 @@ def _utc_hours(utc_hours: Collection[int] | None) -> tuple[str, list[int]]:
     return f" AND (start_utc / {agg.HOUR_MS}) % 24 IN ({','.join('?' * len(hours))})", hours
 
 
+# What aggregation reads (DESIGN.md §6): the SQL twins of aggregate.minute_counts_levels and
+# aggregate.event_counts (tests/test_categories.py checks they agree). Built from config constants
+# only, never from input, so the f-strings carry no user data.
+MINUTE_COUNTS_LEVELS_SQL = (
+    "(" + " + ".join(f"COALESCE(json_extract(category_shares, '$.{c}'), 0)" for c in SPEECH_MUSIC_CATEGORIES)
+    + f") < {MAX_SPEECH_MUSIC_SHARE!r}"
+)  # fmt: skip
+EVENT_COUNTS_SQL = (
+    f"category IN ({', '.join(repr(c) for c in MAP_CATEGORIES)})"
+    f" AND duration_s >= {MIN_EVENT_DURATION_S!r}"
+    f" AND lafmax_db >= MAX(COALESCE(min_level_db, {MIN_EVENT_LAFMAX_DB!r}), {MIN_EVENT_LAFMAX_DB!r})"
+    f" AND (threshold_db IS NULL OR threshold_db >= {MIN_EVENT_THRESHOLD_DB!r})"
+)
+
+
 def load_minutes(
     conn: sqlite3.Connection,
     device_id: str,
@@ -298,14 +331,15 @@ def load_minutes(
     utc_hours: Collection[int] | None = None,
 ) -> list[agg.Minute]:
     """`cell` is the record's own hectare, else `default_cell` (the publisher passes the site cell).
-    With `utc_hours`, only the minutes that start in those UTC clock hours (0–23)."""
+    With `utc_hours`, only the minutes that start in those UTC clock hours (0–23). `counts_levels`
+    is False for a minute that is mostly voices or music (MINUTE_COUNTS_LEVELS_SQL)."""
     where, hours = _utc_hours(utc_hours)
     # Plain tuples straight into the NamedTuple (no sqlite3.Row): this runs once per stored minute.
     cur = conn.cursor()
     cur.row_factory = None
     cur.execute(
-        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated <> 0, COALESCE(cell, ?) "
-        f"FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated <> 0, COALESCE(cell, ?), "
+        f"{MINUTE_COUNTS_LEVELS_SQL} FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
         (default_cell, device_id, start_ms, end_ms, *hours),
     )
     return list(map(agg.Minute._make, cur))
@@ -319,12 +353,15 @@ def load_events(
     default_cell: str | None = None,
     utc_hours: Collection[int] | None = None,
 ) -> list[agg.Event]:
+    """Only the events that count on the map (EVENT_COUNTS_SQL): a machine or motor category and
+    the quality gates. Rows stored before the server filtered (voices, music, …) or that fail a
+    gate stay in the table but are never read for the map, the profile or the hourly rows."""
     where, hours = _utc_hours(utc_hours)
     cur = conn.cursor()
     cur.row_factory = None
     cur.execute(
-        "SELECT start_utc, lafmax_db, category, COALESCE(cell, ?) FROM events "
-        f"WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        "SELECT start_utc, lafmax_db, category, COALESCE(cell, ?), calibrated <> 0 FROM events "
+        f"WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} AND {EVENT_COUNTS_SQL} ORDER BY start_utc",
         (default_cell, device_id, start_ms, end_ms, *hours),
     )
     return list(map(agg.Event._make, cur))

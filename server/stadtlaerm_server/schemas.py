@@ -234,6 +234,8 @@ class UploadResult(BaseModel):
     accepted: int
     duplicates: int
     rejected: list[dict] = Field(default_factory=list)
+    # Events only (§4.4): valid records of a category that is not on the map, not stored.
+    dropped_by_category: int = 0
 
 
 MAX_MINUTES = 1440

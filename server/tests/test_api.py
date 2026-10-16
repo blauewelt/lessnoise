@@ -82,7 +82,7 @@ def test_round_trip(client, settings):
     ts = [recent(m) for m in range(120, 60, -1)]
     r = client.post(f"/v1/devices/{dev}/minutes", json=[minute(t) for t in ts], headers=auth)
     assert r.status_code == 200, r.text
-    assert r.json() == {"accepted": 60, "duplicates": 0, "rejected": []}
+    assert r.json() == {"accepted": 60, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
 
     # gzip body; 30 already stored (re-evaluated, louder) and 30 new.
     batch = [minute(t, laeq=50.0) for t in ts[30:]] + [minute(recent(m)) for m in range(60, 30, -1)]
@@ -91,7 +91,7 @@ def test_round_trip(client, settings):
         content=gzip.compress(json.dumps(batch).encode()),
         headers={**auth, "Content-Encoding": "gzip", "Content-Type": "application/json"},
     )
-    assert r.json() == {"accepted": 30, "duplicates": 30, "rejected": []}
+    assert r.json() == {"accepted": 30, "duplicates": 30, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT COUNT(*) FROM minutes") == [(90,)]
     # The later record replaced the stored one.
     assert rows(settings, "SELECT laeq_db FROM minutes WHERE start_iso = ?", ts[45].isoformat()) == [(50.0,)]
@@ -101,14 +101,14 @@ def test_round_trip(client, settings):
     e1 = recent(50) + timedelta(seconds=12.375)
     evs = [event(e1), event(e1, lafmax=80.0), event(recent(40))]
     r = client.post(f"/v1/devices/{dev}/events", json=evs, headers=auth)
-    assert r.json() == {"accepted": 2, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 2, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT lafmax_db FROM events ORDER BY start_utc") == [(80.0,), (71.4,)]
     r = client.post(
         f"/v1/devices/{dev}/events",
         content=gzip.compress(json.dumps(evs[:1]).encode()),
         headers={**auth, "Content-Encoding": "gzip"},
     )
-    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     # Millisecond starts are kept.
     assert rows(settings, "SELECT start_utc % 1000 FROM events ORDER BY start_utc")[0] == (375,)
 
@@ -459,13 +459,18 @@ def test_reports_round_trip_and_validation(client, settings):
     url = f"/v1/devices/{dev}/reports"
     t = recent(30)
     r = client.post(url, json=[report(t), report(recent(29), category="poser")], headers=auth)
-    assert r.status_code == 200 and r.json() == {"accepted": 2, "duplicates": 0, "rejected": []}
+    assert r.status_code == 200 and r.json() == {
+        "accepted": 2,
+        "duplicates": 0,
+        "rejected": [],
+        "dropped_by_category": 0,
+    }
     # Same (device, time) again: a duplicate, and the later one wins (as for minutes); gzip works.
     again = [report(t, lat=47.3600049, lon=8.5400051, category="auto")]
     r = client.post(
         url, content=gzip.compress(json.dumps(again).encode()), headers={**auth, "Content-Encoding": "gzip"}
     )
-    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT lat, lon, accuracy_m, category FROM reports ORDER BY time_utc") == [
         (47.36, 8.54001, 9.0, "auto"),  # rounded to 5 decimals
         (47.3553, 8.5355, 9.0, "poser"),

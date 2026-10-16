@@ -11,6 +11,7 @@ import pytest
 from stadtlaerm_server import aggregate as agg
 from stadtlaerm_server import db, publish, retention
 from stadtlaerm_server import synthetic as syn
+from stadtlaerm_server.config import MAP_CATEGORIES
 from stadtlaerm_server.schemas import EventIn, MinuteIn, ReportIn
 
 # Publishing "now" = 18:40 on Sunday 25 October 2026, the 25-hour day of the autumn DST change.
@@ -102,7 +103,8 @@ def test_publish_files_and_format(conn, tmp_path):
     assert two["devices"] == 2 and two["calibrated"] is True
     d = two["day"]
     assert set(d) == set(agg.BLOCK_KEYS)
-    assert set(agg.CATEGORIES) <= set(d["events_per_h_by_category"])
+    # Exactly the five machine and motor categories, in order (add_day also sends voices).
+    assert list(d["events_per_h_by_category"]) == list(MAP_CATEGORIES)
     # The cell value equals the combination of the two device days computed directly.
     assert d == agg.combine_cell_day({a: device_day(conn, a, LAST), b: device_day(conn, b, LAST)}).block()
     # a: 00:00–18:00 on a 25-hour day = 19 real hours; b: 06:00–18:00 = 12 h; the mean of the devices.

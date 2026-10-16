@@ -6,6 +6,22 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# ---- what counts on the public map (DESIGN.md §1, §4.4, §6) -----------------------------------
+# Only machine and motor noise. Events of any other category (voices, music, unclassified, wind,
+# an id the server does not know) are dropped on arrival and ignored if already stored; the
+# published per-category rates list exactly these ids, in this order.
+MAP_CATEGORIES: tuple[str, ...] = ("loud_vehicle", "road_traffic", "rail_tram", "aircraft", "construction")
+MAP_CATEGORY_SET: frozenset[str] = frozenset(MAP_CATEGORIES)
+# Quality gates the server checks again on every stored event before it counts it (§6). An
+# event that fails one stays stored (deletable, retained like any row) but is not counted.
+MIN_EVENT_DURATION_S = 0.5
+MIN_EVENT_LAFMAX_DB = 30.0  # and at least the app's own `min_level_db` when it sent one
+MIN_EVENT_THRESHOLD_DB = 6.5  # the app's excess setting (`threshold_db`); a missing one is not checked
+# A minute whose voices + music shares reach this has its levels left out of the aggregates
+# (it still counts as measured time). Calibration is *not* a gate: see DESIGN.md §6.
+SPEECH_MUSIC_CATEGORIES: tuple[str, ...] = ("voices", "music")
+MAX_SPEECH_MUSIC_SHARE = 0.5
+
 
 def _bool(value: str) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")

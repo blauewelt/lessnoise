@@ -1,17 +1,21 @@
 # Weniger Lärm – shared noise map: data model, contribution API, map
 
 Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
-reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14. This document is the contract between the three parts that make the
+reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14;
+only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
 
 ## 1. What the map is for
 
-A resident-run picture of road noise in Switzerland: where it is loud, where it is *bursty*
-(quiet street, loud single motorbikes), how many loud single events per hour, at which hours
-of the day, and how that changes over weeks — plus the places where people reported a loud
-passing vehicle by hand. No time of day is special: someone may measure all day, only in the
+A resident-run picture of **machine and motor noise** in Switzerland — road traffic, loud
+vehicles, rail and tram, aircraft, construction: where it is loud, where it is *bursty* (quiet
+street, loud single motorbikes), how many loud single events per hour, at which hours of the day,
+and how that changes over weeks — plus the places where people reported a loud passing vehicle by
+hand. Only the five machine and motor categories of the app (`loud_vehicle`, `road_traffic`,
+`rail_tram`, `aircraft`, `construction`) are counted; voices, music, unclassified sounds and wind
+are not part of the map (§4.4, §6). No time of day is special: someone may measure all day, only in the
 evening or only at night, and every measured hour counts the same. It is meant to be shown to
 the authorities and to neighbours — so every number on it must be reproducible from the stored
 data, and the stored data must be explainable to the person who contributed it.
@@ -24,7 +28,9 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    minute records and event records the app keeps today (levels, percentiles, category
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
-   surface for no gain.
+   surface for no gain. (Since 2026-10-16 the server drops every event that is not one of the
+   five machine and motor categories on arrival and ignores such events stored earlier, §4.4, §6;
+   the rule itself is unchanged.)
 2. **Measurements carry a shifted point, never the true location.** Since app 0.6.2 (schema v4)
    the app moves the place of a shared measurement on the phone *before* anything is sent. From
    the one location fix right after «Starten» (since 0.6.3 while the measurement already runs, and
@@ -298,6 +304,19 @@ not sent.
 `point` and `cell` follow the rules of §4.3. Idempotent on `(device_id, start)`; same replace rule as
 minutes.
 
+**Only machine and motor noise is kept** (server, since 2026-10-16; `config.MAP_CATEGORIES`). An
+event whose `category` is not one of `loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`,
+`construction` — `voices`, `music`, `unclassified`, `wind` or an id the server does not know — is
+**dropped on arrival**: validated like any record, then not stored, and answered with the normal
+`200` so that the apps 0.5.x–0.6.3, which send every category except wind, do not retry it. It is
+not in `accepted`/`duplicates` but counted in the response field `dropped_by_category` (present in
+every upload answer, 0 for minutes and reports) and in one log line with the number only, no
+device id. A dropped event replaces a stored event with the same start (the replace rule above),
+i.e. that stored event is deleted; within one batch a kept record with the same start wins. Events
+of other categories that were stored before the filter stay in the table (deleted with the device
+or by retention as usual) but are never read for the map (§6). Minutes keep their
+`dominant_category` and `category_shares`; the server uses the shares for the minute rule of §6.
+
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
 
 Deletes the device, its site, minutes, events, hourly rows and reports in one transaction.
@@ -327,7 +346,9 @@ that the minutes before the fix are sent too (`Uploader.pointAttached`). The tab
 screen «Messen» show one status line («Wird geteilt – erste Werte in etwa einer Minute», «Auf der
 Karte · zuletzt gesendet …», «Kein Internet – wird nachgeholt», …); «Teilen» › «Weitere Angaben»
 shows the number of minutes still to send. Reports are sent with the next upload (the app agent
-documents the details in android/README.md).
+documents the details in android/README.md). Apps 0.5.x–0.6.3 upload the events of every category
+except wind; the server drops those that are not machine or motor noise on arrival (§4.4) with a
+`200`, so the app moves its markers past them and never sends them again.
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
 
@@ -487,16 +508,36 @@ over midnight counts for both days, each with its own minutes. The newest day is
 (still running; the files are rebuilt about every 30 seconds while data arrives), so a
 contributor sees today's data on the map within about a minute.
 
+**What is counted: machine and motor noise only** (since 2026-10-16). An event is *counted* if
+its category is one of the five map categories (`loud_vehicle`, `road_traffic`, `rail_tram`,
+`aircraft`, `construction`; others are dropped on arrival, §4.4, and ignored if stored earlier)
+and it passes the **quality gates**, which the server checks again from the fields it has:
+`duration_s ≥ 0.5`; `lafmax_db ≥ max(min_level_db if sent, 30)`; `threshold_db` (the app's excess
+setting) `≥ 6.5` when sent. An event that fails a gate stays stored (deletable like any row) but
+counts nowhere — not in the rates, the loud events, the loudest event or the profile.
+
+**Minutes that are mostly voices or music.** When a minute's `category_shares` of `voices` and
+`music` together are **≥ 0.5**, its levels (LAeq, L10, L90, dynamics) are left out of every
+aggregate; the minute still counts as measured time (`measured_hours`, the rates' denominator,
+the profile's 30-minute rule, active devices). A minute without shares is kept. A day whose valid
+minutes are all left out has `null` levels but its hours and rates.
+
+**Calibration is not a gate.** Uncalibrated minutes and events are counted like calibrated ones;
+a block (day, window, cell) is `calibrated: true` only when **all** its valid minutes **and** all
+its counted events are calibrated (an event that is not counted does not matter).
+
 **Per device and day** (the app's rules, with the 22–6 h restriction removed):
 
-- a minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq;
-- `laeq_db` = energy mean of the valid minutes' LAeq, weighted by their valid seconds;
-- `l90_db` / `l10_db` = median over the valid minutes of the minute L90 / L10;
-- `dynamics_db` = median over the valid minutes of (L10 − L90);
-- `measured_hours` = valid seconds / 3600;
-- `events_per_h` (and per category) = events of the day in the cell / measured hours;
-- `loud_events` = events with `lafmax_db ≥ LOUD_EVENT_DB` (server setting, default 75 dB(A));
-  `loud_events_per_h` = that / measured hours; `loudest_event_db` = the largest LAFmax.
+- a minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq; a *level minute* is a valid
+  minute that is not mostly voices or music (above);
+- `laeq_db` = energy mean of the level minutes' LAeq, weighted by their valid seconds;
+- `l90_db` / `l10_db` = median over the level minutes of the minute L90 / L10;
+- `dynamics_db` = median over the level minutes of (L10 − L90);
+- `measured_hours` = valid seconds (of all valid minutes) / 3600;
+- `events_per_h` (and per category) = counted events of the day in the cell / measured hours;
+- `loud_events` = counted events with `lafmax_db ≥ LOUD_EVENT_DB` (server setting, default
+  75 dB(A)); `loud_events_per_h` = that / measured hours; `loudest_event_db` = the largest LAFmax
+  of the counted events.
 
 **Several devices in one cell and day:** levels are the energy mean of the device values,
 rates and counts the arithmetic mean over the devices (so two phones side by side do not
@@ -532,12 +573,12 @@ period:
     {
       "cell": "h26828_12455",
       "devices": 2,                         // distinct devices in the 30 days
-      "calibrated": true,                   // all of them calibrated
+      "calibrated": true,                   // all their minutes and counted events calibrated
       "day": {                              // today, or null if no data today
         "laeq_db": 58.3, "l90_db": 55.8, "l10_db": 60.6, "dynamics_db": 5.5,
-        "events_per_h": 7.1,
+        "events_per_h": 6.7,                // machine and motor noise only (§6)
         "events_per_h_by_category": { "loud_vehicle": 1.4, "road_traffic": 5.2, "rail_tram": 0.0,
-          "aircraft": 0.0, "construction": 0.0, "voices": 0.4, "music": 0.0, "unclassified": 0.0 },
+          "aircraft": 0.1, "construction": 0.0 },
         "loud_events_per_h": 1.2, "loud_events": 20.5, "loudest_event_db": 88.3,
         "measured_hours": 17.2, "days_with_data": 1, "devices": 2, "calibrated": true
       },
@@ -551,7 +592,10 @@ period:
 
 A cell is listed while it has data on any day of the 30-day window; a window without data
 has every value `null`, `measured_hours` 0 and `days_with_data` 0.
-`events_per_h_by_category` always lists the eight app categories. Values are rounded to 0.1.
+`events_per_h_by_category` always lists exactly the five map categories, in this order
+(`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction`), never `voices`,
+`music`, `unclassified`, `wind` or any other id (until 2026-10-16 it listed the eight app
+categories plus any unknown id). Values are rounded to 0.1.
 
 ### 6.2 `cells/{cell}.json` — one cell's days and its 24-hour profile
 
@@ -573,8 +617,9 @@ has every value `null`, `measured_hours` 0 and `days_with_data` 0.
 ```
 
 **24-hour profile:** for each local clock hour 0–23, over the 30 days ending today: per device
-the energy mean of its valid minutes in that hour (weighted by valid seconds, so across days),
-L90/L10 the median of the minute values, events and loud events per hour of valid measurement;
+the energy mean of its level minutes in that hour (weighted by valid seconds, so across days),
+L90/L10 the median of the minute values, counted events and loud events per hour of valid
+measurement (the rules of §6: machine and motor noise only, gates, voices/music minutes);
 then across devices each device once (energy mean of levels, mean of rates). An hour with
 fewer than **30 valid minutes in total** (all devices, all days), or fewer devices than
 `MIN_DEVICES_PER_CELL`, has `null` levels and rates; its `measured_hours` and `devices` are

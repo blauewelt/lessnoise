@@ -114,6 +114,19 @@ category or field…) is skipped and reported in `rejected` as `{index, start, r
 records of the same batch are stored. The app should treat rejected records as permanently
 refused (they will never be accepted) and move on, rather than retrying the batch forever.
 
+**Only machine and motor noise.** The map counts only the five machine and motor categories
+`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction`
+(`config.MAP_CATEGORIES`). An event of any other category — `voices`, `music`, `unclassified`,
+`wind` or an unknown id — is dropped on arrival: not stored, answered with `200` so that apps
+0.5.x–0.6.3 (which send every category) do not retry, counted in the answer's
+`dropped_by_category` and in one log line (`events: dropped_by_category=N`, no device id), and it
+deletes a stored event with the same start. Such events stored before 2026-10-16 stay in the
+table but are ignored when the map is built. Every stored event must also pass the quality gates
+(`duration_s ≥ 0.5`, `lafmax_db ≥ max(min_level_db, 30)`, `threshold_db ≥ 6.5` when sent) to count;
+a minute whose voices + music shares reach 0.5 counts as measured time but not for the levels.
+Calibration is not a gate: a block is `calibrated` only if all its valid minutes and counted
+events are. Details in DESIGN.md §4.4 and §6.
+
 **Status codes.** 401 bad or missing token (unknown device and wrong token look the same),
 413 body or batch too large, 415 unknown `Content-Encoding`, 400 not JSON / not gzip,
 422 schema errors in the whole body, 429 rate limit (with `Retry-After`).
@@ -292,9 +305,11 @@ These are choices the design left open; the website builds against them (see the
   `cell` counts there. One with neither counts for the device's *current* site cell: if a
   contributor changes the placement to another hectare, the history of its cell-less records
   moves with it.
-- **Day L90 / L10** are the medians over the valid minutes of the minute L90 / L10 (the
+- **Day L90 / L10** are the medians over the valid minutes (minus those mostly voices or music) of the minute L90 / L10 (the
   "typical" quiet and loud level of a minute). With several devices, the energy mean.
-- **`events_per_h_by_category`** always lists all eight app categories (zeros included).
+- **`events_per_h_by_category`** always lists exactly the five map categories, in the order
+  `loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction` (zeros included), and
+  nothing else.
 - **`measured_hours`** and **`loud_events`** of a cell-day are the mean over its devices; in a
   window they are summed over the days with data.
 - **`last_7_days` / `last_30_days`**: energy mean of the daily cell levels, median of the daily

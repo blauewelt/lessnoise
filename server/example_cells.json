@@ -33,10 +33,7 @@
           "road_traffic": 8.3,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.4,
         "loud_events": 25.0,
@@ -57,10 +54,7 @@
           "road_traffic": 8.0,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.5,
         "loud_events": 159.0,
@@ -80,16 +74,13 @@
         "l90_db": 42.5,
         "l10_db": 49.5,
         "dynamics_db": 6.9,
-        "events_per_h": 7.1,
+        "events_per_h": 3.4,
         "events_per_h_by_category": {
           "loud_vehicle": 1.0,
           "road_traffic": 2.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 3.0,
-          "music": 0.8,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.0,
         "loud_events": 8.0,
@@ -104,16 +95,13 @@
         "l90_db": 45.0,
         "l10_db": 51.9,
         "dynamics_db": 6.9,
-        "events_per_h": 10.9,
+        "events_per_h": 4.5,
         "events_per_h_by_category": {
           "loud_vehicle": 1.2,
           "road_traffic": 3.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.2,
-          "music": 1.2,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.8,
         "loud_events": 64.0,
@@ -128,16 +116,13 @@
         "l90_db": 45.1,
         "l10_db": 52.2,
         "dynamics_db": 7.0,
-        "events_per_h": 11.8,
+        "events_per_h": 5.1,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.8,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.4,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.9,
         "loud_events": 329.0,
@@ -163,10 +148,7 @@
           "road_traffic": 7.5,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 10.5,
@@ -187,10 +169,7 @@
           "road_traffic": 8.5,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.7,
         "loud_events": 110.5,
@@ -211,10 +190,7 @@
           "road_traffic": 8.5,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.7,
         "loud_events": 460.5,
@@ -240,10 +216,7 @@
           "road_traffic": 5.4,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 5.0,
@@ -264,10 +237,7 @@
           "road_traffic": 7.6,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 56.0,
@@ -288,10 +258,7 @@
           "road_traffic": 7.9,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.7,
         "loud_events": 236.0,
@@ -312,16 +279,13 @@
         "l90_db": 49.0,
         "l10_db": 56.0,
         "dynamics_db": 7.0,
-        "events_per_h": 12.4,
+        "events_per_h": 5.2,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.9,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.9,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.9,
         "loud_events": 75.0,
@@ -336,16 +300,13 @@
         "l90_db": 49.3,
         "l10_db": 56.4,
         "dynamics_db": 7.0,
-        "events_per_h": 12.4,
+        "events_per_h": 5.3,
         "events_per_h_by_category": {
           "loud_vehicle": 1.4,
           "road_traffic": 4.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.7,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.0,
         "loud_events": 360.0,
@@ -365,16 +326,13 @@
         "l90_db": 41.5,
         "l10_db": 48.6,
         "dynamics_db": 6.8,
-        "events_per_h": 8.0,
+        "events_per_h": 3.0,
         "events_per_h_by_category": {
           "loud_vehicle": 0.5,
           "road_traffic": 2.5,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 3.8,
-          "music": 1.2,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.3,
         "loud_events": 2.0,
@@ -389,16 +347,13 @@
         "l90_db": 44.1,
         "l10_db": 51.2,
         "dynamics_db": 7.0,
-        "events_per_h": 11.5,
+        "events_per_h": 4.9,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.4,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.8,
         "loud_events": 64.0,
@@ -413,16 +368,13 @@
         "l90_db": 44.3,
         "l10_db": 51.4,
         "dynamics_db": 7.0,
-        "events_per_h": 11.3,
+        "events_per_h": 4.8,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.5,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.2,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.8,
         "loud_events": 78.0,
@@ -442,16 +394,13 @@
         "l90_db": 48.1,
         "l10_db": 55.3,
         "dynamics_db": 7.1,
-        "events_per_h": 8.1,
+        "events_per_h": 3.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.7,
           "road_traffic": 3.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 3.6,
-          "music": 0.7,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.5,
         "loud_events": 3.5,
@@ -466,16 +415,13 @@
         "l90_db": 50.7,
         "l10_db": 57.8,
         "dynamics_db": 7.0,
-        "events_per_h": 12.6,
+        "events_per_h": 5.5,
         "events_per_h_by_category": {
           "loud_vehicle": 1.4,
           "road_traffic": 4.1,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.9,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.1,
         "loud_events": 91.5,
@@ -490,16 +436,13 @@
         "l90_db": 50.8,
         "l10_db": 57.9,
         "dynamics_db": 7.0,
-        "events_per_h": 12.0,
+        "events_per_h": 5.2,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.9,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.6,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.0,
         "loud_events": 348.5,
@@ -519,16 +462,13 @@
         "l90_db": 53.4,
         "l10_db": 60.5,
         "dynamics_db": 7.0,
-        "events_per_h": 10.8,
+        "events_per_h": 4.7,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.5,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 4.9,
-          "music": 1.2,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.0,
         "loud_events": 11.0,
@@ -543,16 +483,13 @@
         "l90_db": 53.9,
         "l10_db": 60.9,
         "dynamics_db": 7.0,
-        "events_per_h": 14.6,
+        "events_per_h": 6.3,
         "events_per_h_by_category": {
           "loud_vehicle": 1.6,
           "road_traffic": 4.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 6.7,
-          "music": 1.6,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.3,
         "loud_events": 106.0,
@@ -567,16 +504,13 @@
         "l90_db": 53.9,
         "l10_db": 60.9,
         "dynamics_db": 7.0,
-        "events_per_h": 14.2,
+        "events_per_h": 6.1,
         "events_per_h_by_category": {
           "loud_vehicle": 1.6,
           "road_traffic": 4.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 6.5,
-          "music": 1.6,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.2,
         "loud_events": 382.0,
@@ -602,10 +536,7 @@
           "road_traffic": 5.6,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.1,
         "loud_events": 1.0,
@@ -626,10 +557,7 @@
           "road_traffic": 7.7,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.3,
         "loud_events": 28.0,
@@ -650,10 +578,7 @@
           "road_traffic": 7.9,
           "rail_tram": 0.0,
           "aircraft": 0.1,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.3,
         "loud_events": 98.0,
@@ -679,10 +604,7 @@
           "road_traffic": 3.2,
           "rail_tram": 0.4,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.2,
         "loud_events": 2.0,
@@ -703,10 +625,7 @@
           "road_traffic": 4.0,
           "rail_tram": 0.8,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.5,
         "loud_events": 36.0,
@@ -727,10 +646,7 @@
           "road_traffic": 3.9,
           "rail_tram": 0.7,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.5,
         "loud_events": 63.0,
@@ -750,16 +666,13 @@
         "l90_db": 44.5,
         "l10_db": 51.5,
         "dynamics_db": 6.9,
-        "events_per_h": 8.9,
+        "events_per_h": 4.0,
         "events_per_h_by_category": {
           "loud_vehicle": 0.6,
           "road_traffic": 3.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 4.2,
-          "music": 0.6,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 5.0,
@@ -774,16 +687,13 @@
         "l90_db": 46.8,
         "l10_db": 54.0,
         "dynamics_db": 7.0,
-        "events_per_h": 12.0,
+        "events_per_h": 5.2,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.9,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.5,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.9,
         "loud_events": 81.0,
@@ -798,16 +708,13 @@
         "l90_db": 47.2,
         "l10_db": 54.2,
         "dynamics_db": 7.0,
-        "events_per_h": 12.2,
+        "events_per_h": 5.3,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 4.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.6,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.9,
         "loud_events": 240.0,
@@ -827,16 +734,13 @@
         "l90_db": 48.4,
         "l10_db": 55.6,
         "dynamics_db": 6.9,
-        "events_per_h": 7.9,
+        "events_per_h": 3.1,
         "events_per_h_by_category": {
           "loud_vehicle": 0.7,
           "road_traffic": 2.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 4.2,
-          "music": 0.5,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.7,
         "loud_events": 5.0,
@@ -851,16 +755,13 @@
         "l90_db": 50.8,
         "l10_db": 57.9,
         "dynamics_db": 7.1,
-        "events_per_h": 11.9,
+        "events_per_h": 5.0,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.8,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.5,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.1,
         "loud_events": 103.0,
@@ -875,19 +776,16 @@
         "l90_db": 51.1,
         "l10_db": 58.1,
         "dynamics_db": 7.0,
-        "events_per_h": 11.9,
+        "events_per_h": 5.1,
         "events_per_h_by_category": {
           "loud_vehicle": 1.3,
           "road_traffic": 3.8,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 5.5,
-          "music": 1.3,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.2,
-        "loud_events": 471.0,
+        "loud_events": 466.0,
         "loudest_event_db": 87.0,
         "measured_hours": 400.0,
         "days_with_data": 30,
@@ -910,10 +808,7 @@
           "road_traffic": 2.5,
           "rail_tram": 0.6,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.4,
         "loud_events": 3.0,
@@ -934,10 +829,7 @@
           "road_traffic": 4.3,
           "rail_tram": 0.7,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 55.0,
@@ -958,10 +850,7 @@
           "road_traffic": 4.3,
           "rail_tram": 0.7,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 216.0,
@@ -987,10 +876,7 @@
           "road_traffic": 4.0,
           "rail_tram": 0.7,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.5,
         "loud_events": 9.5,
@@ -1011,10 +897,7 @@
           "road_traffic": 4.5,
           "rail_tram": 0.8,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 101.0,
@@ -1035,10 +918,7 @@
           "road_traffic": 4.5,
           "rail_tram": 0.8,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.0,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 412.0,
@@ -1059,16 +939,13 @@
         "l90_db": 37.8,
         "l10_db": 46.9,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1083,16 +960,13 @@
         "l90_db": 38.5,
         "l10_db": 47.6,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 3.0,
@@ -1112,16 +986,13 @@
         "l90_db": 56.5,
         "l10_db": 62.0,
         "dynamics_db": 5.7,
-        "events_per_h": 8.1,
+        "events_per_h": 7.6,
         "events_per_h_by_category": {
           "loud_vehicle": 1.6,
           "road_traffic": 6.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.5,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.6,
         "loud_events": 18.0,
@@ -1136,16 +1007,13 @@
         "l90_db": 57.0,
         "l10_db": 62.4,
         "dynamics_db": 5.5,
-        "events_per_h": 10.3,
+        "events_per_h": 9.7,
         "events_per_h_by_category": {
           "loud_vehicle": 2.1,
           "road_traffic": 7.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.6,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.8,
         "loud_events": 128.0,
@@ -1160,16 +1028,13 @@
         "l90_db": 56.8,
         "l10_db": 62.2,
         "dynamics_db": 5.5,
-        "events_per_h": 9.3,
+        "events_per_h": 8.7,
         "events_per_h_by_category": {
           "loud_vehicle": 1.8,
           "road_traffic": 6.9,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.6,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.6,
         "loud_events": 482.0,
@@ -1189,16 +1054,13 @@
         "l90_db": 55.8,
         "l10_db": 60.6,
         "dynamics_db": 5.5,
-        "events_per_h": 7.1,
+        "events_per_h": 6.6,
         "events_per_h_by_category": {
           "loud_vehicle": 1.4,
           "road_traffic": 5.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.4,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.2,
         "loud_events": 20.5,
@@ -1213,16 +1075,13 @@
         "l90_db": 55.6,
         "l10_db": 60.7,
         "dynamics_db": 5.5,
-        "events_per_h": 9.0,
+        "events_per_h": 8.4,
         "events_per_h_by_category": {
           "loud_vehicle": 1.8,
           "road_traffic": 6.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.6,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.5,
         "loud_events": 246.0,
@@ -1237,16 +1096,13 @@
         "l90_db": 55.6,
         "l10_db": 60.6,
         "dynamics_db": 5.5,
-        "events_per_h": 8.8,
+        "events_per_h": 8.3,
         "events_per_h_by_category": {
           "loud_vehicle": 1.7,
           "road_traffic": 6.5,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.6,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.5,
         "loud_events": 1047.0,
@@ -1266,16 +1122,13 @@
         "l90_db": 44.4,
         "l10_db": 50.2,
         "dynamics_db": 5.5,
-        "events_per_h": 6.1,
+        "events_per_h": 6.0,
         "events_per_h_by_category": {
           "loud_vehicle": 1.9,
           "road_traffic": 4.1,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.1,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.8,
         "loud_events": 14.0,
@@ -1290,16 +1143,13 @@
         "l90_db": 47.6,
         "l10_db": 53.1,
         "dynamics_db": 5.5,
-        "events_per_h": 8.3,
+        "events_per_h": 7.7,
         "events_per_h_by_category": {
           "loud_vehicle": 1.7,
           "road_traffic": 6.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.5,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.4,
         "loud_events": 129.0,
@@ -1314,16 +1164,13 @@
         "l90_db": 48.1,
         "l10_db": 53.6,
         "dynamics_db": 5.5,
-        "events_per_h": 7.4,
+        "events_per_h": 6.9,
         "events_per_h_by_category": {
           "loud_vehicle": 1.5,
           "road_traffic": 5.4,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.5,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.2,
         "loud_events": 394.0,
@@ -1343,16 +1190,13 @@
         "l90_db": 43.4,
         "l10_db": 49.0,
         "dynamics_db": 5.4,
-        "events_per_h": 5.2,
+        "events_per_h": 5.0,
         "events_per_h_by_category": {
           "loud_vehicle": 0.8,
           "road_traffic": 4.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 0.6,
         "loud_events": 5.0,
@@ -1367,16 +1211,13 @@
         "l90_db": 46.4,
         "l10_db": 52.0,
         "dynamics_db": 5.5,
-        "events_per_h": 8.0,
+        "events_per_h": 7.5,
         "events_per_h_by_category": {
           "loud_vehicle": 1.5,
           "road_traffic": 6.0,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.5,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.3,
         "loud_events": 116.0,
@@ -1391,16 +1232,13 @@
         "l90_db": 47.2,
         "l10_db": 52.7,
         "dynamics_db": 5.5,
-        "events_per_h": 8.4,
+        "events_per_h": 7.9,
         "events_per_h_by_category": {
           "loud_vehicle": 1.7,
           "road_traffic": 6.2,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.5,
-          "music": 0.0,
-          "unclassified": 0.0
+          "construction": 0.0
         },
         "loud_events_per_h": 1.3,
         "loud_events": 496.0,
@@ -1420,20 +1258,17 @@
         "l90_db": 33.8,
         "l10_db": 43.5,
         "dynamics_db": 9.1,
-        "events_per_h": 1.1,
+        "events_per_h": 0.6,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
-        "loudest_event_db": 68.9,
+        "loudest_event_db": 64.6,
         "measured_hours": 8.0,
         "days_with_data": 1,
         "devices": 2,
@@ -1444,16 +1279,13 @@
         "l90_db": 36.2,
         "l10_db": 45.4,
         "dynamics_db": 9.0,
-        "events_per_h": 1.2,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1468,16 +1300,13 @@
         "l90_db": 36.9,
         "l10_db": 46.1,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1497,16 +1326,13 @@
         "l90_db": 39.9,
         "l10_db": 48.6,
         "dynamics_db": 8.8,
-        "events_per_h": 1.4,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1521,16 +1347,13 @@
         "l90_db": 39.9,
         "l10_db": 48.8,
         "dynamics_db": 8.9,
-        "events_per_h": 1.5,
+        "events_per_h": 0.9,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.8,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1545,16 +1368,13 @@
         "l90_db": 39.9,
         "l10_db": 48.8,
         "dynamics_db": 8.9,
-        "events_per_h": 1.5,
+        "events_per_h": 0.9,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.8,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1574,20 +1394,17 @@
         "l90_db": 43.4,
         "l10_db": 51.1,
         "dynamics_db": 9.1,
-        "events_per_h": 1.2,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
-        "loudest_event_db": 68.3,
+        "loudest_event_db": 65.6,
         "measured_hours": 18.0,
         "days_with_data": 1,
         "devices": 1,
@@ -1598,16 +1415,13 @@
         "l90_db": 43.0,
         "l10_db": 50.6,
         "dynamics_db": 9.0,
-        "events_per_h": 1.4,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1622,16 +1436,13 @@
         "l90_db": 42.9,
         "l10_db": 50.6,
         "dynamics_db": 9.0,
-        "events_per_h": 1.4,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 1.0,
@@ -1652,20 +1463,17 @@
         "l90_db": 33.8,
         "l10_db": 43.0,
         "dynamics_db": 9.1,
-        "events_per_h": 1.3,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.0,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
-        "loudest_event_db": 70.0,
+        "loudest_event_db": 69.1,
         "measured_hours": 63.0,
         "days_with_data": 5,
         "devices": 1,
@@ -1676,16 +1484,13 @@
         "l90_db": 34.5,
         "l10_db": 43.7,
         "dynamics_db": 9.1,
-        "events_per_h": 1.3,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1705,16 +1510,13 @@
         "l90_db": 32.4,
         "l10_db": 41.9,
         "dynamics_db": 9.0,
-        "events_per_h": 1.4,
+        "events_per_h": 0.9,
         "events_per_h_by_category": {
           "loud_vehicle": 0.2,
           "road_traffic": 0.6,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1729,16 +1531,13 @@
         "l90_db": 35.4,
         "l10_db": 44.4,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1753,16 +1552,13 @@
         "l90_db": 35.3,
         "l10_db": 44.4,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.8,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.3
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1783,16 +1579,13 @@
         "l90_db": 38.8,
         "l10_db": 48.0,
         "dynamics_db": 9.0,
-        "events_per_h": 1.2,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.2,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 0.0,
@@ -1807,16 +1600,13 @@
         "l90_db": 39.7,
         "l10_db": 48.7,
         "dynamics_db": 9.0,
-        "events_per_h": 1.3,
+        "events_per_h": 0.7,
         "events_per_h_by_category": {
           "loud_vehicle": 0.1,
           "road_traffic": 0.7,
           "rail_tram": 0.0,
           "aircraft": 0.0,
-          "construction": 0.0,
-          "voices": 0.3,
-          "music": 0.0,
-          "unclassified": 0.2
+          "construction": 0.0
         },
         "loud_events_per_h": 0.0,
         "loud_events": 1.0,

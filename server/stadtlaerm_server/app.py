@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from . import db, publish, retention
-from .config import Settings
+from .config import MAP_CATEGORY_SET, Settings
 from .ratelimit import TokenBuckets
 from .schemas import (
     MAX_EVENTS,
@@ -357,10 +357,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         rows, rejected = upload(
             await read_body(request), EventIn, MAX_EVENTS, lambda e: db.event_row(device_id, e, received)
         )
+        # Only machine and motor noise goes on the map (DESIGN.md §4.4): any other category
+        # (voices, music, unclassified, wind, an unknown id) is dropped here, not stored, and
+        # answered with 2xx so that apps 0.5.x–0.6.3, which send every category, do not retry.
+        kept = [r for r in rows if r["category"] in MAP_CATEGORY_SET]
+        dropped = [r["start_utc"] for r in rows if r["category"] not in MAP_CATEGORY_SET]
         with conn:
-            accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, rows)
-        changes.records(device_id, (r["start_utc"] for r in rows))
-        return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
+            accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, kept)
+            # A dropped record replaces a stored one with its start, like any upload (§4.4): that
+            # stored event goes too (e.g. re-sent with another category).
+            # (Within one batch a kept record with the same start wins.)
+            starts = {r["start_utc"] for r in kept}
+            replaced = db.delete_rows(conn, "events", device_id, [t for t in dropped if t not in starts])
+        if dropped:
+            log.info("events: dropped_by_category=%d", len(dropped))
+        changes.records(device_id, [r["start_utc"] for r in kept] + (dropped if replaced else []))
+        return UploadResult(
+            accepted=accepted, duplicates=duplicates, rejected=rejected, dropped_by_category=len(dropped)
+        )
 
     @app.post("/v1/devices/{device_id}/reports", response_model=UploadResult)
     async def post_reports(device_id: str, request: Request, conn: Conn, authorization: Auth = None) -> UploadResult:
