@@ -32,6 +32,8 @@ NOW = datetime.fromisoformat("2026-10-08T18:40:00+02:00")
 TODAY = date(2026, 10, 8)
 CLIP = datetime(2026, 10, 8, 18, 0)  # nothing measured after this (naive local); NOW is 18:40
 DAYS = 30
+# migration v5 records the day it ran as `counted_since`; the fixture pins the live deploy date.
+COUNTED_SINCE_AT = datetime.fromisoformat("2026-10-16T09:00:00+02:00")
 
 
 @dataclass(frozen=True)
@@ -170,7 +172,7 @@ def reports_for(site: Site, si: int) -> list[dict]:
 
 def build_db(path: Path) -> None:
     conn = db.connect(path)
-    db.migrate(conn)
+    db.migrate(conn, now=COUNTED_SINCE_AT)
     received = "2026-10-08T16:30:00+00:00"
     for si, site in enumerate(SITES):
         cell = wgs84_to_cell(site.lat, site.lon)

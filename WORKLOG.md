@@ -666,3 +666,14 @@ Job 2 — «Unterwegs» and the «Sehr laut» notification (design as proposed t
 - 09:21 — DESIGN.md §7 «Unkalibriert» badge sentence and docs/karte.html left alone: map page and legend belong to the other agent.
 - 09:22 — Not run: Playwright page tests (no node_modules here; browsers would need a download outside the package registries). Checked by hand against pages.spec.js text rules: no «ß», no «nacht», no «Stadtlärm» in the new datenschutz text; `python3 scripts/stamp_assets.py --check` → «asset stamps up to date».
 - 09:22 — Final: `cd server && python -m pytest -p no:warnings` → 109 passed (tests/test_categories.py alone: 19 passed).
+
+## Purge of non-machine events, `counted_since`, and one map layer per category (main from 77e47ef), 2026-10-16
+- 10:05 — Baseline `cd server && python -m pytest -p no:warnings` (scratchpad venv, Python 3.13): 109 passed.
+- 09:46 — Resumed an interrupted earlier run of this task in the same scratch worktree (`scratchpad/wt-map`, detached at 77e47ef; its line above carries a wrong clock time). Kept its uncommitted part-A work after reading every hunk; main clone `/home/claude/stadtlaerm` not used for edits because the app agent has uncommitted android/ and WORKLOG.md changes there.
+- 09:46 — A: migration v5 is a Python step (`db._v5_purge_other_categories`) inside one BEGIN…COMMIT with the version bump; a failure rolls back and leaves v4 (test). SQL-only steps unchanged.
+- 09:46 — A: `hourly` rows (retention's reduced rows) also lose the counts of other categories (levels kept): the owner's decision is about stored events of those categories, and the hourly per-category JSON is the same data in reduced form. Minutes (`category_shares`) and reports untouched, as specified.
+- 09:46 — A: `counted_since` lives in a new table `meta` (written once by v5, never updated) = local Europe/Zurich date the step ran; a brand-new database records its creation day. Published in cells.json, cells/{cell}.json and days/{date}.json (null before v5).
+- 09:46 — A: rebuild trigger: `create_app` runs a full publish right after the migration when an existing database crossed v5 (also without the background loop); the CLI (`python -m stadtlaerm_server retention|…`) does the same. The background loop's first cycle would rebuild anyway; the explicit call makes it independent of that.
+- 09:46 — A: fixtures regenerated with `python scripts/make_fixture.py` (pins counted_since 2026-10-16): diff is exactly one `counted_since` line per file.
+- 09:50 — A: card line «Ereignisse: nur Maschinen- und Motorenlärm, gezählt seit 16.10.2026.» added already in the A commit (PRIVACY.md says the map shows it); `KarteModel.dateNumeric` is additive, tests/unit untouched (not in my file list).
+- 09:50 — Playwright runs use `CI=1` so they start their own docs server and never reuse a server another agent may have on port 8090.

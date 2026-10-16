@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -94,6 +94,8 @@ def test_publish_files_and_format(conn, tmp_path):
         "last_30_days": {"from": "2026-09-26", "to": "2026-10-25", "days": 30},
     }
     assert cells["min_devices_per_cell"] == 1 and cells["loud_event_db"] == 75.0
+    # The local date migration v5 ran (here: when the test database was made), as ISO date.
+    assert cells["counted_since"] == db.counted_since(conn) == agg.today(datetime.now(UTC)).isoformat()
     by_cell = {x["cell"]: x for x in cells["cells"]}
     assert set(by_cell) == {"h26824_12473", "h26830_12490"}  # hidden device not shown
     assert not (out / "nights").exists()
@@ -120,7 +122,10 @@ def test_publish_files_and_format(conn, tmp_path):
 
     # Per-cell history and the 24-hour profile.
     cf = load(out / "cells" / "h26824_12473.json")
-    assert set(cf) == {"generated_at", "cell", "devices", "calibrated", "loud_event_db", "days", "profile"}
+    assert set(cf) == {
+        "generated_at", "cell", "devices", "calibrated", "loud_event_db", "counted_since", "days", "profile"
+    }  # fmt: skip
+    assert cf["counted_since"] == cells["counted_since"]
     assert cf["cell"] == "h26824_12473" and cf["devices"] == 2
     assert len(cf["days"]) == 10 and cf["days"][0]["day"] == "2026-10-25"
     assert cf["days"][0] == {"day": "2026-10-25", **d}

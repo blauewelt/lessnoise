@@ -16,6 +16,7 @@
   },
   "min_devices_per_cell": 1,
   "loud_event_db": 75.0,
+  "counted_since": "2026-10-16",
   "cells": [
     {
       "cell": "h26818_12446",

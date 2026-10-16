@@ -281,10 +281,19 @@ class MapState:
     parts: dict[str, DevicePart] = field(default_factory=dict)  # device id → its share
     by_cell_day: dict[str, dict[date, dict[str, agg.DeviceDay]]] = field(default_factory=dict)
     index: agg.DayIndex = field(default_factory=agg.DayIndex)
+    # Local date (ISO) since which only machine and motor noise is kept (db.counted_since, §6).
+    counted_since: str | None = None
 
     @classmethod
-    def of(cls, parts: dict[str, DevicePart], span: _Span, min_devices: int, loud_db: float) -> MapState:
-        st = cls(span, min_devices, loud_db, index=agg.DayIndex(min_devices=min_devices))
+    def of(
+        cls,
+        parts: dict[str, DevicePart],
+        span: _Span,
+        min_devices: int,
+        loud_db: float,
+        counted_since: str | None = None,
+    ) -> MapState:
+        st = cls(span, min_devices, loud_db, index=agg.DayIndex(min_devices=min_devices), counted_since=counted_since)
         for dev in sorted(parts):
             st.parts[dev] = parts[dev]
             for (cell, day), s in parts[dev].days.items():
@@ -352,6 +361,7 @@ class MapState:
             "periods": _periods(day),
             "min_devices_per_cell": self.min_devices,
             "loud_event_db": self.loud_db,
+            "counted_since": self.counted_since,
             "cells": [e for c in sorted(self.index.cells) if (e := _cell_entry(self.index, c, day)) is not None],
             "network": network,
         }
@@ -371,6 +381,7 @@ class MapState:
             "devices": newest["devices"] if newest else 0,
             "calibrated": newest["calibrated"] if newest else False,
             "loud_event_db": self.loud_db,
+            "counted_since": self.counted_since,
             "days": history,
             "profile": {
                 "from": self.span.profile_from.isoformat(),
@@ -390,18 +401,26 @@ class MapState:
 
 
 def build_state(
-    devices: Iterable[DeviceData], now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
+    devices: Iterable[DeviceData],
+    now: datetime,
+    min_devices: int = 1,
+    loud_db: float = agg.DEFAULT_LOUD_EVENT_DB,
+    counted_since: str | None = None,
 ) -> MapState:
     span = _Span.at(now)
     parts = {d.site.device_id: device_part(d, span, loud_db) for d in devices}
-    return MapState.of(parts, span, min_devices, loud_db)
+    return MapState.of(parts, span, min_devices, loud_db, counted_since)
 
 
 def build(
-    devices: Iterable[DeviceData], now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
+    devices: Iterable[DeviceData],
+    now: datetime,
+    min_devices: int = 1,
+    loud_db: float = agg.DEFAULT_LOUD_EVENT_DB,
+    counted_since: str | None = None,
 ) -> tuple[dict, dict[str, dict], dict[str, dict]]:
     """Pure: device data → (cells.json, {cell: cells/{cell}.json}, {date: days/{date}.json})."""
-    return build_state(devices, now, min_devices, loud_db).all_files()
+    return build_state(devices, now, min_devices, loud_db, counted_since).all_files()
 
 
 def build_reports(rows: Iterable[tuple[int, float, float, str]], now: datetime) -> dict:
@@ -473,7 +492,7 @@ def build_from_db(
     conn: sqlite3.Connection, now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
 ) -> tuple[dict, dict[str, dict], dict[str, dict]]:
     """[build] on the devices in the database, over the days the published files need."""
-    return build(load_devices(conn, *_read_span(now)), now, min_devices, loud_db)
+    return build(load_devices(conn, *_read_span(now)), now, min_devices, loud_db, db.counted_since(conn))
 
 
 def current_stats(conn: sqlite3.Connection, now: datetime | None = None, min_devices: int = 1) -> dict:
@@ -584,7 +603,9 @@ class Publisher:
         """Reads the database, writes every map file, reports.json and stats.json; returns cells.json."""
         now = now or datetime.now(UTC)
         hidden = hidden_fingerprint(conn)
-        st = build_state(load_devices(conn, *_read_span(now)), now, self.min_devices, self.loud_db)
+        st = build_state(
+            load_devices(conn, *_read_span(now)), now, self.min_devices, self.loud_db, db.counted_since(conn)
+        )
         cells_json, cell_files, day_files = st.all_files()
         write(self.map_dir, cells_json, cell_files, day_files)
         reports = reports_from_db(conn, now)
@@ -624,7 +645,7 @@ class Publisher:
         span = _Span.at(now)
         if span.latest != old.span.latest:
             raise _NeedFull
-        st = MapState(span, old.min_devices, old.loud_db, old.parts, old.by_cell_day, old.index)
+        st = MapState(span, old.min_devices, old.loud_db, old.parts, old.by_cell_day, old.index, old.counted_since)
         changed: set[tuple[str, date]] = set()
         profile_cells: set[str] = set()
         for dev in sorted(pending.touched):

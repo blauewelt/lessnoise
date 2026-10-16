@@ -2,7 +2,8 @@
 
 Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
 reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14;
-only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16. This document is the contract between the three parts that make the
+only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16; schema v5 (stored
+events of other categories deleted, `counted_since`, §5, §6) 2026-10-16. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
@@ -29,7 +30,8 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
    surface for no gain. (Since 2026-10-16 the server drops every event that is not one of the
-   five machine and motor categories on arrival and ignores such events stored earlier, §4.4, §6;
+   five machine and motor categories on arrival; such events stored earlier were deleted by
+   migration v5 on 2026-10-16, §4.4, §5, §6;
    the rule itself is unchanged.)
 2. **Measurements carry a shifted point, never the true location.** Since app 0.6.2 (schema v4)
    the app moves the place of a shared measurement on the phone *before* anything is sent. From
@@ -313,8 +315,8 @@ not in `accepted`/`duplicates` but counted in the response field `dropped_by_cat
 every upload answer, 0 for minutes and reports) and in one log line with the number only, no
 device id. A dropped event replaces a stored event with the same start (the replace rule above),
 i.e. that stored event is deleted; within one batch a kept record with the same start wins. Events
-of other categories that were stored before the filter stay in the table (deleted with the device
-or by retention as usual) but are never read for the map (§6). Minutes keep their
+of other categories that were stored before the filter were deleted on 2026-10-16 by migration
+v5 (§5); the reads for the map still skip any other category (§6). Minutes keep their
 `dominant_category` and `category_shares`; the server uses the shares for the minute rule of §6.
 
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
@@ -448,6 +450,20 @@ per-device hourly rows (one per device, UTC hour and hectare; the arithmetic of
 `aggregate.summarize_hour`) by the daily job, and deleted. Raw reports older than 2 years are
 deleted without any reduction.
 
+**Migration v4 → v5** (owner's decision of 2026-10-16; runs at startup, one transaction; a Python
+step, `db._v5_purge_other_categories`): `DELETE FROM events WHERE category NOT IN` the five map
+categories (`config.MAP_CATEGORIES`) — the voices, music, unclassified, wind and unknown-id events
+that the filter of §4.4 ignored since 77e47ef are **deleted**, not just ignored. In `hourly` (the
+retention job's reduced rows) the per-category JSON `events` loses every other key; levels and hours
+stay. Minutes (with their `category_shares`) and reports are not touched. New table
+`meta(name TEXT PK, value TEXT)` with `counted_since` = the local (Europe/Zurich) date the step ran,
+set once and never changed; published in every map file (§6). One log line with the counts only
+(deleted events, trimmed hourly rows, the date), no device id. An existing database that crosses v5
+gets all published files rebuilt at once when the server starts (`app.create_app`, also
+`python -m stadtlaerm_server publish|retention|…`), before the first request is served; a new
+database records its creation day and has nothing to rebuild. A failure rolls the step back and
+leaves v4.
+
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
 60; 0 disables) days old is deleted with all its rows (minutes, events, hourly, reports,
@@ -510,11 +526,18 @@ contributor sees today's data on the map within about a minute.
 
 **What is counted: machine and motor noise only** (since 2026-10-16). An event is *counted* if
 its category is one of the five map categories (`loud_vehicle`, `road_traffic`, `rail_tram`,
-`aircraft`, `construction`; others are dropped on arrival, §4.4, and ignored if stored earlier)
+`aircraft`, `construction`; others are dropped on arrival, §4.4, and were deleted if stored earlier, §5)
 and it passes the **quality gates**, which the server checks again from the fields it has:
 `duration_s ≥ 0.5`; `lafmax_db ≥ max(min_level_db if sent, 30)`; `threshold_db` (the app's excess
 setting) `≥ 6.5` when sent. An event that fails a gate stays stored (deletable like any row) but
 counts nowhere — not in the rates, the loud events, the loudest event or the profile.
+
+**`counted_since`** (schema v5): every map file (`cells.json`, `cells/{cell}.json`,
+`days/{date}.json`) carries `"counted_since": "2026-10-16"`, the ISO date from which only machine
+and motor noise is stored (`meta.counted_since`, §5; `null` only on a database before v5). Days
+before that date were counted with the same rules (other categories were already ignored, then
+deleted), so it marks the rule, not a gap in the data; the map shows «gezählt seit 16.10.2026»
+(§7).
 
 **Minutes that are mostly voices or music.** When a minute's `category_shares` of `voices` and
 `music` together are **≥ 0.5**, its levels (LAeq, L10, L90, dynamics) are left out of every
@@ -569,6 +592,7 @@ period:
   },
   "min_devices_per_cell": 1,
   "loud_event_db": 75.0,                    // LOUD_EVENT_DB
+  "counted_since": "2026-10-16",            // schema v5: only machine and motor noise since (§6)
   "cells": [
     {
       "cell": "h26828_12455",
@@ -603,6 +627,7 @@ categories plus any unknown id). Values are rounded to 0.1.
 {
   "generated_at": "2026-10-08T18:40:00+02:00",
   "cell": "h26828_12455", "devices": 2, "calibrated": true, "loud_event_db": 75.0,
+  "counted_since": "2026-10-16",
   "days": [ { "day": "2026-10-08", "…": "the block of §6.1" }, "… newest first, only days with data, ≤ 90" ],
   "profile": {
     "from": "2026-09-09", "to": "2026-10-08",

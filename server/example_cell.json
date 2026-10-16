@@ -4,6 +4,7 @@
   "devices": 2,
   "calibrated": true,
   "loud_event_db": 75.0,
+  "counted_since": "2026-10-16",
   "days": [
     {
       "day": "2026-10-08",

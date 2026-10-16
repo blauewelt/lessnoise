@@ -333,7 +333,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(4,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(5,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx

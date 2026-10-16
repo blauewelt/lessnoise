@@ -8,8 +8,9 @@ times (`created_at`, `received_at`, …) are ISO-8601 UTC strings.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,6 +18,7 @@ from pathlib import Path
 from . import aggregate as agg
 from .config import (
     MAP_CATEGORIES,
+    MAP_CATEGORY_SET,
     MAX_SPEECH_MUSIC_SHARE,
     MIN_EVENT_DURATION_S,
     MIN_EVENT_LAFMAX_DB,
@@ -25,7 +27,46 @@ from .config import (
 )
 from .schemas import EventIn, MinuteIn, ReportIn
 
-MIGRATIONS: list[str] = [
+log = logging.getLogger("stadtlaerm")
+
+
+def _v5_purge_other_categories(conn: sqlite3.Connection, now: datetime) -> None:
+    """5: only machine and motor noise is kept (DESIGN.md §5, owner's decision of 2026-10-16).
+
+    Events stored with a category outside MAP_CATEGORIES (voices, music, unclassified, wind, an
+    unknown id) — kept but ignored since 77e47ef — are deleted. Hourly rows of the retention job
+    keep their levels and hours; their per-category counts lose every other key. New table `meta`
+    holds `counted_since`: the local date this step ran (the deploy date of the rule), published
+    with the map (§6). Minutes (their `category_shares`) and reports are not touched."""
+    marks = ",".join("?" * len(MAP_CATEGORIES))
+    deleted = conn.execute(f"DELETE FROM events WHERE category NOT IN ({marks})", MAP_CATEGORIES).rowcount
+    trimmed = 0
+    for device_id, hour_utc, cell, events in conn.execute(
+        "SELECT device_id, hour_utc, cell, events FROM hourly"
+    ).fetchall():
+        counts = json.loads(events)
+        kept = {k: v for k, v in counts.items() if k in MAP_CATEGORY_SET}
+        if kept != counts:
+            conn.execute(
+                "UPDATE hourly SET events = ? WHERE device_id = ? AND hour_utc = ? AND cell = ?",
+                (json.dumps(kept, separators=(",", ":")), device_id, hour_utc, cell),
+            )
+            trimmed += 1
+    conn.execute("CREATE TABLE meta (name TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID")
+    since = agg.today(now).isoformat()
+    conn.execute("INSERT INTO meta (name, value) VALUES ('counted_since', ?)", (since,))
+    # One line, counts only, no device id (like the intake's `dropped_by_category` line).
+    log.info(
+        "migration v5: deleted %d stored events of other categories, trimmed %d hourly rows; counted_since=%s",
+        deleted, trimmed, since,
+    )  # fmt: skip
+
+
+# The version whose step deletes the events of other categories; crossing it calls for a full
+# rebuild of the published files (app.create_app, __main__).
+PURGE_VERSION = 5
+
+MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
     # 1: the tables of DESIGN.md §5, plus `hourly` for the retention job.
     """
     CREATE TABLE devices (
@@ -164,6 +205,8 @@ MIGRATIONS: list[str] = [
     ALTER TABLE sites ADD COLUMN point_n INTEGER;
     ALTER TABLE sites ADD COLUMN sigma_m INTEGER;
     """,
+    # 5: events of other categories deleted, `meta.counted_since` (a Python step, see above).
+    _v5_purge_other_categories,
 ]
 
 MINUTE_COLUMNS = (
@@ -199,8 +242,18 @@ def connect(path: Path | str) -> sqlite3.Connection:
     return conn
 
 
-def migrate(conn: sqlite3.Connection) -> int:
-    """Applies every migration newer than the stored version; returns the new version."""
+def schema_version(conn: sqlite3.Connection) -> int:
+    """The stored schema version; 0 for a new database."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").fetchone() is None:
+        return 0
+    row = conn.execute("SELECT version FROM schema_version").fetchone()
+    return row[0] if row else 0
+
+
+def migrate(conn: sqlite3.Connection, now: datetime | None = None) -> int:
+    """Applies every migration newer than the stored version; returns the new version.
+
+    `now` is the time a Python step records (v5: `counted_since`); default the wall clock."""
     conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
     row = conn.execute("SELECT version FROM schema_version").fetchone()
     if row is None:
@@ -209,11 +262,31 @@ def migrate(conn: sqlite3.Connection) -> int:
         version = 0
     else:
         version = row[0]
-    for i, script in enumerate(MIGRATIONS[version:], start=version + 1):
-        # executescript commits first; wrap each step so a failure leaves the old version.
-        conn.executescript(f"BEGIN;\n{script}\nUPDATE schema_version SET version = {i};\nCOMMIT;")
+    for i, step in enumerate(MIGRATIONS[version:], start=version + 1):
+        if isinstance(step, str):
+            # executescript commits first; wrap each step so a failure leaves the old version.
+            conn.executescript(f"BEGIN;\n{step}\nUPDATE schema_version SET version = {i};\nCOMMIT;")
+        else:
+            conn.commit()
+            conn.execute("BEGIN")
+            try:
+                step(conn, now or datetime.now(UTC))
+                conn.execute("UPDATE schema_version SET version = ?", (i,))
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
         version = i
     return version
+
+
+def counted_since(conn: sqlite3.Connection) -> str | None:
+    """The local date (ISO) since which only machine and motor noise is kept (migration v5)."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE name = 'counted_since'").fetchone()
+    except sqlite3.OperationalError:  # a database before v5
+        return None
+    return row[0] if row else None
 
 
 @contextmanager

@@ -159,6 +159,9 @@ test("tapping a cell opens the card: period figures with their span, the day, th
   await expect(card.locator("#card-period .row", { hasText: "Gemessen" }))
     .toContainText(`${dec(FX.last_7_days.measured_hours)} h an ${FX.last_7_days.days_with_data} von 7 Tagen`);
   await expect(card.locator("#card-period .row", { hasText: "Ab 75 dB(A)" })).toContainText(dec(FX.last_7_days.loud_events_per_h) + " pro h");
+  // schema v5 (server/DESIGN.md §6): since when only machine and motor noise is stored
+  expect(cellsJson.counted_since).toBe("2026-10-16");
+  await expect(card.locator("#counted-since")).toHaveText("Ereignisse: nur Maschinen- und Motorenlärm, gezählt seit 16.10.2026.");
   await expect(card.locator("#card-day h3")).toHaveText("Am Do 8. Oktober 2026");
   await expect(card.locator("#card-day .row").first()).toContainText(dec(FX.day.laeq_db) + " dB(A)");
   // the chart: 24 hours, one run, band, Töff & Poser bars, the LSV bands by clock time

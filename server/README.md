@@ -120,8 +120,10 @@ refused (they will never be accepted) and move on, rather than retrying the batc
 `wind` or an unknown id — is dropped on arrival: not stored, answered with `200` so that apps
 0.5.x–0.6.3 (which send every category) do not retry, counted in the answer's
 `dropped_by_category` and in one log line (`events: dropped_by_category=N`, no device id), and it
-deletes a stored event with the same start. Such events stored before 2026-10-16 stay in the
-table but are ignored when the map is built. Every stored event must also pass the quality gates
+deletes a stored event with the same start. Such events stored before 2026-10-16 were deleted
+by migration v5 at the first start of this version (one log line `migration v5: deleted N stored
+events of other categories, trimmed M hourly rows; counted_since=2026-10-16`; then all published
+files are rebuilt; DESIGN.md §5). The map files carry `counted_since`. Every stored event must also pass the quality gates
 (`duration_s ≥ 0.5`, `lafmax_db ≥ max(min_level_db, 30)`, `threshold_db ≥ 6.5` when sent) to count;
 a minute whose voices + music shares reach 0.5 counts as measured time but not for the levels.
 Calibration is not a gate: a block is `calibrated` only if all its valid minutes and counted

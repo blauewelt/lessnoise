@@ -36,7 +36,10 @@ def main(argv: list[str]) -> int:
         )
         return 0
     with db.open_db(s.db_path) as conn:
-        db.migrate(conn)
+        before = db.schema_version(conn)
+        if 0 < before < db.PURGE_VERSION <= db.migrate(conn) and cmd != "publish":
+            # v5 deleted stored events of other categories: the published files follow at once.
+            publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
         if cmd == "publish":
             cells = publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
             print(f"published {len(cells['cells'])} cells, windows ending {cells['day']}, to {s.map_dir}")

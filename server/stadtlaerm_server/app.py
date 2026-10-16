@@ -92,7 +92,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     device_requests = TokenBuckets(settings.requests_per_device_per_hour, 3_600)
 
     with db.open_db(settings.db_path) as conn:
-        db.migrate(conn)
+        before = db.schema_version(conn)
+        after = db.migrate(conn)
+    # Migration v5 deleted stored events of other categories: rewrite every published file before
+    # serving (below), whether or not the background loop runs. A new database has none to rewrite.
+    purged = 0 < before < db.PURGE_VERSION <= after
 
     # The change marker (publish.Changes): the handlers note what they committed; the publish
     # cycle takes the notes and rebuilds only when something changed (DESIGN.md §6).
@@ -128,6 +132,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         with db.open_db(settings.db_path) as conn:
             log.info("retention: %s", retention.run_retention(conn, retention_days=settings.retention_days))
             return retention.expire_inactive(conn, inactive_days=settings.inactive_delete_days)
+
+    if purged:
+        publish_once()
+        log.info("migration v5: published files rebuilt")
 
     async def background() -> None:
         last_retention: datetime | None = None

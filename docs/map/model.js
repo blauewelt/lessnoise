@@ -98,6 +98,13 @@
     return a.d + ".–" + end;
   }
 
+  /** "2026-10-16" -> "16.10.2026" (the date `counted_since` of the map files); "" if not a date. */
+  function dateNumeric(dateStr) {
+    if (!isDate(dateStr)) return "";
+    var p = parts(dateStr);
+    return (p.d < 10 ? "0" : "") + p.d + "." + (p.m < 9 ? "0" : "") + (p.m + 1) + "." + p.y;
+  }
+
   /** "2026-10-08T06:40:00+02:00" -> "8. Okt. 2026, 06:40" — read from the text, which the
    *  server writes in Zürich local time, so the viewer's own time zone does not matter. */
   function stampLabel(iso) {
@@ -374,7 +381,7 @@
     fmt1: fmt1, fmtPct: fmtPct, fmtHours: fmtHours,
     isDate: isDate, addDays: addDays, daysBetween: daysBetween,
     dayLabel: dayLabel, dayShort: dayShort, spanLabel: spanLabel, periodLabel: periodLabel,
-    stampLabel: stampLabel, hourLabel: hourLabel, localDate: localDate,
+    stampLabel: stampLabel, hourLabel: hourLabel, localDate: localDate, dateNumeric: dateNumeric,
     METRICS: METRICS, METRIC_ORDER: METRIC_ORDER, PERIODS: PERIODS, LSV_BANDS: LSV_BANDS,
     classIndex: classIndex, colourFor: colourFor, tickPosition: tickPosition,
     CATEGORY_NAMES: CATEGORY_NAMES, HIGHLIGHT: HIGHLIGHT,

@@ -49,6 +49,7 @@
     reports: null,      // reports.json `reports`, or null while not loaded
     showReports: true,
     periodChosen: false,
+    countedSince: null, // cells.json `counted_since` (DESIGN §6), for a day file without it
   };
 
   /* ---------- small DOM helpers ---------- */
@@ -562,6 +563,12 @@
     });
   }
 
+  /** «16.10.2026» from the shown file's `counted_since` (or the newest file's), or "". */
+  function countedSince() {
+    var f = state.file && state.file.counted_since ? state.file : null;
+    return M.dateNumeric(f ? f.counted_since : state.countedSince);
+  }
+
   function renderCard() {
     var card = document.getElementById("card");
     var body = document.getElementById("card-body");
@@ -589,6 +596,12 @@
       ]);
       if (b && b.days_with_data) sec.appendChild(fullRows(b, when, n));
       else sec.appendChild(el("p", { class: "card-note", text: "In diesem Zeitraum keine Messung; unten die Werte der 30 Tage." }));
+      var since = countedSince();
+      if (since) {
+        // server/DESIGN.md §6 `counted_since`: since then only machine and motor noise is stored
+        sec.appendChild(el("p", { class: "card-note", id: "counted-since", text:
+          "Ereignisse: nur Maschinen- und Motorenlärm, gezählt seit " + since + "." }));
+      }
       body.appendChild(sec);
 
       var chart = el("section", { class: "card-sec chart-sec" }, [el("p", { class: "card-note", text: "Tagesverlauf wird geladen …" })]);
@@ -774,6 +787,7 @@
       state.latest = file.day;
       state.history = {};       // a cell's file is rebuilt with the same run
       setLoudDb(file.loud_event_db);
+      state.countedSince = file.counted_since || state.countedSince;
       showNetwork(file);
       if (showingNewest) {
         state.loadSeq++;        // a day file still loading must not replace this one
@@ -836,6 +850,7 @@
       if (radio) radio.checked = true;
     }
     setLoudDb(file.loud_event_db);
+    state.countedSince = file.counted_since || null;
     drawLegend();
     shownGenerated = file.generated_at;
     showFile(file, file.day);
