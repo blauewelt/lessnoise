@@ -155,7 +155,7 @@ class UsageReport(unittest.TestCase):
         self.assertIn("Offline-Version beyond its downloads", text)
 
     def test_stats_url(self):
-        self.assertEqual(usage_report.STATS_URL, "https://api.stadtlaerm.ch/v1/map/stats.json")
+        self.assertEqual(usage_report.STATS_URL, "https://api.lessnoise.ch/v1/map/stats.json")
 
 
 if __name__ == "__main__":

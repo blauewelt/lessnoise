@@ -28,8 +28,11 @@ trap 'rm -f "$STADTLAERM_DEPLOY_COPY"' EXIT
 
 REPO=${REPO:-/opt/stadtlaerm}
 BRANCH=main
-HEALTH_URL=${HEALTH_URL:-https://api.stadtlaerm.ch/healthz}
+HEALTH_URL=${HEALTH_URL:-}
 [ -r "$CONF" ] && . "$CONF"
+# /healthz through Caddy on this machine: the project's host first, then the old host, which the
+# server still answers on (API_HOSTS). A HEALTH_URL from the environment or the config wins.
+HEALTH_URLS=${HEALTH_URL:-https://api.lessnoise.ch/healthz https://api.stadtlaerm.ch/healthz}
 [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "invalid BRANCH '$BRANCH'" >&2; exit 1; }
 
 exec 9>"$RUN_DIR/stadtlaerm-deploy.lock"
@@ -50,15 +53,16 @@ if ! git cat-file -e "$new:server/compose.yaml" 2>/dev/null; then
   exit 1
 fi
 
-HOST=$(echo "$HEALTH_URL" | sed -E 's#^https://([^/:]+).*#\1#')
-
 healthy() {  # $1 = commit that must be answering
-  local i want=${1:0:12}
+  local i url host want=${1:0:12}
   for i in $(seq 1 "${HEALTH_TRIES:-30}"); do
-    # Through Caddy on this machine, so the certificate and the proxy are checked too, and the
-    # answer must name the commit just started (not a container that is still the old one).
-    curl -fsS -m 5 --resolve "$HOST:443:127.0.0.1" "$HEALTH_URL" 2>/dev/null \
-      | grep -q "\"commit\":\"$want\"" && return 0
+    for url in $HEALTH_URLS; do
+      host=$(echo "$url" | sed -E 's#^https://([^/:]+).*#\1#')
+      # Through Caddy on this machine, so the certificate and the proxy are checked too, and the
+      # answer must name the commit just started (not a container that is still the old one).
+      curl -fsS -m 5 --resolve "$host:443:127.0.0.1" "$url" 2>/dev/null \
+        | grep -q "\"commit\":\"$want\"" && return 0
+    done
     sleep "${HEALTH_WAIT_S:-2}"
   done
   return 1

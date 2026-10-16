@@ -46,4 +46,4 @@ systemctl enable --now stadtlaerm-deploy.timer
 echo "Timer installed (branch $BRANCH). First run now:"
 systemctl start stadtlaerm-deploy.service || true
 journalctl -u stadtlaerm-deploy --no-pager -n 20
-curl -fsS https://api.stadtlaerm.ch/healthz && echo
+curl -fsS https://api.lessnoise.ch/healthz && echo

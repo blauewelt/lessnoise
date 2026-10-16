@@ -215,15 +215,53 @@ sudo /opt/stadtlaerm/server/scripts/install-autodeploy.sh main
 
 - Log: `journalctl -u stadtlaerm-deploy` (one line per deployment, rollback or refusal).
 - Deploy now instead of waiting: `sudo systemctl start stadtlaerm-deploy`.
-- Which commit runs: `curl https://api.stadtlaerm.ch/healthz` → `{"ok":true,"commit":"…"}`
+- Which commit runs: `curl https://api.lessnoise.ch/healthz` → `{"ok":true,"commit":"…"}`
   (`unknown` when started by hand without `GIT_COMMIT`).
 - Switch off: `sudo systemctl disable --now stadtlaerm-deploy.timer`.
+- Health check: `deploy.sh` asks `https://api.lessnoise.ch/healthz` and, if that host does not
+  answer on this machine, `https://api.stadtlaerm.ch/healthz` (both in `API_HOSTS`), each through
+  Caddy here (`curl --resolve …:443:127.0.0.1`). `HEALTH_URL=…` in `/etc/stadtlaerm-deploy.conf`
+  replaces both.
+
+**Still named «stadtlaerm» on the VPS.** The project is lessnoise («Weniger Lärm»), but the clone
+lives in `/opt/stadtlaerm` and the timer is `stadtlaerm-deploy` (config
+`/etc/stadtlaerm-deploy.conf`, state `/var/lib/stadtlaerm-deploy`, lock
+`/run/stadtlaerm-deploy.lock`, backups `/var/backups/stadtlaerm`, database
+`/data/stadtlaerm.sqlite` in the volume). They are deliberately not renamed by a commit: the
+running timer would lose its paths. Renaming requires reinstalling the timer, by hand:
+
+```sh
+# Only the folder, /opt/stadtlaerm → /opt/lessnoise (no commit needed: the unit gets REPO from
+# install-autodeploy.sh). The compose project stays «server», so the volumes (database, map,
+# certificates) are kept — unless .env sets COMPOSE_PROJECT_NAME; check first.
+sudo systemctl disable --now stadtlaerm-deploy.timer
+cd /opt/stadtlaerm/server && sudo docker compose down
+sudo mv /opt/stadtlaerm /opt/lessnoise
+cd /opt/lessnoise/server && sudo GIT_COMMIT=$(sudo git -C /opt/lessnoise rev-parse --short=12 HEAD) docker compose up -d
+sudo /opt/lessnoise/server/scripts/install-autodeploy.sh main
+sudo crontab -e        # backup line: /opt/lessnoise/server/scripts/backup.sh
+curl https://api.lessnoise.ch/healthz
+```
+
+```sh
+# The timer's name, stadtlaerm-deploy → lessnoise-deploy: first a commit that renames it in
+# server/scripts/deploy.sh and install-autodeploy.sh (unit, conf, state and lock names); once
+# that commit is on main (the old timer may deploy it, harmlessly), on the VPS:
+sudo systemctl disable --now stadtlaerm-deploy.timer
+sudo rm /etc/systemd/system/stadtlaerm-deploy.service /etc/systemd/system/stadtlaerm-deploy.timer
+sudo systemctl daemon-reload
+sudo mv /etc/stadtlaerm-deploy.conf /etc/lessnoise-deploy.conf
+sudo mv /var/lib/stadtlaerm-deploy /var/lib/lessnoise-deploy
+git -C /opt/stadtlaerm log -1 --oneline      # the renaming commit is checked out (or /opt/lessnoise)
+sudo /opt/stadtlaerm/server/scripts/install-autodeploy.sh main
+journalctl -u lessnoise-deploy -n 20
+```
 
 Consequence: whoever can push to the deployed branch decides what runs here within about
 5 minutes. Keep the branch protected accordingly. Local edits to tracked files on the server
 make the checkout fail (the log says so); keep server-only settings in the untracked `.env`.
 
-**Operator tasks.** Usage numbers (the same as `https://api.stadtlaerm.ch/v1/map/stats.json`):
+**Operator tasks.** Usage numbers (the same as `https://api.lessnoise.ch/v1/map/stats.json`):
 `sudo docker compose exec app python -m stadtlaerm_server stats`.
 Keep a misbehaving device out of the map without deleting its data:
 `sudo docker compose exec app sqlite3 /data/stadtlaerm.sqlite "UPDATE devices SET hidden = 1 WHERE id = '…'"`
