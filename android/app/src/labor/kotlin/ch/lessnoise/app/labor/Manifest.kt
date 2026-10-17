@@ -124,6 +124,21 @@ object ManifestLines {
             .build()
 
     /**
+     * 0.6.7, Labor·Karte only («Unterwegs erkannt»): one change of the motion detector, for tuning.
+     * `to` STILL | MOVING (| STOP when the measurement ends while moving), `spanStart` the start of
+     * the moving span (for MOVING: the first active second of the enter window), and the feature
+     * values that decided it (MotionDetector.Transition.features: active seconds in the enter and
+     * exit windows, mean and last per-second deviation of |a| in m/s², samples of the last second,
+     * the threshold). [session] is the recorder's session, or "none" without a recording. Stays in
+     * this file on the phone; nothing of it is uploaded.
+     */
+    fun motion(session: String, nowMs: Long, zone: ZoneId, to: String, spanStartMs: Long, features: Map<String, Double>): String {
+        val j = base("motion", session, nowMs, zone).put("to", to).put("spanStart", Iso.format(spanStartMs, zone, millis = true))
+        for ((k, v) in features) j.put(k, v, 3)
+        return j.build()
+    }
+
+    /**
      * The engine's sample clock: from here on, input sample s (48 kHz, counted from the start of
      * the measurement) was recorded at `anchorEpochMs + (s − anchorSample)·1000/48000`.
      */

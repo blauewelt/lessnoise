@@ -3,6 +3,7 @@ package ch.lessnoise.app.upload
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.app.data.MovingSpanEntity
 import ch.lessnoise.app.data.sharedPoint
 import ch.lessnoise.dsp.MeasurementSplitter
 import ch.lessnoise.dsp.geo.LocationNoise
@@ -23,6 +24,13 @@ interface UploadSource {
     /** All measurements (start, end, shifted point), to find the point of a record. */
     suspend fun measurements(): List<MeasurementEntity>
 
+    /**
+     * 0.6.7: the spans in which the phone was being carried («Unterwegs erkannt»); their records are
+     * never sent. The Room source reads the table (MovingSpanUploadTest checks that it overrides this);
+     * the default is for the JVM test sources, which have none unless a test adds them.
+     */
+    suspend fun movingSpans(): List<MovingSpanEntity> = emptyList()
+
     /** Phone model, audio source and calibration for the site call. */
     suspend fun siteExtras(): SiteExtras
 }
@@ -33,18 +41,38 @@ interface UploadSource {
  * record lies after its end. Records without a point are never sent. A measurement row with a
  * cell but no point (apps 0.6.0 and 0.6.1, before the location noise) counts as not shared: the
  * app never sends a true hectare again.
+ *
+ * 0.6.7 («Unterwegs erkannt»): a record that overlaps a [moving] span — the phone was being carried,
+ * so the measurement's point is wrong — has no point either, so it is never sent. Overlap: the span
+ * starts before the record's end and ends after its start (an open span reaches to the end of time;
+ * a record of duration 0 counts as 1 ms). The same rule as MovingSql.MINUTE_NOT_MOVING.
  */
-class PlaceIndex(measurements: List<MeasurementEntity>) {
+class PlaceIndex(measurements: List<MeasurementEntity>, moving: List<MovingSpanEntity> = emptyList()) {
     private val sorted = measurements.sortedWith(compareBy({ it.startMs }, { it.id }))
     private val starts = LongArray(sorted.size) { sorted[it].startMs }
     private val points = Array(sorted.size) { sorted[it].sharedPoint() }
+    private val spans = moving.sortedBy { it.startMs }
 
-    fun pointAt(t: Long): LocationNoise.Point? {
+    fun pointAt(t: Long): LocationNoise.Point? = pointAt(t, 0L)
+
+    /** The point of a record starting at [t] and lasting [durationMs], or null (not shared, or moving). */
+    fun pointAt(t: Long, durationMs: Long): LocationNoise.Point? {
         val i = MeasurementSplitter.ownerIndex(starts, t)
         if (i < 0) return null
         val m = sorted[i]
         if (m.endMs != null && t >= m.endMs) return null
+        if (moving(t, durationMs)) return null
         return points[i]
+    }
+
+    /** Whether [t, t + durationMs) overlaps a moving span. */
+    fun moving(t: Long, durationMs: Long): Boolean {
+        val end = t + maxOf(durationMs, 1L)
+        for (s in spans) {
+            if (s.startMs >= end) break
+            if (s.endMs == null || s.endMs > t) return true
+        }
+        return false
     }
 
     /** The point of the newest shared measurement (sent with the placement details). */
@@ -77,6 +105,12 @@ class Uploader(
     private val maxRequestsPerRun: Int = 24,
     private val minuteBatch: Int = UploadClient.MAX_MINUTES,
     private val eventBatch: Int = UploadClient.MAX_EVENTS,
+    /**
+     * 0.6.7: records that ended less than this long ago are not sent yet (and the markers stay
+     * before them). While a «Messen» measurement runs, the motion detector may still decide that
+     * the phone was already being carried then ([MOTION_HOLD_MS]); 0 when nothing can change any more.
+     */
+    private val holdMs: () -> Long = { 0L },
 ) {
     /** Serialises uploads, deletes and «Neue Kennung» within the process. */
     private val lock = Mutex()
@@ -208,7 +242,7 @@ class Uploader(
             val id = s.deviceId!!
             val token = s.token!!
 
-            val places = PlaceIndex(source.measurements())
+            val places = PlaceIndex(source.measurements(), source.movingSpans())
             // The placement details go with the newest shared measurement's point; none yet: no site call.
             val latestPoint = places.latest
             if (latestPoint != null) {
@@ -252,9 +286,10 @@ class Uploader(
                     kind = RefusedRecord.MINUTE, batchSize = minuteBatch, budget = { maxRequestsPerRun - requests },
                     marker = { it.minutesSentUpToMs },
                     fetch = { after, n -> source.minutesAfter(after, n) }, start = { it.startEpochMs },
-                    // Only minutes of shared measurements; the marker still moves past the others.
-                    include = { places.pointAt(it.startEpochMs) != null },
-                    post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, places.pointAt(it.startEpochMs)!!) })) },
+                    end = { it.startEpochMs + (it.durationSeconds * 1000).toLong() },
+                    // Only minutes of shared measurements, not while moving (0.6.7); the marker still moves past the others.
+                    include = { places.pointAt(it.startEpochMs, (it.durationSeconds * 1000).toLong()) != null },
+                    post = { batch -> client.postMinutes(id, token, JsonArray(batch.map { Payloads.minute(it, places.pointAt(it.startEpochMs, (it.durationSeconds * 1000).toLong())!!) })) },
                     advance = { snap, t -> snap.copy(minutesSentUpToMs = maxOf(snap.minutesSentUpToMs, t)) },
                 ) ?: return Outcome.Disabled
                 requests += minutes.requests; sentMinutes = minutes.sent; refused += minutes.refused; more = minutes.more
@@ -264,11 +299,13 @@ class Uploader(
                     kind = RefusedRecord.EVENT, batchSize = eventBatch, budget = { maxRequestsPerRun - requests },
                     marker = { it.eventsSentUpToMs },
                     fetch = { after, n -> source.eventsAfter(after, n) }, start = { it.startEpochMs },
+                    end = { it.startEpochMs + (it.durationSeconds * 1000).toLong() },
                     // Only map events (0.6.4, Payloads.isMapEvent: the five machine and motor
-                    // categories, not wind, the quality gates) of measurements with a point; the
-                    // marker still moves past the others, so they are never fetched again (DESIGN.md §4.4).
-                    include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs) != null },
-                    post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, places.pointAt(it.startEpochMs)!!) })) },
+                    // categories, not wind, the quality gates) of measurements with a point, not
+                    // while moving (0.6.7); the marker still moves past the others, so they are never
+                    // fetched again (DESIGN.md §4.4).
+                    include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs, (it.durationSeconds * 1000).toLong()) != null },
+                    post = { batch -> client.postEvents(id, token, JsonArray(batch.map { Payloads.event(it, places.pointAt(it.startEpochMs, (it.durationSeconds * 1000).toLong())!!) })) },
                     advance = { snap, t -> snap.copy(eventsSentUpToMs = maxOf(snap.eventsSentUpToMs, t)) },
                 ) ?: return Outcome.Disabled
                 requests += events.requests; sentEvents = events.sent; refused += events.refused; more = events.more
@@ -294,6 +331,9 @@ class Uploader(
         }
     }
 
+    /** The hold in force now (0.6.7, [MOTION_HOLD_MS] or 0). */
+    fun holdNowMs(): Long = holdMs()
+
     /**
      * Requests one [run] sends at most (the server allows 60 per device and hour, DESIGN.md §8);
      * the live cadence of 0.6.3 (UploadCadence) stays far below that, see UploadCadenceTest.
@@ -318,6 +358,7 @@ class Uploader(
         marker: (UploadSnapshot) -> Long,
         fetch: suspend (Long, Int) -> List<T>,
         start: (T) -> Long,
+        end: (T) -> Long,
         include: (T) -> Boolean = { true },
         post: (List<T>) -> UploadClient.Result,
         advance: (UploadSnapshot, Long) -> UploadSnapshot,
@@ -330,9 +371,16 @@ class Uploader(
             val s = store.state.value
             if (requests >= budget()) return Sent(requests, sent, refusedCount, more = true)
             // One row more than a batch, to see whether the batch would split records with one start.
-            val raw = fetch(maxOf(marker(s), effectiveFloorMs(s) - 1), batchSize + 1)
+            val fetched = fetch(maxOf(marker(s), effectiveFloorMs(s) - 1), batchSize + 1)
+            // 0.6.7: records that ended within the hold are left for a later run (oldest first, so
+            // everything from the first of them on waits; the marker stays before them).
+            val hold = holdMs()
+            var raw = if (hold <= 0) fetched else (clock() - hold).let { cutoff -> fetched.takeWhile { end(it) <= cutoff } }
+            val held = raw.size < fetched.size
+            // The marker means "start > marker": rows with the same start as the first held one wait with it.
+            if (held) fetched[raw.size].let { h -> raw = raw.dropLastWhile { start(it) == start(h) } }
             if (raw.isEmpty()) return Sent(requests, sent, refusedCount, more = false)
-            val full = raw.size > batchSize
+            val full = !held && raw.size > batchSize
             val rows = if (!full) raw else {
                 val head = raw.take(batchSize)
                 val nextStart = start(raw[batchSize])
@@ -349,7 +397,7 @@ class Uploader(
             }
             val last = start(rows.last())
             store.update { advance(it, last) }
-            if (!full) return Sent(requests, sent, refusedCount, more = false)
+            if (!full || held) return Sent(requests, sent, refusedCount, more = false)
         }
     }
 
@@ -436,6 +484,15 @@ class Uploader(
 
         /** No connection to the server (0.6.3: told apart from [RETRY_TEXT] for the status line «Kein Internet»). */
         const val NO_CONNECTION_TEXT = "Keine Verbindung zum Server. Neuer Versuch folgt."
+
+        /**
+         * 0.6.7: how long a record waits after its end while a «Messen» measurement runs. The motion
+         * detector's moving span reaches back at most 25 s before its decision (its enter window), the
+         * decision comes at most 1 s after the second that made it, and the sensor may deliver its
+         * samples up to 5 s late (batching): 31 s, plus 4 s margin. A loud event therefore reaches the
+         * live map 35 s after its end instead of 30 s (UploadModule.liveLoop).
+         */
+        const val MOTION_HOLD_MS = 35_000L
 
         /** The server refuses records older than 7 days (DESIGN.md §8, `MAX_RECORD_AGE_DAYS`). */
         const val MAX_AGE_MS = 7L * 24 * 3600 * 1000

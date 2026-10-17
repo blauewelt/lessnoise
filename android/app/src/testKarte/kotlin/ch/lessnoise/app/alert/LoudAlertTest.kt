@@ -50,9 +50,10 @@ class LoudAlertTest {
     @Test
     fun onlyInAnUnterwegsMeasurementWhileMeasuring() {
         // 0.6.4: «unterwegs» is LiveState.unterwegs (the start mode), which the watcher passes; a
-        // measurement started with «Messen» never alerts.
+        // measurement started with «Messen» never alerts while the phone lies still.
         val watcher = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
-        assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, l.unterwegs, l.running, lastAlertAtMs, now)"))
+        // 0.6.7: or a «Messen» measurement while the phone is being carried (MotionDetectorTest).
+        assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)"))
         assertFalse(watcher.contains("SharedPreferences"), "no remembered switch any more")
         assertFalse(alerts(ev(), unterwegs = false))
         assertFalse(alerts(ev(), running = false))

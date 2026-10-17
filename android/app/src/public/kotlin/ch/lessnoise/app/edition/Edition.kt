@@ -13,6 +13,12 @@ import kotlinx.coroutines.flow.flowOf
 // source set (app/src/public/kotlin) and app/src/main/ contain no code that writes audio; the Labor
 // edition's recorder exists only in app/src/labor/. See PRIVACY.md.
 
+/** Local diagnostics of the Labor builds (0.6.7: the motion detector's changes). Public: none, nothing is written. */
+object EditionDiagnostics {
+    @Suppress("UNUSED_PARAMETER")
+    fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) = Unit
+}
+
 /** Public: there is no audio recorder, the measurement service always gets [NoAudioTap]. */
 object AudioTapProvider {
     fun create(@Suppress("UNUSED_PARAMETER") context: Context): AudioTap = NoAudioTap

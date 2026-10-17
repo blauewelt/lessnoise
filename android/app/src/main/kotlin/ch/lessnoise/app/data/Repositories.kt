@@ -217,7 +217,7 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     suspend fun allEvents(): List<NoiseEvent> = dao.allEvents().map { it.toEvent() }
 
     suspend fun clear() {
-        dao.clearMinutes(); dao.clearEvents(); dao.clearMeasurements()
+        dao.clearMinutes(); dao.clearEvents(); dao.clearMeasurements(); dao.clearMovingSpans()
     }
 
     fun measurementsFlow() = dao.measurementsFlow()
@@ -233,11 +233,25 @@ class MeasurementRepository(private val dao: MeasurementDao) {
             val next = open.getOrNull(i + 1)?.startMs ?: startMs
             dao.endMeasurement(m.id, dao.lastMinuteEnd(m.startMs - ch.lessnoise.dsp.MeasurementSplitter.START_TOLERANCE_MS, next) ?: m.startMs)
         }
+        // A moving span left open by a measurement the system killed (0.6.7) ends here at the latest.
+        dao.endMovingSpans(startMs)
         val p = point.takeUnless { unterwegs }
         return dao.insertMeasurement(
             MeasurementEntity(startMs = startMs, cell = p?.cell, pointE = p?.e, pointN = p?.n, sigmaM = p?.sigmaM, unterwegs = unterwegs)
         )
     }
+
+    /**
+     * «Unterwegs erkannt» (0.6.7, editions with the map): the phone is being carried since [startMs].
+     * Any span still open is closed first, so at most one is open.
+     */
+    suspend fun beginMovingSpan(startMs: Long): Long {
+        dao.endMovingSpans(startMs)
+        return dao.insertMovingSpan(MovingSpanEntity(startMs = startMs))
+    }
+
+    /** The phone lies still again (or the measurement stopped) at [endMs]: closes the open span. */
+    suspend fun endMovingSpans(endMs: Long) = dao.endMovingSpans(endMs)
 
     /** «Stop». */
     suspend fun endMeasurement(id: Long, endMs: Long) = dao.endMeasurement(id, endMs)

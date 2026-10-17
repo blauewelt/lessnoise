@@ -41,4 +41,29 @@ class LoudAlertIsolationTest {
             assertFalse(t.contains("loud_alert") || t.contains("REPORT_LOUD"), m)
         }
     }
+
+    @Test
+    fun theMotionDetectorExistsOnlyInTheEditionsWithTheMap() {
+        // 0.6.7 «Unterwegs erkannt»: the detector and the sensor listener are in src/karte only.
+        assertEquals(MapTab.AVAILABLE, ch.lessnoise.app.motion.MotionWatch.AVAILABLE)
+        val main = File(app, "src/main/kotlin").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        val offenders = main.filter { f ->
+            val t = f.readText()
+            t.contains("SensorManager") || t.contains("MotionDetector") || t.contains("SensorEventListener") || t.contains("TYPE_ACCELEROMETER")
+        }.map { it.name }
+        assertEquals(emptyList(), offenders)
+        val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/motion/MotionWatch.kt").readText()
+        assertTrue(stub.contains("const val AVAILABLE = false"))
+        assertTrue(stub.contains("fun start(context: Context, container: AppContainer): Handle? = null"))
+        for (bad in listOf("Sensor", "registerListener", "MotionDetector", "moving_spans", "beginMovingSpan")) assertFalse(stub.contains(bad), bad)
+        for (d in listOf("src/public", "src/offline", "src/labor", "src/laborKarte", "src/nomap")) {
+            val hits = File(app, d).walkTopDown().filter { it.isFile && it.extension == "kt" && it.readText().contains("SensorManager") }.toList()
+            assertEquals(emptyList(), hits, d)
+        }
+        // No new permission for it: the accelerometer needs none (no ACTIVITY_RECOGNITION, no HIGH_SAMPLING_RATE_SENSORS).
+        for (m in listOf("src/main/AndroidManifest.xml", "src/public/AndroidManifest.xml", "src/laborKarte/AndroidManifest.xml", "src/offline/AndroidManifest.xml", "src/labor/AndroidManifest.xml")) {
+            val t = File(app, m).takeIf { it.isFile }?.readText() ?: continue
+            for (p in listOf("ACTIVITY_RECOGNITION", "HIGH_SAMPLING_RATE_SENSORS", "BODY_SENSORS")) assertFalse(t.contains(p), "$m: $p")
+        }
+    }
 }

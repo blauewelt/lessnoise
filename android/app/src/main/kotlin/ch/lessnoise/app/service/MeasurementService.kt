@@ -25,6 +25,7 @@ import ch.lessnoise.app.audio.AudioTap
 import ch.lessnoise.app.audio.AudioTapSession
 import ch.lessnoise.app.audio.NoAudioTap
 import ch.lessnoise.app.edition.AudioTapProvider
+import ch.lessnoise.app.motion.MotionWatch
 import ch.lessnoise.app.classify.YamnetClassifier
 import ch.lessnoise.app.container
 import ch.lessnoise.app.ui.MainActivity
@@ -110,6 +111,13 @@ data class LiveState(
     val unterwegs: Boolean = false,
     /** 0.6.6: the input delivering the audio (BuiltInMic.label), shown in the Labor build only. */
     val inputDevice: String? = null,
+    /**
+     * 0.6.7 («Unterwegs erkannt», editions with the map): in a measurement started with «Messen», the
+     * motion detector says the phone is being carried. Meanwhile it behaves like «Unterwegs»: the
+     * «Sehr laut» notification may show, and nothing of this time span is shared (moving_spans). Always
+     * false in an «Unterwegs» measurement (that one is never shared anyway) and in the editions without the map.
+     */
+    val moving: Boolean = false,
 )
 
 /** An event as it was detected (0.6.3, [LiveState.lastEvent]). Levels as shown (calibrated if the phone is). */
@@ -182,6 +190,8 @@ class MeasurementService : Service() {
     private var engine: MeasurementEngine? = null
     /** Public build: always [NoAudioTap] (see AudioTap.kt, PRIVACY.md → «Labor-Build»). */
     @Volatile private var tap: AudioTap = NoAudioTap
+    /** 0.6.7: the accelerometer watch of a «Messen» measurement (editions with the map; null elsewhere). */
+    private var motion: MotionWatch.Handle? = null
     private var classifier: SoundClassifier? = null
     private var inference: ExecutorService? = null
     private val inferenceBusy = AtomicBoolean(false)
@@ -334,6 +344,9 @@ class MeasurementService : Service() {
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
                         measurementStartMs = startedAt, unterwegs = unterwegs, inputDevice = info.inputDevice,
                     )
+                    // «Unterwegs erkannt» (0.6.7): only for «Messen» («Unterwegs» is unterwegs anyway),
+                    // only in the editions with the map (MotionWatch is a stand-in returning null elsewhere).
+                    if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container)
                 }
             } catch (e: Exception) {
                 live.value = LiveState(error = BuiltInMic.errorText("Start fehlgeschlagen: ", e.message))
@@ -469,6 +482,8 @@ class MeasurementService : Service() {
         stopping = true
         capture?.stop()
         capture = null
+        motion?.stop()
+        motion = null
         // The capture thread has ended: finish the engine (partial minute, open event) here.
         engine?.let { eng ->
             while (true) eng.onClassifierFrame(frames.poll() ?: break)

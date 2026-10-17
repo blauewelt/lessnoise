@@ -29,7 +29,7 @@ class LoudAlertNotifier(private val context: Context) {
         if (nm.getNotificationChannel(CHANNEL) != null) return
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, LoudAlertRule.CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Meldung bei sehr lautem Verkehr während einer Messung «Unterwegs»"
+                description = "Meldung bei sehr lautem Verkehr, wenn unterwegs gemessen wird"
             },
         )
     }
@@ -77,8 +77,9 @@ object LoudAlertWatcher {
                 if (e == null) return@collect
                 val now = System.currentTimeMillis()
                 val l = live.value
-                // «Unterwegs» is the mode of the running measurement (0.6.4), not a setting.
-                if (LoudAlertRule.shouldAlert(e, l.unterwegs, l.running, lastAlertAtMs, now)) {
+                // «Unterwegs» is the mode of the running measurement (0.6.4), not a setting; since
+                // 0.6.7 also a «Messen» measurement while the phone is being carried (LiveState.moving).
+                if (LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)) {
                     lastAlertAtMs = now
                     notifier.show(e)
                 }

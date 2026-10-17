@@ -124,6 +124,7 @@ fun rememberShareStatus(): ShareStatus? {
     return shareStatus(
         s = s, running = live.running, measurementStartMs = live.measurementStartMs,
         hasPoint = live.sharedPoint != null, locate = locate, online = online, unterwegs = live.unterwegs, hm = Fmt::hm,
+        moving = live.moving,
     )
 }
 
@@ -237,8 +238,9 @@ fun MeasureContent(
                     ) { Text("Stoppen", fontSize = 18.sp) }
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
                     shareStatus?.let { ShareStatusLine(it, onShareStatus) }
-                    // «Unterwegs» (0.6.4): «Laut! Melden» also while it measures.
-                    if (onReport != null && live.unterwegs) {
+                    // «Unterwegs» (0.6.4): «Laut! Melden» also while it measures; since 0.6.7 also while
+                    // a «Messen» measurement is recognised as being out and about (LiveState.moving).
+                    if (onReport != null && (live.unterwegs || live.moving)) {
                         OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) { Text("Laut! Melden") }
                     }
                 } else if (onStartUnterwegs != null) {

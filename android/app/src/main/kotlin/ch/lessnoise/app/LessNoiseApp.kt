@@ -70,7 +70,14 @@ class AppContainer(context: Context) {
      * The opt-in upload «Messwerte teilen» (server/DESIGN.md §4); with the tab «Karte» (0.6.3, a
      * WebView in src/karte/) one of the two network uses of the Karten editions.
      */
-    val upload: UploadModule by lazy { UploadModule(appContext, db, calibrations) }
+    val upload: UploadModule by lazy {
+        UploadModule(appContext, db, calibrations, motionHoldMs = {
+            // 0.6.7 («Unterwegs erkannt», editions with the map): while a «Messen» measurement runs,
+            // its newest records wait until the motion detector could have marked them as moving.
+            val l = live.value
+            if (ch.lessnoise.app.motion.MotionWatch.AVAILABLE && l.running && !l.unterwegs) ch.lessnoise.app.upload.Uploader.MOTION_HOLD_MS else 0L
+        })
+    }
     /** True while the calibration screen is using the microphone (blocks starting a measurement). */
     val calibrationActive = MutableStateFlow(false)
     /**

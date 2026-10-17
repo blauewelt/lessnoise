@@ -84,6 +84,12 @@ const val STATUS_AUTH = "Unterbrochen – tippen für «Neu starten»"
 /** 0.6.4: the running measurement was started as «Unterwegs». */
 const val STATUS_UNTERWEGS = "Unterwegs – diese Messung kommt nicht auf die Karte"
 
+/**
+ * 0.6.7 («Unterwegs erkannt», editions with the map): a measurement started with «Messen» while the
+ * phone is being carried. The wording of [UNTERWEGS_HINT], which says the same of «Unterwegs».
+ */
+const val STATUS_MOVING = "Unterwegs erkannt: Mitteilung bei sehr lautem Verkehr, nichts auf die Karte."
+
 /** «Auf der Karte · zuletzt gesendet 14:05». */
 fun statusSent(hm: String): String = "Auf der Karte · zuletzt gesendet $hm"
 

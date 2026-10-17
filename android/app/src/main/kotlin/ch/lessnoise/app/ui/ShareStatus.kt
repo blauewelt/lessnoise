@@ -54,6 +54,8 @@ data class ShareStatus(val text: String, val action: ShareAction, val problem: B
  *   measurement runs.
  * - [unterwegs]: the running measurement was started as «Unterwegs» (0.6.4): it is never
  *   shared, whatever the switch says ([STATUS_UNTERWEGS]).
+ * - [moving] (0.6.7): the motion detector says the phone is being carried during a measurement
+ *   started with «Messen» ([STATUS_MOVING] while it lasts; nothing of that time is shared).
  * - [hm]: formats a time as «HH:mm».
  *
  * Null: nothing to say (no measurement runs and the question «Auf die Lärmkarte?» has not been
@@ -67,6 +69,7 @@ fun shareStatus(
     locate: LocateState,
     online: Boolean,
     unterwegs: Boolean = false,
+    moving: Boolean = false,
     hm: (Long) -> String,
 ): ShareStatus? {
     // Uploader.enable() records YES and disable() NO, so «on» is the switch.
@@ -81,6 +84,7 @@ fun shareStatus(
         }
     }
     if (unterwegs) return ShareStatus(STATUS_UNTERWEGS, ShareAction.NONE)
+    if (moving) return ShareStatus(STATUS_MOVING, ShareAction.NONE)
     if (!on) return ShareStatus(STATUS_OFF, ShareAction.TURN_ON)
     if (!hasPoint) {
         return when (locate) {
@@ -135,10 +139,13 @@ fun mapBanner(
     online: Boolean,
     nowMs: Long,
     unterwegs: Boolean = false,
+    moving: Boolean = false,
     hm: (Long) -> String,
 ): MapBanner? {
     // «Unterwegs» (0.6.4): this measurement does not come on the map, whatever else holds.
     if (running && unterwegs) return MapBanner(BANNER_UNTERWEGS, ShareAction.NONE)
+    // «Unterwegs erkannt» (0.6.7): this time span does not come on the map.
+    if (running && moving) return MapBanner(STATUS_MOVING, ShareAction.NONE)
     // Null only before the question was asked (not running, undecided): a tap asks it.
     // «Open the map» is a no-op on the map itself: no tap, no «›».
     val action = (shareStatus(s, running, measurementStartMs, hasPoint, locate, online, hm = hm)?.action ?: ShareAction.TURN_ON)

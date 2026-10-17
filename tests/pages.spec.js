@@ -216,6 +216,15 @@ test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shares
   for (const fact of ["anderes Fahrzeug", "zwei Knöpfe zum Starten", "Die Messung kommt nicht auf die Karte", "Stimmen und Musik nie"]) expect(guide, fact).toContain(fact);
 });
 
+test("0.6.7: the motion sensor is read on the phone only, and «Unterwegs erkannt» is explained", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const text = await allText(page);
+  for (const fact of ["den Bewegungssensor, nur auf dem Telefon", "davon verlässt nichts das Telefon"]) expect(text, fact).toContain(fact);
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  for (const fact of ["Unterwegs erkannt", "etwa 3 Minuten ruhig"]) expect(guide, fact).toContain(fact);
+});
+
 test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
