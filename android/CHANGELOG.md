@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.7 — 2026-10-17 (published on the website) (versionCode 20)
+
+In short: «Laut! Melden» sends a report at whatever accuracy the phone's location has. Nothing new
+is sent.
+
+Built on 0.6.6. (Asked for as part of «0.6.5»; 0.6.5 and 0.6.6 already existed, so it is 0.6.7.)
+
+- **Reports at any location accuracy:** until 0.6.6 a report needed a fix of ± 50 m or better and
+  otherwise stopped with «Zu ungenau (± 107 m) – am Fenster mit WLAN klappt es meist besser». Now
+  the fix is used as it is; the confirmation shows its accuracy as before («Meldung: Töff, 16:05,
+  Standort ± 107 m – senden?») and the report carries it to the server as before. Still needed:
+  «Genauer Standort» allowed, a place in Switzerland. No fix at all (or one without any accuracy)
+  → «Kein Standort gefunden» and «Nochmals», as before.
+- **Unchanged:** the fix for a shared measurement (± 75 m at most, only the shifted point leaves
+  the phone).
+- **Server:** accepts a report's `accuracy_m` up to 10 000 m (was 200 m; a bound against nonsense,
+  no quality gate). Until the server is redeployed, a report with a fix worse than ± 200 m is
+  refused by the server and counted as refused on the phone.
+
 ## 0.6.6 — 2026-10-17 (published on the website) (versionCode 19)
 
 In short: the app measures only with the phone's own microphone, never with a connected headset's.

@@ -368,7 +368,7 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
-  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 200 m
+  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 10 000 m
   "category": "motorrad"                 // motorrad | auto | lastwagen | poser | andere
 }
 ```
@@ -381,7 +381,8 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
 - the point inside Switzerland: first the WGS84 box of the map (lat 45.8–47.85,
   lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
   border areas of neighbouring countries inside that box are accepted, as for site cells;
-- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields.
+- `0 ≤ accuracy_m ≤ 10 000` (a bound against nonsense, no quality gate: since app 0.6.7 a report
+  is sent at whatever accuracy the fix has; until then the bound was 200); `category` one of the five; no other fields.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
 `accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds.
@@ -404,7 +405,8 @@ of up to 50 reports, bearer auth as above:
 ```
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
-publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
+publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.6.7 (until 0.6.6
+`accuracy_m` ≤ 50).
 This is the only request with exact coordinates. The app keeps them only until the server has
 answered for the report, then deletes them (it keeps category, time and cell). Reports are not
 shifted: their place is their content (§2 rule 10). Response like

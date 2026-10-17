@@ -483,15 +483,17 @@ def test_reports_round_trip_and_validation(client, settings):
         "naive": {**report(recent(5)), "time": recent(5).replace(tzinfo=None).isoformat()},
         "outside": report(recent(5), lat=48.14, lon=11.58),  # München
         "north": report(recent(5), lat=47.9, lon=8.6),  # north of the box (Germany)
-        "accuracy": {**report(recent(5)), "accuracy_m": 201.0},
+        "accuracy": {**report(recent(5)), "accuracy_m": 10_000.1},
         "category": report(recent(5), category="velo"),
         "missing": {k: v for k, v in report(recent(5)).items() if k != "accuracy_m"},
         "extra": {**report(recent(5)), "device": "x"},
         "nan": {**report(recent(5)), "lat": "NaN"},
     }
     good = report(recent(4))
-    body = client.post(url, json=[good, *cases.values()], headers=auth).json()
-    assert body["accepted"] == 1
+    # App 0.6.7 sends a report at any accuracy: a poor fix (± 1500 m) is stored as it is.
+    poor = {**report(recent(3)), "accuracy_m": 1500.0}
+    body = client.post(url, json=[good, *cases.values(), poor], headers=auth).json()
+    assert body["accepted"] == 2
     assert [x["index"] for x in body["rejected"]] == list(range(1, len(cases) + 1))
     reasons = {k: rej["reasons"][0] for k, rej in zip(cases, body["rejected"], strict=True)}
     assert body["rejected"][0]["time"] == cases["old"]["time"]
@@ -500,7 +502,7 @@ def test_reports_round_trip_and_validation(client, settings):
     assert "zone offset" in reasons["naive"]["reason"]
     assert reasons["outside"] == {"field": "lat", "reason": "the point (lat, lon) is not in Switzerland"}
     assert reasons["north"]["field"] == "lat"
-    assert reasons["accuracy"]["field"] == "accuracy_m" and "200" in reasons["accuracy"]["reason"]
+    assert reasons["accuracy"]["field"] == "accuracy_m" and "10000" in reasons["accuracy"]["reason"]
     assert reasons["category"]["field"] == "category"
     assert reasons["missing"]["field"] == "accuracy_m"
     assert reasons["extra"]["field"] == "device"

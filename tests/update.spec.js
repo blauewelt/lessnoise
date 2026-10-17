@@ -67,11 +67,11 @@ test("without a hash: «Online-Version» (the default), and a link to «Offline-
   await expect(page.locator("h1, .home")).toHaveText(["Weniger Lärm", "Update prüfen"]);
 });
 
-test("the current version is 0.6.6 (versionCode 19); 13 (0.6.0) was the first of the new app id", async ({ page }) => {
+test("the current version is 0.6.7 (versionCode 20); 13 (0.6.0) was the first of the new app id", async ({ page }) => {
   await page.goto("/update.html");
   const d = await pageData(page);
-  expect(d.version).toBe("0.6.6");
-  expect(d.code).toBe(19);
+  expect(d.version).toBe("0.6.7");
+  expect(d.code).toBe(20);
   expect(d.firstCode).toBe(13);
 });
 

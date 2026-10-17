@@ -19,7 +19,9 @@ CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 # Categories of a manual report (§4.7), as the app offers them.
 REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
-MAX_REPORT_ACCURACY_M = 200.0
+# Since app 0.6.7 a report is sent at whatever accuracy the phone's fix has (owner, 2026-10-17);
+# this bound only rejects nonsense, it is no quality gate. Until then it was 200 m.
+MAX_REPORT_ACCURACY_M = 10_000.0
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
 POINT_SIGMAS_M = (25, 50, 100, 200)
 
