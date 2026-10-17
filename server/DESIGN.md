@@ -143,7 +143,7 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     lorry / poser passed». Its place *is* its content, so the server stores the point
     (rounded to 5 decimals of a degree, ≈ 1 m) and publishes it in `reports.json` (§6.4) as it
     was reported — not snapped to a hectare. What is published per report is exactly: the
-    point, the category, and the time **rounded down to the full hour**; since app 0.6.7 also the
+    point, the category, and the time **rounded down to the full hour**; since app 0.7.0 also the
     direction of travel in whole degrees, if the reporter took one with the phone's compass (north
     reference and compass accuracy are stored, not published). Never published: the
     device id, the exact time, the location accuracy, any link between two reports. Within an
@@ -359,7 +359,7 @@ wind, `threshold_db` ≥ 6.5, `lafmax_db` ≥ max(`min_level_db`, 30) and `durat
 server's checks of §4.4 and §6). Voices, music, unclassified and wind never leave the phone; no
 field was added to the bodies. A measurement started as «Unterwegs» (app 0.6.4, a start mode next
 to «Messen») is never shared: it gets no point, so none of its minutes and events is sent. Since app
-0.6.7 a measurement started with «Messen» also sends nothing of a time span in which the phone's
+0.7.0 a measurement started with «Messen» also sends nothing of a time span in which the phone's
 motion sensor showed it was being carried («Unterwegs erkannt»); no field was added.
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
@@ -372,9 +372,9 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
-  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 200 m
+  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 10 000 m
   "category": "motorrad",                // motorrad | auto | lastwagen | poser | andere
-  "direction": {                         // optional (app 0.6.7); absent or null = none given
+  "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
     "accuracy": "high"                   //   high | medium | low | unreliable (Android's compass status)
@@ -390,14 +390,15 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
 - the point inside Switzerland: first the WGS84 box of the map (lat 45.8–47.85,
   lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
   border areas of neighbouring countries inside that box are accepted, as for site cells;
-- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields;
-- `direction` (app 0.6.7) optional; if present exactly these three fields: `bearing_deg` an
+- `0 ≤ accuracy_m ≤ 10 000` (a bound against nonsense, no quality gate: since app 0.7.0 a report
+  is sent at whatever accuracy the fix has; until then the bound was 200); `category` one of the five; no other fields;
+- `direction` (app 0.7.0) optional; if present exactly these three fields: `bearing_deg` an
   integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
   the part, e.g. field `direction.bearing_deg`.
 
 **Old servers and the new field.** A server before schema v6 rejects `direction` like any unknown
 field (HTTP 200, the report in `rejected` with field `direction`, «Extra inputs are not permitted»).
-App 0.6.7 therefore re-queues a report that was rejected *only* for `direction` without it and sends
+App 0.7.0 therefore re-queues a report that was rejected *only* for `direction` without it and sends
 it again in the same run, so a report is never lost while the server is older than the app. Apps up
 to 0.6.6 never send the field and are unaffected by v6.
 
@@ -424,15 +425,16 @@ of up to 50 reports, bearer auth as above:
 ```
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
-publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
+publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
+`accuracy_m` ≤ 50).
 This is the only request with exact coordinates. The app keeps them only until the server has
-answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.6.7,
+answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.7.0,
 editions with the map, phones with a compass) is present only when the reporter pointed the phone
 and tapped «Richtung übernehmen»: the bearing the phone pointed at, corrected from magnetic to true
 north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
 or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
 It is not snapped to a street: no road data exists in the app or on the server (a server-side
-follow-up, WORKLOG 0.6.7). Reports are not
+follow-up, WORKLOG 0.6.7 / 0.7.0). Reports are not
 shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
@@ -497,7 +499,7 @@ gets all published files rebuilt at once when the server starts (`app.create_app
 database records its creation day and has nothing to rebuild. A failure rolls the step back and
 leaves v4.
 
-**Migration v5 → v6** (app 0.6.7; runs at startup, one transaction): `ALTER TABLE reports ADD
+**Migration v5 → v6** (app 0.7.0; runs at startup, one transaction): `ALTER TABLE reports ADD
 COLUMN direction_deg` (INTEGER), `direction_north`, `direction_accuracy` (TEXT). Existing reports
 get NULL, i.e. «no direction given». No row is lost or changed.
 

@@ -12,8 +12,8 @@ beantwortet oder unter «Teilen» «Auf die Karte senden» einschaltet: dann Peg
 jeder geteilten Messung mit dem Ort, an dem sie gestartet wurde – zufällig verschoben,
 standardmässig um etwa 50 m (in der App einstellbar); das Telefon bestimmt den Standort gleich nach
 dem Start einmal, solange die App offen ist, und behält und sendet nur den verschobenen Punkt –, und
-Meldungen mit «Laut! Melden» (Zeit, genauer Standort dieser Meldung,
-Kategorie, ab 0.6.7 wahlweise die Fahrtrichtung als Kompassrichtung; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
+Meldungen mit «Laut! Melden» (Zeit, Standort dieser Meldung, so genau, wie das Telefon ihn gerade
+hat, samt Genauigkeit, Kategorie, ab 0.7.0 wahlweise die Fahrtrichtung als Kompassrichtung; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte. Der Standort wird nie im
 Hintergrund gelesen. Seit 0.6.3 zeigt der Tab «Karte» die Lärmkarte der Website in der App; er lädt
 sie nur, solange er offen ist, wie ein Browser (Seite, Kartenbilder von swisstopo, Kartendaten) und
@@ -53,7 +53,7 @@ shared measurements, each with the point of its measurement moved at random on t
 Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offset every time for
 the same place, so averaging does not remove it; never the coordinates of the fix, never the raw
 classifier labels), and «Laut! Melden» reports with the exact place of the
-report (deleted from the phone once sent) and, since 0.6.7 and only if the reporter takes it, the direction of travel as one compass bearing; to one host (`api.lessnoise.ch`, in Switzerland),
+report (deleted from the phone once sent) and, since 0.7.0 and only if the reporter takes it, the direction of travel as one compass bearing; to one host (`api.lessnoise.ch`, in Switzerland),
 through one network class (`android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`),
 with no third-party SDK; deletable on the server from the app at any time («Daten auf dem Server
 löschen», reports included), and deleted by the server automatically after 60 days without
@@ -146,13 +146,16 @@ What the project counts, and who counts it — totals over the whole project, al
   map in the app.
 - **Phone app v0.6.4 (published 2026-10-16):** only machine and motor noise leaves the phone;
   «Unterwegs» is a start mode that shares nothing.
-- **Phone app v0.6.6 (published 2026-10-17, the current version):** the phone's noise floor
+- **Phone app v0.6.6 (published 2026-10-17):** the phone's noise floor
   («Messgrenze», 0.6.5) is estimated from the stored minutes and values at it are shown with «≤»;
   the app measures only with the phone's built-in microphone, never a headset's.
-- **Phone app v0.6.7 (branch `auto-unterwegs`, not published yet):** «Unterwegs erkannt» — in the
-  Online-Version a measurement started with «Messen» notices from the motion sensor (on the phone
-  only, no permission, no location) that the phone is being carried; meanwhile it alerts like
-  «Unterwegs» and shares nothing of that time span.
+- **Phone app v0.7.0 (Labor · Karte build for testing, not published yet; built on branches as
+  0.6.7–0.6.9):** «Unterwegs erkannt» — in the Online-Version a measurement started with «Messen»
+  notices from the motion sensor (on the phone only, no permission, no location) that the phone is
+  being carried; meanwhile it alerts like «Unterwegs», «Antippen zum Melden» opens a report, and
+  nothing of that time span is shared. «Laut! Melden» sends a report at whatever accuracy the
+  phone's location has, with that accuracy (it no longer stops at ± 50 m), and can carry the
+  direction the vehicle drove, taken with the phone's compass.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

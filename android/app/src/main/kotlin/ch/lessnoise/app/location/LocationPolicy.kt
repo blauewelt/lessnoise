@@ -27,9 +27,6 @@ object LocationPolicy {
      */
     const val MAX_ACCURACY_M = 75.0
 
-    /** Worst accepted accuracy of a «Laut! Melden» report. */
-    const val REPORT_MAX_ACCURACY_M = 50.0
-
     /** Stop waiting for the other provider once a fix is at least this good. */
     const val GOOD_ENOUGH_M = 25.0
 
@@ -76,7 +73,7 @@ object LocationPolicy {
         /** Only «Ungefähr» was allowed: a fix would be off by up to ~2 km; none was requested. */
         data object ApproximateOnly : Outcome
 
-        /** The fix was too inaccurate (over [MAX_ACCURACY_M]); [accuracyM] null = the phone gave none. */
+        /** The fix at «Start» was too inaccurate (over [MAX_ACCURACY_M]); [accuracyM] null = the phone gave none. Never for a report. */
         data class TooInaccurate(val accuracyM: Int?) : Outcome
 
         /** The fix is not in Switzerland (or the hectare is outside the server's range). */
@@ -141,20 +138,28 @@ object LocationPolicy {
 
     /** The result of the fix for a report: the coordinates, or why there are none. */
     sealed interface ReportOutcome {
-        /** Accepted: exact place, accuracy (m) and its cell. Goes straight into the report queue. */
+        /**
+         * Accepted: the place as the phone has it, its accuracy (m, sent with the report and shown
+         * in the confirmation) and its cell. Goes straight into the report queue.
+         */
         data class Fix(val lat: Double, val lon: Double, val accuracyM: Double, val cell: String) : ReportOutcome {
             val accuracyText: Int get() = roundUp(accuracyM)
         }
 
-        /** No usable fix; [outcome] says why (never [Outcome.Shifted]). */
+        /** No usable fix; [outcome] says why (never [Outcome.Shifted], never [Outcome.TooInaccurate]). */
         data class Problem(val outcome: Outcome) : ReportOutcome
     }
 
-    /** «Laut! Melden»: precise permission, accuracy ≤ [REPORT_MAX_ACCURACY_M] and a place in Switzerland. */
+    /**
+     * «Laut! Melden»: precise permission and a place in Switzerland. Since 0.6.7 a report never
+     * refuses a fix because of its accuracy: the fix is used as it is, and its accuracy goes with
+     * the report and into the confirmation («Standort ± 107 m»). A fix that reports no accuracy
+     * at all (rare; the server needs one) counts as no fix ([Outcome.NoFix], «Nochmals»).
+     */
     fun decideReport(lat: Double, lon: Double, accuracyM: Double?, precise: Boolean): ReportOutcome {
         if (!precise) return ReportOutcome.Problem(Outcome.ApproximateOnly)
-        val acc = accuracyM?.takeIf { !it.isNaN() && it >= 0 }
-        if (acc == null || acc > REPORT_MAX_ACCURACY_M) return ReportOutcome.Problem(Outcome.TooInaccurate(acc?.let { roundUp(it) }))
+        val acc = accuracyM?.takeIf { !it.isNaN() && !it.isInfinite() && it >= 0 }
+            ?: return ReportOutcome.Problem(Outcome.NoFix)
         return when (val p = CellInput.fromLatLon(lat, lon, how = "Standort")) {
             is CellInput.Parsed.Ok -> ReportOutcome.Fix(lat, lon, acc, p.cell)
             is CellInput.Parsed.Error -> ReportOutcome.Problem(Outcome.OutsideSwitzerland(p.message))

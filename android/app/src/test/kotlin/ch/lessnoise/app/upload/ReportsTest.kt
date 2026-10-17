@@ -186,6 +186,28 @@ class ReportsTest {
     }
 
     @Test
+    fun aPoorFixIsReportedAsItIsWithItsAccuracy() {
+        // 0.6.7: the owner's «Zu ungenau (± 107 m)» case. The fix becomes the report, the
+        // confirmation says «Standort ± 107 m», and the body carries the accuracy as given.
+        val fix = ch.lessnoise.app.location.LocationPolicy.decideReport(47.376912345, 8.541694321, 106.24, precise = true)
+        assertIs<ch.lessnoise.app.location.LocationPolicy.ReportOutcome.Fix>(fix)
+        assertEquals("Meldung: Töff, 16:05, Standort ± 107 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, fix.accuracyText, zone))
+        val r = PendingReport(
+            epochMs = now, timeIso = PendingReport.isoSeconds(now, zone),
+            lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM, category = ReportCategory.MOTORRAD.id, cell = fix.cell,
+        )
+        val o = Payloads.report(r)
+        assertEquals("106.2", o["accuracy_m"].toString())
+        assertEquals("47.37691", o["lat"].toString(), "the place as the phone has it, not shifted")
+        // The flow: a Fix always goes to the confirmation; only a Problem shows «Kein genauer Standort».
+        val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        assertTrue(ui.contains("is LocationPolicy.ReportOutcome.Fix -> ReportStep.Confirm(category, o)"))
+        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText)"))
+        val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
+        assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
+    }
+
+    @Test
     fun textsAreShortAndSayWhatIsSent() {
         assertEquals("Meldung: Töff, 16:05, Standort ± 12 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, 12, zone))
         for (part in listOf("Zeit", "genauer Standort", "Art des Lärms", "nie Audio", "Lärmkarte", "gleichen Ort", "«Vom Server löschen»")) {

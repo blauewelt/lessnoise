@@ -567,7 +567,7 @@ measurement started with «Messen» never alerts. The tap opens `MainActivity` w
 time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
 report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
 `road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
-precise fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
+fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
 nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
 (every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
 (`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
@@ -753,8 +753,8 @@ location is read and the measurement has no point; a measurement without a point
 
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
 Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes Fahrzeug — until 0.6.3 «anderes» → ids `motorrad`, `auto`,
-`lastwagen`, `poser`, `andere`) → one precise fix (`LocationFetcher.locateForReport`, accuracy
-≤ 50 m, else the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
+`lastwagen`, `poser`, `andere`) → one fix (`LocationFetcher.locateForReport`; since 0.6.7 at any
+accuracy, used as the phone has it, until 0.6.6 ≤ 50 m; no fix → the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
 every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
 (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`) («Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the
 second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and schedules
@@ -815,8 +815,8 @@ window, rate limit / 4xx / no network, coordinate entry. `ReportsTest.kt` checks
 categories and body, ≤ 50 per request, that coordinates are gone after sending (and after switching
 off or deleting), and the 404/4xx handling. `app/src/test/.../data/MeasurementsDbTest.kt` checks the
 migration 5 → 6 on SQLite and how rows become measurements. `app/src/test/.../location/LocationPolicyTest.kt`
-checks lat/lon → cell (Zürich points from `lv95.js`), the accuracy/«Ungefähr»/last-known rules, the
-≤ 50 m rule of reports and the texts; `LocationIsolationTest.kt` checks the manifests (location only in `public`/`laborKarte`,
+checks lat/lon → cell (Zürich points from `lv95.js`), the accuracy/«Ungefähr»/last-known rules, that a
+report takes a fix at any accuracy (0.6.7) and the texts; `LocationIsolationTest.kt` checks the manifests (location only in `public`/`laborKarte`,
 removed in `offline`/`labor`, no background location) and that the location code logs, stores and
 sends nothing. `dsp/src/test/.../geo/Lv95Test.kt` checks
 the conversion against the five reference points of DESIGN.md §3 and against values computed with
@@ -881,9 +881,15 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.7 (versionCode 20, 2026-10-17: the optional direction of travel in «Laut! Melden») is built
-for the owner's phone as Labor · Karte only; the public editions on the website stay at 0.6.6 until
-it has been tried. v0.6.6 (versionCode 19, published 2026-10-17) is the current public version, signed APKs in
+v0.7.0 (versionCode 23, 2026-10-17) is built for the owner's phone as Labor · Karte only; it brings
+together three lines of work that were built as 0.6.7–0.6.9 on separate branches: «Unterwegs
+erkannt» with «Antippen zum Melden» and the Labor-only «Melden» button and position signal
+(auto-unterwegs, 0.6.7–0.6.9), «Laut! Melden» at any location accuracy (report-any-accuracy, its
+0.6.7/20 never published), and the optional direction of travel in «Laut! Melden». The server code
+accepts `accuracy_m` up to 10 000 m and the optional `direction` (schema v6); both need a redeploy.
+The public editions on the website stay at 0.6.6 until it has been tried.
+
+v0.6.6 (versionCode 19, published 2026-10-17) is the current public version, signed APKs in
 `../docs/download/`: v0.6.5 (the estimated per-phone noise floor «Messgrenze», versionCode 18, only
 sent to the owner's phone, never on the website) plus measuring with the phone's built-in
 microphone only (see «Known limitations» → «Built-in microphone only»). Verified on the JVM (unit

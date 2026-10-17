@@ -1,24 +1,29 @@
 # Changelog
 
-## 0.6.7 — 2026-10-17 (versionCode 20; Labor · Karte build for the owner's phone, not on the website)
+## 0.7.0 — 2026-10-17 (versionCode 23; Labor · Karte build for the owner's phone, not on the website)
 
-In short: «Laut! Melden» can say in which direction the vehicle drove. One optional step, no new
-permission. New in what is sent: the direction, only if you take it.
+In short: one version for three lines of work that were built separately as 0.6.7–0.6.9 (the
+entries below): «Unterwegs erkannt», «Laut! Melden» at any location accuracy, and the direction of
+travel in «Laut! Melden». versionCode 23 is above every earlier build, so it installs over 0.6.9.
 
-Built on 0.6.6.
+Built on 0.6.6 + branch auto-unterwegs (0.6.7–0.6.9/22) + branch report-any-accuracy (0.6.7/20).
 
-- **Direction of travel (editions with the map):** after «Was war laut?» the dialog «Wohin fuhr es?»
-  shows a live arrow of where the phone points (held flat: the top of the screen; held upright: the
-  back of the phone). «Richtung übernehmen» keeps it, «Überspringen» sends the report as before. A
-  hint to move the phone in a figure-eight appears only while the compass reports low accuracy.
-  Not shown on phones without a compass. The report then carries one bearing in whole degrees
-  (true north from the declination at the report's place; magnetic if that is not available) and
-  the compass's accuracy class; the confirmation says e.g. «Richtung Nordost».
+- **«Unterwegs erkannt»** with «Antippen zum Melden» and, in Labor · Karte only, the «Melden» button
+  on the notification, trams and trains, and the position as a second signal: as in 0.6.7–0.6.9 of
+  branch auto-unterwegs, below.
+- **Reports at any location accuracy:** as in 0.6.7 of branch report-any-accuracy, below (server:
+  `accuracy_m` up to 10 000 m).
+- **Direction of travel (new, editions with the map):** after «Was war laut?» the dialog «Wohin fuhr
+  es?» shows a live arrow of where the phone points (held flat: the top of the screen; held upright:
+  the back of the phone). «Richtung übernehmen» keeps it, «Überspringen» sends the report as before.
+  A hint to move the phone in a figure-eight appears only while the compass reports low accuracy.
+  Not shown on phones without a compass. The report then carries one bearing in whole degrees (true
+  north from the declination at the report's place; magnetic if that is not available) and the
+  compass's accuracy class; the confirmation says e.g. «Richtung Nordost». No new permission.
 - **Server and map:** the server (schema v6) accepts and stores the optional `direction`; the map
-  draws a small arrow on the report's point. Against a server without it (the deployed one until
-  it is updated) the app sends the report again without the direction instead of losing it.
-- Not snapped to the street: no road data exists in the app or on the server (server-side
-  follow-up).
+  draws a small arrow on the report's point. Against a server without it (the deployed one until it
+  is updated) the app sends the report again without the direction instead of losing it. Not snapped
+  to the street: no road data exists in the app or on the server (server-side follow-up).
 
 ## 0.6.9 — Labor·Karte only, not published (branch auto-unterwegs) (versionCode 22)
 
@@ -65,6 +70,25 @@ permission. Nothing new is sent.
   map after about 35 s instead of 30 s). The «Unterwegs» button is unchanged.
 - **Labor·Karte only:** every change still ↔ carried is a `motion` line in `manifest.jsonl` with the
   numbers that decided it; Einstellungen › Labor shows «Bewegung» while measuring.
+
+## 0.6.7 — not published (branch report-any-accuracy) (versionCode 20)
+
+In short: «Laut! Melden» sends a report at whatever accuracy the phone's location has. Nothing new
+is sent.
+
+Built on 0.6.6. (Asked for as part of «0.6.5»; 0.6.5 and 0.6.6 already existed, so it is 0.6.7.)
+
+- **Reports at any location accuracy:** until 0.6.6 a report needed a fix of ± 50 m or better and
+  otherwise stopped with «Zu ungenau (± 107 m) – am Fenster mit WLAN klappt es meist besser». Now
+  the fix is used as it is; the confirmation shows its accuracy as before («Meldung: Töff, 16:05,
+  Standort ± 107 m – senden?») and the report carries it to the server as before. Still needed:
+  «Genauer Standort» allowed, a place in Switzerland. No fix at all (or one without any accuracy)
+  → «Kein Standort gefunden» and «Nochmals», as before.
+- **Unchanged:** the fix for a shared measurement (± 75 m at most, only the shifted point leaves
+  the phone).
+- **Server:** accepts a report's `accuracy_m` up to 10 000 m (was 200 m; a bound against nonsense,
+  no quality gate). Until the server is redeployed, a report with a fix worse than ± 200 m is
+  refused by the server and counted as refused on the phone.
 
 ## 0.6.6 — 2026-10-17 (published on the website) (versionCode 19)
 

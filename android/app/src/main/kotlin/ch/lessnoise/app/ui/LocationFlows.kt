@@ -54,7 +54,7 @@ private sealed interface ReportStep {
 
 /**
  * «Laut! Melden» (Karten editions, while no measurement runs): consent (only while «Teilen» is
- * off, i.e. the person has not said «Ja, auf die Karte») → «Was war laut?» → ONE precise fix (≤ 50 m) → «Meldung: …, Standort ± n m –
+ * off, i.e. the person has not said «Ja, auf die Karte») → «Was war laut?» → ONE fix (any accuracy since 0.7.0; shown and sent with the report) → «Meldung: …, Standort ± n m –
  * Senden?» → queued and uploaded (UploadModule.uploadSoon). The time is the tap on the button,
  * to the second. [onQueued] is called after «Senden».
  *

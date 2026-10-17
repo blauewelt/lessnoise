@@ -19,7 +19,9 @@ CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 # Categories of a manual report (§4.7), as the app offers them.
 REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
-MAX_REPORT_ACCURACY_M = 200.0
+# Since app 0.7.0 a report is sent at whatever accuracy the phone's fix has (owner, 2026-10-17);
+# this bound only rejects nonsense, it is no quality gate. Until then it was 200 m.
+MAX_REPORT_ACCURACY_M = 10_000.0
 # Direction of travel of a report (§4.7, app 0.6.7): the compass's accuracy class as Android
 # reports it, and whether the bearing is referred to true or to magnetic north.
 DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
