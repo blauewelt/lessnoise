@@ -352,7 +352,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         deviceModel = CalibrationRepository.deviceModel,
         androidRelease = Build.VERSION.RELEASE ?: "?", sdkInt = Build.VERSION.SDK_INT,
         appVersion = BuildConfig.VERSION_NAME, appVersionCode = BuildConfig.VERSION_CODE,
-        audioSource = s.audioSource, encoding = s.encoding, effects = s.effects,
+        audioSource = s.audioSource, encoding = s.encoding, effects = s.effects, inputDevice = s.inputDevice,
         calibrationId = s.calibrationId, calibrationOffsetDb = s.calibrationOffsetDb, calibrated = s.calibrated,
         eventExcessDb = s.eventExcessDb, localFloorWindowSeconds = s.localFloorWindowSeconds, eventMinLevelDb = s.eventMinLevelDb,
         windLfShareMin = s.windLfShareMin, windFlutterMinDb = s.windFlutterMinDb,

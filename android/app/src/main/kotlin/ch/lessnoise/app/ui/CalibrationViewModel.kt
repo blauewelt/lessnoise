@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ch.lessnoise.app.audio.AudioCapture
+import ch.lessnoise.app.audio.BuiltInMic
 import ch.lessnoise.app.audio.AudioSourceSelector
 import ch.lessnoise.app.container
 import ch.lessnoise.app.data.CalibrationEntity
@@ -102,7 +103,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (r.shouldStop) viewModelScope.launch { finish(mode) }
-        }, onError = { msg -> viewModelScope.launch { abort("Mikrofon-Fehler: $msg") } },
+        }, onError = { msg -> viewModelScope.launch { abort(BuiltInMic.errorText("Mikrofon-Fehler: ", msg)) } },
             onSilenced = { silenced ->
                 r.onMicSilenced(silenced)
                 if (r.shouldStop) viewModelScope.launch { finish(mode) }
@@ -113,7 +114,7 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             capture = cap
         } catch (e: Exception) {
             c.calibrationActive.value = false
-            _state.value = _state.value.copy(running = null, message = "Mikrofon konnte nicht geöffnet werden: ${e.message}")
+            _state.value = _state.value.copy(running = null, message = BuiltInMic.errorText("Mikrofon konnte nicht geöffnet werden: ", e.message))
         }
     }
 

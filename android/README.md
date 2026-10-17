@@ -254,7 +254,7 @@ so a better model can be swapped in without touching the measurement code.
 | Gradle flavour | `public` | `offline` (default variant) | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"karte"` | `"offline"` | `"labor"` | `"labor-karte"` |
 | App id (since 0.6.0; before `ch.stadtlaerm.*`) | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
-| Version name | `0.6.3` | `0.6.3` | `0.6.3-labor` | `0.6.3-labor-karte` |
+| Version name | `0.6.6` | `0.6.6` | `0.6.6-labor` | `0.6.6-labor-karte` |
 | Launcher label | «Weniger Lärm» | «Weniger Lärm» | «Weniger Lärm Labor» | «Weniger Lärm Labor» |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
@@ -788,6 +788,19 @@ the website's `lv95.js`.
 - **Audio source.** The app uses Android's `UNPROCESSED` source when the phone declares support
   for it, otherwise `VOICE_RECOGNITION`, and switches off AGC/noise suppression/echo
   cancellation where Android allows it. Some phones still apply processing; calibrate per source.
+- **Built-in microphone only (0.6.6).** The app always measures with the phone's own microphone,
+  never a connected headset's (Bluetooth, LE Audio, wired, USB): a headset microphone is tuned to
+  the wearer's voice, and the calibration belongs to the built-in one. `audio/AudioCapture.kt` lists
+  the inputs (`AudioManager.getDevices(GET_DEVICES_INPUTS)`), pins the built-in microphone
+  (`TYPE_BUILTIN_MIC`, the «bottom» one if the phone lists several) with `setPreferredDevice`, and
+  after `startRecording()` checks `getRoutedDevice()` (API 29+: also the active recording
+  configuration's device); it checks again on every routing change. If another input is routed, it
+  does not measure and shows «Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset
+  trennen und neu starten.» (the error line on «Messen» and in «Kalibrieren»). An unknown route
+  is checked once more before the first audio block is used; a phone that reports no built-in
+  microphone measures as before. The rule is `audio/BuiltInMic.kt` (pure, `BuiltInMicTest`). The
+  Labor build shows the delivering input under Einstellungen › Labor («Mikrofon», while measuring)
+  and writes it to `session_start` (`inputDevice`).
 - **Wind** causes large false low-frequency levels. Shield the phone; don't measure in strong
   wind. Since v0.4.0 events that look like wind are flagged and not counted, but the levels (LAeq,
   L90 …) still contain the wind. The wind rule was derived from one night at one window and is
@@ -826,7 +839,14 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.4 (versionCode 17, 2026-10-16) is the current version, signed APKs in `../docs/download/`:
+v0.6.6 (versionCode 19, published 2026-10-17) is the current version, signed APKs in
+`../docs/download/`: v0.6.5 (the estimated per-phone noise floor «Messgrenze», versionCode 18, only
+sent to the owner's phone, never on the website) plus measuring with the phone's built-in
+microphone only (see «Known limitations» → «Built-in microphone only»). Verified on the JVM (unit
+tests of all flavours, dsp, chart; website Playwright) and on the signed APKs (`apksigner`,
+`aapt2`, `dexdump`); not run on a device, in particular not with a Bluetooth or LE Audio headset.
+
+v0.6.4 (versionCode 17, published 2026-10-16) was the version before, signed APKs in `../docs/download/`:
 only map events leave the phone (`Payloads.isMapEvent`: the five machine and motor categories, not
 wind, the server's quality gates; also the live-upload trigger); «Unterwegs» is a start mode next to
 «Messen» that shares nothing (database v7 → v8); «Laut! Melden» says «anderes Fahrzeug». Verified on
@@ -1003,7 +1023,7 @@ if the window was ignored because it touched silenced/invalid audio, then `ignor
 decision on the *average* of the windows overlapping it (as in the public app).
 
 **Manifest lines** (`type`): `session_start` (device model, Android version, app version, audio
-source, encoding, effects, calibration id/offset, the detector settings — since 0.4.0 `detector:
+source, encoding, effects, since 0.6.6 `inputDevice` (the microphone that delivered the audio), calibration id/offset, the detector settings — since 0.4.0 `detector:
 "v2"`, `eventExcessDb`, `localFloorWindowS`, `eventFloorDb`, `windLfShareMin`, `windFlutterMinDb`
 (before: `eventThresholdDb`) —, classifier settings, recording settings), `clock` (the engine's sample clock:
 input sample *s* at 48 kHz, counted from the start of the measurement, was recorded at

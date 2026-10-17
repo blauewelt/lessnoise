@@ -85,6 +85,8 @@ object ManifestLines {
         val audioSource: String,
         val encoding: String,
         val effects: List<String>,
+        /** 0.6.6: the input that delivered the audio (BuiltInMic.label), e.g. «eingebautes Mikrofon (bottom)». */
+        val inputDevice: String,
         val calibrationId: Long?,
         val calibrationOffsetDb: Double,
         val calibrated: Boolean,
@@ -109,6 +111,7 @@ object ManifestLines {
             .put("android", i.androidRelease).put("sdk", i.sdkInt)
             .put("app", i.appVersion).put("appCode", i.appVersionCode)
             .put("audioSource", i.audioSource).put("encoding", i.encoding).putStrings("effects", i.effects)
+            .put("inputDevice", i.inputDevice)
             .put("calibrationId", i.calibrationId).put("calibrationOffsetDb", i.calibrationOffsetDb).put("calibrated", i.calibrated)
             // Detector v2 (0.4.0): start at local floor + excess; wind rule thresholds.
             .put("detector", "v2").put("eventExcessDb", i.eventExcessDb).put("localFloorWindowS", i.localFloorWindowSeconds)

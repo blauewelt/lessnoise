@@ -277,6 +277,8 @@ object EditionUi {
             StatRow("Clips", sts?.clipCount?.toString() ?: "…")
             StatRow("Stundendateien", sts?.hourFiles?.toString() ?: "…")
             StatRow("Klassifikator-Protokolle", sts?.classifierFiles?.toString() ?: "…")
+            // 0.6.6: which input delivers the audio (the app measures only with the built-in microphone).
+            if (live.running) StatRow("Mikrofon", live.inputDevice ?: "unbekannt")
             if (st.storageFull) {
                 Text("Speicher voll: Die Aufnahme wurde gestoppt, die Messung läuft weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
             }

@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.6.5 — 2026-10-16 (versionCode 18)
+## 0.6.6 — 2026-10-17 (published on the website) (versionCode 19)
+
+In short: the app measures only with the phone's own microphone, never with a connected headset's.
+No new setting, no new permission. Nothing new is sent.
+
+Built on 0.6.5 (which was not on the website; the website goes from 0.6.4 to 0.6.6).
+
+- **Built-in microphone only:** the app pins the phone's built-in microphone before it starts
+  recording and checks afterwards which input Android really uses, also when a headset connects
+  during a measurement. A headset microphone (Bluetooth, LE Audio, cable, USB) is tuned to the
+  wearer's voice and the calibration belongs to the phone's microphone, so the app does not measure
+  with it: it stops and says «Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset
+  trennen und neu starten.» (on «Messen», and in «Kalibrieren»). A phone that reports no built-in
+  microphone measures as before.
+- **Labor only:** Einstellungen › Labor shows «Mikrofon» (which input delivers the audio) while
+  measuring; the manifest's `session_start` has `inputDevice`.
+
+## 0.6.5 — 2026-10-16 (versionCode 18; sent to the owner's phone, not on the website)
 
 In short: the app estimates its own measurement limit («Messgrenze») from the minutes it has
 already measured and marks values at that limit with «≤». No new setting. Nothing new is sent.

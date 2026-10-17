@@ -2,16 +2,20 @@ package ch.lessnoise.app.audio
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioRecordingConfiguration
+import android.media.AudioRouting
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.util.Log
 import ch.lessnoise.dsp.Acoustics
@@ -50,10 +54,20 @@ data class CaptureInfo(
     val encoding: String,
     /** e.g. "AGC: deaktiviert", "NS: nicht vorhanden". */
     val effects: List<String>,
+    /** 0.6.6: the input that delivers the audio, e.g. «eingebautes Mikrofon (bottom)» (Labor diagnostics). */
+    val inputDevice: String = "unbekannt",
 )
+
+/** 0.6.6: Android routes a microphone other than the phone's own; the app does not measure with it. */
+class WrongMicrophoneException : IllegalStateException(BuiltInMic.WRONG_MIC_MESSAGE)
 
 /**
  * Microphone capture on a dedicated thread: 48 kHz, mono, PCM float (16-bit fallback).
+ *
+ * 0.6.6: always the phone's built-in microphone ([BuiltInMic]): it is pinned with
+ * setPreferredDevice, and if Android still routes another input (a headset) at the start or later,
+ * the capture fails with [BuiltInMic.WRONG_MIC_MESSAGE] instead of measuring through it. A phone that
+ * reports no built-in microphone measures as before.
  *
  * PRIVACY: audio exists only in the reusable [FloatArray] block (125 ms) handed to [onBlock]
  * and in AudioRecord's own internal buffer. Nothing is written to disk, logged or sent anywhere.
@@ -69,6 +83,8 @@ class AudioCapture(
      * app receives zeros; callers must not evaluate that audio.
      */
     private val onSilenced: (Boolean) -> Unit = {},
+    /** 0.6.6: the input delivering the audio changed to another built-in microphone (Labor diagnostics). */
+    private val onInputDevice: (String) -> Unit = {},
 ) {
     companion object {
         private const val TAG = "AudioCapture"
@@ -82,6 +98,13 @@ class AudioCapture(
     private var recordingCallback: AudioManager.AudioRecordingCallback? = null
     private var callbackExecutor: ExecutorService? = null
     @Volatile private var lastSilenced = false
+    /** The built-in microphone pinned at the start (null: the phone reports none). */
+    private var builtIn: BuiltInMic.Device? = null
+    private var routingListener: AudioRouting.OnRoutingChangedListener? = null
+    /** The route was not known yet at the start: check once more before the first block is used. */
+    @Volatile private var recheckRoute = false
+    /** Another microphone took over: no further block reaches [onBlock] until [stop]. */
+    @Volatile private var wrongRoute = false
 
     @SuppressLint("MissingPermission") // checked by the caller before starting
     fun start(sourceName: String): CaptureInfo {
@@ -95,20 +118,32 @@ class AudioCapture(
         }
         record = rec
         val fx = disableEffects(rec.audioSessionId)
-        val info = CaptureInfo(
-            source = sourceName,
-            sampleRate = rec.sampleRate,
-            encoding = if (encoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM_16BIT",
-            effects = fx,
-        )
+        val info: CaptureInfo
         try {
             if (rec.sampleRate != Acoustics.SAMPLE_RATE) {
                 throw IllegalStateException("Mikrofon nicht unterstützt (${rec.sampleRate} Hz)")
             }
+            // 0.6.6: pin the phone's own microphone before recording starts.
+            val inputs = inputDevices()
+            val mic = BuiltInMic.pick(inputs.map { it.first })
+            builtIn = mic
+            val micInfo = mic?.let { m -> inputs.firstOrNull { it.first.id == m.id }?.second }
+            if (micInfo != null && !rec.setPreferredDevice(micInfo)) Log.w(TAG, "setPreferredDevice refused")
             rec.startRecording()
             if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                 throw IllegalStateException("Mikrofon ist belegt (andere App?)")
             }
+            val routed = routedDevice(rec)
+            val route = BuiltInMic.check(mic, routed)
+            if (!BuiltInMic.mayMeasure(route)) throw WrongMicrophoneException()
+            recheckRoute = route == BuiltInMic.Route.UNKNOWN
+            info = CaptureInfo(
+                source = sourceName,
+                sampleRate = rec.sampleRate,
+                encoding = if (encoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM_16BIT",
+                effects = fx,
+                inputDevice = BuiltInMic.label(routed, route),
+            )
         } catch (e: Exception) {
             // Release everything: the caller only keeps a reference after a successful start.
             effects.forEach { try { it.release() } catch (_: Exception) {} }
@@ -119,6 +154,7 @@ class AudioCapture(
         }
         running = true
         registerSilencingCallback(rec)
+        registerRoutingListener(rec)
         val isFloat = encoding == AudioFormat.ENCODING_PCM_FLOAT
         thread = Thread({ loop(rec, isFloat) }, "lessnoise-capture").apply { start() }
         return info
@@ -148,6 +184,61 @@ class AudioCapture(
             rec.activeRecordingConfiguration?.let { if (it.isClientSilenced) { lastSilenced = true; onSilenced(true) } }
         } catch (e: Exception) {
             Log.w(TAG, "recording callback unavailable: ${e.javaClass.simpleName}")
+        }
+    }
+
+    /** AudioManager's input devices as descriptors for [BuiltInMic], with the Android object for pinning. */
+    private fun inputDevices(): List<Pair<BuiltInMic.Device, AudioDeviceInfo>> = try {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.getDevices(AudioManager.GET_DEVICES_INPUTS).map { describe(it) to it }
+    } catch (e: Exception) {
+        Log.w(TAG, "input devices unavailable: ${e.javaClass.simpleName}")
+        emptyList()
+    }
+
+    private fun describe(d: AudioDeviceInfo) = BuiltInMic.Device(
+        id = d.id,
+        type = d.type,
+        address = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) d.address.orEmpty() else "",
+        productName = d.productName?.toString().orEmpty(),
+    )
+
+    /**
+     * The input that actually delivers the audio: getRoutedDevice(), and on API 29+ the active
+     * recording configuration's device if Android does not report a route (yet). Null if unknown.
+     */
+    private fun routedDevice(rec: AudioRecord): BuiltInMic.Device? {
+        val routed = try { rec.routedDevice } catch (_: Exception) { null }
+            ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try { rec.activeRecordingConfiguration?.audioDevice } catch (_: Exception) { null }
+            } else null
+        return routed?.let { describe(it) }
+    }
+
+    /** Re-checks the route; false (and [onError]) if Android now routes another microphone. */
+    private fun verifyRoute(rec: AudioRecord): Boolean {
+        val routed = routedDevice(rec)
+        val route = BuiltInMic.check(builtIn, routed)
+        if (!BuiltInMic.mayMeasure(route)) {
+            if (!wrongRoute && running) {
+                wrongRoute = true
+                onError(BuiltInMic.WRONG_MIC_MESSAGE)
+            }
+            return false
+        }
+        if (routed != null) onInputDevice(BuiltInMic.label(routed, route))
+        return true
+    }
+
+    /** A headset connected while measuring may take over the input: stop rather than measure through it. */
+    private fun registerRoutingListener(rec: AudioRecord) {
+        if (builtIn == null) return // no built-in microphone reported: measure as before 0.6.6
+        val l = AudioRouting.OnRoutingChangedListener { if (running) verifyRoute(rec) }
+        try {
+            rec.addOnRoutingChangedListener(l, Handler(Looper.getMainLooper()))
+            routingListener = l
+        } catch (e: Exception) {
+            Log.w(TAG, "routing listener unavailable: ${e.javaClass.simpleName}")
         }
     }
 
@@ -215,7 +306,12 @@ class AudioCapture(
                     if (n < 0) throw IllegalStateException("Mikrofon-Fehler $n")
                     filled += n
                 }
-                if (filled == BLOCK) onBlock(buf, BLOCK)
+                // The route was unknown at the start: check it before the first audio is used.
+                if (filled == BLOCK && recheckRoute) {
+                    recheckRoute = false
+                    if (!verifyRoute(rec)) return
+                }
+                if (filled == BLOCK && !wrongRoute) onBlock(buf, BLOCK)
             }
         } catch (e: Exception) {
             if (running) onError(e.message ?: e.javaClass.simpleName)
@@ -234,6 +330,10 @@ class AudioCapture(
         callbackExecutor?.shutdown()
         callbackExecutor = null
         lastSilenced = false
+        routingListener?.let { l -> try { record?.removeOnRoutingChangedListener(l) } catch (_: Exception) {} }
+        routingListener = null
+        recheckRoute = false
+        wrongRoute = false
         try { record?.stop() } catch (_: Exception) {}
         thread?.join(2000)
         thread = null

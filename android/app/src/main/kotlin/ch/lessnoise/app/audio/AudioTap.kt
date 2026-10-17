@@ -52,6 +52,8 @@ data class AudioTapSession(
     val audioSource: String,
     val encoding: String,
     val effects: List<String>,
+    /** 0.6.6: the input that delivered the audio at the start (BuiltInMic.label). */
+    val inputDevice: String = "unbekannt",
     val calibrationId: Long?,
     val calibrationOffsetDb: Double,
     val calibrated: Boolean,

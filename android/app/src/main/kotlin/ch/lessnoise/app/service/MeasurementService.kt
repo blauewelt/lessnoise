@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import ch.lessnoise.app.R
 import ch.lessnoise.app.audio.AudioCapture
 import ch.lessnoise.app.audio.AudioSourceSelector
+import ch.lessnoise.app.audio.BuiltInMic
 import ch.lessnoise.app.audio.AudioTap
 import ch.lessnoise.app.audio.AudioTapSession
 import ch.lessnoise.app.audio.NoAudioTap
@@ -107,6 +108,8 @@ data class LiveState(
      * no point, no minutes, no events (MeasurementEntity.unterwegs).
      */
     val unterwegs: Boolean = false,
+    /** 0.6.6: the input delivering the audio (BuiltInMic.label), shown in the Labor build only. */
+    val inputDevice: String? = null,
 )
 
 /** An event as it was detected (0.6.3, [LiveState.lastEvent]). Levels as shown (calibrated if the phone is). */
@@ -289,7 +292,7 @@ class MeasurementService : Service() {
                     val cap = AudioCapture(
                         this@MeasurementService, ::onBlock,
                         onError = { msg ->
-                            container.live.value = container.live.value.copy(error = "Mikrofon-Fehler: $msg")
+                            container.live.value = container.live.value.copy(error = BuiltInMic.errorText("Mikrofon-Fehler: ", msg))
                             // Called on the capture thread: stop from another thread so join() can complete.
                             scope.launch { stopMeasurement() }
                         },
@@ -297,6 +300,7 @@ class MeasurementService : Service() {
                             eng.setMicSilenced(silenced)
                             container.live.update { it.copy(micSilenced = silenced) }
                         },
+                        onInputDevice = { device -> container.live.update { it.copy(inputDevice = device) } },
                     )
                     val startedAt = System.currentTimeMillis()
                     measurementRow = scope.async {
@@ -312,7 +316,8 @@ class MeasurementService : Service() {
                     t.onSessionStart(
                         AudioTapSession(
                             startedAtMs = System.currentTimeMillis(), audioSource = info.source, encoding = info.encoding,
-                            effects = info.effects, calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
+                            effects = info.effects, inputDevice = info.inputDevice,
+                            calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                             calibrated = cal.calibrated, eventExcessDb = config.eventExcessDb,
                             localFloorWindowSeconds = config.localFloorWindowSeconds,
                             eventMinLevelDb = config.eventMinLevelDb,
@@ -327,11 +332,11 @@ class MeasurementService : Service() {
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
-                        measurementStartMs = startedAt, unterwegs = unterwegs,
+                        measurementStartMs = startedAt, unterwegs = unterwegs, inputDevice = info.inputDevice,
                     )
                 }
             } catch (e: Exception) {
-                live.value = LiveState(error = "Start fehlgeschlagen: ${e.message}")
+                live.value = LiveState(error = BuiltInMic.errorText("Start fehlgeschlagen: ", e.message))
                 synchronized(this@MeasurementService) {
                     if (stopping) releaseClassifier() else stopMeasurement()
                 }

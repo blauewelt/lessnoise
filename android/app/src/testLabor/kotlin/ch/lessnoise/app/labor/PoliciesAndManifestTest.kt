@@ -115,6 +115,7 @@ class PoliciesAndManifestTest {
         val info = ManifestLines.SessionInfo(
             deviceModel = "Google Pixel 7", androidRelease = "15", sdkInt = 35, appVersion = "0.3.3-labor", appVersionCode = 7,
             audioSource = "UNPROCESSED", encoding = "PCM_FLOAT", effects = listOf("AGC: nicht vorhanden"),
+            inputDevice = "eingebautes Mikrofon (bottom)",
             calibrationId = 4, calibrationOffsetDb = 112.25, calibrated = true,
             eventExcessDb = 6.5, localFloorWindowSeconds = 30.0, eventMinLevelDb = 30.0, windLfShareMin = 0.95, windFlutterMinDb = 3.8,
             classifierEnabled = true, classifierNormalize = true,
@@ -124,7 +125,7 @@ class PoliciesAndManifestTest {
         assertEquals(
             """{"type":"session_start","session":"20261007_234210","time":"2026-10-07T23:42:10.250+02:00","zone":"Europe/Zurich",""" +
                 """"device":"Google Pixel 7","android":"15","sdk":35,"app":"0.3.3-labor","appCode":7,"audioSource":"UNPROCESSED",""" +
-                """"encoding":"PCM_FLOAT","effects":["AGC: nicht vorhanden"],"calibrationId":4,"calibrationOffsetDb":112.25,"calibrated":true,""" +
+                """"encoding":"PCM_FLOAT","effects":["AGC: nicht vorhanden"],"inputDevice":"eingebautes Mikrofon (bottom)","calibrationId":4,"calibrationOffsetDb":112.25,"calibrated":true,""" +
                 """"detector":"v2","eventExcessDb":6.5,"localFloorWindowS":30,"eventFloorDb":30,"windLfShareMin":0.95,"windFlutterMinDb":3.8,""" +
                 """"classifier":true,"classifierLevelAdjustment":true,"classifierIntervalS":1,""" +
                 """"inputSampleRate":48000,"clips":true,"continuous":false,"clipEvery":2,"maxBytes":2000000000}""",
