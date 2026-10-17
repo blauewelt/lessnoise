@@ -41,4 +41,19 @@ class LoudAlertIsolationTest {
             assertFalse(t.contains("loud_alert") || t.contains("REPORT_LOUD"), m)
         }
     }
+
+    /** 0.6.7: the direction step of «Laut! Melden» (compass) exists only where the map and the reports do. */
+    @Test
+    fun theDirectionStepOnlyInTheEditionsWithTheMap() {
+        assertEquals(MapTab.AVAILABLE, ReportDirectionUi.AVAILABLE)
+        val main = File(app, "src/main/kotlin").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        val offenders = main.filter { f ->
+            val t = f.readText()
+            t.contains("ch.lessnoise.app.compass") || t.contains("SensorManager") || t.contains("GeomagneticField")
+        }.map { it.name }
+        assertEquals(emptyList(), offenders)
+        val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
+        assertTrue(stub.contains("const val AVAILABLE = false"))
+        for (bad in listOf("Sensor", "GeomagneticField", "Compass(")) assertFalse(stub.contains(bad), bad)
+    }
 }

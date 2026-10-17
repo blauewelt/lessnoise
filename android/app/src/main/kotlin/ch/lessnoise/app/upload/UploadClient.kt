@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
@@ -55,8 +56,11 @@ class UploadClient(
     /** One upload's answer (server/README.md «The API in one screen»). */
     data class Result(val accepted: Int, val duplicates: Int, val rejected: List<Rejected>)
 
-    /** A record the server refused for good: [index] into the batch that was sent, [reasons] as text. */
-    data class Rejected(val index: Int, val start: String?, val reasons: String)
+    /**
+     * A record the server refused for good: [index] into the batch that was sent, [reasons] as text,
+     * and the names of the refused [fields] (`reasons[].field`, e.g. "direction" or "direction.north").
+     */
+    data class Rejected(val index: Int, val start: String?, val reasons: String, val fields: List<String> = emptyList())
 
     /** Failures, split by what the caller should do about them. */
     sealed class Failure(message: String) : IOException(message) {
@@ -185,6 +189,9 @@ class UploadClient(
                     index = x["index"]!!.jsonPrimitive.int,
                     start = x["start"]?.let { if (it is JsonNull) null else it.jsonPrimitive.content },
                     reasons = x["reasons"]?.toString()?.take(300) ?: "",
+                    fields = (x["reasons"] as? JsonArray)?.mapNotNull { reason ->
+                        ((reason as? JsonObject)?.get("field") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                    } ?: emptyList(),
                 )
             }
             Result(

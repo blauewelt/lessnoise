@@ -146,7 +146,9 @@ object Payloads {
 
     /**
      * One «Laut! Melden» report: time of the tap (ISO-8601 with offset, seconds), the exact place
-     * (5 decimals ≈ 1 m), its accuracy and the category.
+     * (5 decimals ≈ 1 m), its accuracy and the category; since 0.6.7 the direction of travel when the
+     * reporter gave one (whole degrees, true or magnetic north, the compass's accuracy class). A report
+     * without a direction is exactly the request of 0.6.6.
      */
     fun report(r: PendingReport): JsonObject = buildJsonObject {
         put("time", r.timeIso)
@@ -154,6 +156,13 @@ object Payloads {
         put("lon", num(r.lon, 5))
         put("accuracy_m", num(r.accuracyM, 1))
         put("category", r.category)
+        r.direction?.let { d ->
+            put("direction", buildJsonObject {
+                put("bearing_deg", d.bearingDeg)
+                put("north", d.north.id)
+                put("accuracy", d.accuracy.id)
+            })
+        }
     }
 
     /** One decimal; NaN/∞/null become JSON null (NaN is not valid JSON and would spoil the batch). */

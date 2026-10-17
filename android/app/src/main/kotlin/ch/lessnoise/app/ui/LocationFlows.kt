@@ -30,8 +30,10 @@ import androidx.compose.ui.unit.dp
 import ch.lessnoise.app.container
 import ch.lessnoise.app.location.LocationFetcher
 import ch.lessnoise.app.location.LocationPolicy
+import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
+import ch.lessnoise.app.upload.ReportDirection
 import ch.lessnoise.app.upload.ReportQueue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -56,6 +58,11 @@ private sealed interface ReportStep {
  * Senden?» → queued and uploaded (UploadModule.uploadSoon). The time is the tap on the button,
  * to the second. [onQueued] is called after «Senden».
  *
+ * Since 0.6.7 (editions with the map, phones with a compass) one optional step follows «Was war
+ * laut?»: «Wohin fuhr es?» (ReportDirectionUi, src/karte). The location fix is searched meanwhile;
+ * «Richtung übernehmen» keeps the compass reading, «Überspringen» goes on without one, exactly as
+ * before 0.6.7. At «Senden» the reading is turned into true north with the declination at the fix.
+ *
  * Since 0.6.3 the same flow also starts from the «Sehr laut» notification (src/karte/…/alert,
  * «Unterwegs»), also while a measurement runs: [preset] then carries the event's time (used as the
  * report time instead of the tap) and the categories to suggest (highlighted, nothing is picked);
@@ -73,6 +80,12 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var tapMs by remember { mutableStateOf(0L) }
     var suggested by remember { mutableStateOf<List<ReportCategory>>(emptyList()) }
     var job by remember { mutableStateOf<Job?>(null) }
+    // 0.6.7: the direction step is open while true; the reading taken there (null: skipped / none).
+    var askDirection by remember { mutableStateOf(false) }
+    var reading by remember { mutableStateOf<CompassReading?>(null) }
+    fun cancel() {
+        job?.cancel(); step = null; askDirection = false; reading = null
+    }
 
     fun locate(category: ReportCategory) {
         step = ReportStep.Locating(category)
@@ -97,10 +110,22 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
 
     fun choose(category: ReportCategory) {
         pendingCategory = category
+        if (step == ReportStep.Category) {
+            reading = null
+            askDirection = ReportDirectionUi.AVAILABLE && ReportDirectionUi.supported(context)
+        }
         if (LocationFetcher.hasPreciseLocation(context)) locate(category) else permission.launch(LocationFetcher.PERMISSIONS)
     }
 
-    when (val s = step) {
+    val s0 = step
+    if (askDirection && (s0 is ReportStep.Locating || s0 is ReportStep.Confirm)) {
+        // While the fix is searched (or already there): «Wohin fuhr es?».
+        ReportDirectionUi.Step(
+            onTake = { reading = it; askDirection = false },
+            onSkip = { reading = null; askDirection = false },
+            onCancel = { cancel() },
+        )
+    } else when (val s = step) {
         null -> Unit
         ReportStep.Consent -> AlertDialog(
             onDismissRequest = { step = null },
@@ -152,10 +177,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { job?.cancel(); step = null }) { Text("Abbrechen") } },
+            dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
         )
         is ReportStep.Failed -> AlertDialog(
-            onDismissRequest = { step = null },
+            onDismissRequest = { cancel() },
             title = { Text("Kein genauer Standort") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -164,33 +189,41 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 }
             },
             confirmButton = { TextButton(onClick = { choose(s.category) }) { Text("Nochmals") } },
-            dismissButton = { TextButton(onClick = { step = null }) { Text("Abbrechen") } },
+            dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
         )
-        is ReportStep.Confirm -> AlertDialog(
-            onDismissRequest = { step = null },
-            title = { Text("Meldung") },
-            text = { Text(reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    val zone = ZoneId.systemDefault()
-                    ReportQueue.add(
-                        c.upload.reports,
-                        PendingReport(
-                            epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
-                            lat = s.fix.lat, lon = s.fix.lon, accuracyM = s.fix.accuracyM,
-                            category = s.category.id, cell = s.fix.cell,
-                        ),
-                    )
-                    c.upload.uploadSoon(5)
-                    step = null
-                    onQueued()
-                }) { Text("Senden") }
-            },
-            dismissButton = { TextButton(onClick = { step = null }) { Text("Abbrechen") } },
-        )
+        is ReportStep.Confirm -> {
+            // True north from the declination at the report's own fix (magnetic if that fails).
+            val direction = remember(s, reading) {
+                reading?.toDirection(ReportDirectionUi.declination(s.fix.lat, s.fix.lon, tapMs))
+            }
+            AlertDialog(
+                onDismissRequest = { cancel() },
+                title = { Text("Meldung") },
+                text = { Text(reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val zone = ZoneId.systemDefault()
+                        ReportQueue.add(
+                            c.upload.reports,
+                            PendingReport(
+                                epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
+                                lat = s.fix.lat, lon = s.fix.lon, accuracyM = s.fix.accuracyM,
+                                category = s.category.id, cell = s.fix.cell, direction = direction,
+                            ),
+                        )
+                        c.upload.uploadSoon(5)
+                        cancel()
+                        onQueued()
+                    }) { Text("Senden") }
+                },
+                dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
+            )
+        }
     }
 
     fun begin(timeMs: Long, suggest: List<ReportCategory>) {
+        askDirection = false
+        reading = null
         tapMs = timeMs
         suggested = suggest
         // Skipped when sharing is already on (the person said «Ja, auf die Karte» or switched it on).
@@ -233,13 +266,17 @@ const val REPORT_CONSENT_TEXT =
 const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
 
 /** The text of the «Meldung» dialog: what is sent, then [REPORT_SPOT_WARNING]. */
-fun reportConfirmDialogText(category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault()): String =
-    reportConfirmText(category, tapMs, accuracyM, zone) + "\n" + REPORT_SPOT_WARNING
+fun reportConfirmDialogText(
+    category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault(), direction: ReportDirection? = null,
+): String = reportConfirmText(category, tapMs, accuracyM, zone, direction) + "\n" + REPORT_SPOT_WARNING
 
-/** «Meldung: Töff, 16:05, Standort ± 12 m – senden?» */
-fun reportConfirmText(category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault()): String {
+/** «Meldung: Töff, 16:05, Standort ± 12 m – senden?»; with a direction (0.6.7) «…, Standort ± 12 m, Richtung Nordost – senden?» */
+fun reportConfirmText(
+    category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault(), direction: ReportDirection? = null,
+): String {
     val t = java.time.Instant.ofEpochMilli(tapMs).atZone(zone)
-    return "Meldung: ${category.label}, ${"%02d:%02d".format(t.hour, t.minute)}, Standort ± $accuracyM m – senden?"
+    val dir = direction?.let { ", ${it.label}" } ?: ""
+    return "Meldung: ${category.label}, ${"%02d:%02d".format(t.hour, t.minute)}, Standort ± $accuracyM m$dir – senden?"
 }
 
 /** «App-Einstellungen» or «Standort einschalten», depending on why there is no fix. */
