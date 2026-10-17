@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.7 — 2026-10-17 (versionCode 20; Labor · Karte build for the owner's phone, not on the website)
+
+In short: «Laut! Melden» can say in which direction the vehicle drove. One optional step, no new
+permission. New in what is sent: the direction, only if you take it.
+
+Built on 0.6.6.
+
+- **Direction of travel (editions with the map):** after «Was war laut?» the dialog «Wohin fuhr es?»
+  shows a live arrow of where the phone points (held flat: the top of the screen; held upright: the
+  back of the phone). «Richtung übernehmen» keeps it, «Überspringen» sends the report as before. A
+  hint to move the phone in a figure-eight appears only while the compass reports low accuracy.
+  Not shown on phones without a compass. The report then carries one bearing in whole degrees
+  (true north from the declination at the report's place; magnetic if that is not available) and
+  the compass's accuracy class; the confirmation says e.g. «Richtung Nordost».
+- **Server and map:** the server (schema v6) accepts and stores the optional `direction`; the map
+  draws a small arrow on the report's point. Against a server without it (the deployed one until
+  it is updated) the app sends the report again without the direction instead of losing it.
+- Not snapped to the street: no road data exists in the app or on the server (server-side
+  follow-up).
+
 ## 0.6.6 — 2026-10-17 (published on the website) (versionCode 19)
 
 In short: the app measures only with the phone's own microphone, never with a connected headset's.
