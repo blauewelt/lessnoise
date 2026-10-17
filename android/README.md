@@ -601,6 +601,20 @@ motion began, while a «Messen» measurement runs records that ended less than
 Tests: `MovingSpanUploadTest` (every flavour). Labor·Karte: each transition is a `motion` line in
 `manifest.jsonl` (`ManifestLines.motion`, via `EditionDiagnostics`), «Bewegung» in Einstellungen › Labor.
 
+## «Antippen zum Melden» on the measurement notification (0.6.8)
+
+Online-Version and laborKarte only (`src/karte/…/alert/ReportTap.kt`, built by `ui/LoudAlerts.reportTap`;
+the stand-in in `src/nomap` returns null). While the run is «unterwegs» (`LiveState.unterwegs`, or
+`LiveState.moving` in a «Messen» run), `MeasurementService` re-posts its notification once with the text
+«Antippen zum Melden» and a `PendingIntent` (request code 3, action `ch.lessnoise.app.action.REPORT_NOW`,
+no extras) that opens `MainActivity` (single-top). `NotificationCadence` (`service/ServicePolicy.kt`)
+suppresses the 2-s level text meanwhile and re-posts the level text and the usual tap at once when the
+state ends; nothing is posted per second in report mode. `MainActivity` takes the intent in
+`onCreate`/`onNewIntent` with `System.currentTimeMillis()` as the report's time (`ReportTap.preset`: no
+category suggested), then «Laut! Melden» runs as always. The «Sehr laut» notification (request code 2,
+`REPORT_LOUD`) is unchanged. Tests: `ReportTapTest` (src/testKarte), `ServicePolicyTest`,
+`LoudAlertIsolationTest`.
+
 ## The tab «Karte» (0.6.3)
 
 The «Online-Version» and the internal Labor build with the map have a fifth tab, **«Karte»**

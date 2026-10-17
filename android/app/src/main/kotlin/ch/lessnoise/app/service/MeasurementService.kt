@@ -28,6 +28,7 @@ import ch.lessnoise.app.edition.AudioTapProvider
 import ch.lessnoise.app.motion.MotionWatch
 import ch.lessnoise.app.classify.YamnetClassifier
 import ch.lessnoise.app.container
+import ch.lessnoise.app.ui.LoudAlerts
 import ch.lessnoise.app.ui.MainActivity
 import ch.lessnoise.dsp.Acoustics
 import ch.lessnoise.dsp.EngineConfig
@@ -53,6 +54,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -198,7 +201,10 @@ class MeasurementService : Service() {
     private val frames = ConcurrentLinkedQueue<ClassifierFrame>()
     private var classifierWindow = FloatArray(ClassifierPreprocessor.YAMNET_INPUT_SAMPLES)
     private var wakeLock: PowerManager.WakeLock? = null
-    private var lastNotificationMs = 0L
+    /** 0.6.8: level text every 2 s, or the fixed «Antippen zum Melden» while the run is «unterwegs». */
+    private val cadence = NotificationCadence()
+    /** The collector that re-posts the notification when the run becomes «unterwegs» or not (0.6.8). */
+    private var tapWatch: Job? = null
     @Volatile private var stopping = false
     @Volatile private var normalizeClassifierInput = true
     /** Row id of the running measurement, once its insert has finished (null if the insert failed). */
@@ -347,6 +353,7 @@ class MeasurementService : Service() {
                     // «Unterwegs erkannt» (0.6.7): only for «Messen» («Unterwegs» is unterwegs anyway),
                     // only in the editions with the map (MotionWatch is a stand-in returning null elsewhere).
                     if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container)
+                    watchNotificationTap()
                 }
             } catch (e: Exception) {
                 live.value = LiveState(error = BuiltInMic.errorText("Start fehlgeschlagen: ", e.message))
@@ -421,13 +428,14 @@ class MeasurementService : Service() {
                 )
             }
             val now = System.currentTimeMillis()
-            if (now - lastNotificationMs >= 2000) {
-                lastNotificationMs = now
-                val text = MeasurementNotification.text(
-                    laeqDb = second.laeqRunning60sDb, calibrated = l.value.calibrated,
-                    silenced = l.value.micSilenced || second.validFraction == 0.0, note = tap.notificationNote,
-                )
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
+            synchronized(cadence) {
+                if (cadence.levelDue(now)) {
+                    val text = MeasurementNotification.text(
+                        laeqDb = second.laeqRunning60sDb, calibrated = l.value.calibrated,
+                        silenced = l.value.micSilenced || second.validFraction == 0.0, note = tap.notificationNote,
+                    )
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
+                }
             }
         }
 
@@ -484,6 +492,9 @@ class MeasurementService : Service() {
         capture = null
         motion?.stop()
         motion = null
+        tapWatch?.cancel()
+        tapWatch = null
+        cadence.modeChanged(false)
         // The capture thread has ended: finish the engine (partial minute, open event) here.
         engine?.let { eng ->
             while (true) eng.onClassifierFrame(frames.poll() ?: break)
@@ -610,8 +621,33 @@ class MeasurementService : Service() {
         }
     }
 
-    private fun notification(text: String): Notification {
-        val open = PendingIntent.getActivity(
+    /**
+     * 0.6.8 (editions with the map; LoudAlerts.reportTap is null elsewhere): while the run is
+     * «unterwegs» — started with «Unterwegs», or LiveState.moving in a «Messen» run — the notification's
+     * tap opens «Laut! Melden» and its text is «Antippen zum Melden». Re-posted only when that state
+     * changes; back to the level text and the usual tap when it ends.
+     */
+    private fun watchNotificationTap() {
+        tapWatch?.cancel()
+        tapWatch = scope.launch {
+            container.live.map { it.running && (it.unterwegs || it.moving) }.distinctUntilChanged().collect {
+                val l = container.live.value
+                val reportTap = LoudAlerts.reportTap(this@MeasurementService, l.running, l.unterwegs, l.moving)
+                synchronized(this@MeasurementService) { if (stopping) return@collect }
+                // Under the cadence's lock, so a level post of the capture thread cannot overtake this one.
+                synchronized(cadence) {
+                    if (!cadence.modeChanged(reportTap != null)) return@collect
+                    val text = reportTap?.text ?: l.laeq60sDb?.let {
+                        MeasurementNotification.text(laeqDb = it, calibrated = l.calibrated, silenced = l.micSilenced, note = tap.notificationNote)
+                    } ?: MeasurementNotification.STARTING
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text, reportTap))
+                }
+            }
+        }
+    }
+
+    private fun notification(text: String, reportTap: NotificationTap? = null): Notification {
+        val open = reportTap?.intent ?: PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

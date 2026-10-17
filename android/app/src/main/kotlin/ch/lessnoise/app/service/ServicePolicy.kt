@@ -1,5 +1,6 @@
 package ch.lessnoise.app.service
 
+import android.app.PendingIntent
 import java.util.Locale
 
 /**
@@ -37,5 +38,43 @@ object MeasurementNotification {
     fun text(laeqDb: Double, @Suppress("UNUSED_PARAMETER") calibrated: Boolean, silenced: Boolean, note: String? = null): String {
         val base = if (silenced) SILENCED else String.format(Locale.GERMANY, "Letzte Minute: %.1f dB(A)", laeqDb)
         return if (note.isNullOrEmpty()) base else "$base · $note"
+    }
+}
+
+/**
+ * 0.6.8, editions with the map: the measurement notification while the run is «unterwegs» — its
+ * [text] («Antippen zum Melden») and the [intent] its tap fires («Laut! Melden»). Built by
+ * ui/LoudAlerts.reportTap (src/karte); the Offline and Labor builds never have one.
+ */
+class NotificationTap(val text: String, val intent: PendingIntent)
+
+/**
+ * When the measurement notification is (re-)posted (0.6.8; pure, ServicePolicyTest). Normally the
+ * level text every [everyMs] (as before). While the run is «unterwegs» (report mode) the text is fixed,
+ * so nothing is posted per second; a change of mode posts at once ([modeChanged]) and makes the next
+ * level text due immediately. Thread-safe (capture thread and the service's state collector).
+ */
+class NotificationCadence(private val everyMs: Long = 2000) {
+    private var reportMode = false
+    private var lastLevelMs = Long.MIN_VALUE / 2
+
+    /** Whether the run is in report mode now. */
+    @get:Synchronized val inReportMode: Boolean get() = reportMode
+
+    /** The mode is now [report]: true if it changed, i.e. the notification must be re-posted now. */
+    @Synchronized
+    fun modeChanged(report: Boolean): Boolean {
+        if (report == reportMode) return false
+        reportMode = report
+        lastLevelMs = Long.MIN_VALUE / 2
+        return true
+    }
+
+    /** A second's result at [nowMs]: whether to post the level text now (never in report mode). */
+    @Synchronized
+    fun levelDue(nowMs: Long): Boolean {
+        if (reportMode || nowMs - lastLevelMs < everyMs) return false
+        lastLevelMs = nowMs
+        return true
     }
 }

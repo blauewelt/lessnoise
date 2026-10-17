@@ -46,7 +46,8 @@ import ch.lessnoise.chart.LessNoiseTheme
 
 class MainActivity : ComponentActivity() {
     // A tap on the «Sehr laut» notification (0.6.3, editions with the map; always null elsewhere):
-    // «Laut! Melden» with the event's time and suggested categories.
+    // «Laut! Melden» with the event's time and suggested categories. Since 0.6.8 also the tap on the
+    // measurement notification while «unterwegs»: the time of the tap (now), nothing preselected.
     private var alertPreset by mutableStateOf<ReportPreset?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +64,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun takeAlert(intent: Intent?) {
-        val preset = LoudAlerts.presetFrom(intent) ?: return
+        // The tap's time is now, when the activity receives it (also while it is already open: onNewIntent).
+        val preset = LoudAlerts.presetFrom(intent, System.currentTimeMillis()) ?: return
         alertPreset = preset
         // Taken: a later recreation must not start the report again.
         setIntent(Intent(this, MainActivity::class.java))

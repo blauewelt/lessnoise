@@ -223,6 +223,8 @@ test("0.6.7: the motion sensor is read on the phone only, and «Unterwegs erkann
   await page.goto("/anleitung.html");
   const guide = await allText(page);
   for (const fact of ["Unterwegs erkannt", "etwa 3 Minuten ruhig"]) expect(guide, fact).toContain(fact);
+  // 0.6.8: the measurement notification opens «Laut! Melden» while «unterwegs».
+  expect(guide).toContain("mit der Zeit des Antippens");
 });
 
 test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {

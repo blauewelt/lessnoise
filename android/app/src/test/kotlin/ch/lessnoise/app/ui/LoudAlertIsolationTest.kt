@@ -26,14 +26,19 @@ class LoudAlertIsolationTest {
         val offenders = main.filter { f ->
             val t = f.readText()
             t.contains("ch.lessnoise.app.alert") || t.contains("LoudAlertRule") || t.contains("LoudAlertNotifier") ||
-                t.contains("\"loud_alert\"") || t.contains("IMPORTANCE_HIGH")
+                t.contains("\"loud_alert\"") || t.contains("IMPORTANCE_HIGH") || t.contains("ReportTap") || t.contains("REPORT_NOW")
         }.map { it.name }
         assertEquals(emptyList(), offenders)
         // The stand-in does nothing: no channel, no notification, no permission prompt (0.6.4: no «Unterwegs» button either).
         val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         assertTrue(stub.contains("const val AVAILABLE = false"))
         assertTrue(stub.contains("fun rememberUnterwegsPermission(): () -> Unit = {}"))
-        for (bad in listOf("Notification", "notify", "onCheckedChange", "SharedPreferences", "alert.")) assertFalse(stub.contains(bad), bad)
+        // (0.6.8: it names the shared type NotificationTap in its signature, nothing that posts one.)
+        val stubCode = stub.replace("NotificationTap", "")
+        for (bad in listOf("Notification", "notify", "onCheckedChange", "SharedPreferences", "alert.", "PendingIntent", "REPORT_NOW")) assertFalse(stubCode.contains(bad), bad)
+        // 0.6.8: no «Antippen zum Melden» on the measurement notification in the Offline and Labor builds.
+        assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? = null"))
+        assertTrue(stub.contains("fun presetFrom(intent: Intent?, tapMs: Long = 0L): ReportPreset? = null"))
         // No new permission: POST_NOTIFICATIONS was already declared for the measurement's notification.
         assertTrue(File(app, "src/main/AndroidManifest.xml").readText().contains("android.permission.POST_NOTIFICATIONS"))
         for (m in listOf("src/public/AndroidManifest.xml", "src/laborKarte/AndroidManifest.xml", "src/offline/AndroidManifest.xml", "src/labor/AndroidManifest.xml")) {

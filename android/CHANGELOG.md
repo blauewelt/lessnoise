@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.8 — not published (branch auto-unterwegs) (versionCode 21)
+
+In short: while a measurement is «unterwegs», a tap on the «Messung läuft» notification opens
+«Laut! Melden» — report a poser you see yourself. No new setting, no new permission. Nothing new
+is sent.
+
+- **Melden aus der Mitteilung** (Online-Version and Labor·Karte; not in the Offline and Labor builds):
+  while the run was started with «Unterwegs», or a «Messen» run is «Unterwegs erkannt», the ongoing
+  measurement notification says «Antippen zum Melden» (title unchanged) and its tap opens «Laut!
+  Melden» with the time of the tap and no category preselected; then as always (one location fix with
+  the app open, confirmation, «Senden»). When the phone lies still again, the notification shows the
+  level and opens the app as before. Re-posted only when that state changes. Own intent action
+  (`REPORT_NOW`) and request code (3), so it is never mistaken for the «Sehr laut» tap, which is
+  unchanged. Works while the app is already open (single-top, `onNewIntent`).
+
 ## 0.6.7 — not published (branch auto-unterwegs) (versionCode 20)
 
 In short: «Unterwegs erkannt» — a measurement started with «Messen» notices that the phone is
