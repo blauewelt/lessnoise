@@ -149,6 +149,10 @@ What the project counts, and who counts it — totals over the whole project, al
 - **Phone app v0.6.6 (published 2026-10-17, the current version):** the phone's noise floor
   («Messgrenze», 0.6.5) is estimated from the stored minutes and values at it are shown with «≤»;
   the app measures only with the phone's built-in microphone, never a headset's.
+- **Phone app v0.6.7 (branch `auto-unterwegs`, not published yet):** «Unterwegs erkannt» — in the
+  Online-Version a measurement started with «Messen» notices from the motion sensor (on the phone
+  only, no permission, no location) that the phone is being carried; meanwhile it alerts like
+  «Unterwegs» and shares nothing of that time span.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

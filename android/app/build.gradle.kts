@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 20
-        versionName = "0.6.7"
+        versionCode = 22
+        versionName = "0.6.9"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -60,6 +60,11 @@ android {
         // below). Shown in Einstellungen → Über die App; the two published editions send it to
         // update.html as #…&e=<edition> (EditionInfo.updateEdition).
         buildConfigField("String", "EDITION", "\"karte\"")
+        // 0.6.9 Labor iteration of «unterwegs» (true only in laborKarte, the owner's test phone): the
+        // «Melden» button on the measurement notification in every state, the motion detector's
+        // thresholds for trams and trains, and the position as a second signal (src/laborKarte/kotlin).
+        // The Online-Version keeps the 0.6.8 behaviour until this is released there.
+        buildConfigField("boolean", "LABOR_UNTERWEGS", "false")
     }
 
     signingConfigs {
@@ -126,6 +131,7 @@ android {
             versionNameSuffix = "-labor-karte"
             // UPLOAD_AVAILABLE stays true (defaultConfig): «Messwerte teilen», off until switched on.
             buildConfigField("String", "EDITION", "\"labor-karte\"")
+            buildConfigField("boolean", "LABOR_UNTERWEGS", "true")
         }
     }
 
@@ -142,6 +148,9 @@ android {
         // stand-in src/nomap/.../MapTab.kt (no tab, no WebView in their dex).
         named("public") {
             kotlin.srcDir("src/karte/kotlin")
+            // 0.6.9: the stand-in of the position signal, which only laborKarte has (src/laborKarte/kotlin);
+            // the editions without the map never reach it (their MotionWatch is the src/nomap stand-in).
+            kotlin.srcDir("src/noposition/kotlin")
         }
         named("labor") {
             kotlin.srcDir("src/nomap/kotlin")

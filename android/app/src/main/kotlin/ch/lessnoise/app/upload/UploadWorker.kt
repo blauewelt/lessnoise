@@ -21,6 +21,7 @@ import ch.lessnoise.app.data.CalibrationRepository
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.app.data.MovingSpanEntity
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.service.LiveState
 import kotlinx.coroutines.CoroutineScope
@@ -214,6 +215,7 @@ private class RoomUploadSource(
     override suspend fun minutesAfter(afterMs: Long, limit: Int): List<MinuteEntity> = db.measurements().minutesAfter(afterMs, limit)
     override suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity> = db.measurements().eventsAfter(afterMs, limit)
     override suspend fun measurements(): List<MeasurementEntity> = db.measurements().allMeasurements()
+    override suspend fun movingSpans(): List<MovingSpanEntity> = db.measurements().allMovingSpans()
 
     override suspend fun siteExtras(): SiteExtras {
         val source = AudioSourceSelector.select(context)
@@ -232,6 +234,11 @@ class UploadModule(
     context: Context,
     db: AppDatabase,
     calibrations: CalibrationRepository,
+    /**
+     * 0.6.7: how long records wait after their end before they may be sent ([Uploader.MOTION_HOLD_MS]
+     * while a «Messen» measurement runs in an edition with the motion detector, else 0); AppContainer.
+     */
+    motionHoldMs: () -> Long = { 0L },
 ) {
     private val appContext = context.applicationContext
     val store: UploadState = UploadState(appContext)
@@ -245,6 +252,7 @@ class UploadModule(
         reports = reports,
         appVersion = BuildConfig.VERSION_NAME,
         appBuild = BuildConfig.VERSION_CODE,
+        holdMs = motionHoldMs,
     )
     private val minutes = db.measurements()
 
@@ -330,9 +338,12 @@ class UploadModule(
         val wake = Channel<Unit>(Channel.CONFLATED)
         launch {
             live.map { it.lastEvent }.distinctUntilChanged().collect { e ->
-                // Only an event that may leave the phone at all starts an events run (0.6.4).
-                if (e != null && LiveUploadPlan.triggers(e)) {
-                    synchronized(lock) { plan.onEvent(e.endEpochMs) }
+                // Only an event that may leave the phone at all starts an events run (0.6.4); not
+                // one while the phone is being carried (0.6.7: it is not sent).
+                if (e != null && LiveUploadPlan.triggers(e) && !live.value.moving) {
+                    // 0.6.7: not before the upload's motion hold has passed (else the run finds nothing to send).
+                    val wait = maxOf(0L, uploader.holdNowMs() - LiveUploadPlan.EVENT_DELAY_MS)
+                    synchronized(lock) { plan.onEvent(e.endEpochMs + wait) }
                     wake.trySend(Unit)
                 }
             }

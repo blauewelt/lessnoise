@@ -24,7 +24,8 @@ class MapBannerTest {
         online: Boolean = true,
         now: Long = start + 30 * min,
         unterwegs: Boolean = false,
-    ) = mapBanner(s, running, if (running) start else 0, hasPoint, hasAnyPoint, locate, online, now, unterwegs, hm)
+        moving: Boolean = false,
+    ) = mapBanner(s, running, if (running) start else 0, hasPoint, hasAnyPoint, locate, online, now, unterwegs, moving, hm)
 
     /** The status line's action for the same state (a tap on the banner does the same). */
     private fun lineAction(s: UploadSnapshot, running: Boolean = true, hasPoint: Boolean = true, locate: LocateState = LocateState.Idle) =
@@ -119,5 +120,14 @@ class MapBannerTest {
         for (st in listOf(on, UploadSnapshot())) {
             assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE), banner(st, hasPoint = false, hasAnyPoint = true, unterwegs = true))
         }
+    }
+
+    @Test
+    fun aMessenMeasurementWhileMovingShowsItIsNotOnTheMap() {
+        // 0.6.7 «Unterwegs erkannt»: the banner says the same sentence as the status line.
+        for (st in listOf(on, UploadSnapshot())) {
+            assertEquals(MapBanner(STATUS_MOVING, ShareAction.NONE), banner(st, hasPoint = true, hasAnyPoint = true, moving = true))
+        }
+        assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE), banner(on, hasPoint = false, hasAnyPoint = true, unterwegs = true, moving = true))
     }
 }

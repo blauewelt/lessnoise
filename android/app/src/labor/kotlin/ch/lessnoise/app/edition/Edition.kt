@@ -61,6 +61,8 @@ import ch.lessnoise.app.labor.ClipPlayerSheet
 import ch.lessnoise.app.labor.ClipRateSampler
 import ch.lessnoise.app.labor.ClipsListDialog
 import ch.lessnoise.app.labor.Labor
+import ch.lessnoise.app.labor.ManifestFile
+import ch.lessnoise.app.labor.ManifestLines
 import ch.lessnoise.app.labor.LaborDirs
 import ch.lessnoise.app.labor.LaborPlayer
 import ch.lessnoise.app.labor.LaborRecorder
@@ -74,6 +76,7 @@ import ch.lessnoise.app.ui.shareFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -88,6 +91,46 @@ import java.time.format.DateTimeFormatter
 private val LaborRed = Color(0xFFB3261E)
 
 /** Labor: the recorder if «Audio während der Messung aufzeichnen» is on, else nothing. */
+/**
+ * Local diagnostics of the Labor builds (0.6.7). Labor·Karte: each change of the motion detector
+ * («Unterwegs erkannt», src/karte/.../motion/) as one `motion` line in manifest.jsonl, so the owner can
+ * see later why it did or did not switch. The Labor build without the map has no detector and never
+ * calls it. Written on the caller's thread (the motion thread), a few lines per measurement.
+ */
+object EditionDiagnostics {
+    fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) {
+        try {
+            val line = ManifestLines.motion(
+                Labor.currentSession ?: "none", atMs, java.time.ZoneId.systemDefault(), to, spanStartMs, features,
+            )
+            ManifestFile.append(Labor.dirs(context.applicationContext).manifest, line)
+            Labor.filesVersion.update { it + 1 }
+        } catch (e: Exception) {
+            Log.w("Labor", "motion line: ${e.javaClass.simpleName}")
+        }
+    }
+
+    /**
+     * 0.6.9, Labor·Karte: one `motion_minute` line per minute of a «Messen» run — median and max of the
+     * per-second motion value, the distance from the run's first position rounded to 50 m (null without
+     * a fix; never a coordinate) and the state. Stays in manifest.jsonl on the phone.
+     */
+    fun motionMinute(
+        context: Context, minuteStartMs: Long, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ) {
+        try {
+            val line = ManifestLines.motionMinute(
+                Labor.currentSession ?: "none", minuteStartMs, java.time.ZoneId.systemDefault(),
+                medianMs2, maxMs2, seconds, distanceM, state, motion, position,
+            )
+            ManifestFile.append(Labor.dirs(context.applicationContext).manifest, line)
+        } catch (e: Exception) {
+            Log.w("Labor", "motion_minute line: ${e.javaClass.simpleName}")
+        }
+    }
+}
+
 object AudioTapProvider {
     fun create(context: Context): AudioTap {
         Labor.init(context)
@@ -279,6 +322,8 @@ object EditionUi {
             StatRow("Klassifikator-Protokolle", sts?.classifierFiles?.toString() ?: "…")
             // 0.6.6: which input delivers the audio (the app measures only with the built-in microphone).
             if (live.running) StatRow("Mikrofon", live.inputDevice ?: "unbekannt")
+            // 0.6.7, Labor·Karte: the motion detector's state (its changes are in manifest.jsonl, type «motion»).
+            if (live.running && BuildConfig.FLAVOR == "laborKarte" && !live.unterwegs) StatRow("Bewegung", if (live.moving) "unterwegs erkannt" else "ruhig")
             if (st.storageFull) {
                 Text("Speicher voll: Die Aufnahme wurde gestoppt, die Messung läuft weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
             }

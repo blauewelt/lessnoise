@@ -46,4 +46,24 @@ class ServicePolicyTest {
     fun noAudioTapAddsNothingToTheNotification() {
         assertNull(NoAudioTap.notificationNote)
     }
+
+    @Test
+    fun theNotificationCadenceIsEveryTwoSecondsOutsideReportMode() {
+        // 0.6.8 (ServicePolicy.kt NotificationCadence): every edition uses it; only the editions with the map ever switch to report mode.
+        val c = ch.lessnoise.app.service.NotificationCadence(2000)
+        val t = 1_000_000L
+        assertEquals(listOf(true, false, true, false, true), (0..4).map { c.levelDue(t + it * 1000L) })
+        assertEquals(false, c.modeChanged(false))
+        assertEquals(true, c.modeChanged(true))
+        assertEquals(false, c.modeChanged(true), "same state: no re-post")
+        assertEquals(false, c.levelDue(t + 10_000))
+        assertEquals(true, c.modeChanged(false))
+        assertEquals(true, c.levelDue(t + 10_500), "the level text comes back at once")
+        assertEquals(false, c.levelDue(t + 11_000))
+        // 0.6.9 (Labor·Karte): the tap's target and the «Melden» button re-post once when they change.
+        assertEquals(true, c.tapChanged(contentTap = false, button = true))
+        assertEquals(false, c.tapChanged(contentTap = false, button = true))
+        assertEquals(true, c.tapChanged(contentTap = true, button = true))
+        assertEquals(false, c.levelDue(t + 11_500), "the level cadence is not reset by a tap change")
+    }
 }

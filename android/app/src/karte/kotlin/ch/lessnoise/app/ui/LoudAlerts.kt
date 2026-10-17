@@ -11,9 +11,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import ch.lessnoise.app.AppContainer
+import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.alert.LoudAlertIntent
 import ch.lessnoise.app.alert.LoudAlertNotifier
 import ch.lessnoise.app.alert.LoudAlertWatcher
+import ch.lessnoise.app.alert.ReportTap
+import ch.lessnoise.app.service.NotificationTap
+import android.app.PendingIntent
 
 /**
  * «Unterwegs» (0.6.3; since 0.6.4 a start mode, editions with the map only; the Offline and Labor
@@ -33,9 +37,37 @@ object LoudAlerts {
         LoudAlertWatcher.start(container.appScope, container.live, LoudAlertNotifier(context.applicationContext))
     }
 
-    /** The prefilled report when [intent] is the notification's tap, else null. */
-    fun presetFrom(intent: Intent?): ReportPreset? {
+    /**
+     * 0.6.8: the measurement notification's text and tap while the run is «unterwegs» (started with
+     * «Unterwegs», or [moving] in a «Messen» run): «Antippen zum Melden», opening «Laut! Melden»
+     * ([ReportTap]: its own action and request code). Null otherwise (the notification as before).
+     * 0.6.9, Labor·Karte (BuildConfig.LABOR_UNTERWEGS): during every run a «Melden» button with the same
+     * intent, the level text kept; the tap opens the report only while «unterwegs».
+     */
+    fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? {
+        val t = ReportTap.forState(running, unterwegs, moving, labor = BuildConfig.LABOR_UNTERWEGS) ?: return null
+        val intent = Intent(context, MainActivity::class.java)
+            .setAction(t.action)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pending = PendingIntent.getActivity(
+            context, t.requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return NotificationTap(
+            text = t.text,
+            intent = pending.takeIf { t.contentTap },
+            button = pending.takeIf { t.button },
+            buttonLabel = ReportTap.BUTTON,
+        )
+    }
+
+    /**
+     * The prefilled report when [intent] is a notification's tap, else null: the «Sehr laut» tap (the
+     * event's time, suggested categories) or, 0.6.8, the measurement notification's tap while
+     * «unterwegs» ([tapMs], the moment the app received it; nothing preselected).
+     */
+    fun presetFrom(intent: Intent?, tapMs: Long = System.currentTimeMillis()): ReportPreset? {
         intent ?: return null
+        ReportTap.preset(intent.action, tapMs)?.let { return it }
         return LoudAlertIntent.preset(
             intent.action,
             intent.getLongExtra(LoudAlertIntent.EXTRA_EVENT_MS, 0L),

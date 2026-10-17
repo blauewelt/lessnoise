@@ -23,7 +23,8 @@ class ShareStatusTest {
         locate: LocateState = LocateState.Idle,
         online: Boolean = true,
         unterwegs: Boolean = false,
-    ) = shareStatus(s, running, if (running) start else 0, hasPoint, locate, online, unterwegs, hm)
+        moving: Boolean = false,
+    ) = shareStatus(s, running, if (running) start else 0, hasPoint, locate, online, unterwegs, moving, hm)
 
     @Test
     fun offOrNoShowsTheInvitationWhichAsksTheQuestion() {
@@ -118,5 +119,21 @@ class ShareStatusTest {
         assertTrue(worker.contains("if (wasRunning && !st.running && !wasUnterwegs) uploadSoon("))
         // Not running: the usual idle line.
         assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, unterwegs = true))
+    }
+
+    @Test
+    fun aMessenMeasurementWhileMovingSaysSoInOneSentence() {
+        // 0.6.7 «Unterwegs erkannt»: while the detector says MOVING, one sentence, no tap; whatever else holds.
+        for (st in listOf(on, UploadSnapshot(shareDecision = ShareDecision.NO), on.copy(lastSuccessAtMs = start + 1, minutesSentUpToMs = start + 1))) {
+            for (p in listOf(true, false)) assertEquals(ShareStatus(STATUS_MOVING, ShareAction.NONE), status(st, hasPoint = p, moving = true))
+        }
+        assertEquals("Unterwegs erkannt: Mitteilung bei sehr lautem Verkehr, nichts auf die Karte.", STATUS_MOVING)
+        // The same wording as the «Unterwegs» hint under the start buttons.
+        assertTrue(UNTERWEGS_HINT.startsWith("Unterwegs: Mitteilung bei sehr lautem Verkehr") && STATUS_MOVING.endsWith("nichts auf die Karte."))
+        // Back to STILL: the usual line again; an «Unterwegs» measurement keeps its own line.
+        assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE), status(on, moving = false))
+        assertEquals(STATUS_UNTERWEGS, status(on, unterwegs = true, moving = true)!!.text)
+        // Not running: never.
+        assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, moving = true))
     }
 }

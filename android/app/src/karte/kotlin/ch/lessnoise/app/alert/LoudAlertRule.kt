@@ -40,6 +40,13 @@ object LoudAlertRule {
         unterwegs && running && !e.wind && e.category in CATEGORIES && e.lafMaxDb >= THRESHOLD_DB &&
             (lastAlertAtMs == null || nowMs - lastAlertAtMs >= MIN_GAP_MS)
 
+    /**
+     * Whether the running measurement counts as «Unterwegs» for the alert: started with «Unterwegs»
+     * (0.6.4), or (0.6.7, «Unterwegs erkannt») started with «Messen» while the motion detector says
+     * the phone is being carried ([moving], LiveState.moving). Everything else of the rule is the same.
+     */
+    fun unterwegsNow(unterwegs: Boolean, moving: Boolean): Boolean = unterwegs || moving
+
     /** «Töff & Poser» / «Strassenverkehr» (the names of categories.json). */
     fun categoryLabel(category: String?): String = when (category) {
         "loud_vehicle" -> "Töff & Poser"

@@ -237,6 +237,7 @@ private fun MapBannerSlot(hasAnyPoint: Boolean, onOpen: (Screen) -> Unit) {
     val banner = mapBanner(
         s = s, running = live.running, measurementStartMs = live.measurementStartMs, hasPoint = live.sharedPoint != null,
         hasAnyPoint = hasAnyPoint, locate = locate, online = online, nowMs = now, unterwegs = live.unterwegs, hm = Fmt::hm,
+        moving = live.moving,
     ) ?: return
     MapBannerContent(banner, onTap = { a -> handleShareAction(a, share, onOpen) })
 }

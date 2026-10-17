@@ -573,6 +573,48 @@ nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `L
 (`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
 7 → 8); renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
 
+## «Unterwegs erkannt»: the motion detector (0.6.7)
+
+Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/motion/`; the Offline and
+Labor builds get the stand-in `src/nomap/…/motion/MotionWatch.kt`: no detector, no sensor listener,
+checked by `LoudAlertIsolationTest` and the release dex check). While a measurement started with
+**«Messen»** runs, `MeasurementService` starts `MotionWatch`: `Sensor.TYPE_ACCELEROMETER` at 20 Hz
+(`SAMPLING_PERIOD_US` 50 000) with `maxReportLatency` 5 s, on its own `HandlerThread`. No permission
+(below 200 Hz none is needed), no location, nothing stored but span times.
+
+`MotionDetector` (pure, `MotionDetectorTest` in `src/testKarte`): per second the standard deviation
+of |a| (gravity drops out; independent of how the phone lies). A second is *active* from 0.25 m/s²
+(phone at rest ≈ 0.01–0.03, walking ≈ 1–3, cycling 0.5–2). STILL → MOVING when 20 of the last 25
+seconds were active (the span starts at the first active second of that window); MOVING → STILL when
+the last 180 seconds hold at most 10 active ones. A second with fewer than 5 samples is not active;
+a periodic tick moves time on, so a silent sensor ends MOVING.
+
+While MOVING: `LiveState.moving` = true (never in an «Unterwegs» measurement); `LoudAlertWatcher`
+treats the measurement as «Unterwegs» (`LoudAlertRule.unterwegsNow`); «Laut! Melden» shows under
+«Stoppen»; the status line and the map banner say `STATUS_MOVING`. The span goes to the table
+`moving_spans` (database v8 → v9, start/end only; `beginMovingSpan`, `endMovingSpans`, closed at
+«Stop» and, after a kill, at the next start). The upload never sends a minute or event that overlaps a
+span (`PlaceIndex.pointAt(t, duration)`; the SQL count of minutes to send uses
+`MovingSql.MINUTE_NOT_MOVING`); since the detector decides up to 25 s + 1 s + 5 s batching after the
+motion began, while a «Messen» measurement runs records that ended less than
+`Uploader.MOTION_HOLD_MS` (35 s) ago are held back, and the live events run waits for that hold.
+Tests: `MovingSpanUploadTest` (every flavour). Labor·Karte: each transition is a `motion` line in
+`manifest.jsonl` (`ManifestLines.motion`, via `EditionDiagnostics`), «Bewegung» in Einstellungen › Labor.
+
+## «Antippen zum Melden» on the measurement notification (0.6.8)
+
+Online-Version and laborKarte only (`src/karte/…/alert/ReportTap.kt`, built by `ui/LoudAlerts.reportTap`;
+the stand-in in `src/nomap` returns null). While the run is «unterwegs» (`LiveState.unterwegs`, or
+`LiveState.moving` in a «Messen» run), `MeasurementService` re-posts its notification once with the text
+«Antippen zum Melden» and a `PendingIntent` (request code 3, action `ch.lessnoise.app.action.REPORT_NOW`,
+no extras) that opens `MainActivity` (single-top). `NotificationCadence` (`service/ServicePolicy.kt`)
+suppresses the 2-s level text meanwhile and re-posts the level text and the usual tap at once when the
+state ends; nothing is posted per second in report mode. `MainActivity` takes the intent in
+`onCreate`/`onNewIntent` with `System.currentTimeMillis()` as the report's time (`ReportTap.preset`: no
+category suggested), then «Laut! Melden» runs as always. The «Sehr laut» notification (request code 2,
+`REPORT_LOUD`) is unchanged. Tests: `ReportTapTest` (src/testKarte), `ServicePolicyTest`,
+`LoudAlertIsolationTest`.
+
 ## The tab «Karte» (0.6.3)
 
 The «Online-Version» and the internal Labor build with the map have a fifth tab, **«Karte»**
@@ -1153,6 +1195,8 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
    and no string `loud_alert`; the public one has them.
+   (0.6.7) the offline dex contains no class `ch/lessnoise/app/motion/MotionDetector*` and no class
+   of `ch/lessnoise/` that refers to `Landroid/hardware/SensorManager;`; the public one has them.
 3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
    `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.

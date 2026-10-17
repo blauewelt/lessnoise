@@ -164,6 +164,15 @@ object MigrationSql {
         "CREATE TABLE IF NOT EXISTS `measurements` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, " +
             "`end_ms` INTEGER, `cell` TEXT, `point_e` INTEGER, `point_n` INTEGER, `sigma_m` INTEGER, `unterwegs` INTEGER NOT NULL DEFAULT 0)"
 
+    /** v9 (app 0.6.7): the moving spans of «Unterwegs erkannt», exactly as Room generates them (verified by a unit test). */
+    const val CREATE_MOVING_SPANS_V9 =
+        "CREATE TABLE IF NOT EXISTS `moving_spans` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `start_ms` INTEGER NOT NULL, `end_ms` INTEGER)"
+    const val CREATE_MOVING_SPANS_INDEX_V9 =
+        "CREATE INDEX IF NOT EXISTS `index_moving_spans_start_ms` ON `moving_spans` (`start_ms`)"
+
+    /** v8 → v9 (app 0.6.7): the new, empty table; nothing else changes. */
+    val MIGRATE_8_9: List<String> = listOf(CREATE_MOVING_SPANS_V9, CREATE_MOVING_SPANS_INDEX_V9)
+
     /** v5 `events` table, exactly as Room generates it (verified by a unit test). */
     const val CREATE_EVENTS_V5 = CREATE_EVENTS_V4_PREFIX +
         ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
@@ -190,6 +199,16 @@ object NoiseFloorSql {
     const val COUNT = "SELECT COUNT(*) FROM minutes WHERE $VALID"
     /** The rawL90 at 0-based rank `:offset` in ascending order (one row, or none). */
     const val RAW_L90_AT = "SELECT $RAW_L90 FROM minutes WHERE $VALID ORDER BY $RAW_L90 ASC LIMIT 1 OFFSET :offset"
+}
+
+/**
+ * «Unterwegs erkannt» (0.6.7) in SQL: a minute `m` that overlaps no moving span — the SQL form of
+ * PlaceIndex's overlap rule (checked by a unit test). An open span reaches to the end of time.
+ */
+object MovingSql {
+    const val MINUTE_NOT_MOVING =
+        "NOT EXISTS (SELECT 1 FROM moving_spans AS s WHERE s.start_ms < m.startEpochMs + MAX(CAST(m.durationSeconds * 1000 AS INTEGER), 1) " +
+            "AND (s.end_ms IS NULL OR s.end_ms > m.startEpochMs))"
 }
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -235,5 +254,11 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
 val MIGRATION_7_8 = object : Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_7_8.forEach { db.execSQL(it) }
+    }
+}
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        MigrationSql.MIGRATE_8_9.forEach { db.execSQL(it) }
     }
 }

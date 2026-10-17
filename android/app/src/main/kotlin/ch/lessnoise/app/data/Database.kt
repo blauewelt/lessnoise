@@ -157,6 +157,21 @@ data class MeasurementEntity(
 fun MeasurementEntity.sharedPoint(): LocationNoise.Point? =
     if (!unterwegs && pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
 
+/**
+ * v9 (app 0.6.7, editions with the map): a time span in which the phone was being carried during a
+ * measurement started with «Messen» («Unterwegs erkannt», the motion detector in src/karte/.../motion/).
+ * Only its start and end (wall-clock ms) are stored — no sensor value. Minutes and events that
+ * overlap a span are never sent ([PlaceIndex][ch.lessnoise.app.upload.PlaceIndex]): the
+ * measurement's shared point is wrong while the phone is carried. [endMs] null: still moving (or the
+ * app was killed; [MeasurementRepository.beginMeasurement] closes it at the next start).
+ */
+@Entity(tableName = "moving_spans", indices = [Index("start_ms")])
+data class MovingSpanEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "start_ms") val startMs: Long,
+    @ColumnInfo(name = "end_ms") val endMs: Long? = null,
+)
+
 @Entity(tableName = "calibrations", indices = [Index(value = ["deviceModel", "audioSource"])])
 data class CalibrationEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -257,10 +272,14 @@ interface MeasurementDao {
     @Query("SELECT * FROM events WHERE startEpochMs > :afterMs ORDER BY startEpochMs ASC, id ASC LIMIT :limit")
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
-    /** Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent. */
+    /**
+     * Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent;
+     * since 0.6.7 without those overlapping a moving span.
+     */
     @Query(
         "SELECT COUNT(*) FROM minutes AS m WHERE m.startEpochMs > :afterMs AND " +
-            "(SELECT CASE WHEN unterwegs = 0 THEN point_e END FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
+            "(SELECT CASE WHEN unterwegs = 0 THEN point_e END FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL" +
+            " AND " + MovingSql.MINUTE_NOT_MOVING
     )
     fun sharedMinuteCountAfter(afterMs: Long): Flow<Int>
 
@@ -302,6 +321,19 @@ interface MeasurementDao {
 
     @Query("DELETE FROM measurements") suspend fun clearMeasurements()
 
+    // ---- Moving spans («Unterwegs erkannt», v9, app 0.6.7) ----------------------------------------
+
+    @Insert suspend fun insertMovingSpan(s: MovingSpanEntity): Long
+
+    /** Closes every open span at [endMs] (an open span cannot end before it started). */
+    @Query("UPDATE moving_spans SET end_ms = MAX(:endMs, start_ms) WHERE end_ms IS NULL")
+    suspend fun endMovingSpans(endMs: Long): Int
+
+    @Query("SELECT * FROM moving_spans ORDER BY start_ms ASC, id ASC")
+    suspend fun allMovingSpans(): List<MovingSpanEntity>
+
+    @Query("DELETE FROM moving_spans") suspend fun clearMovingSpans()
+
     // ---- The phone's noise floor («Messgrenze», 0.6.5; dsp NoiseFloor.kt, data/NoiseFloorStore.kt) -------
 
     /** Valid minutes with an L90 of [source]: the n of the estimate. */
@@ -334,8 +366,8 @@ interface CalibrationDao {
 }
 
 @Database(
-    entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class],
-    version = 8, exportSchema = false,
+    entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class, MovingSpanEntity::class],
+    version = 9, exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
@@ -344,7 +376,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
     }
 }

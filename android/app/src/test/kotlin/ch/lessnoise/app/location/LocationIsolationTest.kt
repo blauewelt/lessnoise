@@ -85,12 +85,16 @@ class LocationIsolationTest {
                 .forEach { problems += "location/${f.name}: project import $it (only $allowedLocationImports)" }
         }
 
-        // 2. android.location is used only by LocationFetcher; the upload never sees a Location.
+        // 2. android.location is used only by LocationFetcher (and, 0.6.9, by the Labor·Karte position
+        //    signal src/laborKarte/.../position/PositionWatch.kt); the upload never sees a Location.
         val all = kotlinFiles(File(appDir, "src")).filter { f -> f.path.split(File.separatorChar).none { it.startsWith("test") } }
         assertTrue(all.size > 30, "sources not found")
+        val positionWatch = File(appDir, "src/laborKarte/kotlin/ch/lessnoise/app/position/PositionWatch.kt")
         for (f in all) {
             val src = KotlinSource.parse(f.readText())
-            if (f.name != "LocationFetcher.kt" && Regex("""\bandroid\.location\b|\bLocationManager\b""").containsMatchIn(src.code)) {
+            if (f.name != "LocationFetcher.kt" && f.absoluteFile != positionWatch.absoluteFile &&
+                Regex("""\bandroid\.location\b|\bLocationManager\b""").containsMatchIn(src.code)
+            ) {
                 problems += "${f.relativeTo(appDir)}: uses android.location outside location/LocationFetcher.kt"
             }
             // 3. No log line anywhere mentions a coordinate or a location.
@@ -105,6 +109,14 @@ class LocationIsolationTest {
             if (Regex("""ch\.lessnoise\.app\.location\b|\bLocationFetcher\b|\bLocationPolicy\b|\bLocation\b""").containsMatchIn(src.code)) {
                 problems += "upload/${f.name}: refers to the location code"
             }
+        }
+        // 4. 0.6.9: the Labor·Karte position signal stores, logs and sends nothing either.
+        for (f in kotlinFiles(File(appDir, "src/laborKarte/kotlin/ch/lessnoise/app/position"))) {
+            val src = KotlinSource.parse(f.readText())
+            for ((what, re) in forbidden) {
+                re.findAll(src.code).forEach { m -> problems += "position/${f.name}:${src.lineOf(m.range.first)}: $what («${m.value}»)" }
+            }
+            src.imports.filter { it.startsWith("ch.lessnoise.") }.forEach { problems += "position/${f.name}: project import $it" }
         }
         if (problems.isNotEmpty()) fail("Coordinates must stay inside the location code:\n" + problems.joinToString("\n"))
     }

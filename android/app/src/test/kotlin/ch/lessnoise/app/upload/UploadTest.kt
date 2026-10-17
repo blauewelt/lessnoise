@@ -485,10 +485,12 @@ class UploadTest {
         // One rule: the upload's include filter and the live trigger call it; no other filter.
         val app = java.io.File(repo, "android/app/src/main/kotlin/ch/lessnoise/app/upload")
         val uploader = java.io.File(app, "Uploader.kt").readText()
-        assertTrue(uploader.contains("include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs) != null }"))
+        // 0.6.7: the place now also depends on the record's duration (moving spans, MovingSpanUploadTest).
+        assertTrue(uploader.contains("include = { Payloads.isMapEvent(it) && places.pointAt(it.startEpochMs, (it.durationSeconds * 1000).toLong()) != null }"))
         val worker = java.io.File(app, "UploadWorker.kt").readText()
         assertTrue(worker.contains("fun triggers(e: ch.lessnoise.app.service.LiveEvent?): Boolean = e != null && Payloads.isMapEvent(e)"))
-        assertTrue(worker.contains("if (e != null && LiveUploadPlan.triggers(e))"))
+        // 0.6.7: and not while the phone is being carried (nothing of that span is sent).
+        assertTrue(worker.contains("if (e != null && LiveUploadPlan.triggers(e) && !live.value.moving)"))
         assertFalse(worker.contains("!e.wind"), "the old wind-only trigger is gone")
     }
 

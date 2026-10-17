@@ -358,7 +358,9 @@ upload includes and which ones start an events-only upload: category one of the 
 wind, `threshold_db` ≥ 6.5, `lafmax_db` ≥ max(`min_level_db`, 30) and `duration_s` ≥ 0.5 (the
 server's checks of §4.4 and §6). Voices, music, unclassified and wind never leave the phone; no
 field was added to the bodies. A measurement started as «Unterwegs» (app 0.6.4, a start mode next
-to «Messen») is never shared: it gets no point, so none of its minutes and events is sent.
+to «Messen») is never shared: it gets no point, so none of its minutes and events is sent. Since app
+0.6.7 a measurement started with «Messen» also sends nothing of a time span in which the phone's
+motion sensor showed it was being carried («Unterwegs erkannt»); no field was added.
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
 

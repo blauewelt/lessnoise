@@ -20,6 +20,52 @@ Built on 0.6.6.
 - Not snapped to the street: no road data exists in the app or on the server (server-side
   follow-up).
 
+## 0.6.9 — Labor·Karte only, not published (branch auto-unterwegs) (versionCode 22)
+
+- **Labor·Karte only** (flag `LABOR_UNTERWEGS`; the Online-Version behaves as 0.6.8, Offline and Labor
+  unchanged): a **«Melden»** button next to «Stopp» on the «Messung läuft» notification during every
+  run (opens «Laut! Melden» at the time of the tap, nothing preselected); the level text stays in every
+  state. Motion detector for trams and trains: enters at 0.07 m/s², stays from 0.05 m/s² (was 0.25).
+  The **position as a second signal** in «Messen» runs: about once a minute at low power, only while the
+  run goes, only with a location permission already granted (foreground-service type «location»); only
+  the first fix and the latest distance in memory, never stored or sent; «unterwegs» after 4 fixes in a
+  row more than max(150 m, both accuracies) from the start. The run is «unterwegs» if motion or position
+  says so. Readout «Bewegung 0,12 m/s² · 400 m · unterwegs» on «Messen», one `motion_minute` line per
+  minute in `manifest.jsonl`. New permission: `FOREGROUND_SERVICE_LOCATION`.
+
+## 0.6.8 — not published (branch auto-unterwegs) (versionCode 21)
+
+In short: while a measurement is «unterwegs», a tap on the «Messung läuft» notification opens
+«Laut! Melden» — report a poser you see yourself. No new setting, no new permission. Nothing new
+is sent.
+
+- **Melden aus der Mitteilung** (Online-Version and Labor·Karte; not in the Offline and Labor builds):
+  while the run was started with «Unterwegs», or a «Messen» run is «Unterwegs erkannt», the ongoing
+  measurement notification says «Antippen zum Melden» (title unchanged) and its tap opens «Laut!
+  Melden» with the time of the tap and no category preselected; then as always (one location fix with
+  the app open, confirmation, «Senden»). When the phone lies still again, the notification shows the
+  level and opens the app as before. Re-posted only when that state changes. Own intent action
+  (`REPORT_NOW`) and request code (3), so it is never mistaken for the «Sehr laut» tap, which is
+  unchanged. Works while the app is already open (single-top, `onNewIntent`).
+
+## 0.6.7 — not published (branch auto-unterwegs) (versionCode 20)
+
+In short: «Unterwegs erkannt» — a measurement started with «Messen» notices that the phone is
+being carried, alerts like «Unterwegs» and shares nothing of that time span. No new setting, no new
+permission. Nothing new is sent.
+
+- **Unterwegs erkannt** (Online-Version and Labor·Karte; not in the Offline and Labor builds): while a
+  «Messen» measurement runs, the app reads the accelerometer on the phone (20 Hz, batched up to 5 s).
+  About 20 s of walking or cycling switch to «unterwegs», about 3 minutes lying still switch back; a
+  bump, picking the phone up or a red light do not. Meanwhile the «Sehr laut» notification works
+  exactly as in «Unterwegs», «Laut! Melden» is shown under «Stoppen», the status line says
+  «Unterwegs erkannt: Mitteilung bei sehr lautem Verkehr, nichts auf die Karte.», and no minute or
+  event of that span is sent (database v9: table `moving_spans`, start and end only). While a «Messen»
+  measurement runs, the newest records wait 35 s before they may be sent (loud events reach the live
+  map after about 35 s instead of 30 s). The «Unterwegs» button is unchanged.
+- **Labor·Karte only:** every change still ↔ carried is a `motion` line in `manifest.jsonl` with the
+  numbers that decided it; Einstellungen › Labor shows «Bewegung» while measuring.
+
 ## 0.6.6 — 2026-10-17 (published on the website) (versionCode 19)
 
 In short: the app measures only with the phone's own microphone, never with a connected headset's.

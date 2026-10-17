@@ -67,6 +67,7 @@ class UploadSourceIsolationTest {
         "ch.lessnoise.app.data.MeasurementEntity", // start, end and shifted point of a measurement (Room row), no audio
         "ch.lessnoise.app.data.sharedPoint", // MeasurementEntity → its shifted point, pure
         "ch.lessnoise.app.data.MinuteEntity",
+        "ch.lessnoise.app.data.MovingSpanEntity", // 0.6.7: start and end of a span in which the phone was carried (Room row), no sensor value
         "ch.lessnoise.app.data.Recalibrator",
         "ch.lessnoise.app.service.LiveState",
         "ch.lessnoise.app.service.LiveEvent", // 0.6.4: a just-detected event (levels, category, wind, settings) for Payloads.isMapEvent, no audio
