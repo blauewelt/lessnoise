@@ -64,11 +64,11 @@
   <!-- Release checklist: version, sizes and SHA-256 of the two files in docs/download/ (lessnoise-karte.apk = Online-Version,
        lessnoise.apk = Offline-Version); also data-version / data-code in update.html and the version line on index.html. -->
   <dl class="facts">
-    <dt>Version</dt><dd>0.6.4 (Testversion), Android 8.0 oder neuer</dd>
+    <dt>Version</dt><dd>0.6.6 (Testversion), Android 8.0 oder neuer</dd>
     <dt>Online-Version</dt><dd>lessnoise-karte.apk, 18,8 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">17ed428065c170a4f7b40fa3edec8c0f51704ba6cbab1ea6301404aa7b76c627</code></dd>
+    <dt>SHA-256</dt><dd><code class="hash">eabb4198222563be168a78c62e833c5345abf91bc1517ba4f5c418ada8e7ec2b</code></dd>
     <dt>Offline-Version</dt><dd>lessnoise.apk, 18,8 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">35d0b3e45164e3100b4b442fce3d9f09e14e288e425bf4761394b60a665856a7</code></dd>
+    <dt>SHA-256</dt><dd><code class="hash">b3ea3f1390862673f096537ff266ac49b4c2415676a6d3cfc7922d7d29480028</code></dd>
     <dt>Zertifikat der Signatur (beide), SHA-256</dt><dd><code class="hash">a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be</code></dd>
   </dl>
   <p class="small">Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist, die Signatur, dass sie vom Projekt stammt. Prüfen auf dem Computer: <code>sha256sum lessnoise-karte.apk</code> muss die Zahl oben ergeben, <code>apksigner verify --print-certs lessnoise-karte.apk</code> das Zertifikat. Mehr in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
@@ -77,7 +77,7 @@
 <section id="messen">
   <h2>Messen</h2>
   <ol class="steps">
-    <li>Telefon ans Fenster oder auf den Balkon legen, das Mikrofon frei.</li>
+    <li>Telefon ans Fenster oder auf den Balkon legen, das Mikrofon frei. Gemessen wird immer mit dem Mikrofon des Telefons, nie mit einem Headset.</li>
     <li>Im Tab «Messen» auf «Starten» tippen. Gemessen wird zu jeder Tageszeit, auch bei ausgeschaltetem Bildschirm, bis «Stoppen».</li>
     <li>Im Tab «Messungen» die Messung als Grafik ansehen, über ihre Dauer oder als Tagesverlauf. Jedes laute Ereignis ist ein Punkt, mit Uhrzeit, Spitzenpegel und wahrscheinlicher Quelle.</li>
   </ol>
@@ -92,7 +92,7 @@
     <li>Ein gleichmässiges Geräusch von mindestens 60&nbsp;dB(A) abspielen, etwa Rauschen aus einem Lautsprecher. Unter «Einstellungen → Erweitert → Kalibrieren» bei «Mit Messgerät vergleichen» auf «Messen (30 s)» tippen und gleichzeitig 30 Sekunden mit dem Messgerät messen.</li>
     <li>Den Wert des Messgeräts (LAeq, den Mittelwert über die Messdauer) eintippen und «Übernehmen».</li>
   </ol>
-  <p>Sehr leise misst kein Telefon: Das Mikrofon rauscht selbst, und Werte nahe an diesem Eigenrauschen stammen vom Telefon, nicht vom Raum. Seit Version&nbsp;0.6.5 schätzt die App diese Messgrenze für Ihr Telefon aus den bisherigen Messungen (ab etwa einer Stunde Messzeit) und zeigt Werte an der Grenze mit «≤», zum Beispiel «Grundrauschen ≤&nbsp;34,0&nbsp;dB(A)»; die Grafik zeigt sie als hellen Streifen «Messgrenze». Die Schätzung steht unter «Einstellungen → Erweitert → Kalibrieren».</p>
+  <p>Sehr leise Werte, die Ihr Telefon nicht mehr messen kann, zeigt die App seit Version&nbsp;0.6.5 mit «≤», etwa «Grundrauschen ≤&nbsp;34,0&nbsp;dB(A)».</p>
   <p>Ohne Kalibrierung sind die Werte Richtwerte (±&nbsp;5&nbsp;dB). Weitere Methoden: <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#calibration-step-by-step">ausführliche Anleitung</a> (Englisch).</p>
   <p>Haben Sie Zugang zu einem Schallpegelmesser? Ihre Kalibrierung hilft allen mit demselben Telefonmodell – schreiben Sie uns über die <a href="https://github.com/blauewelt/lessnoise/issues">Rückmeldung auf GitHub</a>.</p>
 </section>

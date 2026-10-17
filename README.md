@@ -139,11 +139,16 @@ What the project counts, and who counts it — totals over the whole project, al
   «Standort verschieben»: 25/50/100/200 m), instead of being snapped to the 100 m hectare; server
   schema v4 stores the shifted point and shows it in the 100 m square that contains it. The two
   editions are now called «Offline-Version» and «Online-Version» (the app is still «Weniger Lärm»).
-- **Phone app v0.6.3 (published 2026-10-15, the current version):** sharing made simple — one question «Auf die
+- **Phone app v0.6.3 (published 2026-10-15):** sharing made simple — one question «Auf die
   Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
   the fix arrives (all its minutes are sent); the live map: loud moments about 30 s after they end,
   minutes every 2 minutes, the map page refreshes every 30 s; over mobile data by default; one status line on «Messen» and «Teilen»; the new tab «Karte» shows the website's
   map in the app.
+- **Phone app v0.6.4 (published 2026-10-16):** only machine and motor noise leaves the phone;
+  «Unterwegs» is a start mode that shares nothing.
+- **Phone app v0.6.6 (published 2026-10-17, the current version):** the phone's noise floor
+  («Messgrenze», 0.6.5) is estimated from the stored minutes and values at it are shown with «≤»;
+  the app measures only with the phone's built-in microphone, never a headset's.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30
