@@ -202,7 +202,8 @@ class ReportsTest {
         // The flow: a Fix always goes to the confirmation; only a Problem shows «Kein genauer Standort».
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         assertTrue(ui.contains("is LocationPolicy.ReportOutcome.Fix -> ReportStep.Confirm(category, o)"))
-        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText)"))
+        // 0.7.0: the direction of travel (if taken) is passed along too.
+        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction)"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }
