@@ -46,8 +46,8 @@ def add_day(conn, dev, day: date, base: float, rate: float, seed: int, calibrate
     db.upsert_rows(conn, "events", db.EVENT_COLUMNS, ev_rows)
 
 
-def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad"):
-    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4))
+def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad", direction=None):
+    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4, direction=direction))
     db.upsert_rows(conn, "reports", db.REPORT_COLUMNS, [db.report_row(dev, r, RECEIVED)], key="time_utc")
 
 
@@ -265,12 +265,12 @@ def test_reports_json(conn, tmp_path):
     assert (r["from"], r["to"]) == ("2026-09-26", "2026-10-25")
     assert r["categories"] == ["motorrad", "auto", "lastwagen", "poser", "andere"]
     assert r["reports"] == [
-        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere"},
-        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto"},
+        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None},
+        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None},
         # 09:01, 09:30 and 09:59:59 are all «09:00»; within the hour, sorted by place, not by time or device.
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser"},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad"},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen"},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None},
     ]
     text = (out / "reports.json").read_text()
     for forbidden in ("dev-", "accuracy", "123.4", "device"):
@@ -380,7 +380,10 @@ def test_example_fixture_has_the_published_format(conn, tmp_path):
     for i in range(3):
         add_day(conn, a, LAST - timedelta(days=i), 44.0, 6.0, 10 + i, start_h=0, hours=18)
         add_day(conn, b, LAST - timedelta(days=i), 40.0, 3.0, 20 + i)
-    add_report(conn, a, datetime(2026, 10, 25, 9, 12), 47.3553, 8.5355)
+    add_report(
+        conn, a, datetime(2026, 10, 25, 9, 12), 47.3553, 8.5355,
+        direction={"bearing_deg": 87, "north": "true", "accuracy": "high"},
+    )  # fmt: skip
     conn.commit()
     cells = publish.publish(conn, tmp_path / "map", now=NOW)
     server = Path(__file__).resolve().parent.parent
@@ -391,3 +394,22 @@ def test_example_fixture_has_the_published_format(conn, tmp_path):
     assert _shape(load(server / "example_reports.json")) == _shape(load(tmp_path / "map" / "reports.json"))
     assert 20 <= len(example["cells"]) <= 30
     assert len(load(server / "example_reports.json")["reports"]) >= 20
+
+
+def test_reports_json_publishes_the_direction_in_whole_degrees_only(conn, tmp_path):
+    """App 0.6.7 (§6.4): the direction of travel is published as whole degrees; north and the
+    compass accuracy class are not; an «unreliable» compass reading is not published at all."""
+    a = add_device(conn, None)
+    t = datetime(2026, 10, 25, 9, 12)
+    add_report(conn, a, t, 47.36, 8.54, direction={"bearing_deg": 87, "north": "true", "accuracy": "medium"})
+    add_report(conn, a, t + timedelta(minutes=1), 47.37, 8.54, direction={"bearing_deg": 4, "north": "magnetic", "accuracy": "low"})
+    add_report(conn, a, t + timedelta(minutes=2), 47.38, 8.54, direction={"bearing_deg": 200, "north": "true", "accuracy": "unreliable"})
+    add_report(conn, a, t + timedelta(minutes=3), 47.39, 8.54)
+    conn.commit()
+    out = tmp_path / "map"
+    publish.publish(conn, out, now=NOW)
+    got = [(r["lat"], r["direction"]) for r in load(out / "reports.json")["reports"]]
+    assert got == [(47.36, 87), (47.37, 4), (47.38, None), (47.39, None)]
+    text = (out / "reports.json").read_text()
+    for forbidden in ("magnetic", "medium", "unreliable", "north", "accuracy", "bearing"):
+        assert forbidden not in text

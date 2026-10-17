@@ -207,6 +207,13 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
     """,
     # 5: events of other categories deleted, `meta.counted_since` (a Python step, see above).
     _v5_purge_other_categories,
+    # 6: the optional direction of travel of a report (§4.7, app 0.6.7): bearing in whole degrees,
+    # 'true' | 'magnetic' north, the compass accuracy class. Existing reports keep NULL (none given).
+    """
+    ALTER TABLE reports ADD COLUMN direction_deg INTEGER;
+    ALTER TABLE reports ADD COLUMN direction_north TEXT;
+    ALTER TABLE reports ADD COLUMN direction_accuracy TEXT;
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -221,7 +228,10 @@ EVENT_COLUMNS = (
     "background_db", "threshold_db", "min_level_db", "category", "category_score",
     "calibration_id", "calibrated", "received_at", "cell", "point_e", "point_n", "sigma_m",
 )  # fmt: skip
-REPORT_COLUMNS = ("device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at")
+REPORT_COLUMNS = (
+    "device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at",
+    "direction_deg", "direction_north", "direction_accuracy",
+)  # fmt: skip
 # Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
 REPORT_DECIMALS = 5
 
@@ -487,6 +497,9 @@ def report_row(device_id: str, r: ReportIn, received_at: str) -> dict:
         "accuracy_m": round(r.accuracy_m, 1),
         "category": r.category,
         "received_at": received_at,
+        "direction_deg": r.direction.bearing_deg if r.direction else None,
+        "direction_north": r.direction.north if r.direction else None,
+        "direction_accuracy": r.direction.accuracy if r.direction else None,
     }
 
 

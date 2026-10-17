@@ -335,6 +335,22 @@
     return REPORT_CATEGORIES[REPORT_CATEGORIES.length - 1];
   }
 
+  /** A report's direction of travel (reports.json `direction`, app 0.6.7): whole degrees 0–359
+   *  clockwise from north, or null when none was reported (older reports, older apps). */
+  function reportDirection(r) {
+    var d = r ? r.direction : null;
+    return typeof d === "number" && isFinite(d) && d >= 0 && d < 360 ? Math.round(d) % 360 : null;
+  }
+
+  var COMPASS_8 = ["Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest"];
+
+  /** 87 -> "Richtung Ost"; null -> "". Eight sectors of 45°, centred on the compass points. */
+  function directionLabel(deg) {
+    if (typeof deg !== "number" || !isFinite(deg)) return "";
+    var i = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+    return "Richtung " + COMPASS_8[i];
+  }
+
   /** Reports whose local date lies in the `n` days ending with `lastDay`. */
   function reportsInPeriod(reports, lastDay, n) {
     var first = addDays(lastDay, -(n - 1));
@@ -486,6 +502,7 @@
     sourceMetric: sourceMetric, metricFor: metricFor,
     parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
     REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    reportDirection: reportDirection, directionLabel: directionLabel,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };
 });

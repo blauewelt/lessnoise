@@ -223,6 +223,20 @@ path.cell:focus { outline: none; }
 }
 .leaflet-marker-icon.report { width: 18px; height: 18px; }
 .report span { pointer-events: none; }
+/* Direction of travel (app 0.6.7): the box covers the marker and is rotated by the bearing (karte.js);
+   its arrowhead sits just outside the rim, at «north» before the rotation. */
+.report-dir { position: absolute; inset: 0; pointer-events: none; }
+.report-dir::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  margin-left: -4px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid #17202e;
+  filter: drop-shadow(0 0 1px #ffffff);
+}
 .report-motorrad { background: #c2410c; }
 .report-poser { background: #7e22ce; }
 .report-lastwagen { background: #0f766e; }

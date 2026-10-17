@@ -375,9 +375,22 @@ test("reports layer: on by default, one lettered marker per report of the period
   expect(legend.map((t) => t.slice(1))).toEqual(["Motorrad", "Poser", "Lastwagen", "Auto", "Andere"]);
   // the marker carries category and hour, nothing else
   const labels = await markers.locator("span").evaluateAll((s) => s.map((x) => x.getAttribute("aria-label")));
-  for (const l of labels) expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr$/);
+  for (const l of labels) {
+    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?$/);
+  }
   const first = in7[0];
-  expect(labels).toContain(`${M.reportCategory(first.category).name} · ${M.hourLabel(first.time)}`);
+  const firstDir = M.reportDirection(first);
+  expect(labels).toContain(
+    `${M.reportCategory(first.category).name} · ${M.hourLabel(first.time)}` + (firstDir === null ? "" : ` · ${M.directionLabel(firstDir)}`));
+  // app 0.6.7: an arrowhead per report with a direction, rotated by its bearing; none without one
+  const withDir = in7.filter((r) => M.reportDirection(r) !== null);
+  expect(withDir.length).toBeGreaterThan(0);
+  expect(withDir.length).toBeLessThan(in7.length);
+  const arrows = markers.locator(".report-dir");
+  await expect(arrows).toHaveCount(withDir.length);
+  const rot = await arrows.evaluateAll((a) => a.map((x) => [x.getAttribute("data-direction"), x.style.transform]));
+  for (const [d, t] of rot) expect(t).toBe(`rotate(${d}deg)`);
+  expect(rot.map(([d]) => Number(d)).sort((a, b) => a - b)).toEqual(withDir.map((r) => r.direction).sort((a, b) => a - b));
   if (!isMobile) {
     await page.locator("#karte").scrollIntoViewIfNeeded();
     const m = markers.first();

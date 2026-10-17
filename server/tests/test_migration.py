@@ -60,7 +60,7 @@ def test_v2_database_is_migrated_and_keeps_its_rows(tmp_path: Path, monkeypatch)
     monkeypatch.undo()
 
     latest = len(db.MIGRATIONS)
-    assert db.migrate(conn) == latest == 5
+    assert db.migrate(conn) == latest == 6
     assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == latest
     after = {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("minutes", "events", "hourly")}
     # Every row stays, except the events of other categories (v5).
@@ -209,7 +209,7 @@ def test_v4_to_v5_deletes_events_of_other_categories(tmp_path: Path, monkeypatch
 
     deploy = datetime.fromisoformat("2026-10-16T00:30:00+02:00")  # 22:30 UTC the day before
     with caplog.at_level(logging.INFO, logger="stadtlaerm"):
-        assert db.migrate(conn, now=deploy) == 5
+        assert db.migrate(conn, now=deploy) == 6
     assert f"deleted {other_before} stored events of other categories, trimmed 1 hourly rows" in caplog.text
     assert "dev-a" not in caplog.text  # counts only, no device id
 
@@ -223,7 +223,7 @@ def test_v4_to_v5_deletes_events_of_other_categories(tmp_path: Path, monkeypatch
     assert db.counted_since(conn) == "2026-10-16"  # the local (Zürich) day, not the UTC one
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     # Running it again changes nothing.
-    assert db.migrate(conn) == 5 and db.counted_since(conn) == "2026-10-16"
+    assert db.migrate(conn) == 6 and db.counted_since(conn) == "2026-10-16"
 
     # The map does not change (those events were already ignored), except for `counted_since`.
     cells = publish.publish(conn, map_dir, now=NOW)
@@ -252,7 +252,7 @@ def test_failed_python_step_leaves_the_old_version(tmp_path: Path, monkeypatch):
         pass
     assert db.schema_version(conn) == 4
     monkeypatch.undo()
-    assert db.migrate(conn) == 5
+    assert db.migrate(conn) == 6
     conn.close()
 
 
@@ -276,3 +276,24 @@ def test_app_start_after_v5_rebuilds_the_published_files(tmp_path: Path, monkeyp
     fresh = Settings(db_path=tmp_path / "new.sqlite", map_dir=tmp_path / "map2", background_jobs=False)
     create_app(fresh)
     assert not (tmp_path / "map2" / "cells.json").exists()
+
+
+def test_v5_database_gets_the_report_direction_columns_and_keeps_its_reports(tmp_path: Path, monkeypatch):
+    """v5 → v6 (app 0.6.7): three nullable report columns; existing reports keep everything and
+    read as «no direction»."""
+    conn = db.connect(tmp_path / "db.sqlite")
+    monkeypatch.setattr(db, "MIGRATIONS", db.MIGRATIONS[:5])
+    assert db.migrate(conn) == 5
+    conn.execute("INSERT INTO devices (id, token_hash, created_at, last_seen_at) VALUES ('dev-a', 'h', 'c', 'l')")
+    conn.execute(
+        "INSERT INTO reports (device_id, time_utc, time_iso, lat, lon, accuracy_m, category, received_at) "
+        "VALUES ('dev-a', 1, 't', 47.37691, 8.54169, 12.3, 'andere', 'r')"
+    )
+    conn.commit()
+    monkeypatch.undo()
+    assert db.migrate(conn) == 6
+    assert tuple(conn.execute("SELECT * FROM reports").fetchone()) == (
+        "dev-a", 1, "t", 47.37691, 8.54169, 12.3, "andere", "r", None, None, None,
+    )  # fmt: skip
+    assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    conn.close()

@@ -99,9 +99,29 @@ test("reports: categories, letters, filter by period", () => {
   assert.deepEqual(M.reportsInPeriod(null, "2026-10-08", 7), []);
 });
 
+test("reports: direction of travel (app 0.6.7), whole degrees or none", () => {
+  assert.equal(M.reportDirection({ direction: 87 }), 87);
+  assert.equal(M.reportDirection({ direction: 0 }), 0);
+  assert.equal(M.reportDirection({ direction: 359.4 }), 359);
+  assert.equal(M.reportDirection({ direction: 359.6 }), 0);
+  for (const bad of [null, undefined, -1, 360, "90", NaN]) assert.equal(M.reportDirection({ direction: bad }), null);
+  assert.equal(M.reportDirection({}), null, "reports of older apps have none");
+  assert.equal(M.directionLabel(0), "Richtung Nord");
+  assert.equal(M.directionLabel(22), "Richtung Nord");
+  assert.equal(M.directionLabel(23), "Richtung Nordost");
+  assert.equal(M.directionLabel(87), "Richtung Ost");
+  assert.equal(M.directionLabel(180), "Richtung Süd");
+  assert.equal(M.directionLabel(338), "Richtung Nord");
+  assert.equal(M.directionLabel(null), "");
+  const dirs = reports.reports.map(M.reportDirection);
+  assert.ok(dirs.some((d) => d === null) && dirs.some((d) => d !== null), "the fixture has both");
+});
+
 test("reports fixture: hours only, no device ids, no accuracy", () => {
   for (const r of reports.reports) {
-    assert.deepEqual(Object.keys(r).sort(), ["category", "lat", "lon", "time"]);
+    // app 0.6.7: plus `direction`, whole degrees or null; never north, compass accuracy or samples
+    assert.deepEqual(Object.keys(r).sort(), ["category", "direction", "lat", "lon", "time"]);
+    assert.ok(r.direction === null || (Number.isInteger(r.direction) && r.direction >= 0 && r.direction <= 359));
     assert.match(r.time, /^\d{4}-\d{2}-\d{2}T\d{2}:00:00\+0[12]:00$/);
   }
 });
