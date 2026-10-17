@@ -423,20 +423,26 @@ def build(
     return build_state(devices, now, min_devices, loud_db, counted_since).all_files()
 
 
-def build_reports(rows: Iterable[tuple[int, float, float, str]], now: datetime) -> dict:
-    """reports.json (§6.4) from (time_utc ms, lat, lon, category) of non-hidden devices.
+def build_reports(rows: Iterable[tuple], now: datetime) -> dict:
+    """reports.json (§6.4) from (time_utc ms, lat, lon, category[, direction_deg, direction_accuracy])
+    of non-hidden devices.
 
     The last REPORT_DAYS calendar days up to today. Each time is rounded *down* to the full
-    hour (local ISO with offset); no device id, no accuracy. Sorted by (hour, lat, lon,
-    category), so within an hour the order says nothing about who reported what."""
+    hour (local ISO with offset); no device id, no accuracy. `direction` is the reported direction of
+    travel in whole degrees (app 0.6.7), null when none was given or the compass said «unreliable»;
+    north and accuracy class are not published. Sorted by (hour, lat, lon, category, direction), so
+    within an hour the order says nothing about who reported what."""
     latest = agg.today(now)
     first = latest - timedelta(days=REPORT_DAYS - 1)
     a, b = agg.day_bounds(first)[0], agg.day_bounds(latest)[1]
     items = []
-    for t_ms, lat, lon, category in rows:
+    for row in rows:
+        t_ms, lat, lon, category = row[:4]
+        deg, acc = (row[4], row[5]) if len(row) >= 6 else (None, None)
+        direction = deg if deg is not None and acc != "unreliable" else None
         if a <= t_ms < b:
             hour = t_ms // agg.HOUR_MS * agg.HOUR_MS
-            items.append((hour, lat, lon, category))
+            items.append((hour, lat, lon, category, -1 if direction is None else direction))
     items.sort()
     return {
         "generated_at": now.astimezone(agg.ZONE).isoformat(timespec="seconds"),
@@ -444,21 +450,25 @@ def build_reports(rows: Iterable[tuple[int, float, float, str]], now: datetime) 
         "to": latest.isoformat(),
         "categories": list(REPORT_CATEGORIES),
         "reports": [
-            {"time": agg.local(h).isoformat(timespec="seconds"), "lat": lat, "lon": lon, "category": c}
-            for h, lat, lon, c in items
+            {
+                "time": agg.local(h).isoformat(timespec="seconds"), "lat": lat, "lon": lon, "category": c,
+                "direction": None if d < 0 else d,
+            }
+            for h, lat, lon, c, d in items
         ],
     }
 
 
-def load_reports(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> list[tuple[int, float, float, str]]:
-    return [
-        tuple(r)  # type: ignore[misc]
-        for r in conn.execute(
-            "SELECT r.time_utc, r.lat, r.lon, r.category FROM reports r JOIN devices d ON d.id = r.device_id "
-            "WHERE d.hidden = 0 AND r.time_utc >= ? AND r.time_utc < ?",
+def load_reports(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> list[tuple]:
+    where = "FROM reports r JOIN devices d ON d.id = r.device_id WHERE d.hidden = 0 AND r.time_utc >= ? AND r.time_utc < ?"
+    try:
+        cur = conn.execute(
+            f"SELECT r.time_utc, r.lat, r.lon, r.category, r.direction_deg, r.direction_accuracy {where}",
             (start_ms, end_ms),
         )
-    ]
+    except sqlite3.OperationalError:  # a database before v6 (no direction columns)
+        cur = conn.execute(f"SELECT r.time_utc, r.lat, r.lon, r.category {where}", (start_ms, end_ms))
+    return [tuple(r) for r in cur]
 
 
 def reports_from_db(conn: sqlite3.Connection, now: datetime) -> dict:

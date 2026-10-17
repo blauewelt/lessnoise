@@ -126,4 +126,40 @@ class RealServerTest {
         assertNull(store.state.value.lastError)
         assertEquals(Uploader.DeleteOutcome.Deleted, up.deleteServerData())
     }
+
+    /**
+     * 0.6.7: reports with and without a direction. Against a server with schema v6 all are stored
+     * with what was sent; against one before v6 (STADTLAERM_TEST_SERVER_OLD=1) the reports with a
+     * direction are sent again without it and none is lost.
+     */
+    @Test
+    fun reportsWithAndWithoutDirectionArriveOnTheRealServer() = runBlocking {
+        assumeTrue("STADTLAERM_TEST_SERVER not set", base != null)
+        val old = System.getenv("STADTLAERM_TEST_SERVER_OLD") == "1"
+        val now = System.currentTimeMillis() / 1000 * 1000 - 120_000
+        val reports = MemoryReportStore()
+        fun r(i: Int, d: ReportDirection?) = PendingReport(
+            epochMs = now + i * 1000L, timeIso = PendingReport.isoSeconds(now + i * 1000L, zone),
+            lat = 47.376912345, lon = 8.541694321, accuracyM = 12.34, category = "poser", cell = "h26833_12479", direction = d,
+        )
+        ReportQueue.add(reports, r(0, ReportDirection(87, ReportDirection.North.TRUE, ReportDirection.Accuracy.HIGH)))
+        ReportQueue.add(reports, r(1, null))
+        ReportQueue.add(reports, r(2, ReportDirection(359, ReportDirection.North.MAGNETIC, ReportDirection.Accuracy.UNRELIABLE)))
+        val store = MemoryUploadStore()
+        val source = object : UploadSource {
+            override suspend fun minutesAfter(afterMs: Long, limit: Int) = emptyList<MinuteEntity>()
+            override suspend fun eventsAfter(afterMs: Long, limit: Int) = emptyList<EventEntity>()
+            override suspend fun siteExtras() = SiteExtras("Pixel 8", "UNPROCESSED", calibrated = false, calibrationOffsetDb = 112.35)
+            override suspend fun measurements() = emptyList<ch.lessnoise.app.data.MeasurementEntity>()
+        }
+        val up = Uploader(UploadClient(base!!), store, source, reports, "0.6.7-dev", 20)
+        up.enable()
+        val o = up.run()
+        assertIs<Uploader.Outcome.Done>(o)
+        assertEquals(3, o.reports, if (old) "old server" else "new server")
+        assertTrue(reports.state.value.pending.isEmpty())
+        assertEquals(3, reports.state.value.sent.size)
+        assertEquals(0, store.state.value.refusedTotal)
+        assertEquals(Uploader.DeleteOutcome.Deleted, up.deleteServerData())
+    }
 }

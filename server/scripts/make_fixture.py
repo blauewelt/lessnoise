@@ -158,6 +158,7 @@ def reports_for(site: Site, si: int) -> list[dict]:
     names = [c for c, _ in site.profile.reports]
     weights = [w for _, w in site.profile.reports]
     n = round(sum(site.profile.rates.values()) * 0.6 + 1)
+    rd = random.Random(9_000 + si)  # directions (app 0.6.7) from their own stream: the reports stay as before
     out = []
     for _ in range(n):
         day = TODAY - timedelta(days=r.randrange(0, DAYS))
@@ -166,7 +167,17 @@ def reports_for(site: Site, si: int) -> list[dict]:
             at -= timedelta(days=1)
         lat = site.lat + r.uniform(-0.0012, 0.0012)
         lon = site.lon + r.uniform(-0.0016, 0.0016)
-        out.append(syn.report_record(at, lat, lon, r.choices(names, weights)[0], accuracy_m=round(r.uniform(4, 30), 1)))
+        # App 0.6.7: most reports carry a direction of travel, along the site's street (either way).
+        street = (si * 37) % 180
+        direction = None
+        if rd.random() < 0.8:
+            deg = (street + rd.choice((0, 180)) + rd.randint(-12, 12)) % 360
+            direction = {"bearing_deg": deg, "north": "true", "accuracy": rd.choice(("high", "medium", "low"))}
+        out.append(
+            syn.report_record(
+                at, lat, lon, r.choices(names, weights)[0], accuracy_m=round(r.uniform(4, 30), 1), direction=direction
+            )
+        )
     return out
 
 

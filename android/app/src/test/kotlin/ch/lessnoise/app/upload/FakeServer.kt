@@ -52,6 +52,13 @@ class FakeServer : AutoCloseable {
     /** False: behave like a server without the reports call (404), as before app 0.6.0. */
     @Volatile var reportsAvailable = true
 
+    /**
+     * True: behave like the server before app 0.6.7 (schema v5, `extra="forbid"`): a report with a
+     * `direction` is listed in `rejected` with field "direction", «Extra inputs are not permitted»
+     * (the exact answer, checked against server/ at 03a3347; WORKLOG 0.6.7).
+     */
+    @Volatile var rejectDirection = false
+
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
 
@@ -185,7 +192,12 @@ class FakeServer : AutoCloseable {
             arr.forEachIndexed { i, el ->
                 val o = el.jsonObject
                 val start = key(o)
-                if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
+                if (rejectDirection && "direction" in o) {
+                    add(buildJsonObject {
+                        put("index", i); put("time", o["time"]!!.jsonPrimitive.content)
+                        put("reasons", buildJsonArray { add(buildJsonObject { put("field", "direction"); put("reason", "Extra inputs are not permitted") }) })
+                    })
+                } else if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
                     add(buildJsonObject {
                         put("index", i); put("start", start)
                         put("reasons", buildJsonArray { add(buildJsonObject { put("field", "laeq_db"); put("reason", "out of range") }) })

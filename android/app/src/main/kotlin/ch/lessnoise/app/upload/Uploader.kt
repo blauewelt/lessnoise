@@ -242,8 +242,19 @@ class Uploader(
                 }
                 requests++
                 sentReports += res.accepted + res.duplicates
-                if (res.rejected.isNotEmpty()) store.update { it.copy(refusedTotal = it.refusedTotal + res.rejected.size) }
-                ReportQueue.acknowledge(reports, batch, rejected = res.rejected.map { it.index }.toSet())
+                // 0.6.7: a server from before the direction refuses the unknown field `direction`. Such
+                // reports are not lost: they stay queued without it and go out again in this loop.
+                val retry = res.rejected.filter { rej ->
+                    batch.getOrNull(rej.index)?.direction != null && onlyDirection(rej.fields)
+                }.map { it.index }.toSet()
+                val refusedHere = res.rejected.map { it.index }.toSet() - retry
+                if (refusedHere.isNotEmpty()) store.update { it.copy(refusedTotal = it.refusedTotal + refusedHere.size) }
+                val kept = batch.indices.filter { it !in retry }
+                ReportQueue.acknowledge(
+                    reports, kept.map { batch[it] },
+                    rejected = kept.withIndex().filter { (_, i) -> i in refusedHere }.map { it.index }.toSet(),
+                )
+                ReportQueue.dropDirection(reports, retry.map { batch[it] })
             }
 
             var more = false
@@ -441,5 +452,13 @@ class Uploader(
         const val MAX_AGE_MS = 7L * 24 * 3600 * 1000
         /** Records this close to the limit are left out: they could be refused by the time they arrive. */
         const val AGE_MARGIN_MS = 3600L * 1000
+
+        /**
+         * Whether a report was refused only for its direction (0.6.7): every refused field is
+         * `direction` or one of its parts. The server before 0.6.7 answers «Extra inputs are not
+         * permitted» for field `direction`; such a report is sent again without it.
+         */
+        fun onlyDirection(fields: List<String>): Boolean =
+            fields.isNotEmpty() && fields.all { it == "direction" || it.startsWith("direction.") }
     }
 }

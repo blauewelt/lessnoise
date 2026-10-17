@@ -333,7 +333,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(5,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(6,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx
@@ -536,3 +536,56 @@ def test_loud_event_db_setting(make_client, settings):
     client = make_client(loud_event_db=80.0)
     client.app.state.publish_once()
     assert json.loads((settings.map_dir / "cells.json").read_text())["loud_event_db"] == 80.0
+
+
+def direction(deg=123, north="true", accuracy="high") -> dict:
+    return {"bearing_deg": deg, "north": north, "accuracy": accuracy}
+
+
+def test_report_direction_is_optional_validated_and_stored(client, settings):
+    """App 0.6.7: a report may say in which direction the vehicle drove (DESIGN.md §4.7)."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    old_app = report(recent(30))  # apps up to 0.6.6: no field at all
+    with_dir = {**report(recent(29)), "direction": direction(0, "true", "high")}
+    magnetic = {**report(recent(28)), "direction": direction(359, "magnetic", "low")}
+    explicit_null = {**report(recent(27)), "direction": None}
+    body = client.post(url, json=[old_app, with_dir, magnetic, explicit_null], headers=auth).json()
+    assert body == {"accepted": 4, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(
+        settings, "SELECT direction_deg, direction_north, direction_accuracy FROM reports ORDER BY time_utc"
+    ) == [(None, None, None), (0, "true", "high"), (359, "magnetic", "low"), (None, None, None)]
+
+    cases = {
+        "360": direction(360),
+        "negative": direction(-1),
+        "fraction": direction(12.5),
+        "string": direction("12"),
+        "bool": direction(True),
+        "north": direction(north="grid"),
+        "accuracy": direction(accuracy="perfect"),
+        "missing": {"bearing_deg": 10, "north": "true"},
+        "extra": {**direction(), "samples": [1, 2, 3]},  # never a sensor stream
+        "not_object": 123,
+    }
+    bad = [{**report(recent(20 - i)), "direction": d} for i, d in enumerate(cases.values())]
+    body = client.post(url, json=bad, headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["360"] == fields["negative"] == fields["fraction"] == "direction.bearing_deg"
+    assert fields["string"] == fields["bool"] == "direction.bearing_deg"
+    assert fields["north"] == "direction.north"
+    assert fields["accuracy"] == "direction.accuracy"
+    assert fields["missing"] == "direction.accuracy"
+    assert fields["extra"] == "direction.samples"
+    assert fields["not_object"] == "direction"
+
+
+def test_a_duplicate_without_direction_clears_the_stored_one(client, settings):
+    """The later report wins entirely (idempotent on time), direction included."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    t = recent(10)
+    client.post(url, json=[{**report(t), "direction": direction(90)}], headers=auth)
+    assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
+    assert rows(settings, "SELECT direction_deg FROM reports") == [(None,)]

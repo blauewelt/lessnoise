@@ -254,7 +254,7 @@ so a better model can be swapped in without touching the measurement code.
 | Gradle flavour | `public` | `offline` (default variant) | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"karte"` | `"offline"` | `"labor"` | `"labor-karte"` |
 | App id (since 0.6.0; before `ch.stadtlaerm.*`) | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
-| Version name | `0.6.6` | `0.6.6` | `0.6.6-labor` | `0.6.6-labor-karte` |
+| Version name | `0.6.7` | `0.6.7` | `0.6.7-labor` | `0.6.7-labor-karte` |
 | Launcher label | «Weniger Lärm» | «Weniger Lärm» | «Weniger Lärm Labor» | «Weniger Lärm Labor» |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
@@ -839,7 +839,9 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.6 (versionCode 19, published 2026-10-17) is the current version, signed APKs in
+v0.6.7 (versionCode 20, 2026-10-17: the optional direction of travel in «Laut! Melden») is built
+for the owner's phone as Labor · Karte only; the public editions on the website stay at 0.6.6 until
+it has been tried. v0.6.6 (versionCode 19, published 2026-10-17) is the current public version, signed APKs in
 `../docs/download/`: v0.6.5 (the estimated per-phone noise floor «Messgrenze», versionCode 18, only
 sent to the owner's phone, never on the website) plus measuring with the phone's built-in
 microphone only (see «Known limitations» → «Built-in microphone only»). Verified on the JVM (unit

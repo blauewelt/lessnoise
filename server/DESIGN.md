@@ -143,7 +143,9 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     lorry / poser passed». Its place *is* its content, so the server stores the point
     (rounded to 5 decimals of a degree, ≈ 1 m) and publishes it in `reports.json` (§6.4) as it
     was reported — not snapped to a hectare. What is published per report is exactly: the
-    point, the category, and the time **rounded down to the full hour**. Never published: the
+    point, the category, and the time **rounded down to the full hour**; since app 0.6.7 also the
+    direction of travel in whole degrees, if the reporter took one with the phone's compass (north
+    reference and compass accuracy are stored, not published). Never published: the
     device id, the exact time, the location accuracy, any link between two reports. Within an
     hour the reports are sorted by place, not by time or device, so the order reveals no
     sequence (§6.4). Only the last 30 days are published; reports of hidden devices are left
@@ -369,7 +371,12 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
   "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 200 m
-  "category": "motorrad"                 // motorrad | auto | lastwagen | poser | andere
+  "category": "motorrad",                // motorrad | auto | lastwagen | poser | andere
+  "direction": {                         // optional (app 0.6.7); absent or null = none given
+    "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
+    "north": "true",                     //   "true" | "magnetic" (no place for the declination)
+    "accuracy": "high"                   //   high | medium | low | unreliable (Android's compass status)
+  }
 }
 ```
 
@@ -381,10 +388,20 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
 - the point inside Switzerland: first the WGS84 box of the map (lat 45.8–47.85,
   lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
   border areas of neighbouring countries inside that box are accepted, as for site cells;
-- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields.
+- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields;
+- `direction` (app 0.6.7) optional; if present exactly these three fields: `bearing_deg` an
+  integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
+  the part, e.g. field `direction.bearing_deg`.
+
+**Old servers and the new field.** A server before schema v6 rejects `direction` like any unknown
+field (HTTP 200, the report in `rejected` with field `direction`, «Extra inputs are not permitted»).
+App 0.6.7 therefore re-queues a report that was rejected *only* for `direction` without it and sends
+it again in the same run, so a report is never lost while the server is older than the app. Apps up
+to 0.6.6 never send the field and are unaffected by v6.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
-`accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds.
+`accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds, the direction
+(v6) as `direction_deg`, `direction_north`, `direction_accuracy` (NULL when none was given).
 Idempotent on `(device_id, time)`: the same time again counts as a duplicate and replaces the
 stored report. Response like minutes: `{accepted, duplicates, rejected}`.
 
@@ -399,14 +416,21 @@ of up to 50 reports, bearer auth as above:
   "lat": 47.37691,
   "lon": 8.54169,
   "accuracy_m": 12.3,
-  "category": "motorrad | auto | lastwagen | poser | andere"
+  "category": "motorrad | auto | lastwagen | poser | andere",
+  "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" }
 }
 ```
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
 This is the only request with exact coordinates. The app keeps them only until the server has
-answered for the report, then deletes them (it keeps category, time and cell). Reports are not
+answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.6.7,
+editions with the map, phones with a compass) is present only when the reporter pointed the phone
+and tapped «Richtung übernehmen»: the bearing the phone pointed at, corrected from magnetic to true
+north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
+or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
+It is not snapped to a street: no road data exists in the app or on the server (a server-side
+follow-up, WORKLOG 0.6.7). Reports are not
 shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
@@ -431,7 +455,8 @@ hourly(device_id, hour_utc INT, cell TEXT DEFAULT '', valid_s, valid_minutes, la
        l10_db, dynamics_db, events TEXT, loudest_db, calibrated,
        PRIMARY KEY(device_id, hour_utc, cell))   -- v3: cell in the key, '' = the site cell
 reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m REAL,
-        category TEXT, received_at, PRIMARY KEY(device_id, time_utc))   -- v3
+        category TEXT, received_at, PRIMARY KEY(device_id, time_utc),   -- v3
+        direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL)  -- v6
 counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
 ```
 
@@ -469,6 +494,10 @@ gets all published files rebuilt at once when the server starts (`app.create_app
 `python -m stadtlaerm_server publish|retention|…`), before the first request is served; a new
 database records its creation day and has nothing to rebuild. A failure rolls the step back and
 leaves v4.
+
+**Migration v5 → v6** (app 0.6.7; runs at startup, one transaction): `ALTER TABLE reports ADD
+COLUMN direction_deg` (INTEGER), `direction_north`, `direction_accuracy` (TEXT). Existing reports
+get NULL, i.e. «no direction given». No row is lost or changed.
 
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
@@ -671,7 +700,7 @@ schema v2 is removed on the first publish after the update.
   "from": "2026-09-09", "to": "2026-10-08",
   "categories": ["motorrad", "auto", "lastwagen", "poser", "andere"],
   "reports": [
-    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad" }
+    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87 }
   ]
 }
 ```
@@ -680,7 +709,10 @@ The reports of the last 30 calendar days up to today, of devices that are not hi
 `time` is the report time **rounded down to the full hour**, local ISO with offset (Swiss
 offsets are whole hours, so the UTC hour and the local hour coincide; in the autumn DST night
 the two «02:00» hours keep their offsets). `lat`/`lon` as stored (5 decimals). No device id,
-no accuracy, no exact time. Sorted by (hour, lat, lon, category): deterministic and testable,
+no accuracy, no exact time. `direction` (since v6): the direction of travel in whole degrees
+clockwise from north, or null (none given, a report of an older app, or a compass the phone marked
+«unreliable»); north reference and compass accuracy are not published. The map draws it as a small
+arrow on the report's marker. Sorted by (hour, lat, lon, category, direction): deterministic and testable,
 and within an hour the order says nothing about the order of the reports or who made them —
 chosen over a random shuffle, which could not be tested and would change the file on every run.
 

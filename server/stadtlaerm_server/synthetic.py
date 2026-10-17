@@ -258,6 +258,11 @@ def random_events(
     return sorted(out, key=lambda e: e.at)
 
 
-def report_record(at: datetime, lat: float, lon: float, category: str, accuracy_m: float = 8.0) -> dict:
-    """A manual report in the upload format of §4.7 (`at` naive local)."""
-    return {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m, "category": category}
+def report_record(
+    at: datetime, lat: float, lon: float, category: str, accuracy_m: float = 8.0, direction: dict | None = None
+) -> dict:
+    """A manual report in the upload format of §4.7 (`at` naive local); `direction` (app 0.6.7) only if given."""
+    r = {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m, "category": category}
+    if direction is not None:
+        r["direction"] = direction
+    return r

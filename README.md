@@ -13,7 +13,7 @@ jeder geteilten Messung mit dem Ort, an dem sie gestartet wurde – zufällig ve
 standardmässig um etwa 50 m (in der App einstellbar); das Telefon bestimmt den Standort gleich nach
 dem Start einmal, solange die App offen ist, und behält und sendet nur den verschobenen Punkt –, und
 Meldungen mit «Laut! Melden» (Zeit, genauer Standort dieser Meldung,
-Kategorie; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
+Kategorie, ab 0.6.7 wahlweise die Fahrtrichtung als Kompassrichtung; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte. Der Standort wird nie im
 Hintergrund gelesen. Seit 0.6.3 zeigt der Tab «Karte» die Lärmkarte der Website in der App; er lädt
 sie nur, solange er offen ist, wie ein Browser (Seite, Kartenbilder von swisstopo, Kartendaten) und
@@ -53,7 +53,7 @@ shared measurements, each with the point of its measurement moved at random on t
 Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offset every time for
 the same place, so averaging does not remove it; never the coordinates of the fix, never the raw
 classifier labels), and «Laut! Melden» reports with the exact place of the
-report (deleted from the phone once sent); to one host (`api.lessnoise.ch`, in Switzerland),
+report (deleted from the phone once sent) and, since 0.6.7 and only if the reporter takes it, the direction of travel as one compass bearing; to one host (`api.lessnoise.ch`, in Switzerland),
 through one network class (`android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`),
 with no third-party SDK; deletable on the server from the app at any time («Daten auf dem Server
 löschen», reports included), and deleted by the server automatically after 60 days without

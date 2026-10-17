@@ -318,10 +318,18 @@
     shown.forEach(function (r) {
       if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
       var cat = M.reportCategory(r.category);
-      var text = cat.name + " · " + M.hourLabel(r.time);
+      var dir = M.reportDirection(r);
+      var text = cat.name + " · " + M.hourLabel(r.time) + (dir === null ? "" : " · " + M.directionLabel(dir));
+      // App 0.6.7: a small arrowhead on the rim points where the vehicle drove. Rotated through
+      // CSSOM (allowed by the page's CSP, unlike a style attribute).
+      var arrow = null;
+      if (dir !== null) {
+        arrow = el("i", { class: "report-dir", "aria-hidden": "true", "data-direction": String(dir) });
+        arrow.style.transform = "rotate(" + dir + "deg)";
+      }
       var icon = L.divIcon({
         className: "report report-" + cat.id,
-        html: el("span", { "aria-label": text, "data-category": cat.id, text: cat.letter }),
+        html: el("span", { "aria-label": text, "data-category": cat.id, text: cat.letter }, [arrow]),
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });

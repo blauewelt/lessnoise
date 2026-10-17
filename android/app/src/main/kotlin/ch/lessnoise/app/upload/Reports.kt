@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.double
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -36,6 +38,77 @@ enum class ReportCategory(val id: String, val label: String) {
 }
 
 /**
+ * Where the reported vehicle drove (app 0.6.7, optional): the compass bearing the phone pointed at
+ * when the reporter tapped «Richtung übernehmen», whole degrees clockwise from north (0–359), whether
+ * that is true or magnetic north, and the compass's accuracy class. One value per report, never a
+ * sensor stream. Sent as `direction` (server/DESIGN.md §4.7).
+ */
+data class ReportDirection(val bearingDeg: Int, val north: North, val accuracy: Accuracy) {
+    init {
+        require(bearingDeg in 0..359) { "bearing $bearingDeg" }
+    }
+
+    /** True north (corrected with the declination at the report's place) or magnetic north (no place). */
+    enum class North(val id: String) { TRUE("true"), MAGNETIC("magnetic") }
+
+    /** Android's sensor accuracy classes (SENSOR_STATUS_ACCURACY_*). */
+    enum class Accuracy(val id: String) {
+        HIGH("high"), MEDIUM("medium"), LOW("low"), UNRELIABLE("unreliable");
+
+        companion object {
+            /** SENSOR_STATUS_ACCURACY_HIGH = 3, MEDIUM = 2, LOW = 1; UNRELIABLE = 0 and NO_CONTACT = -1. */
+            fun ofSensorStatus(status: Int): Accuracy = when {
+                status >= 3 -> HIGH
+                status == 2 -> MEDIUM
+                status == 1 -> LOW
+                else -> UNRELIABLE
+            }
+
+            fun fromId(id: String?): Accuracy? = entries.firstOrNull { it.id == id }
+        }
+    }
+
+    /** «Richtung Nordost»: eight compass points of 45°, for the confirmation dialog. */
+    val label: String get() = "Richtung " + COMPASS_8[Math.floorMod(Math.round(bearingDeg / 45.0).toInt(), 8)]
+
+    companion object {
+        private val COMPASS_8 = listOf("Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest")
+
+        /** Any angle in degrees → 0 ≤ x < 360. */
+        fun normalize(deg: Double): Double = ((deg % 360.0) + 360.0) % 360.0
+
+        /** Rounded to whole degrees, 0–359 (359.5 and −0.4 both become 0). */
+        fun roundDeg(deg: Double): Int = Math.floorMod(Math.round(normalize(deg)).toInt(), 360)
+
+        /**
+         * The stored value from the compass: [magneticDeg] (clockwise from magnetic north) plus the
+         * [declinationDeg] at the report's place (east positive, from Android's geomagnetic model) gives true
+         * north; without a declination the bearing stays magnetic and says so. Null for a non-finite
+         * bearing.
+         */
+        fun of(magneticDeg: Double, declinationDeg: Double?, sensorStatus: Int): ReportDirection? {
+            if (magneticDeg.isNaN() || magneticDeg.isInfinite()) return null
+            val d = declinationDeg?.takeUnless { it.isNaN() || it.isInfinite() }
+            return ReportDirection(
+                bearingDeg = roundDeg(magneticDeg + (d ?: 0.0)),
+                north = if (d != null) North.TRUE else North.MAGNETIC,
+                accuracy = Accuracy.ofSensorStatus(sensorStatus),
+            )
+        }
+    }
+}
+
+/**
+ * The compass at the moment of «Richtung übernehmen» (0.6.7): the bearing the phone pointed at,
+ * clockwise from MAGNETIC north (what the sensors give), and Android's accuracy status of the
+ * magnetometer. Kept only in memory until «Senden», where [toDirection] corrects it to true north
+ * with the declination at the report's own place.
+ */
+data class CompassReading(val magneticDeg: Double, val sensorStatus: Int) {
+    fun toDirection(declinationDeg: Double?): ReportDirection? = ReportDirection.of(magneticDeg, declinationDeg, sensorStatus)
+}
+
+/**
  * A report waiting to be sent. The ONLY place where the app keeps exact coordinates, and only
  * until the server acknowledged the report: then [toSent] drops them (PRIVACY.md).
  */
@@ -50,6 +123,8 @@ data class PendingReport(
     val category: String,
     /** The 100 m cell of the place, kept after sending (the coordinates are not). */
     val cell: String?,
+    /** App 0.6.7: where the vehicle drove, if the reporter gave it; dropped after sending. */
+    val direction: ReportDirection? = null,
 ) {
     fun toSent(): SentReport = SentReport(epochMs, category, cell)
 
@@ -114,6 +189,16 @@ object ReportQueue {
         }
     }
 
+    /**
+     * A server from before app 0.6.7 refuses the unknown field `direction` (server/DESIGN.md §4.7):
+     * [reports] stay in the queue without their direction and go out again as before.
+     */
+    fun dropDirection(store: ReportStore, reports: List<PendingReport>) {
+        if (reports.isEmpty()) return
+        val strip = reports.toSet()
+        store.update { s -> s.copy(pending = s.pending.map { if (it in strip) it.copy(direction = null) else it }) }
+    }
+
     /** «Daten auf dem Server löschen» also drops reports that were not sent yet. */
     fun dropPending(store: ReportStore) {
         store.update { it.copy(pending = emptyList()) }
@@ -156,6 +241,9 @@ object ReportJson {
             add(buildJsonObject {
                 put("t", r.epochMs); put("iso", r.timeIso); put("lat", r.lat); put("lon", r.lon)
                 put("acc", r.accuracyM); put("cat", r.category); r.cell?.let { put("cell", it) }
+                r.direction?.let { d ->
+                    put("dir", buildJsonObject { put("deg", d.bearingDeg); put("n", d.north.id); put("a", d.accuracy.id) })
+                }
             })
         }
     }.toString()
@@ -171,10 +259,24 @@ object ReportJson {
                 o["t"]!!.jsonPrimitive.long, o["iso"]!!.jsonPrimitive.content, o["lat"]!!.jsonPrimitive.double,
                 o["lon"]!!.jsonPrimitive.double, o["acc"]!!.jsonPrimitive.double, o["cat"]!!.jsonPrimitive.content,
                 o["cell"]?.jsonPrimitive?.content,
+                direction(o["dir"] as? JsonObject),
             )
         }
     } catch (_: Exception) {
         emptyList()
+    }
+
+    /** A stored direction; anything unreadable is dropped (the report itself is kept). */
+    private fun direction(o: JsonObject?): ReportDirection? = try {
+        o?.let {
+            ReportDirection(
+                it["deg"]!!.jsonPrimitive.int,
+                ReportDirection.North.entries.first { n -> n.id == it["n"]!!.jsonPrimitive.content },
+                ReportDirection.Accuracy.fromId(it["a"]!!.jsonPrimitive.content)!!,
+            )
+        }
+    } catch (_: Exception) {
+        null
     }
 
     fun parseSent(s: String?): List<SentReport> = try {

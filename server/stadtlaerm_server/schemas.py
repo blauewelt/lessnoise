@@ -20,6 +20,10 @@ CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 # Categories of a manual report (§4.7), as the app offers them.
 REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
 MAX_REPORT_ACCURACY_M = 200.0
+# Direction of travel of a report (§4.7, app 0.6.7): the compass's accuracy class as Android
+# reports it, and whether the bearing is referred to true or to magnetic north.
+DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
+DIRECTION_NORTHS = ("true", "magnetic")
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
 POINT_SIGMAS_M = (25, 50, 100, 200)
 
@@ -200,14 +204,26 @@ class EventIn(_Timed):
     calibrated: bool
 
 
+class DirectionIn(Strict):
+    """Where the reported vehicle drove (§4.7, app 0.6.7, optional): the compass bearing the phone
+    pointed at when the reporter tapped «Richtung übernehmen», in whole degrees clockwise from north.
+    Never a sensor stream, only this one value and how far to trust it."""
+
+    bearing_deg: Annotated[StrictInt, Field(ge=0, le=359)]
+    north: Literal[DIRECTION_NORTHS]  # type: ignore[valid-type]
+    accuracy: Literal[DIRECTION_ACCURACIES]  # type: ignore[valid-type]
+
+
 class ReportIn(Strict):
-    """A manual report (§4.7): «here and now something loud passed», with its category."""
+    """A manual report (§4.7): «here and now something loud passed», with its category and,
+    since app 0.6.7, optionally the direction it drove."""
 
     time: Annotated[str, Field(max_length=40)]
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
     lon: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     accuracy_m: Annotated[float, Field(ge=0, le=MAX_REPORT_ACCURACY_M, allow_inf_nan=False)]
     category: Literal[REPORT_CATEGORIES]  # type: ignore[valid-type]
+    direction: DirectionIn | None = None
 
     @field_validator("time")
     @classmethod
