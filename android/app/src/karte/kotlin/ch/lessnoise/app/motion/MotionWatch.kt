@@ -10,7 +10,9 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import ch.lessnoise.app.AppContainer
+import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.edition.EditionDiagnostics
+import ch.lessnoise.app.position.PositionWatch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.runBlocking
 
@@ -23,6 +25,12 @@ import kotlinx.coroutines.runBlocking
  * start and end), whose minutes and events are never sent (upload/PlaceIndex). No permission is
  * needed; no location is read; no sensor value is stored or sent (the Labor·Karte build writes the
  * transitions with their feature values to its local manifest.jsonl, EditionDiagnostics).
+ *
+ * 0.6.9, Labor·Karte only (BuildConfig.LABOR_UNTERWEGS; the Online-Version runs exactly as 0.6.7):
+ * the detector uses [MotionDetector.Thresholds.LABOR] (trams and trains), the position is a second
+ * signal ([PositionWatch], src/laborKarte; a stand-in that does nothing in the Online-Version), and
+ * the run is «unterwegs» if either says so ([UnterwegsCombiner]); a readout line in LiveState and one
+ * `motion_minute` line per minute in manifest.jsonl (no coordinates).
  */
 object MotionWatch {
     const val AVAILABLE = true
@@ -54,17 +62,75 @@ object MotionWatch {
         fun stop()
     }
 
+    /** 0.6.9: the watch of the running measurement, for [extraHoldMs] (null when none runs). */
+    @Volatile private var current: (Long) -> Long = { 0L }
+
+    /**
+     * 0.6.9 (Labor·Karte): the foreground-service type the measuring service adds for the position
+     * signal, or null (Online-Version: always null; Labor·Karte: null without a location permission).
+     */
+    fun positionForegroundType(context: Context): Int? =
+        if (BuildConfig.LABOR_UNTERWEGS) PositionWatch.foregroundType(context) else null
+
+    /**
+     * 0.6.9 (Labor·Karte): how long the upload must hold records at [nowMs] beyond the motion hold, so
+     * that a span the position signal decides minutes later still covers them (0 in the Online-Version).
+     */
+    fun extraHoldMs(nowMs: Long): Long = current(nowMs)
+
     /**
      * Starts watching for the running «Messen» measurement. Null if the phone has no accelerometer or
      * the listener could not be registered (then the measurement behaves as before 0.6.7).
+     * [position] (0.6.9, Labor·Karte): the service runs with the foreground type «location», so the
+     * position signal may run too.
      */
-    fun start(context: Context, container: AppContainer): Handle? {
+    fun start(context: Context, container: AppContainer, position: Boolean = false): Handle? {
         val app = context.applicationContext
         val sm = app.getSystemService(SensorManager::class.java) ?: return null
         val sensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return null
         val thread = HandlerThread("lessnoise-motion").apply { start() }
         val handler = Handler(thread.looper)
-        val detector = MotionDetector()
+        val labor = BuildConfig.LABOR_UNTERWEGS
+        // Everything below runs on [thread]: the detector, the combiner, the minute summary, the span writes.
+        val combiner = UnterwegsCombiner()
+        val minutes = MinuteSummary()
+        val recent = RecentMotion()
+        var positionWatch: PositionWatch.Handle? = null
+
+        fun writeSpan(change: UnterwegsCombiner.Change?) {
+            change ?: return
+            container.live.update { if (it.running && !it.unterwegs) it.copy(moving = combiner.moving) else it }
+            // On this thread, in order: a span's end can never be written before its start.
+            runCatching {
+                runBlocking {
+                    when (change) {
+                        is UnterwegsCombiner.Change.Begin -> container.measurements.beginMovingSpan(change.startMs)
+                        is UnterwegsCombiner.Change.End -> container.measurements.endMovingSpans(change.atMs)
+                    }
+                }
+            }.onFailure { Log.w(TAG, "span write failed: ${it.javaClass.simpleName}") }
+        }
+
+        fun readout() {
+            if (!labor) return
+            val line = Readout.line(recent.medianMs2, positionWatch?.distanceM, combiner.moving)
+            container.live.update { if (it.running && !it.unterwegs && it.unterwegsReadout != line) it.copy(unterwegsReadout = line) else it }
+        }
+
+        fun logMinute(m: MinuteSummary.Minute?) {
+            m ?: return
+            EditionDiagnostics.motionMinute(
+                app, m.startMs, m.medianMs2, m.maxMs2, m.seconds, Distance.rounded(positionWatch?.distanceM),
+                if (combiner.moving) "MOVING" else "STILL", combiner.motion, combiner.position,
+            )
+        }
+
+        val onSecond: ((Long, Double) -> Unit)? = if (!labor) null else { startMs, std ->
+            recent.add(std)
+            logMinute(minutes.add(MotionClock.wallMs(startMs, SystemClock.elapsedRealtime(), System.currentTimeMillis()), std))
+            readout()
+        }
+        val detector = MotionDetector(if (labor) MotionDetector.Thresholds.LABOR else MotionDetector.Thresholds.ONLINE, onSecond)
 
         fun apply(transitions: List<MotionDetector.Transition>) {
             for (t in transitions) {
@@ -72,15 +138,10 @@ object MotionWatch {
                 val nowWall = System.currentTimeMillis()
                 val atWall = MotionClock.wallMs(t.atMs, nowElapsed, nowWall)
                 val moving = t.to == MotionDetector.State.MOVING
-                container.live.update { if (it.running && !it.unterwegs) it.copy(moving = moving) else it }
-                // On this thread, in order: a span's end can never be written before its start.
-                runCatching {
-                    runBlocking {
-                        if (moving) container.measurements.beginMovingSpan(MotionClock.wallMs(t.spanStartMs, nowElapsed, nowWall))
-                        else container.measurements.endMovingSpans(atWall)
-                    }
-                }.onFailure { Log.w(TAG, "span write failed: ${it.javaClass.simpleName}") }
+                // 0.6.9: the run is «unterwegs» if motion or position says so (the Online-Version has motion only).
+                writeSpan(combiner.onMotion(moving, atWall, MotionClock.wallMs(t.spanStartMs, nowElapsed, nowWall)))
                 EditionDiagnostics.motionTransition(app, atWall, t.to.name, MotionClock.wallMs(t.spanStartMs, nowElapsed, nowWall), t.features())
+                readout()
             }
         }
 
@@ -105,17 +166,41 @@ object MotionWatch {
             return null
         }
         handler.postDelayed(tick, TICK_MS)
+        // 0.6.9, Labor·Karte: the position signal, on the same thread (silently none without permission).
+        if (labor && position) {
+            handler.post {
+                positionWatch = PositionWatch.start(app, handler) { t ->
+                    writeSpan(combiner.onPosition(t.moving, t.atMs, t.spanStartMs))
+                    EditionDiagnostics.motionTransition(
+                        app, t.atMs, if (t.moving) "MOVING" else "STILL", t.spanStartMs,
+                        linkedMapOf("position" to 1.0, "distanceM" to (Distance.rounded(t.distanceM) ?: 0).toDouble(), "thresholdM" to t.thresholdM),
+                    )
+                    readout()
+                }
+                val w = positionWatch
+                if (w != null) current = { now -> w.holdMs(now) }
+            }
+        }
+        readout()
         return object : Handle {
             override fun stop() {
                 runCatching { sm.unregisterListener(listener) }
                 handler.removeCallbacks(tick)
                 handler.post {
-                    // The measurement ends: so does a moving span (its end is the stop).
-                    if (detector.state == MotionDetector.State.MOVING) {
-                        runCatching { runBlocking { container.measurements.endMovingSpans(System.currentTimeMillis()) } }
-                        EditionDiagnostics.motionTransition(app, System.currentTimeMillis(), "STOP", System.currentTimeMillis(), emptyMap())
+                    val now = System.currentTimeMillis()
+                    // 0.6.9: a ride the position had begun to see but not confirmed is not shared either.
+                    val pendingSince = positionWatch?.stop()
+                    current = { 0L }
+                    if (pendingSince != null && !combiner.moving) {
+                        writeSpan(combiner.onPosition(true, now, pendingSince))
                     }
-                    container.live.update { it.copy(moving = false) }
+                    if (labor) logMinute(minutes.flush())
+                    // The measurement ends: so does a moving span (its end is the stop).
+                    if (combiner.moving) {
+                        runCatching { runBlocking { container.measurements.endMovingSpans(now) } }
+                        EditionDiagnostics.motionTransition(app, now, "STOP", now, emptyMap())
+                    }
+                    container.live.update { it.copy(moving = false, unterwegsReadout = null) }
                     thread.quitSafely()
                 }
             }

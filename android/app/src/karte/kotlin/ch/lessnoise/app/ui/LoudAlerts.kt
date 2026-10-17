@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import ch.lessnoise.app.AppContainer
+import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.alert.LoudAlertIntent
 import ch.lessnoise.app.alert.LoudAlertNotifier
 import ch.lessnoise.app.alert.LoudAlertWatcher
@@ -40,16 +41,23 @@ object LoudAlerts {
      * 0.6.8: the measurement notification's text and tap while the run is «unterwegs» (started with
      * «Unterwegs», or [moving] in a «Messen» run): «Antippen zum Melden», opening «Laut! Melden»
      * ([ReportTap]: its own action and request code). Null otherwise (the notification as before).
+     * 0.6.9, Labor·Karte (BuildConfig.LABOR_UNTERWEGS): during every run a «Melden» button with the same
+     * intent, the level text kept; the tap opens the report only while «unterwegs».
      */
     fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? {
-        val t = ReportTap.forState(running, unterwegs, moving) ?: return null
+        val t = ReportTap.forState(running, unterwegs, moving, labor = BuildConfig.LABOR_UNTERWEGS) ?: return null
         val intent = Intent(context, MainActivity::class.java)
             .setAction(t.action)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         val pending = PendingIntent.getActivity(
             context, t.requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return NotificationTap(t.text, pending)
+        return NotificationTap(
+            text = t.text,
+            intent = pending.takeIf { t.contentTap },
+            button = pending.takeIf { t.button },
+            buttonLabel = ReportTap.BUTTON,
+        )
     }
 
     /**

@@ -25,15 +25,36 @@ object ReportTap {
     /** The notification's text while it opens «Laut! Melden» (the same words as the «Sehr laut» notification). */
     const val TEXT = LoudAlertRule.TEXT
 
-    /** What the measurement notification shows and does in a state: the report tap, or null (as before 0.6.8). */
-    data class Tap(val text: String, val action: String, val requestCode: Int)
+    /** The label of the notification's button (0.6.9, Labor·Karte): «Melden», next to «Stopp». */
+    const val BUTTON = "Melden"
 
     /**
-     * [running] a measurement runs; [unterwegs] it was started with «Unterwegs»; [moving] the motion
-     * detector says the phone is being carried (LiveState.moving, «Messen» runs only).
+     * What the measurement notification shows and does in a state. [text]: the fixed text, or null to
+     * keep the level text (0.6.9, Labor·Karte). [contentTap]: the tap on the notification opens the
+     * report; else it opens the app. [button]: a «Melden» action opens the report (0.6.9, Labor·Karte).
+     * Both use the same intent ([action], [requestCode]).
      */
-    fun forState(running: Boolean, unterwegs: Boolean, moving: Boolean): Tap? =
-        if (running && LoudAlertRule.unterwegsNow(unterwegs, moving)) Tap(TEXT, ACTION, REQUEST) else null
+    data class Tap(
+        val text: String?,
+        val action: String,
+        val requestCode: Int,
+        val contentTap: Boolean = true,
+        val button: Boolean = false,
+    )
+
+    /**
+     * [running] a measurement runs; [unterwegs] it was started with «Unterwegs»; [moving] the run is
+     * «unterwegs» by the motion sensor (or, 0.6.9 Labor·Karte, by the position) (LiveState.moving,
+     * «Messen» runs only). [labor] = BuildConfig.LABOR_UNTERWEGS (0.6.9): the «Melden» button in every
+     * state of a run, the level text kept, the content tap opening the report only while «unterwegs».
+     * Without [labor] (the Online-Version) exactly as 0.6.8.
+     */
+    fun forState(running: Boolean, unterwegs: Boolean, moving: Boolean, labor: Boolean = false): Tap? {
+        if (!running) return null
+        val now = LoudAlertRule.unterwegsNow(unterwegs, moving)
+        if (labor) return Tap(null, ACTION, REQUEST, contentTap = now, button = true)
+        return if (now) Tap(TEXT, ACTION, REQUEST) else null
+    }
 
     /** The report to start when MainActivity receives [action] at [tapMs]: the tap's time, nothing preselected; null for any other intent. */
     fun preset(action: String?, tapMs: Long): ReportPreset? =

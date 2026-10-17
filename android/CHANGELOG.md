@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.9 — Labor·Karte only, not published (branch auto-unterwegs) (versionCode 22)
+
+- **Labor·Karte only** (flag `LABOR_UNTERWEGS`; the Online-Version behaves as 0.6.8, Offline and Labor
+  unchanged): a **«Melden»** button next to «Stopp» on the «Messung läuft» notification during every
+  run (opens «Laut! Melden» at the time of the tap, nothing preselected); the level text stays in every
+  state. Motion detector for trams and trains: enters at 0.07 m/s², stays from 0.05 m/s² (was 0.25).
+  The **position as a second signal** in «Messen» runs: about once a minute at low power, only while the
+  run goes, only with a location permission already granted (foreground-service type «location»); only
+  the first fix and the latest distance in memory, never stored or sent; «unterwegs» after 4 fixes in a
+  row more than max(150 m, both accuracies) from the start. The run is «unterwegs» if motion or position
+  says so. Readout «Bewegung 0,12 m/s² · 400 m · unterwegs» on «Messen», one `motion_minute` line per
+  minute in `manifest.jsonl`. New permission: `FOREGROUND_SERVICE_LOCATION`.
+
 ## 0.6.8 — not published (branch auto-unterwegs) (versionCode 21)
 
 In short: while a measurement is «unterwegs», a tap on the «Messung läuft» notification opens

@@ -121,6 +121,12 @@ data class LiveState(
      * false in an «Unterwegs» measurement (that one is never shared anyway) and in the editions without the map.
      */
     val moving: Boolean = false,
+    /**
+     * 0.6.9, Labor·Karte only (null elsewhere): one line on «Messen» with the motion value, the distance
+     * from the run's first position (rounded to 50 m, «–» without a fix) and the state, e.g.
+     * «Bewegung 0,12 m/s² · 400 m · unterwegs». Never stored or sent.
+     */
+    val unterwegsReadout: String? = null,
 )
 
 /** An event as it was detected (0.6.3, [LiveState.lastEvent]). Levels as shown (calibrated if the phone is). */
@@ -205,6 +211,13 @@ class MeasurementService : Service() {
     private val cadence = NotificationCadence()
     /** The collector that re-posts the notification when the run becomes «unterwegs» or not (0.6.8). */
     private var tapWatch: Job? = null
+    /**
+     * 0.6.9: the notification's report tap/button in force (null: none). Read by the level posts, so
+     * that a «Melden» button (Labor·Karte) stays on the notification. Guarded by [cadence].
+     */
+    private var currentTap: NotificationTap? = null
+    /** 0.6.9 (Labor·Karte): the service runs with the foreground type «location» too (see [promoteToForeground]). */
+    @Volatile private var positionAllowed = false
     @Volatile private var stopping = false
     @Volatile private var normalizeClassifierInput = true
     /** Row id of the running measurement, once its insert has finished (null if the insert failed). */
@@ -245,7 +258,7 @@ class MeasurementService : Service() {
         // startForeground() must succeed for every startForegroundService() — also when a
         // measurement is already running or the permission is missing — otherwise the system
         // kills the app. So promote first, and only then take any path that stops the service.
-        val promotion = promoteToForeground(hasMic)
+        val promotion = promoteToForeground(hasMic, wantPosition = !unterwegs)
         if (promotion == Promotion.FAILED) {
             live.value = live.value.copy(error = "Android hat die Messung nicht erlaubt. Bitte nochmals starten.")
             stopSelf(); return
@@ -352,7 +365,7 @@ class MeasurementService : Service() {
                     )
                     // «Unterwegs erkannt» (0.6.7): only for «Messen» («Unterwegs» is unterwegs anyway),
                     // only in the editions with the map (MotionWatch is a stand-in returning null elsewhere).
-                    if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container)
+                    if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container, position = positionAllowed)
                     watchNotificationTap()
                 }
             } catch (e: Exception) {
@@ -434,7 +447,7 @@ class MeasurementService : Service() {
                         laeqDb = second.laeqRunning60sDb, calibrated = l.value.calibrated,
                         silenced = l.value.micSilenced || second.validFraction == 0.0, note = tap.notificationNote,
                     )
-                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text))
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(text, currentTap))
                 }
             }
         }
@@ -494,7 +507,11 @@ class MeasurementService : Service() {
         motion = null
         tapWatch?.cancel()
         tapWatch = null
-        cadence.modeChanged(false)
+        synchronized(cadence) {
+            cadence.modeChanged(false)
+            cadence.tapChanged(false, false)
+            currentTap = null
+        }
         // The capture thread has ended: finish the engine (partial minute, open event) here.
         engine?.let { eng ->
             while (true) eng.onClassifierFrame(frames.poll() ?: break)
@@ -556,11 +573,31 @@ class MeasurementService : Service() {
      */
     private enum class Promotion { MICROPHONE, SHORT_SERVICE, FAILED }
 
-    private fun promoteToForeground(hasMic: Boolean): Promotion {
+    private fun promoteToForeground(hasMic: Boolean, wantPosition: Boolean): Promotion {
         val shortType = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE else 0
         val micType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
         val first = if (Build.VERSION.SDK_INT >= 34 && !hasMic) shortType else micType
         val text = if (hasMic) MeasurementNotification.STARTING else MeasurementNotification.NO_PERMISSION
+        // 0.6.9 (Labor·Karte only, «Messen» runs; null in every other edition and whenever location
+        // is not granted): also the type «location», so the position can be read with the screen off.
+        // A measurement that is already running keeps the types it was started with.
+        val busy = container.live.value.running || container.live.value.starting
+        val positionType = when {
+            first != micType -> null
+            busy -> if (positionAllowed) MotionWatch.positionForegroundType(this) else null
+            wantPosition -> MotionWatch.positionForegroundType(this)
+            else -> null
+        }
+        if (positionType != null) {
+            try {
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(text), first or positionType)
+                if (!busy) positionAllowed = true
+                return Promotion.MICROPHONE
+            } catch (e: Exception) {
+                Log.w(TAG, "startForeground with the second type failed: ${e.javaClass.simpleName}")
+            }
+        }
+        if (!busy) positionAllowed = false
         try {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(text), first)
             return if (first == micType) Promotion.MICROPHONE else Promotion.SHORT_SERVICE
@@ -626,6 +663,8 @@ class MeasurementService : Service() {
      * «unterwegs» — started with «Unterwegs», or LiveState.moving in a «Messen» run — the notification's
      * tap opens «Laut! Melden» and its text is «Antippen zum Melden». Re-posted only when that state
      * changes; back to the level text and the usual tap when it ends.
+     * 0.6.9 (Labor·Karte): a «Melden» button during the whole run and the level text in every state;
+     * re-posted when the tap's target changes ([NotificationCadence.tapChanged]).
      */
     private fun watchNotificationTap() {
         tapWatch?.cancel()
@@ -636,7 +675,10 @@ class MeasurementService : Service() {
                 synchronized(this@MeasurementService) { if (stopping) return@collect }
                 // Under the cadence's lock, so a level post of the capture thread cannot overtake this one.
                 synchronized(cadence) {
-                    if (!cadence.modeChanged(reportTap != null)) return@collect
+                    currentTap = reportTap
+                    val modeChanged = cadence.modeChanged(reportTap?.text != null)
+                    val tapChanged = cadence.tapChanged(reportTap?.intent != null, reportTap?.button != null)
+                    if (!modeChanged && !tapChanged) return@collect
                     val text = reportTap?.text ?: l.laeq60sDb?.let {
                         MeasurementNotification.text(laeqDb = it, calibrated = l.calibrated, silenced = l.micSilenced, note = tap.notificationNote)
                     } ?: MeasurementNotification.STARTING
@@ -664,6 +706,7 @@ class MeasurementService : Service() {
             .setSilent(true)
             .setContentIntent(open)
             .addAction(0, "Stopp", stop)
+            .apply { reportTap?.button?.let { addAction(0, reportTap.buttonLabel, it) } }
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()

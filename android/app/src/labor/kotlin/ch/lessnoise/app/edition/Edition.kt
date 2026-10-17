@@ -109,6 +109,26 @@ object EditionDiagnostics {
             Log.w("Labor", "motion line: ${e.javaClass.simpleName}")
         }
     }
+
+    /**
+     * 0.6.9, Labor·Karte: one `motion_minute` line per minute of a «Messen» run — median and max of the
+     * per-second motion value, the distance from the run's first position rounded to 50 m (null without
+     * a fix; never a coordinate) and the state. Stays in manifest.jsonl on the phone.
+     */
+    fun motionMinute(
+        context: Context, minuteStartMs: Long, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ) {
+        try {
+            val line = ManifestLines.motionMinute(
+                Labor.currentSession ?: "none", minuteStartMs, java.time.ZoneId.systemDefault(),
+                medianMs2, maxMs2, seconds, distanceM, state, motion, position,
+            )
+            ManifestFile.append(Labor.dirs(context.applicationContext).manifest, line)
+        } catch (e: Exception) {
+            Log.w("Labor", "motion_minute line: ${e.javaClass.simpleName}")
+        }
+    }
 }
 
 object AudioTapProvider {

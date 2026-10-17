@@ -139,6 +139,21 @@ object ManifestLines {
     }
 
     /**
+     * 0.6.9, Labor·Karte only: one minute of a «Messen» run (`time` = the minute's start): `median` and
+     * `max` of the per-second motion value (deviation of |a|, m/s²; null if no second had enough
+     * samples), `seconds` closed in it, `distanceM` from the run's first position rounded to 50 m (null
+     * without a fix; no coordinates), `state` STILL/MOVING and which signal says MOVING.
+     */
+    fun motionMinute(
+        session: String, minuteStartMs: Long, zone: ZoneId, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ): String =
+        base("motion_minute", session, minuteStartMs, zone)
+            .put("median", medianMs2, 3).put("max", maxMs2, 3).put("seconds", seconds)
+            .put("distanceM", distanceM).put("state", state).put("byMotion", motion).put("byPosition", position)
+            .build()
+
+    /**
      * The engine's sample clock: from here on, input sample s (48 kHz, counted from the start of
      * the measurement) was recorded at `anchorEpochMs + (s − anchorSample)·1000/48000`.
      */

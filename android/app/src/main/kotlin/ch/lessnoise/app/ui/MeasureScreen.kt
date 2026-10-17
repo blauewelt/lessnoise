@@ -238,6 +238,8 @@ fun MeasureContent(
                     ) { Text("Stoppen", fontSize = 18.sp) }
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
                     shareStatus?.let { ShareStatusLine(it, onShareStatus) }
+                    // 0.6.9, Labor·Karte only (null elsewhere): motion value, distance from the start, state.
+                    live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     // «Unterwegs» (0.6.4): «Laut! Melden» also while it measures; since 0.6.7 also while
                     // a «Messen» measurement is recognised as being out and about (LiveState.moving).
                     if (onReport != null && (live.unterwegs || live.moving)) {

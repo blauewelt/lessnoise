@@ -29,8 +29,30 @@ import kotlin.math.sqrt
  * must come in time order; older ones are dropped. [advanceTo] moves time on without samples (sensor
  * silent), so that a dead sensor cannot keep the state MOVING for ever.
  */
-class MotionDetector {
+class MotionDetector(
+    /** The levels (0.6.9): the Online-Version uses [Thresholds.ONLINE] (as 0.6.7), Labor·Karte [Thresholds.LABOR]. */
+    val thresholds: Thresholds = Thresholds.ONLINE,
+    /**
+     * 0.6.9 (Labor·Karte readout and minute log): called with the start (monotonic ms) and the deviation
+     * of every closed second (NaN: too few samples). Null: nothing is reported (Online-Version).
+     */
+    private val onSecond: ((startMs: Long, stdMs2: Double) -> Unit)? = null,
+) {
     enum class State { STILL, MOVING }
+
+    /**
+     * Level hysteresis (0.6.9): a second counts as active for entering MOVING from [enterStdMs2], and
+     * for staying MOVING (the exit rule) from [stayStdMs2] ≤ [enterStdMs2]. Both equal: no level
+     * hysteresis (the Online-Version, 0.6.7).
+     */
+    data class Thresholds(val enterStdMs2: Double, val stayStdMs2: Double) {
+        init { require(stayStdMs2 <= enterStdMs2) }
+
+        companion object {
+            val ONLINE = Thresholds(ACTIVE_STD_MS2, ACTIVE_STD_MS2)
+            val LABOR = Thresholds(LABOR_ENTER_STD_MS2, LABOR_STAY_STD_MS2)
+        }
+    }
 
     /**
      * A change of state at [atMs] (end of the second that decided it) to [to]. [spanStartMs]: for
@@ -48,6 +70,7 @@ class MotionDetector {
         val meanStdEnterMs2: Double,
         val lastStdMs2: Double,
         val lastSamples: Int,
+        val thresholds: Thresholds = Thresholds.ONLINE,
     ) {
         /** The numbers of the Labor·Karte log line (EditionDiagnostics.motionTransition). */
         fun features(): Map<String, Double> = linkedMapOf(
@@ -59,7 +82,8 @@ class MotionDetector {
             "meanStdEnter" to meanStdEnterMs2,
             "lastStd" to lastStdMs2,
             "lastSamples" to lastSamples.toDouble(),
-            "activeStd" to ACTIVE_STD_MS2,
+            "activeStd" to thresholds.enterStdMs2,
+            "stayStd" to thresholds.stayStdMs2,
         )
     }
 
@@ -72,8 +96,8 @@ class MotionDetector {
     private var sum = 0.0
     private var sumSq = 0.0
 
-    // The last EXIT_WINDOW_S closed seconds (ring): active flag, deviation (NaN: too few samples), start.
-    private val active = BooleanArray(EXIT_WINDOW_S)
+    // The last EXIT_WINDOW_S closed seconds (ring): deviation (NaN: too few samples), start. Whether a
+    // second is active depends on the threshold in use (enter or stay, 0.6.9), so it is not stored.
     private val std = DoubleArray(EXIT_WINDOW_S) { Double.NaN }
     private val startMs = LongArray(EXIT_WINDOW_S)
     private var closed = 0L
@@ -116,29 +140,29 @@ class MotionDetector {
 
     private fun close(sec: Long, s: Double, samples: Int): Transition? {
         val i = (closed % EXIT_WINDOW_S).toInt()
-        active[i] = !s.isNaN() && s >= ACTIVE_STD_MS2
         std[i] = s
         startMs[i] = sec * 1000L
         closed++
         secondsInState++
         lastStd = s
         lastN = samples
+        onSecond?.invoke(sec * 1000L, s)
         val atMs = (sec + 1) * 1000L
         return when (state) {
             State.STILL -> {
-                val enter = countActive(ENTER_WINDOW_S)
+                val enter = countActive(ENTER_WINDOW_S, thresholds.enterStdMs2)
                 if (enter < ENTER_ACTIVE_S) null else {
                     state = State.MOVING
                     secondsInState = 0
-                    transition(atMs, State.MOVING, firstActiveStart(ENTER_WINDOW_S), enter)
+                    transition(atMs, State.MOVING, firstActiveStart(ENTER_WINDOW_S, thresholds.enterStdMs2), enter)
                 }
             }
             State.MOVING -> {
-                val exit = countActive(EXIT_WINDOW_S)
+                val exit = countActive(EXIT_WINDOW_S, thresholds.stayStdMs2)
                 if (secondsInState < EXIT_WINDOW_S || exit > EXIT_ACTIVE_MAX_S) null else {
                     state = State.STILL
                     secondsInState = 0
-                    transition(atMs, State.STILL, atMs, countActive(ENTER_WINDOW_S))
+                    transition(atMs, State.STILL, atMs, countActive(ENTER_WINDOW_S, thresholds.enterStdMs2))
                 }
             }
         }
@@ -146,22 +170,24 @@ class MotionDetector {
 
     private fun transition(atMs: Long, to: State, spanStartMs: Long, enter: Int) = Transition(
         atMs = atMs, to = to, spanStartMs = spanStartMs,
-        activeInEnterWindow = enter, activeInExitWindow = countActive(EXIT_WINDOW_S),
-        meanStdEnterMs2 = meanStd(ENTER_WINDOW_S), lastStdMs2 = lastStd, lastSamples = lastN,
+        activeInEnterWindow = enter, activeInExitWindow = countActive(EXIT_WINDOW_S, thresholds.stayStdMs2),
+        meanStdEnterMs2 = meanStd(ENTER_WINDOW_S), lastStdMs2 = lastStd, lastSamples = lastN, thresholds = thresholds,
     )
+
+    private fun active(i: Int, threshold: Double): Boolean = !std[i].isNaN() && std[i] >= threshold
 
     /** Index in the ring of the k-th newest closed second (0 = newest), or -1 if not closed yet. */
     private fun at(k: Int): Int = if (k >= closed || k >= EXIT_WINDOW_S) -1 else ((closed - 1 - k) % EXIT_WINDOW_S).toInt()
 
-    private fun countActive(window: Int): Int {
+    private fun countActive(window: Int, threshold: Double): Int {
         var c = 0
-        for (k in 0 until window) { val i = at(k); if (i < 0) break; if (active[i]) c++ }
+        for (k in 0 until window) { val i = at(k); if (i < 0) break; if (active(i, threshold)) c++ }
         return c
     }
 
-    private fun firstActiveStart(window: Int): Long {
+    private fun firstActiveStart(window: Int, threshold: Double): Long {
         var first = Long.MAX_VALUE
-        for (k in 0 until window) { val i = at(k); if (i < 0) break; if (active[i]) first = startMs[i] }
+        for (k in 0 until window) { val i = at(k); if (i < 0) break; if (active(i, threshold)) first = startMs[i] }
         return first
     }
 
@@ -188,6 +214,24 @@ class MotionDetector {
          * phone and several times below walking and cycling (buses and trams are recognised partly).
          */
         const val ACTIVE_STD_MS2 = 0.25
+
+        /**
+         * Labor·Karte (0.6.9), enter level: a tram, train or bus ride. The owner's tram ride on 0.6.8
+         * never reached 0.25 for 20 of 25 s: a vehicle's broadband vibration at the phone is about
+         * 0.1 m/s² (smoother than walking). A phone lying still reads 0.01–0.03 (per-axis MEMS noise;
+         * the deviation of |a| is about that of the axis along gravity); in the synthetic model even a
+         * noisy σ = 0.04 sensor never reaches 0.07 (0 of 288 000 s), i.e. 0.07 is 2.3× the noisiest
+         * still phone and ~0.7× the tram, which makes about 97 % of its seconds active.
+         */
+        const val LABOR_ENTER_STD_MS2 = 0.07
+
+        /**
+         * Labor·Karte (0.6.9), stay level (level hysteresis): while MOVING, a second counts as active
+         * from 0.05, so standing at a stop or sitting in a slow, smooth vehicle keeps MOVING. Above the
+         * 99.9th percentile of a σ = 0.03 still phone (0.044); a σ = 0.04 phone exceeds it in 3 % of
+         * seconds, below the exit rule's 10 of 180 (5.6 %), so a phone put down still returns to STILL.
+         */
+        const val LABOR_STAY_STD_MS2 = 0.05
 
         /** Fewer samples in a second (sensor batching hiccup, sensor off): the second counts as not active. */
         const val MIN_SAMPLES_PER_SECOND = 5

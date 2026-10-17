@@ -59,8 +59,11 @@ class LoudAlertIsolationTest {
         assertEquals(emptyList(), offenders)
         val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/motion/MotionWatch.kt").readText()
         assertTrue(stub.contains("const val AVAILABLE = false"))
-        assertTrue(stub.contains("fun start(context: Context, container: AppContainer): Handle? = null"))
-        for (bad in listOf("Sensor", "registerListener", "MotionDetector", "moving_spans", "beginMovingSpan")) assertFalse(stub.contains(bad), bad)
+        assertTrue(stub.contains("fun start(context: Context, container: AppContainer, position: Boolean = false): Handle? = null"))
+        // 0.6.9: no position signal and no foreground type «location» in the editions without the map.
+        assertTrue(stub.contains("fun positionForegroundType(context: Context): Int? = null"))
+        assertTrue(stub.contains("fun extraHoldMs(nowMs: Long): Long = 0L"))
+        for (bad in listOf("Sensor", "registerListener", "MotionDetector", "moving_spans", "beginMovingSpan", "Location", "PositionWatch")) assertFalse(stub.contains(bad), bad)
         for (d in listOf("src/public", "src/offline", "src/labor", "src/laborKarte", "src/nomap")) {
             val hits = File(app, d).walkTopDown().filter { it.isFile && it.extension == "kt" && it.readText().contains("SensorManager") }.toList()
             assertEquals(emptyList(), hits, d)

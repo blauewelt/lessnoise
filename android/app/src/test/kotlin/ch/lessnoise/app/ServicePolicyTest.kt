@@ -60,5 +60,10 @@ class ServicePolicyTest {
         assertEquals(true, c.modeChanged(false))
         assertEquals(true, c.levelDue(t + 10_500), "the level text comes back at once")
         assertEquals(false, c.levelDue(t + 11_000))
+        // 0.6.9 (Labor·Karte): the tap's target and the «Melden» button re-post once when they change.
+        assertEquals(true, c.tapChanged(contentTap = false, button = true))
+        assertEquals(false, c.tapChanged(contentTap = false, button = true))
+        assertEquals(true, c.tapChanged(contentTap = true, button = true))
+        assertEquals(false, c.levelDue(t + 11_500), "the level cadence is not reset by a tap change")
     }
 }

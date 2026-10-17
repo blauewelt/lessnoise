@@ -217,6 +217,10 @@ class MotionDetectorTest {
     @Test
     fun thresholdsAreThoseDocumented() {
         assertEquals(0.25, MotionDetector.ACTIVE_STD_MS2)
+        // 0.6.9: the Online-Version keeps 0.6.7's level; Labor·Karte enters at 0.07 and stays from 0.05.
+        assertEquals(MotionDetector.Thresholds(0.25, 0.25), MotionDetector.Thresholds.ONLINE)
+        assertEquals(MotionDetector.Thresholds(0.07, 0.05), MotionDetector.Thresholds.LABOR)
+        assertEquals(MotionDetector.Thresholds.ONLINE, MotionDetector().thresholds)
         assertEquals(25, MotionDetector.ENTER_WINDOW_S)
         assertEquals(20, MotionDetector.ENTER_ACTIVE_S)
         assertEquals(180, MotionDetector.EXIT_WINDOW_S)
@@ -234,6 +238,108 @@ class MotionDetectorTest {
         assertEquals((now - 3_000_000_000L) / 1_000_000L, MotionClock.sampleMs(now - 3_000_000_000L, now))
         assertEquals(now / 1_000_000L, MotionClock.sampleMs(123L, now))
         assertEquals(1_700_000_000_000L - 2_000L, MotionClock.wallMs(98_000L, 100_000L, 1_700_000_000_000L))
+    }
+
+    // ---- 0.6.9, Labor·Karte thresholds: trams and trains ------------------------------------------
+
+    private fun labor() = Run(MotionDetector(MotionDetector.Thresholds.LABOR))
+
+    /** A still phone with a noisier sensor (σ per axis), e.g. an old MEMS part. */
+    private fun stillWith(sigma: Double) = Signal { _, r -> Triple(noise(r, sigma), noise(r, sigma), g + noise(r, sigma)) }
+
+    /**
+     * Riding a tram/train/bus, phone in a pocket or on the lap: broadband vibration σ ≈ 0.1 m/s² per
+     * axis (smoother than walking: no steps), a slow lateral sway (0.4 Hz) and a weak 2.5 Hz bogie
+     * component along gravity.
+     */
+    private val tram = Signal { t, r ->
+        Triple(0.3 * sin(2 * PI * 0.4 * t) + noise(r, 0.1), noise(r, 0.1), g + 0.05 * sin(2 * PI * 2.5 * t) + noise(r, 0.1))
+    }
+
+    /** The tram standing at a stop: motors and air conditioning only, σ ≈ 0.03. */
+    private val tramAtStop = stillWith(0.03)
+
+    /** Tram ride: [legs] legs of 90 s driving with 25-s stops in between. */
+    private fun Run.tramRide(legs: Int, rnd: Int = 30) {
+        repeat(legs) { i ->
+            feed(90, tram, Random(rnd + i))
+            if (i < legs - 1) feed(25, tramAtStop, Random(rnd + 100 + i))
+        }
+    }
+
+    @Test
+    fun aTramRideIsMovingWithTheLaborThresholdsAndWasNotWithTheOnlineOnes() {
+        // The owner's field result on 0.6.8: a tram ride never switched (0.25 is above a tram's ~0.1).
+        val online = Run()
+        online.feed(60, still)
+        online.tramRide(4)
+        assertTrue(online.transitions.isEmpty(), "Online thresholds: ${online.transitions}")
+        // Labor·Karte: MOVING within about 25 s of the ride, and it stays MOVING through the stops.
+        val r = labor()
+        r.feed(60, still)
+        val rideStart = r.tMs
+        r.tramRide(4)
+        assertEquals(listOf(M), r.transitions.map { it.to }, "${r.transitions}")
+        val after = (r.transitions[0].atMs - rideStart) / 1000.0
+        assertTrue(after in 19.0..30.0, "MOVING after $after s")
+        assertEquals(M, r.det.state)
+        assertTrue(r.transitions[0].features()["stayStd"] == 0.05)
+    }
+
+    @Test
+    fun walkingToTheStopWaitingAndRidingKeepsItMoving() {
+        val r = labor()
+        r.feed(60, still)
+        r.feed(120, walking) // to the stop
+        assertEquals(1, r.transitions.size)
+        // 2.5 minutes at the stop, phone in the pocket (the exit window stays 180 s, as in 0.6.7).
+        r.feed(150, stillWith(0.03), Random(41))
+        r.tramRide(5, rnd = 50)
+        r.feed(90, walking, Random(60))
+        assertEquals(listOf(M), r.transitions.map { it.to }, "${r.transitions}")
+    }
+
+    @Test
+    fun laborThresholdsKeepAClearMarginAboveAStillPhone() {
+        // An hour of a still phone with σ 0.02 and with a noisy σ 0.03 sensor: never MOVING.
+        for (sigma in listOf(0.01, 0.02, 0.03)) {
+            val r = labor()
+            r.feed(3600, stillWith(sigma), Random(70))
+            assertTrue(r.transitions.isEmpty(), "σ $sigma: ${r.transitions}")
+        }
+        // The bump cases of 0.6.7 with the lower levels.
+        val b = labor()
+        b.feed(120, still)
+        b.bump(3_000)
+        b.feed(60, still)
+        b.bump(2_000)
+        b.feed(12, walkingInHand)
+        b.bump(1_000)
+        b.feed(300, still)
+        assertTrue(b.transitions.isEmpty(), "${b.transitions}")
+        // After a ride, a phone put down (even a noisy σ 0.04 one) returns to STILL after about 3 minutes.
+        for (sigma in listOf(0.02, 0.04)) {
+            val r = labor()
+            r.tramRide(2)
+            val down = r.tMs
+            r.feed(400, stillWith(sigma), Random(80))
+            assertEquals(listOf(M, S), r.transitions.map { it.to }, "σ $sigma: ${r.transitions}")
+            val back = (r.transitions[1].atMs - down) / 1000.0
+            assertTrue(back in 170.0..200.0, "σ $sigma: STILL after $back s")
+        }
+        // Margins as documented: enter ≥ 2× the noisiest still phone's level (0.03), stay above it.
+        assertTrue(MotionDetector.LABOR_ENTER_STD_MS2 >= 2 * 0.03)
+        assertTrue(MotionDetector.LABOR_STAY_STD_MS2 > 0.03 && MotionDetector.LABOR_STAY_STD_MS2 < MotionDetector.LABOR_ENTER_STD_MS2)
+    }
+
+    @Test
+    fun theSecondsAreReportedForTheLaborReadout() {
+        val seen = mutableListOf<Pair<Long, Double>>()
+        val r = Run(MotionDetector(MotionDetector.Thresholds.LABOR) { start, std -> seen += start to std })
+        r.feed(10, tram)
+        assertEquals(9, seen.size) // the 10th second is closed by the next sample
+        assertTrue(seen.all { it.second in 0.07..0.2 }, "$seen")
+        assertEquals(1_000_000L, seen[0].first)
     }
 
     // ---- The alert while MOVING (LoudAlertRule, LoudAlertWatcher) -------------------------------
@@ -259,14 +365,16 @@ class MotionDetectorTest {
         assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)"))
         // The service starts the watch only for «Messen», and stops it with the measurement.
         val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
-        assertTrue(service.contains("if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container)"))
+        assertTrue(service.contains("if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container, position = positionAllowed)"))
         assertTrue(service.contains("motion?.stop()"))
         // «moving» is only ever set for a running «Messen» measurement.
         val watch = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/motion/MotionWatch.kt").readText()
-        assertTrue(watch.contains("if (it.running && !it.unterwegs) it.copy(moving = moving) else it"))
+        assertTrue(watch.contains("if (it.running && !it.unterwegs) it.copy(moving = combiner.moving) else it"))
         assertTrue(watch.contains("registerListener(listener, sensor, SAMPLING_PERIOD_US, MAX_REPORT_LATENCY_US, handler)"))
         assertTrue(watch.contains("Sensor.TYPE_ACCELEROMETER"))
-        for (bad in listOf("Location", "TYPE_SIGNIFICANT_MOTION", "ActivityRecognition", "gms", "UploadModule", "upload.")) {
+        // 0.6.9: the position signal is behind PositionWatch (src/laborKarte; stand-in in the Online-Version);
+        // the watch itself reads no location and sees no coordinate.
+        for (bad in listOf("LocationManager", "android.location", "latitude", "longitude", "TYPE_SIGNIFICANT_MOTION", "ActivityRecognition", "gms", "UploadModule", "upload.")) {
             assertFalse(watch.contains(bad), bad)
         }
     }

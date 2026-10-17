@@ -17,6 +17,12 @@ import kotlinx.coroutines.flow.flowOf
 object EditionDiagnostics {
     @Suppress("UNUSED_PARAMETER")
     fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) = Unit
+
+    @Suppress("UNUSED_PARAMETER")
+    fun motionMinute(
+        context: Context, minuteStartMs: Long, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ) = Unit
 }
 
 /** Public: there is no audio recorder, the measurement service always gets [NoAudioTap]. */

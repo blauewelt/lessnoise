@@ -73,7 +73,8 @@ class ReportTapTest {
         // The service's collector: distinct «running && (unterwegs || moving)» → reportTap → cadence.
         val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
         assertTrue(service.contains("container.live.map { it.running && (it.unterwegs || it.moving) }.distinctUntilChanged()"))
-        assertTrue(service.contains("if (!cadence.modeChanged(reportTap != null)) return@collect"))
+        assertTrue(service.contains("val modeChanged = cadence.modeChanged(reportTap?.text != null)"))
+        assertTrue(service.contains("if (!modeChanged && !tapChanged) return@collect"))
         assertTrue(service.contains("notification(text, reportTap)"))
         assertTrue(service.contains("if (cadence.levelDue(now))"))
         // Simulated run: «Messen» 10 s still, 30 s moving, 10 s still; one level result per second.
@@ -93,6 +94,80 @@ class ReportTapTest {
         val u = NotificationCadence(2000)
         assertTrue(u.modeChanged(ReportTap.forState(true, true, false) != null))
         assertFalse((0 until 60).any { u.levelDue(t0 + it * 1000L) })
+    }
+
+    private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }
+}
+
+/** 0.6.9, Labor·Karte (BuildConfig.LABOR_UNTERWEGS): «Melden» on the measurement notification in every state. */
+class ReportButtonTest {
+    private val t0 = 1_760_000_000_000L
+
+    @Test
+    fun laborKarteHasTheMeldenButtonInEveryStateAndKeepsTheLevelText() {
+        for ((unterwegs, moving) in listOf(false to false, false to true, true to false, true to true)) {
+            val t = ReportTap.forState(running = true, unterwegs = unterwegs, moving = moving, labor = true)!!
+            assertTrue(t.button, "button ($unterwegs, $moving)")
+            assertNull(t.text, "level text kept ($unterwegs, $moving)")
+            assertEquals(ReportTap.ACTION, t.action)
+            assertEquals(ReportTap.REQUEST, t.requestCode)
+            // The content tap opens the report only while «unterwegs» (0.6.8); still: it opens the app.
+            assertEquals(unterwegs || moving, t.contentTap, "content tap ($unterwegs, $moving)")
+        }
+        assertEquals("Melden", ReportTap.BUTTON)
+        assertNull(ReportTap.forState(running = false, unterwegs = false, moving = false, labor = true))
+        // The button's intent is the content tap's: the report at the time of the tap, nothing preselected.
+        assertEquals(ReportPreset(t0, emptyList()), ReportTap.preset(ReportTap.ACTION, t0))
+    }
+
+    @Test
+    fun theOnlineVersionIsExactlyAs068() {
+        assertNull(ReportTap.forState(running = true, unterwegs = false, moving = false))
+        val t = ReportTap.forState(running = true, unterwegs = false, moving = true)!!
+        assertEquals(ReportTap.TEXT, t.text)
+        assertTrue(t.contentTap)
+        assertFalse(t.button)
+    }
+
+    @Test
+    fun theFlagIsOnlyOnInLaborKarteAndTheServiceAddsTheButton() {
+        val gradle = File(repo(), "android/app/build.gradle.kts").readText()
+        assertTrue(gradle.contains("buildConfigField(\"boolean\", \"LABOR_UNTERWEGS\", \"false\")"))
+        assertEquals(1, Regex("""LABOR_UNTERWEGS", "true"""").findAll(gradle).count())
+        val lk = gradle.substring(gradle.indexOf("create(\"laborKarte\")"), gradle.indexOf("sourceSets {"))
+        assertTrue(lk.contains("buildConfigField(\"boolean\", \"LABOR_UNTERWEGS\", \"true\")"))
+        assertEquals(ch.lessnoise.app.BuildConfig.FLAVOR == "laborKarte", ch.lessnoise.app.BuildConfig.LABOR_UNTERWEGS)
+        val facade = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
+        assertTrue(facade.contains("ReportTap.forState(running, unterwegs, moving, labor = BuildConfig.LABOR_UNTERWEGS)"))
+        assertTrue(facade.contains("intent = pending.takeIf { t.contentTap }"))
+        assertTrue(facade.contains("button = pending.takeIf { t.button }"))
+        val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
+        assertTrue(service.contains(".addAction(0, \"Stopp\", stop)\n            .apply { reportTap?.button?.let { addAction(0, reportTap.buttonLabel, it) } }"))
+        // Level posts keep the current tap (so the button never disappears), in every state.
+        assertTrue(service.contains("notify(NOTIFICATION_ID, notification(text, currentTap))"))
+        // The usual tap when the report tap is not the content intent.
+        assertTrue(service.contains("val open = reportTap?.intent ?: PendingIntent.getActivity("))
+    }
+
+    @Test
+    fun laborRunStillMovingStillKeepsTheLevelTextAndRePostsOnlyOnTapChanges() {
+        val c = NotificationCadence(2000)
+        val posts = mutableListOf<String>()
+        fun second(t: Long, moving: Boolean) {
+            val tap = ReportTap.forState(true, false, moving, labor = true)!!
+            val mode = c.modeChanged(tap.text != null)
+            val changed = c.tapChanged(tap.contentTap, tap.button)
+            if (mode || changed) posts += "tap:${tap.contentTap}"
+            if (c.levelDue(t)) posts += "level"
+        }
+        var t = t0
+        repeat(10) { second(t, false); t += 1000 }
+        repeat(10) { second(t, true); t += 1000 }
+        repeat(4) { second(t, false); t += 1000 }
+        assertEquals(
+            listOf("tap:false") + List(5) { "level" } + "tap:true" + List(5) { "level" } + "tap:false" + List(2) { "level" },
+            posts,
+        )
     }
 
     private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }

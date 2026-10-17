@@ -75,7 +75,10 @@ class AppContainer(context: Context) {
             // 0.6.7 («Unterwegs erkannt», editions with the map): while a «Messen» measurement runs,
             // its newest records wait until the motion detector could have marked them as moving.
             val l = live.value
-            if (ch.lessnoise.app.motion.MotionWatch.AVAILABLE && l.running && !l.unterwegs) ch.lessnoise.app.upload.Uploader.MOTION_HOLD_MS else 0L
+            // 0.6.9 (Labor·Karte): longer while the position signal could still decide that the phone left.
+            if (ch.lessnoise.app.motion.MotionWatch.AVAILABLE && l.running && !l.unterwegs) {
+                maxOf(ch.lessnoise.app.upload.Uploader.MOTION_HOLD_MS, ch.lessnoise.app.motion.MotionWatch.extraHoldMs(System.currentTimeMillis()))
+            } else 0L
         })
     }
     /** True while the calibration screen is using the microphone (blocks starting a measurement). */

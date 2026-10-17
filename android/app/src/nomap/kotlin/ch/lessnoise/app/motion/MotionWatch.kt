@@ -15,5 +15,11 @@ object MotionWatch {
         fun stop()
     }
 
-    fun start(context: Context, container: AppContainer): Handle? = null
+    fun start(context: Context, container: AppContainer, position: Boolean = false): Handle? = null
+
+    /** 0.6.9: no position signal, no foreground type «location». */
+    fun positionForegroundType(context: Context): Int? = null
+
+    /** 0.6.9: nothing to hold for. */
+    fun extraHoldMs(nowMs: Long): Long = 0L
 }
