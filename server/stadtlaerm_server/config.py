@@ -41,6 +41,7 @@ class Settings:
     trust_proxy: bool = False
     registrations_per_ip_per_day: int = 10
     requests_per_device_per_hour: int = 360  # an upload every 30 s, minutes every 2 min, reports
+    newsletter_per_ip_per_hour: int = 10  # POST and DELETE /v1/newsletter together (§4.8)
     max_body_bytes: int = 2_000_000
     max_record_age_days: int = 7
     clock_skew_s: float = 600.0
@@ -72,6 +73,7 @@ class Settings:
             trust_proxy=_bool(e.get("TRUST_PROXY", "0")),
             registrations_per_ip_per_day=int(e.get("REGISTRATIONS_PER_IP_PER_DAY", d.registrations_per_ip_per_day)),
             requests_per_device_per_hour=int(e.get("REQUESTS_PER_DEVICE_PER_HOUR", d.requests_per_device_per_hour)),
+            newsletter_per_ip_per_hour=int(e.get("NEWSLETTER_PER_IP_PER_HOUR", d.newsletter_per_ip_per_hour)),
             max_body_bytes=int(e.get("MAX_BODY_BYTES", d.max_body_bytes)),
             max_record_age_days=int(e.get("MAX_RECORD_AGE_DAYS", d.max_record_age_days)),
             clock_skew_s=float(e.get("CLOCK_SKEW_S", d.clock_skew_s)),

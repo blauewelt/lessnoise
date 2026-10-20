@@ -1,4 +1,4 @@
-"""`python -m stadtlaerm_server [publish|retention|stats|serve]`.
+"""`python -m stadtlaerm_server [publish|retention|stats|export-newsletter|serve]`.
 
 serve (default)  run the API with the background publish/retention loop
 publish          rebuild the map files (and stats.json) once and exit
@@ -7,6 +7,10 @@ retention        run the retention job once (raw data older than RETENTION_DAYS 
                  INACTIVE_DELETE_DAYS deleted), republish if any
                  device was deleted, and exit
 stats            print the usage counts of stats.json (computed now, nothing written)
+export-newsletter
+                 print the e-mail addresses left for update notices (DESIGN.md §4.8), one per
+                 line, oldest first, for the owner to write to from his own account; the count
+                 goes to stderr. Nothing is changed.
 """
 
 from __future__ import annotations
@@ -46,6 +50,11 @@ def main(argv: list[str]) -> int:
         elif cmd == "stats":
             stats = publish.current_stats(conn, min_devices=s.min_devices_per_cell)
             print(json.dumps(stats, ensure_ascii=False, indent=2))
+        elif cmd == "export-newsletter":
+            addresses = db.newsletter_addresses(conn)
+            for email, _ in addresses:
+                print(email)
+            print(f"{len(addresses)} addresses", file=sys.stderr)
         elif cmd == "retention":
             result = retention.run_retention(conn, retention_days=s.retention_days)
             result["devices_expired"] = retention.expire_inactive(conn, inactive_days=s.inactive_delete_days)
