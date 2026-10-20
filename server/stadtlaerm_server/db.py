@@ -214,6 +214,15 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
     ALTER TABLE reports ADD COLUMN direction_north TEXT;
     ALTER TABLE reports ADD COLUMN direction_accuracy TEXT;
     """,
+    # 7: e-mail addresses left on the website for notices of new app versions (§4.8). Only the
+    # address (trimmed, lowercased) and when it was first left; no IP, no user agent, no device.
+    # Not linked to any other table.
+    """
+    CREATE TABLE newsletter (
+        email TEXT PRIMARY KEY,
+        created_at TEXT
+    ) WITHOUT ROWID;
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -377,6 +386,33 @@ def delete_device(conn: sqlite3.Connection, device_id: str) -> None:
     with conn:
         if delete_device_rows(conn, device_id):
             bump_counter(conn, "devices_deleted")
+
+
+# ---- e-mail addresses for update notices (§4.8) ---------------------------------------------
+
+
+def add_newsletter(conn: sqlite3.Connection, email: str) -> bool:
+    """Stores the (already normalised) address; True if it was new. A repeat keeps the first time."""
+    with conn:
+        return (
+            conn.execute(
+                "INSERT INTO newsletter (email, created_at) VALUES (?, ?) ON CONFLICT (email) DO NOTHING",
+                (email, utc_now_iso()),
+            ).rowcount
+            > 0
+        )
+
+
+def remove_newsletter(conn: sqlite3.Connection, email: str) -> bool:
+    """Deletes the address; True if it was stored."""
+    with conn:
+        return conn.execute("DELETE FROM newsletter WHERE email = ?", (email,)).rowcount > 0
+
+
+def newsletter_addresses(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(email, created_at) of every stored address, oldest first."""
+    q = "SELECT email, created_at FROM newsletter ORDER BY created_at, email"
+    return [tuple(r) for r in conn.execute(q)]
 
 
 # ---- reads for aggregation ---------------------------------------------------------------

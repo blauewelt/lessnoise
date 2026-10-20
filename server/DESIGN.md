@@ -439,6 +439,37 @@ shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
 
+### 4.8 E-mail for update notices (`POST` / `DELETE /v1/newsletter`, website, 2026-10-20)
+
+Not part of the map and not sent by the app: the form in `docs/index.html#download`
+(`docs/js/newsletter.js`) lets a visitor leave an e-mail address, voluntarily, to hear about new
+app versions. No auth, no device.
+
+```json
+{ "email": "name@example.ch" }
+```
+
+- `POST` stores the address trimmed and lowercased with `created_at` (ISO UTC, the first time
+  only) and answers `200 {"ok": true}` — **also when it was already stored**, so the answer
+  never tells whether an address is on the list. `DELETE` with the same body removes it and
+  answers `204` whether or not it was stored. Both answer `422` for anything but exactly one
+  field `email` that passes a simple check (dot-atom local part ≤ 64, a domain of ≥ 2 labels,
+  ≤ 254 characters in all; `schemas.normalize_email`).
+- **Stored: the address and `created_at`, nothing else** — no IP address, no user agent, no
+  referrer, no link to a device, site, record or report (table `newsletter`, §5, v7). The client
+  IP is used only as the in-memory rate-limit key (§8), like the registration limit.
+- CORS: this route — and only this one besides the map files — answers browsers, for the
+  website origins in `CORS_ORIGIN` only (default `https://wenigerlaerm.ch`,
+  `https://stadtlaerm.ch`): `OPTIONS` preflight with `POST, DELETE` and `Content-Type`;
+  `Access-Control-Allow-Origin` echoes a listed origin (on errors too) and is absent for any
+  other origin.
+- Use: notices of new app versions and important changes only, never passed on. The owner
+  exports the list with `python -m stadtlaerm_server export-newsletter` (one address per line,
+  `server/README.md`) and writes from the Verein's own mail account. Deletion on request
+  (reply, or an issue) by `DELETE /v1/newsletter` or the same SQL; nightly backups (§5) keep a
+  deleted address for at most 30 days. Not covered by retention (§5) or by device deletion
+  (§4.5): the two are unrelated.
+
 ## 5. Server storage (SQLite)
 
 ```
@@ -462,6 +493,7 @@ reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m R
         category TEXT, received_at, PRIMARY KEY(device_id, time_utc),   -- v3
         direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL)  -- v6
 counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
+newsletter(email TEXT PK, created_at TEXT)  -- v7; website form (§4.8), linked to nothing else
 ```
 
 `token_hash` is SHA-256 of the token; the token itself is never stored. `hidden` lets the
@@ -881,7 +913,8 @@ with the SQLite file on a mounted volume — the container does not change. Depl
 `docker compose up`; `server/README.md` documents it.
 
 Abuse limits: 10 device registrations per IP per day, 360 requests per device per hour (reports
-included; until release 0.6.2 it was 60 — app 0.6.3 uploads every 30 s to 2 min), request
+included; until release 0.6.2 it was 60 — app 0.6.3 uploads every 30 s to 2 min), 10
+`/v1/newsletter` requests (POST and DELETE together) per IP per hour (§4.8), request
 body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage outside 0–1, starts or report times more than 7 days old or in the future, cells, measurement
 points or report points outside Switzerland, a σ other than 25/50/100/200 m are rejected with the
 reason).

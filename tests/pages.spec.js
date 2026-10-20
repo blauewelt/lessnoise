@@ -164,16 +164,213 @@ test("the Anleitung has the same Content-Security-Policy as the other static pag
     await page.goto(p);
     return page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content");
   };
-  const home = await csp("/");
-  expect(await csp("/datenschutz.html")).toBe(home);
-  expect(await csp("/anleitung.html")).toBe(home);
-  expect(home).toContain("default-src 'none'");
-  expect(home).not.toContain("script-src");
+  // The home page differs since 2026-10-20 (the e-mail form, below); the text pages keep the plain policy.
+  const plain = await csp("/datenschutz.html");
+  expect(await csp("/anleitung.html")).toBe(plain);
+  expect(plain).toBe("default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'");
   await expect(page.locator("script")).toHaveCount(0);
   await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
   const hosts = await page.evaluate(() =>
     performance.getEntriesByType("resource").map((r) => new URL(r.name).host));
   for (const h of hosts) expect(h).toMatch(/^(localhost|127\.0\.0\.1)(:\d+)?$/);
+});
+
+// ---- 2026-10-20: the «Vorabversion» box and the e-mail form for update notices ----------------
+
+const ALPHA = "Vorabversion. Die App ist noch in Erprobung: Messwerte können ungenau sein, Funktionen ändern sich, und mit einem Update können Daten verloren gehen. Rückmeldungen sind willkommen.";
+const ISSUES = "https://github.com/blauewelt/lessnoise/issues";
+const HOME_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.lessnoise.ch https://api.stadtlaerm.ch; base-uri 'none'; form-action 'none'";
+const NEWSLETTER_API = "https://api.lessnoise.ch/v1/newsletter";
+const NEWSLETTER_FALLBACK = "https://api.stadtlaerm.ch/v1/newsletter";
+const ASK = "Möchten Sie erfahren, wenn es eine neue Version gibt? Hinterlassen Sie Ihre E-Mail-Adresse (freiwillig).";
+const THANKS = "Danke, wir melden uns bei neuen Versionen.";
+
+test("the «Vorabversion» box: under the hero on the home page, above «Welche Version?» in the Anleitung", async ({ page }) => {
+  await page.goto("/");
+  const home = page.locator("header.hero .alpha");
+  await expect(home).toBeVisible();
+  expect((await home.textContent()).replace(/\s+/g, " ").trim()).toBe(ALPHA);
+  await expect(home.locator("strong")).toHaveText("Vorabversion.");
+  await expect(home.locator("a")).toHaveText("Rückmeldungen");
+  await expect(home.locator("a")).toHaveAttribute("href", ISSUES);
+  expect(await page.locator('footer a[href="' + ISSUES + '"]').count()).toBe(1);   // the same link as the footer
+  // Directly after the claim, before any section.
+  expect(await home.evaluate((el) => el.previousElementSibling.className)).toBe("claim");
+  // Amber frame: the warning colours come from style.css, not the plain text colours.
+  const look = await home.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { border: cs.borderLeftColor, bg: cs.backgroundColor, width: parseFloat(cs.borderLeftWidth) };
+  });
+  expect(look.border).toBe("rgb(184, 110, 0)");   // --warn-border (= --amber) in light mode
+  expect(look.bg).toBe("rgb(255, 244, 220)");     // --warn-bg
+  expect(look.width).toBeGreaterThanOrEqual(4);
+
+  await page.goto("/anleitung.html");
+  const guide = page.locator("main > .alpha");
+  await expect(guide).toBeVisible();
+  expect((await guide.textContent()).replace(/\s+/g, " ").trim()).toBe(ALPHA);
+  await expect(guide.locator("a")).toHaveAttribute("href", ISSUES);
+  expect(await guide.evaluate((el) => el.nextElementSibling.id)).toBe("version");
+  // Smaller than on the home page.
+  const size = await guide.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(size).toBeLessThan(17);
+});
+
+test("the «Vorabversion» box in dark mode uses the dark amber", async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext({ colorScheme: "dark", baseURL });
+  const page = await ctx.newPage();
+  await page.route((url) => !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url.href), (r) => r.abort());
+  await page.goto("/");
+  const look = await page.locator(".alpha").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { border: cs.borderLeftColor, bg: cs.backgroundColor, color: cs.color };
+  });
+  expect(look).toEqual({ border: "rgb(242, 179, 61)", bg: "rgb(44, 34, 16)", color: "rgb(251, 227, 176)" });
+  await ctx.close();
+});
+
+test("home page CSP: scripts from the site, connections to the two API hosts only, nothing more", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute("content", HOME_CSP);
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");
+  // One script, external and stamped; no inline script, no inline handler.
+  const scripts = await page.locator("script").evaluateAll((ss) => ss.map((s) => ({ src: s.getAttribute("src"), text: s.textContent })));
+  expect(scripts).toHaveLength(1);
+  expect(scripts[0].src).toMatch(/^js\/newsletter\.js\?v=[0-9a-f]{8}$/);
+  expect(scripts[0].text).toBe("");
+  const html = fs.readFileSync(path.join(DOCS, "index.html"), "utf8");
+  expect(html).not.toMatch(/\son[a-z]+=/i);
+  // Loading the page sends nothing to the API.
+  const hosts = await page.evaluate(() => performance.getEntriesByType("resource").map((r) => new URL(r.name).host));
+  for (const h of hosts) expect(h).toMatch(/^(localhost|127\.0\.0\.1)(:\d+)?$/);
+});
+
+/** Answers POSTs to the newsletter API; returns the list of {url, body, headers} seen. */
+async function newsletterRoute(page, answer) {
+  const seen = [];
+  await page.route(/^https:\/\/api\.(lessnoise|stadtlaerm)\.ch\/v1\/newsletter$/, async (route) => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") {
+      return route.fulfill({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, DELETE", "Access-Control-Allow-Headers": "Content-Type" } });
+    }
+    seen.push({ url: req.url(), method: req.method(), body: req.postData(), headers: await req.allHeaders() });
+    return answer(route, req);
+  });
+  return seen;
+}
+
+const cors = { "Access-Control-Allow-Origin": "*" };
+
+test("e-mail form: above the download buttons, sends {email} once, then thanks", async ({ page }) => {
+  const seen = await newsletterRoute(page, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", headers: cors, body: '{"ok":true}' }));
+  await page.goto("/");
+  const form = page.locator("#download form#newsletter");
+  await expect(form).toBeVisible();
+  await expect(form.locator(".newsletter-text")).toHaveText(ASK);
+  await expect(form.locator('input[type="email"]')).toHaveAttribute("autocomplete", "email");
+  await expect(form.getByRole("button", { name: "Eintragen" })).toBeVisible();
+  // The form comes before the two download buttons.
+  const before = await page.evaluate(() => {
+    const f = document.getElementById("newsletter");
+    const b = document.querySelector("#download .downloads");
+    return !!(f.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(before).toBe(true);
+
+  await form.locator('input[type="email"]').fill("  Anna@Example.ch ");
+  await form.getByRole("button", { name: "Eintragen" }).click();
+  await expect(form.locator(".newsletter-text")).toHaveText(THANKS);
+  await expect(form.locator(".newsletter-row")).toBeHidden();
+  expect(seen).toHaveLength(1);
+  expect(seen[0].url).toBe(NEWSLETTER_API);
+  expect(seen[0].method).toBe("POST");
+  expect(JSON.parse(seen[0].body)).toEqual({ email: "Anna@Example.ch" });   // the server lowercases
+  expect(seen[0].headers["content-type"]).toBe("application/json");
+  expect(seen[0].headers.referer).toBeUndefined();
+  expect(seen[0].headers.cookie).toBeUndefined();
+  expect(page.url()).toMatch(/\/$/);   // no navigation (preventDefault)
+  await expect(page.locator("#download a.button")).toHaveCount(2);
+});
+
+test("e-mail form: server unreachable → tries the old host once, then the failure line; downloads stay usable", async ({ page }) => {
+  const seen = await newsletterRoute(page, (route) => route.abort("internetdisconnected"));
+  await page.goto("/");
+  const form = page.locator("#newsletter");
+  await form.locator('input[type="email"]').fill("anna@example.ch");
+  await form.locator('input[type="email"]').press("Enter");
+  const status = form.locator(".newsletter-status");
+  await expect(status).toContainText("Eintragen hat nicht geklappt – schreiben Sie uns");
+  await expect(status.locator("a")).toHaveAttribute("href", ISSUES);
+  expect(seen.map((s) => s.url)).toEqual([NEWSLETTER_API, NEWSLETTER_FALLBACK]);
+  await expect(form.locator(".newsletter-text")).toHaveText(ASK);       // not thanked
+  await expect(form.locator('input[type="email"]')).toHaveValue("anna@example.ch");  // can try again
+  await expect(form.getByRole("button", { name: "Eintragen" })).toBeEnabled();
+  // The download buttons do not depend on the form.
+  const buttons = page.locator("#download a.button");
+  await expect(buttons).toHaveCount(2);
+  for (const [i, href] of [[0, "download/lessnoise-karte.apk"], [1, "download/lessnoise.apk"]]) {
+    await expect(buttons.nth(i)).toBeVisible();
+    await expect(buttons.nth(i)).toHaveAttribute("href", href);
+  }
+  const res = await page.request.head("/download/lessnoise-karte.apk");
+  expect(res.status()).toBe(200);
+});
+
+test("e-mail form: the server refuses (422) → failure line, no second host", async ({ page }) => {
+  const seen = await newsletterRoute(page, (route) =>
+    route.fulfill({ status: 422, contentType: "application/json", headers: cors, body: '{"detail":[{"field":"email","reason":"email is not a valid address"}]}' }));
+  await page.goto("/");
+  const form = page.locator("#newsletter");
+  await form.locator('input[type="email"]').fill("anna@example.c");
+  await form.getByRole("button", { name: "Eintragen" }).click();
+  await expect(form.locator(".newsletter-status")).toContainText("Eintragen hat nicht geklappt");
+  expect(seen).toHaveLength(1);
+  await expect(page.locator("#download a.button").first()).toBeVisible();
+});
+
+test("e-mail form: an empty or obviously wrong address is not sent", async ({ page }) => {
+  const seen = await newsletterRoute(page, (route) => route.fulfill({ status: 200, headers: cors, body: "{}" }));
+  await page.goto("/");
+  const form = page.locator("#newsletter");
+  for (const value of ["", "anna", "anna @example.ch"]) {
+    await form.locator('input[type="email"]').fill(value);
+    await form.getByRole("button", { name: "Eintragen" }).click();
+    await expect(form.locator(".newsletter-status")).toHaveText("Bitte eine gültige E-Mail-Adresse eingeben.");
+  }
+  expect(seen).toHaveLength(0);
+});
+
+test("without its script the form stays hidden; the downloads are there", async ({ browser, baseURL }) => {
+  const ctx = await browser.newContext({ javaScriptEnabled: false, baseURL });
+  const page = await ctx.newPage();
+  await page.route((url) => !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url.href), (r) => r.abort());
+  await page.goto("/");
+  await expect(page.locator("#newsletter")).toBeHidden();
+  await expect(page.locator("#download a.button")).toHaveCount(2);
+  await expect(page.locator("#download a.button").first()).toBeVisible();
+  await expect(page.locator(".alpha")).toBeVisible();
+  await ctx.close();
+});
+
+test("the privacy page explains the e-mail address for updates", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const sec = page.locator("#website");
+  await expect(sec.locator("h3#email")).toHaveText("E-Mail-Adresse für Updates");
+  const text = (await sec.textContent()).replace(/\s+/g, " ");
+  for (const fact of [
+    "freiwillig",
+    "Gespeichert werden nur die Adresse und der Zeitpunkt",
+    "Server des Projekts in der Schweiz",
+    "keine IP-Adresse",
+    "nur für Hinweise auf neue Versionen der App und auf wichtige Änderungen",
+    "nie weitergegeben",
+    "Löschen lassen können Sie die Adresse jederzeit",
+  ]) expect(text, fact).toContain(fact);
+  await expect(sec.locator('a[href="' + ISSUES + '"]')).toHaveCount(1);
+  // The home page's form links here.
+  await page.goto("/");
+  await expect(page.locator('#newsletter a[href="datenschutz.html#email"]')).toHaveCount(1);
 });
 
 test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
@@ -193,7 +390,7 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 15. Oktober 2026",
+    "Stand: 20. Oktober 2026",
     "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
     "Art, Zeit und den ungefähren Ort", // what the phone keeps of a sent report
   ]) {

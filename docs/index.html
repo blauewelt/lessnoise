@@ -3,19 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.lessnoise.ch https://api.stadtlaerm.ch; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Weniger Lärm – Lärm messen, wo er stört</title>
 <meta name="description" content="Android-App, die den Lärm misst, wo er Sie stört, ohne Ton aufzunehmen. Mit Meldungen von unterwegs und einer gemeinsamen Lärmkarte der Schweiz.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b5cad'/%3E%3Cpath d='M4 22h5l3-6 3 3 3-13 3 13 3-4h4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=81edaa7d">
+<script src="js/newsletter.js?v=5f7c4493" defer></script>
 </head>
 <body>
 
 <header class="wrap hero">
   <h1>Weniger Lärm</h1>
   <p class="claim">Lärm messen, wo er stört.</p>
+  <p class="alpha" id="vorabversion" role="note"><strong>Vorabversion.</strong> Die App ist noch in Erprobung: Messwerte können ungenau sein, Funktionen ändern sich, und mit einem Update können Daten verloren gehen. <a href="https://github.com/blauewelt/lessnoise/issues">Rückmeldungen</a> sind willkommen.</p>
 </header>
 
 <main class="wrap">
@@ -33,6 +35,19 @@
 
 <section id="download">
   <h2>Herunterladen</h2>
+  <form class="newsletter" id="newsletter" hidden novalidate
+        data-api="https://api.lessnoise.ch/v1/newsletter"
+        data-api-fallback="https://api.stadtlaerm.ch/v1/newsletter"
+        data-contact="https://github.com/blauewelt/lessnoise/issues">
+    <p class="newsletter-text">Möchten Sie erfahren, wenn es eine neue Version gibt? Hinterlassen Sie Ihre E-Mail-Adresse (freiwillig).</p>
+    <div class="newsletter-row">
+      <label class="visually-hidden" for="newsletter-email">E-Mail-Adresse</label>
+      <input type="email" id="newsletter-email" name="email" autocomplete="email" inputmode="email" maxlength="254" required placeholder="name@beispiel.ch">
+      <button class="button" type="submit">Eintragen</button>
+    </div>
+    <p class="newsletter-status small" role="status" aria-live="polite"></p>
+    <p class="small">Nur für Hinweise auf neue Versionen, nie weitergegeben: <a href="datenschutz.html#email">Datenschutz</a></p>
+  </form>
   <!-- Release checklist: both APKs live in docs/download/ (lessnoise-karte.apk = Online-Version, lessnoise.apk = Offline-Version);
        the release step updates the version line below, the sizes and SHA-256 in anleitung.html#pruefsummen and update.html. -->
   <p>Unsere Open-Source-App (Source Code ist <a href="https://github.com/blauewelt/lessnoise">hier</a>) gibt es in zwei Versionen:</p>

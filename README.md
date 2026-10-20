@@ -72,6 +72,9 @@ and manual reports of a loud vehicle are stored with their point and published o
 map at that point, with the time rounded down to the full hour and no device id
 ([PRIVACY.md](PRIVACY.md), «On the server»). The map shows figures per 100 m field and calendar day
 (all hours), not per night.
+The website itself stores nothing about visitors, except an e-mail address someone leaves
+voluntarily for update notices: only the address and the time, on the project's server in
+Switzerland, used for nothing else and never passed on ([PRIVACY.md](PRIVACY.md), «The website»).
 [PRIVACY.md](PRIVACY.md) explains how the code keeps these promises
 and how to check them.
 

@@ -7,6 +7,7 @@ lists, so nothing else (e.g. raw AudioSet labels) can be stored by accident.
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -259,3 +260,38 @@ class UploadResult(BaseModel):
 MAX_MINUTES = 1440
 MAX_EVENTS = 2000
 MAX_REPORTS = 50
+
+
+# ---- e-mail addresses for update notices (DESIGN.md §4.8, website form) -----------------------
+
+MAX_EMAIL_LENGTH = 254  # RFC 5321 path limit minus the angle brackets
+MAX_EMAIL_LOCAL_LENGTH = 64
+# A deliberately simple check (no quoted local parts, no IP literals, ASCII domains): a dot-atom
+# local part, then a domain of at least two labels of letters, digits and inner hyphens, ending
+# in a label of letters (or an xn-- label).
+_EMAIL_LOCAL = r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+_EMAIL_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+EMAIL_PATTERN = re.compile(rf"^{_EMAIL_LOCAL}@(?:{_EMAIL_LABEL}\.)+(?:[a-z]{{2,63}}|xn--[a-z0-9-]{{1,59}})$")
+
+
+def normalize_email(value: str) -> str:
+    """Trimmed and lowercased; raises ValueError if it does not look like an address."""
+    email = value.strip().lower()
+    if not email:
+        raise ValueError("email is empty")
+    if len(email) > MAX_EMAIL_LENGTH:
+        raise ValueError(f"email is longer than {MAX_EMAIL_LENGTH} characters")
+    if not EMAIL_PATTERN.match(email) or len(email.partition("@")[0]) > MAX_EMAIL_LOCAL_LENGTH:
+        raise ValueError("email is not a valid address")
+    return email
+
+
+class NewsletterIn(Strict):
+    """`POST` / `DELETE /v1/newsletter`: exactly one field, the address; nothing else is accepted."""
+
+    email: Annotated[str, Field(max_length=1000)]
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return normalize_email(v)

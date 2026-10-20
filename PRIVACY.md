@@ -334,7 +334,8 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
 
 ## The website
 
-[wenigerlaerm.ch](https://wenigerlaerm.ch) (source in `docs/`) is static HTML and CSS. It sets no
+[wenigerlaerm.ch](https://wenigerlaerm.ch) (source in `docs/`) is static HTML and CSS (plus the
+small scripts named below, all served from the site itself). It sets no
 cookies, runs no analytics and loads nothing from third parties (except the map page, below): no
 web fonts, no CDNs, no external images. The only inline script is on `update.html` (allowed by its hash in the
 Content-Security-Policy): the app opens `update.html#v=<version>&c=<versionCode>&e=<edition>`
@@ -370,6 +371,24 @@ location. A hidden page (another browser tab, the app's other tabs) asks nothing
 Both hosts necessarily see the visitor's IP address; the page sends no referrer and sets no
 cookies, and the API server keeps no access log. All other pages still load nothing from third
 parties.
+
+**E-mail address for update notices (website, 2026-10-20).** Above the download buttons on the
+home page a visitor may leave an e-mail address to hear about new app versions — voluntary, not
+needed for the download. `docs/js/newsletter.js` (served from the site, no inline script; the home
+page's Content-Security-Policy allows `script-src 'self'` and `connect-src` to exactly the two API
+hosts) sends nothing until «Eintragen» is tapped, then one `POST /v1/newsletter` with
+`{"email": …}` to the project's server in Switzerland (`api.lessnoise.ch`; only if that host cannot
+be reached, `api.stadtlaerm.ch`), without cookies or referrer. The server stores **only the
+address (trimmed, lowercased) and the time it was first left** — no IP address, no user agent, no
+link to any app, measurement or report (server/DESIGN.md §4.8); it sees the IP address as for any
+request and keeps it only in memory as a rate-limit key, with no access log. A repeated address
+gets the same answer as a new one, so the form reveals nothing about who is on the list. The
+addresses are used only for notices of new app versions and important changes, are never passed
+on, and are written to by the Verein from an ordinary mail account (whose provider sees the
+recipient addresses, as with any e-mail). Deletion at any time: reply to such a notice or ask
+the Verein through a [GitHub issue](https://github.com/blauewelt/lessnoise/issues) (public); the
+address is then removed (`DELETE /v1/newsletter`) and is gone from the encrypted nightly backups
+within 30 days. The German text is in `docs/datenschutz.html#email`.
 
 ## Usage numbers
 

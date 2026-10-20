@@ -55,7 +55,29 @@ deletion of devices without uploads for `INACTIVE_DELETE_DAYS`; republishes the 
 device was deleted; prints `{"hours": …, "minutes_deleted": …, "events_deleted": …,
 "reports_deleted": …, "devices_expired": …}`),
 `python -m stadtlaerm_server stats` prints the usage counts of `stats.json` (computed now,
-nothing written).
+nothing written), and `python -m stadtlaerm_server export-newsletter` prints the e-mail
+addresses left on the website for update notices (DESIGN §4.8), one per line, oldest first
+(the count goes to stderr; nothing is changed).
+
+### E-mail addresses for update notices
+
+The form above the download buttons on wenigerlaerm.ch stores an address (and the time, nothing
+else) in the table `newsletter` (schema v7, created automatically at the first start of this
+version). To write to everyone, export the list on the VPS and paste it as **Bcc** into a mail
+from the Verein's own account:
+
+```sh
+cd /opt/stadtlaerm/server
+sudo docker compose exec -T app python -m stadtlaerm_server export-newsletter > /tmp/newsletter.txt
+# … use it, then: shred -u /tmp/newsletter.txt
+```
+
+To remove an address someone asked to have deleted (lowercase, as stored):
+
+```sh
+curl -s -X DELETE https://api.lessnoise.ch/v1/newsletter -H 'Content-Type: application/json' \
+     -d '{"email":"name@example.ch"}'          # 204 whether or not it was stored
+```
 
 To regenerate the example fixture after a format change: `python scripts/make_fixture.py`
 (about 40 s). It writes synthetic days (three measuring schedules: around the clock, evenings,
@@ -83,7 +105,9 @@ delete and after retention), and the 30-second cycle (`tests/test_live_publish.p
 change triggers — none, incremental or full; full after 10 minutes, after local midnight, after
 a delete, a new site or a change of `hidden`; every file an incremental run writes equals a full
 run's, also over random cycles; a failed run keeps its changes), plus `304 Not Modified` for the
-map files and the rate-limit default.
+map files and the rate-limit default, and the e-mail list for update notices
+(`tests/test_newsletter.py`: accept, invalid shapes, duplicate, delete, rate limit, CORS,
+nothing but address and time stored, the export command; the v6 → v7 migration).
 
 ## The API in one screen
 
@@ -98,6 +122,8 @@ map files and the rate-limit default.
 | `GET /v1/map/cells.json`, `/v1/map/cells/{cell}.json`, `/v1/map/days/{date}.json`, `/v1/map/reports.json` | – | static JSON, `Cache-Control: max-age=15`, `ETag`/`Last-Modified`; `304` without body for a matching `If-None-Match` / `If-Modified-Since` |
 | `GET /v1/map/stats.json` | – | static JSON: project-wide usage counts (below) |
 | `GET /healthz` | – | `{ok: true, commit}` (the deployed git commit) |
+| `POST /v1/newsletter` `{email}` (DESIGN §4.8, the website's form) | – | `200 {ok: true}`, also for an address already stored; `422` invalid; CORS for the website origins |
+| `DELETE /v1/newsletter` `{email}` | – | `204`, whether or not it was stored |
 
 Every call answers the same on `api.lessnoise.ch` and `api.stadtlaerm.ch`. Minutes and events
 may carry `"cell": "h<E100>_<N100>"` (DESIGN §4.3); without it they count for the device's
@@ -314,9 +340,10 @@ the deployed branch) applies an edited `.env` too. Check with
 | `BACKGROUND_JOBS` | `1` | `1` runs the publish loop and the daily retention job inside the server process; `0` turns them off (tests, or if you run `publish`/`retention` from cron instead). |
 | `RETENTION_DAYS` | `730` | Raw minutes and events older than this are reduced to hourly figures and deleted; reports older than this are deleted (2 years per DESIGN §5). |
 | `INACTIVE_DELETE_DAYS` | `60` | A device with no authenticated request (upload, site) for this many days is deleted with all its data in the daily job, like a deletion by its owner (DESIGN §2.9, §5); counted in `devices_expired_total`. `0` disables it. |
-| `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
+| `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser and to call `/v1/newsletter` (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
 | `TRUST_PROXY` | `0` (compose: `1`) | `1` takes the client IP for the registration limit from the `X-Forwarded-For` header set by Caddy. Only turn on behind a proxy you control, otherwise clients could fake their IP. |
 | `REGISTRATIONS_PER_IP_PER_DAY` | `10` | How many new device ids one IP address may create per day. |
+| `NEWSLETTER_PER_IP_PER_HOUR` | `10` | How many `POST`/`DELETE /v1/newsletter` requests (together) one IP address may make per hour. |
 | `REQUESTS_PER_DEVICE_PER_HOUR` | `360` | How many authenticated requests one device may make per hour (deleting is never limited). App 0.6.3 sends loud events about 30 s after they end and minutes every 2 minutes. Until release 0.6.2 the default was `60`. |
 | `MAX_BODY_BYTES` | `2000000` | Largest request body accepted, as sent (compressed). A gzip body may expand to 8× this. |
 | `MAX_RECORD_AGE_DAYS` | `7` | Minute, event and report records older than this are rejected. |
