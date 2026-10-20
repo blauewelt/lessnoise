@@ -12,6 +12,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.dsp.EventFeatures
 import ch.lessnoise.dsp.EventLevels
 import ch.lessnoise.dsp.MinuteLevels
@@ -76,6 +77,12 @@ data class MinuteEntity(
     // v5 (v0.4.0, detector v2): median local floor of the minute; events flagged as wind (not in eventCount).
     @ColumnInfo(name = "local_floor_db") val localFloorDb: Double? = null,
     @ColumnInfo(name = "wind_event_count", defaultValue = "0") val windEventCount: Int = 0,
+    /**
+     * v10 (app 0.7.2): the microphone the minute was measured with (MicChoice.key: «builtin», or
+     * «usb:…», «bluetooth:…», «wired:…» for a chosen one). Rows from before are «builtin». Only its
+     * kind is sent (MicChoice.wireAudioSource).
+     */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
 )
 
 @Entity(tableName = "events", indices = [Index("startEpochMs")])
@@ -117,6 +124,8 @@ data class EventEntity(
     @ColumnInfo(name = "lf_flutter_db") val lfFlutterDb: Double? = null,
     @ColumnInfo(name = "wind", defaultValue = "0") val wind: Boolean = false,
     @ColumnInfo(name = "shape") val shape: String? = null,
+    /** v10 (app 0.7.2): the microphone, as in [MinuteEntity.mic]. Not sent (events carry no audio source). */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
 )
 
 /**
@@ -191,6 +200,13 @@ data class CalibrationEntity(
     val toneFrequencyHz: Double? = null,
     val tonality: Double? = null,
     val warnings: String = "",
+    /**
+     * v10 (app 0.7.2): the microphone this calibration belongs to (MicChoice.key). Calibrations from
+     * before are «builtin»: until 0.7.1 the app measured only with the built-in microphone.
+     */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
+    /** v10: the microphone's name when it was calibrated, e.g. «USB-Mikrofon (Rode NT-USB)»; null for the built-in one. */
+    @ColumnInfo(name = "mic_label") val micLabel: String? = null,
 ) {
     val isCalibrated: Boolean get() = method != METHOD_RESET
 
@@ -250,16 +266,16 @@ interface MeasurementDao {
     // ---- Re-evaluation with a later calibration (v0.3.2) -------------------------------------
 
     @Query("SELECT COUNT(*) FROM minutes WHERE " + RecalibrationSql.SCOPE)
-    fun minutesToRecalibrate(source: String, calibrationId: Long): Flow<Int>
+    fun minutesToRecalibrate(source: String, mic: String, calibrationId: Long): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM events WHERE " + RecalibrationSql.SCOPE)
-    fun eventsToRecalibrate(source: String, calibrationId: Long): Flow<Int>
+    fun eventsToRecalibrate(source: String, mic: String, calibrationId: Long): Flow<Int>
 
     @Query("SELECT * FROM minutes WHERE " + RecalibrationSql.SCOPE + " ORDER BY id")
-    suspend fun minutesInScope(source: String, calibrationId: Long): List<MinuteEntity>
+    suspend fun minutesInScope(source: String, mic: String, calibrationId: Long): List<MinuteEntity>
 
     @Query("SELECT * FROM events WHERE " + RecalibrationSql.SCOPE + " ORDER BY id")
-    suspend fun eventsInScope(source: String, calibrationId: Long): List<EventEntity>
+    suspend fun eventsInScope(source: String, mic: String, calibrationId: Long): List<EventEntity>
 
     @Update suspend fun updateMinutes(m: List<MinuteEntity>)
     @Update suspend fun updateEvents(e: List<EventEntity>)
@@ -349,11 +365,12 @@ interface MeasurementDao {
 interface CalibrationDao {
     @Insert suspend fun insert(c: CalibrationEntity): Long
 
-    @Query("SELECT * FROM calibrations WHERE deviceModel = :model AND audioSource = :source ORDER BY createdEpochMs DESC, id DESC LIMIT 1")
-    suspend fun latest(model: String, source: String): CalibrationEntity?
+    /** 0.7.2: per microphone too ([CalibrationEntity.mic]); the built-in microphone's are those of 0.7.1. */
+    @Query("SELECT * FROM calibrations WHERE " + CalibrationSql.LATEST)
+    suspend fun latest(model: String, source: String, mic: String): CalibrationEntity?
 
-    @Query("SELECT * FROM calibrations WHERE deviceModel = :model AND audioSource = :source ORDER BY createdEpochMs DESC, id DESC LIMIT 1")
-    fun latestFlow(model: String, source: String): Flow<CalibrationEntity?>
+    @Query("SELECT * FROM calibrations WHERE " + CalibrationSql.LATEST)
+    fun latestFlow(model: String, source: String, mic: String): Flow<CalibrationEntity?>
 
     @Query("SELECT * FROM calibrations ORDER BY createdEpochMs DESC, id DESC")
     fun historyFlow(): Flow<List<CalibrationEntity>>
@@ -367,7 +384,7 @@ interface CalibrationDao {
 
 @Database(
     entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class, MovingSpanEntity::class],
-    version = 9, exportSchema = false,
+    version = 10, exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
@@ -376,7 +393,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build()
     }
 }

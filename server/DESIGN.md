@@ -217,7 +217,7 @@ The other fields are optional details the app remembers.
   "floor": 3,                      // 0 = ground floor; null = not given
   "street_facing": true,           // mic faces the street (vs courtyard)
   "device_model": "Pixel 8",       // android.os.Build.MODEL
-  "audio_source": "UNPROCESSED | VOICE_RECOGNITION",
+  "audio_source": "UNPROCESSED | VOICE_RECOGNITION",   // the app sends the built-in microphone's; «+kind» accepted, see §4.3
   "calibrated": true,
   "calibration_offset_db": 121.9,
   "note": "optional free text ≤ 200 chars, e.g. '2. OG, Seestrasse-Seite'"
@@ -249,6 +249,18 @@ calibration id they were measured with — that is enough to reason about calibr
   "clock_corrections": 0
 }
 ```
+
+**`audio_source`** (optional): the Android audio source the minute was measured with,
+`UNPROCESSED` or `VOICE_RECOGNITION`. Since app 0.7.2 the user may choose a microphone other than
+the phone's built-in one («Einstellungen → Erweitert → Mikrofon»); a minute measured with such a
+microphone carries its **kind** after a `+`: `UNPROCESSED+usb`, `+bluetooth` (LE Audio), `+wired` or
+`+other` (likewise for `VOICE_RECOGNITION`). The plain value means the built-in microphone — every
+app up to 0.7.1 measured only with it. Only the kind is sent, never the microphone's name, address
+or the app's identifier for it. Such a minute is `calibrated: true` only if the contributor
+calibrated that microphone. Any other value is refused per record (`rejected`); servers before
+this change refuse the `+kind` values the same way, so a phone sends its other-microphone minutes
+successfully only once the server is updated (the built-in ones are unaffected). No column
+changed: the value is stored as received in `minutes.audio_source`. Events carry no audio source.
 
 **`point`** (optional, from schema v4): where the minute was measured, as the app sends it
 since 0.6.2 — the **shifted** LV95 point of its measurement (§2 rule 2): `e` and `n` are JSON

@@ -29,6 +29,17 @@ DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
 DIRECTION_NORTHS = ("true", "magnetic")
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
 POINT_SIGMAS_M = (25, 50, 100, 200)
+# A minute's audio source (§4.3): the Android source, and since app 0.7.2 for a microphone other than
+# the phone's built-in one «+<kind>» (the kind only: usb, bluetooth, wired, other). The plain value
+# means the built-in microphone, as every app up to 0.7.1 measured.
+AUDIO_SOURCE_BASES = ("UNPROCESSED", "VOICE_RECOGNITION")
+MIC_KINDS = ("usb", "bluetooth", "wired", "other")
+AUDIO_SOURCES = (
+    "UNPROCESSED", "VOICE_RECOGNITION",
+    "UNPROCESSED+usb", "UNPROCESSED+bluetooth", "UNPROCESSED+wired", "UNPROCESSED+other",
+    "VOICE_RECOGNITION+usb", "VOICE_RECOGNITION+bluetooth", "VOICE_RECOGNITION+wired", "VOICE_RECOGNITION+other",
+)
+assert set(AUDIO_SOURCES) == set(AUDIO_SOURCE_BASES) | {f"{b}+{k}" for b in AUDIO_SOURCE_BASES for k in MIC_KINDS}
 
 Level = Annotated[float, Field(ge=DB_MIN, le=DB_MAX, allow_inf_nan=False)]
 Share = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
@@ -104,7 +115,7 @@ class SiteIn(Strict):
     floor: Annotated[int, Field(ge=-3, le=100)] | None = None
     street_facing: bool | None = None
     device_model: ShortText | None = None
-    audio_source: Literal["UNPROCESSED", "VOICE_RECOGNITION"]
+    audio_source: Literal[AUDIO_SOURCES]  # type: ignore[valid-type]
     calibrated: bool
     calibration_offset_db: CalibrationOffset | None = None
     note: Annotated[str, Field(max_length=200)] | None = None
@@ -182,7 +193,7 @@ class MinuteIn(_Timed):
     calibration_id: ShortText | None = None
     calibration_offset_db: CalibrationOffset | None = None
     calibrated: bool
-    audio_source: Literal["UNPROCESSED", "VOICE_RECOGNITION"] | None = None
+    audio_source: Literal[AUDIO_SOURCES] | None = None  # type: ignore[valid-type]
     clock_corrections: Annotated[int, Field(ge=0, le=1000)] = 0
 
     @model_validator(mode="after")

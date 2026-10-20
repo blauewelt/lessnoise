@@ -591,3 +591,23 @@ def test_a_duplicate_without_direction_clears_the_stored_one(client, settings):
     client.post(url, json=[{**report(t), "direction": direction(90)}], headers=auth)
     assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
     assert rows(settings, "SELECT direction_deg FROM reports") == [(None,)]
+
+
+def test_minute_audio_source_carries_the_microphone_kind(client, settings):
+    """App 0.7.2 (§4.3): «<source>+<kind>» for a microphone other than the built-in one; plain = built-in."""
+    dev, auth = register(client)
+    assert client.put(f"/v1/devices/{dev}/site", json=SITE, headers=auth).status_code == 204
+    good = ["UNPROCESSED", "VOICE_RECOGNITION", "UNPROCESSED+usb", "UNPROCESSED+bluetooth", "UNPROCESSED+wired",
+            "UNPROCESSED+other", "VOICE_RECOGNITION+usb"]  # fmt: skip
+    bad = ["UNPROCESSED+builtin", "UNPROCESSED+headset", "usb", "UNPROCESSED+usb:0123456789abcdef", "unprocessed+usb"]
+    body = [{**minute(recent(5 + i)), "audio_source": s} for i, s in enumerate(good + bad)]
+    r = client.post(f"/v1/devices/{dev}/minutes", json=body, headers=auth)
+    assert r.status_code == 200, r.text
+    res = r.json()
+    assert res["accepted"] == len(good)
+    assert [x["index"] for x in res["rejected"]] == list(range(len(good), len(good) + len(bad)))
+    assert all(x["reasons"][0]["field"] == "audio_source" for x in res["rejected"]), res["rejected"]
+    stored = sorted(s for (s,) in rows(settings, "SELECT audio_source FROM minutes"))
+    assert stored == sorted(good)
+    # The site keeps working with the plain value (the app sends the built-in microphone's source there).
+    assert client.put(f"/v1/devices/{dev}/site", json={**SITE, "audio_source": "UNPROCESSED+usb"}, headers=auth).status_code == 204

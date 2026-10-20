@@ -1,5 +1,6 @@
 package ch.lessnoise.app.upload
 
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.service.LiveEvent
@@ -125,7 +126,8 @@ object Payloads {
         put("calibration_id", m.calibrationId?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
         put("calibration_offset_db", num(m.calibrationOffsetDb, 2))
         put("calibrated", m.calibrated)
-        put("audio_source", m.audioSource)
+        // 0.7.2: «UNPROCESSED» for the built-in microphone as before, «UNPROCESSED+usb» etc. for another.
+        put("audio_source", MicChoice.wireAudioSource(m.audioSource, m.mic))
         put("clock_corrections", m.clockCorrections)
     }
 

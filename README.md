@@ -52,7 +52,8 @@ unless «Nur über WLAN» is on; minute and event numbers of
 shared measurements, each with the point of its measurement moved at random on the phone by a
 Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offset every time for
 the same place, so averaging does not remove it; never the coordinates of the fix, never the raw
-classifier labels), and «Laut! Melden» reports with the exact place of the
+classifier labels; since 0.7.2 a minute measured with a microphone the user chose instead of the
+built-in one names only that microphone's kind, e.g. USB or Bluetooth), and «Laut! Melden» reports with the exact place of the
 report (deleted from the phone once sent) and, since 0.7.0 and only if the reporter takes it, the direction of travel as one compass bearing; to one host (`api.lessnoise.ch`, in Switzerland),
 through one network class (`android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`),
 with no third-party SDK; deletable on the server from the app at any time («Daten auf dem Server
@@ -159,10 +160,14 @@ What the project counts, and who counts it — totals over the whole project, al
   nothing of that time span is shared. «Laut! Melden» sends a report at whatever accuracy the
   phone's location has, with that accuracy (it no longer stops at ± 50 m), and can carry the
   direction the vehicle drove, taken with the phone's compass.
-- **Phone app v0.7.1 (published 2026-10-20, the current version):** 0.7.0 in both public editions;
-  with headphones or a headset connected the app says «Das Telefon misst nur mit dem eingebauten
-  Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.» instead of measuring, and «Kalibrieren»
-  shows «Mikrofon: eingebaut» next to «Audioquelle».
+- **Phone app v0.7.1 (published 2026-10-20):** 0.7.0 in both public editions;
+  with headphones or a headset connected the app said «Das Telefon misst nur mit dem eingebauten
+  Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.» instead of measuring.
+- **Phone app v0.7.2 (published 2026-10-20, the current version):** the built-in microphone stays
+  the default and the app never switches to a headset by itself, but another microphone (USB, wired,
+  LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
+  whenever it is connected. Calibration is per microphone; a minute measured with another
+  microphone sends that microphone's kind with its audio source.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

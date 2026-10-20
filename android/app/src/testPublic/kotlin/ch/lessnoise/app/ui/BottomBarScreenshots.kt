@@ -39,7 +39,7 @@ private class BarPngWriter(private val dir: File) : SnapshotHandler {
 private fun barPaparazzi(widthPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = widthPx, screenHeight = 1200, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = BarPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.7.1")),
+    snapshotHandler = BarPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.7.2")),
     useDeviceResolution = true,
 )
 

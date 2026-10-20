@@ -157,19 +157,21 @@ class AppJvmTest {
             "`audioSource` TEXT NOT NULL, `calibrated` INTEGER NOT NULL)"
 
     @Test
-    fun v9CreateStatementsMatchRoomGeneratedSchema() {
+    fun v10CreateStatementsMatchRoomGeneratedSchema() {
         val dir = File(System.getProperty("stadtlaerm.generatedDb"))
         val impl = File(dir, "AppDatabase_Impl.kt").readText()
         // v6 (app 0.6.0) added the measurements table, v7 (location noise) its point columns,
-        // v8 (app 0.6.4) its «unterwegs» flag; minutes and events are as in v5.
-        assertTrue(impl.contains(MigrationSql.CREATE_MINUTES_V5), "Room schema changed: update MigrationSql")
-        assertTrue(impl.contains(MigrationSql.CREATE_EVENTS_V5), "Room schema changed: update MigrationSql")
+        // v8 (app 0.6.4) its «unterwegs» flag; v10 (app 0.7.2) the microphone of minutes, events and calibrations.
+        assertTrue(impl.contains(MigrationSql.CREATE_MINUTES_V10), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains(MigrationSql.CREATE_EVENTS_V10), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains(MigrationSql.CREATE_CALIBRATIONS_V10), "Room schema changed: update MigrationSql")
+        assertTrue(impl.contains(MigrationSql.CREATE_CALIBRATIONS_INDEX), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_V8), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_MEASUREMENTS_INDEX_V6), "Room schema changed: update MigrationSql")
         // v9 (app 0.6.7): the moving spans of «Unterwegs erkannt».
         assertTrue(impl.contains(MigrationSql.CREATE_MOVING_SPANS_V9), "Room schema changed: update MigrationSql")
         assertTrue(impl.contains(MigrationSql.CREATE_MOVING_SPANS_INDEX_V9), "Room schema changed: update MigrationSql")
-        assertTrue(impl.contains("RoomOpenHelper.Delegate(9)"), "Room schema version is not 9")
+        assertTrue(impl.contains("RoomOpenHelper.Delegate(10)"), "Room schema version is not 10")
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_minutes_startEpochMs` ON `minutes` (`startEpochMs`)"))
         assertTrue(impl.contains("CREATE INDEX IF NOT EXISTS `index_events_startEpochMs` ON `events` (`startEpochMs`)"))
     }
@@ -431,14 +433,33 @@ class AppJvmTest {
                     )
                 }
             }
-            val sql = "SELECT id FROM minutes WHERE " + RecalibrationSql.SCOPE.replace(":source", "?").replace(":calibrationId", "?") + " ORDER BY id"
-            val selected = ArrayList<Long>()
-            c.prepareStatement(sql).use { ps ->
-                ps.setString(1, target.audioSource); ps.setLong(2, target.calibrationId)
-                ps.executeQuery().use { rs -> while (rs.next()) selected += rs.getLong(1) }
+            // 0.7.2: the table of v4 + the microphone column of v10; rows 7–8 were measured with a USB mic.
+            c.createStatement().use { st ->
+                MigrationSql.MIGRATE_4_5.filter { "`minutes`" in it }.forEach { st.execute(it) }
+                MigrationSql.MIGRATE_9_10.filter { "`minutes`" in it }.forEach { st.execute(it) }
+                for ((id, cal) in listOf(7L to "NULL", 8L to "3")) {
+                    st.execute(
+                        "INSERT INTO minutes (id, startEpochMs, startIso, durationSeconds, eventCount, categorySharesJson, classifierFrames, " +
+                            "calibrationId, calibrationOffsetDb, audioSource, calibrated, validSeconds, coverage, clockCorrections, mic) VALUES " +
+                            "($id, 0, '', 60, 0, '{}', 0, $cal, 121.0, 'UNPROCESSED', 0, 60, 1, 0, 'usb:0123456789abcdef')"
+                    )
+                }
             }
+            fun scope(mic: String): List<Long> {
+                val sql = "SELECT id FROM minutes WHERE " +
+                    RecalibrationSql.SCOPE.replace(":source", "?").replace(":mic", "?").replace(":calibrationId", "?") + " ORDER BY id"
+                val selected = ArrayList<Long>()
+                c.prepareStatement(sql).use { ps ->
+                    ps.setString(1, target.audioSource); ps.setString(2, mic); ps.setLong(3, target.calibrationId)
+                    ps.executeQuery().use { rs -> while (rs.next()) selected += rs.getLong(1) }
+                }
+                return selected
+            }
+            val selected = scope("builtin")
             assertEquals(listOf(1L, 2L), selected)
             assertEquals(rows.filter { Recalibration.inScope(it.audioSource, it.calibrationId, target) }.map { it.id }, selected)
+            // A calibration of the USB microphone re-evaluates only its minutes, never the built-in ones.
+            assertEquals(listOf(7L, 8L), scope("usb:0123456789abcdef"))
         }
     }
 

@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.7.1 published)
+# Weniger Lärm — citizen noise measurement (Android; v0.7.2 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -354,6 +354,29 @@ Instead:
 4. When you are done — after an hour, a night or several days: **Stoppen** (or «Stopp» in
    the notification), then look at **Messungen**.
 
+**Microphone (0.7.2).** By default the app measures with the phone's built-in microphone and never
+switches to headphones or a headset by itself. **Einstellungen → Erweitert → Mikrofon** lists the
+microphones connected now (`AudioManager.getDevices(GET_DEVICES_INPUTS)`, kept current by an
+`AudioDeviceCallback`), the built-in one first, marked «Standard», each labelled by type and product
+name («USB-Mikrofon (Rode NT-USB)»). The choice is remembered per microphone — an identity of type,
+product name and address, stored as kind + hash (`audio/MicChoice.kt`), never Android's volatile
+device id. Once another microphone is chosen, the app uses it whenever it is connected: at the start
+of a measurement, and during one when it is plugged in or unplugged (the measurement continues; the
+running minute is closed and a new one starts with that microphone's calibration). While it is not
+connected the app measures with the built-in microphone and shows «Mikrofon: eingebaut (gewähltes
+nicht verbunden)» under «Läuft seit …». Classic Bluetooth headsets (HFP, `TYPE_BLUETOOTH_SCO`) are
+listed as «nicht nutzbar»: their microphone only works over a SCO link, i.e. call routing
+(`startBluetoothSco` / `setCommunicationDevice`), which the app never uses; LE Audio
+(`TYPE_BLE_HEADSET`), USB and wired microphones are pinned with `setPreferredDevice`. After
+`startRecording()` the routed device is checked (`getRoutedDevice()`, API 29+ also the active
+recording configuration); if Android routes another input the AudioRecord is built and started once
+more, and if it still does the start fails with «Android nimmt ein anderes Mikrofon als das gewählte.
+Bitte nochmals starten.»; during a measurement a foreign route reopens the capture (at most 3 times a
+minute, then the measurement stops with that line). No permission is needed for any of this. Each
+minute and event stores the microphone (DB v10, `mic`; rows from before are «builtin»); a minute of
+another microphone sends `audio_source` «UNPROCESSED+usb» (kind only; server/DESIGN.md §4.3).
+0.6.6–0.7.1 measured only with the built-in microphone and refused any other route.
+
 **Closing the app.** The measurement keeps running as a background service when the app is swiped
 away from the recent apps; the notification shows it and has the «Stopp» button. (Until 0.6.0 the
 setting «Messung beenden, wenn die App geschlossen wird», off by default, could stop it instead;
@@ -378,8 +401,13 @@ sleep") may need an extra exemption in the maker's own battery settings.
 
 Phones differ by several dB, so for data you want to show to anyone, calibrate (since 0.6.1 under
 **Einstellungen → Erweitert → Kalibrieren**; the screen calls the offset «Korrektur»). Calibrations are
-stored per **device model and audio source** with a full history; every minute record carries the
-id of the calibration that was active.
+stored per **device model, audio source and microphone** (the microphone since 0.7.2: the built-in
+one, or one chosen under «Mikrofon», see «Measuring» → «Microphone») with a full history; every
+minute record carries the id of the calibration that was active. «Kalibrieren» calibrates the
+microphone a measurement would use now and names it in the row «Mikrofon»; a minute measured with
+a microphone that was never calibrated is uncalibrated. «Alte Messungen anpassen» re-evaluates only
+the minutes of the calibration's microphone, and the noise floor («Messgrenze») is that of the
+built-in microphone.
 
 ### Method 1 — compare with a sound level meter (recommended)
 
@@ -830,24 +858,12 @@ the website's `lv95.js`.
 - **Audio source.** The app uses Android's `UNPROCESSED` source when the phone declares support
   for it, otherwise `VOICE_RECOGNITION`, and switches off AGC/noise suppression/echo
   cancellation where Android allows it. Some phones still apply processing; calibrate per source.
-- **Microphone: built-in only (0.6.6, 0.7.1).** With headphones or a headset connected, the app
-  still measures with the phone's own microphone, or not at all; it never starts Bluetooth SCO,
-  never requests a communication device and needs no extra permission. Details: the app always measures with the phone's own microphone,
-  never a connected headset's (Bluetooth, LE Audio, wired, USB): a headset microphone is tuned to
-  the wearer's voice, and the calibration belongs to the built-in one. `audio/AudioCapture.kt` lists
-  the inputs (`AudioManager.getDevices(GET_DEVICES_INPUTS)`), pins the built-in microphone
-  (`TYPE_BUILTIN_MIC`, the «bottom» one if the phone lists several) with `setPreferredDevice`, and
-  after `startRecording()` checks `getRoutedDevice()` (API 29+: also the active recording
-  configuration's device); it checks again on every routing change. If another input is routed, it
-  does not measure and shows «Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer
-  oder externes Mikrofon trennen.» (0.7.1; the error line on «Messen» and in «Kalibrieren»). An unknown route
-  is checked once more before the first audio block is used; a phone that reports no built-in
-  microphone measures as before. The rule is `audio/BuiltInMic.kt` (pure, `BuiltInMicTest`). The
-  Labor build shows the delivering input under Einstellungen › Labor («Mikrofon», while measuring)
-  and writes it to `session_start` (`inputDevice`). Since 0.7.1 every edition shows the microphone
-  next to «Audioquelle» in «Kalibrieren» once a capture has run («unbearbeitet · Mikrofon:
-  eingebaut»; another input would read e.g. «Mikrofon: Bluetooth-Headset!»), and the log names how
-  many built-in microphones the phone lists (counts only, no names or addresses).
+- **Microphone choice (0.7.2), untested on devices.** The routing of a chosen USB, wired or LE Audio
+  microphone with `setPreferredDevice` is verified only on the JVM (pure rules in `MicChoiceTest`,
+  source checks in `BuiltInMicTest`); phones may route LE Audio input only as a communication
+  device, in which case the route check stops the measurement instead of measuring with the wrong
+  microphone. A chosen microphone's calibration is that of this one microphone; the noise floor
+  («Messgrenze») is estimated only for the built-in one. Details in «Measuring» → «Microphone».
 - **Wind** causes large false low-frequency levels. Shield the phone; don't measure in strong
   wind. Since v0.4.0 events that look like wind are flagged and not counted, but the levels (LAeq,
   L90 …) still contain the wind. The wind rule was derived from one night at one window and is
@@ -886,12 +902,16 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.7.1 (versionCode 24, published 2026-10-20) is the current public version, signed APKs in
-`../docs/download/`: v0.7.0 below, now in both public editions, plus the owner's wording for the
-built-in-microphone refusal and «Mikrofon: eingebaut» next to «Audioquelle» (see «Known limitations»
-→ «Microphone: built-in only»). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`,
-`dexdump`); not run on a device, in particular the routing with real Bluetooth or LE Audio headsets
-is untested.
+v0.7.2 (versionCode 25, published 2026-10-20) is the current public version, signed APKs in
+`../docs/download/`: the manual microphone choice (see «Measuring» → «Microphone»): built-in by
+default, another microphone only if chosen and connected, calibration per microphone, the
+microphone's kind in a minute's `audio_source` (server change: needs a redeploy before such minutes
+are accepted). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`, `dexdump`); not run
+on a device, in particular the routing with real USB, wired or LE Audio microphones is untested.
+
+v0.7.1 (versionCode 24, published 2026-10-20) was the public version before 0.7.2: v0.7.0 below,
+in both public editions, plus the owner's wording for the built-in-microphone refusal (removed in
+0.7.2) and «Mikrofon: eingebaut» next to «Audioquelle».
 
 v0.7.0 (versionCode 23, 2026-10-17) was built for the owner's phone as Labor · Karte only; it brings
 together three lines of work that were built as 0.6.7–0.6.9 on separate branches: «Unterwegs

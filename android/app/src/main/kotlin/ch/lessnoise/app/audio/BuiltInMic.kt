@@ -1,22 +1,26 @@
 package ch.lessnoise.app.audio
 
 /**
- * 0.6.6: the app measures only with the phone's built-in microphone, never with a connected
- * headset's (Bluetooth, LE Audio, wired, USB). A headset microphone is tuned to the wearer's voice,
- * and the stored calibration belongs to the built-in microphone, so a headset would silently carry
- * the wrong offset.
+ * The phone's built-in microphone and the descriptors of Android's input devices (pure, no Android
+ * classes, so it is unit-tested on the JVM).
  *
- * Pure logic on plain [Device] descriptors (no Android classes), so it is unit-tested on the JVM.
- * [AudioCapture] turns AudioManager.getDevices(GET_DEVICES_INPUTS) into descriptors, pins the
- * device [pick] returns with AudioRecord.setPreferredDevice, and after startRecording() checks
- * AudioRecord.getRoutedDevice() with [check] (and again on every routing change while it records).
+ * 0.6.6–0.7.1 measured only with the built-in microphone and refused any other route. Since 0.7.2
+ * the built-in microphone is still the default and nothing switches to a headset by itself, but the
+ * user may choose another microphone ([MicChoice], «Einstellungen → Erweitert → Mikrofon»).
+ * [AudioCapture] pins the device [MicChoice.resolve] returns with AudioRecord.setPreferredDevice and
+ * checks the routed device with [MicChoice.routeMatches].
  */
 object BuiltInMic {
     // AudioDeviceInfo.TYPE_* values (BuiltInMicTest checks them against the SDK's constants).
     const val TYPE_BUILTIN_MIC = 15
     const val TYPE_WIRED_HEADSET = 3
+    const val TYPE_LINE_ANALOG = 5
+    const val TYPE_LINE_DIGITAL = 6
     const val TYPE_BLUETOOTH_SCO = 7
+    const val TYPE_BLUETOOTH_A2DP = 8
     const val TYPE_USB_DEVICE = 11
+    const val TYPE_USB_ACCESSORY = 12
+    const val TYPE_AUX_LINE = 19
     const val TYPE_USB_HEADSET = 22
     const val TYPE_HEARING_AID = 23
     const val TYPE_BLE_HEADSET = 26
@@ -24,25 +28,8 @@ object BuiltInMic {
     /** The address AOSP gives the phone's main (bottom) microphone when a phone reports several. */
     const val MAIN_MIC_ADDRESS = "bottom"
 
-    /**
-     * Shown (error line on «Messen», «Kalibrieren») when Android routes another microphone.
-     * 0.7.1: the owner's wording (0.6.6: «Gemessen wird nur mit dem Mikrofon des Telefons. …»).
-     */
-    const val WRONG_MIC_MESSAGE = "Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen."
-
     /** One input device as AudioManager reports it. */
     data class Device(val id: Int, val type: Int, val address: String = "", val productName: String = "")
-
-    enum class Route {
-        /** The built-in microphone delivers the audio. */
-        OK,
-        /** Another input (headset, USB …) delivers the audio: do not measure. */
-        NOT_BUILT_IN,
-        /** Android does not say which input is used (getRoutedDevice() null): measure, as before 0.6.6. */
-        UNKNOWN,
-        /** The phone reports no built-in microphone at all: measure as before 0.6.6 (never brick the app). */
-        NO_BUILT_IN_MIC,
-    }
 
     /**
      * The built-in microphone to pin, or null if the phone reports none. With several built-in
@@ -55,51 +42,24 @@ object BuiltInMic {
         return builtIn.firstOrNull { it.address.equals(MAIN_MIC_ADDRESS, ignoreCase = true) } ?: builtIn.firstOrNull()
     }
 
-    /** Is the [routed] input acceptable, given the built-in microphone [pick] found ([builtIn])? */
-    fun check(builtIn: Device?, routed: Device?): Route = when {
-        builtIn == null -> Route.NO_BUILT_IN_MIC
-        routed == null -> Route.UNKNOWN
-        routed.type == TYPE_BUILTIN_MIC -> Route.OK
-        else -> Route.NOT_BUILT_IN
-    }
-
-    /**
-     * The error line for a failed start or a capture error: [WRONG_MIC_MESSAGE] stands alone (it is
-     * already a complete sentence), anything else keeps the caller's prefix as before 0.6.6.
-     */
-    fun errorText(prefix: String, message: String?): String =
-        if (message == WRONG_MIC_MESSAGE) WRONG_MIC_MESSAGE else "$prefix$message"
-
-    /** Only a proven foreign microphone stops the measurement. */
-    fun mayMeasure(route: Route): Boolean = route != Route.NOT_BUILT_IN
-
     /** Labor diagnostics: which input delivered the audio, e.g. «eingebautes Mikrofon (bottom)». */
-    fun label(routed: Device?, route: Route): String {
-        val device = routed?.let { d ->
-            val type = typeName(d.type)
-            if (d.address.isNotBlank()) "$type (${d.address})" else type
-        } ?: "unbekannt"
-        return if (route == Route.NO_BUILT_IN_MIC) "$device · kein eingebautes Mikrofon gemeldet" else device
-    }
-
-    /**
-     * 0.7.1: the short fact shown next to «Audioquelle» in every edition: «Mikrofon: eingebaut» when
-     * the built-in microphone delivers the audio, «Mikrofon: Bluetooth-Headset!» (with «!») for any
-     * other input, «Mikrofon: unbekannt» when Android does not say. Never the address or product name.
-     */
-    fun fact(routed: Device?): String = when {
-        routed == null -> "Mikrofon: unbekannt"
-        routed.type == TYPE_BUILTIN_MIC -> "Mikrofon: eingebaut"
-        else -> "Mikrofon: ${typeName(routed.type)}!"
-    }
+    fun label(routed: Device?): String = routed?.let { d ->
+        val type = typeName(d.type)
+        if (d.address.isNotBlank()) "$type (${d.address})" else type
+    } ?: "unbekannt"
 
     fun typeName(type: Int): String = when (type) {
         TYPE_BUILTIN_MIC -> "eingebautes Mikrofon"
         TYPE_BLUETOOTH_SCO -> "Bluetooth-Headset"
+        TYPE_BLUETOOTH_A2DP -> "Bluetooth-Gerät"
         TYPE_BLE_HEADSET -> "LE-Audio-Headset"
         TYPE_WIRED_HEADSET -> "Kabel-Headset"
+        TYPE_LINE_ANALOG -> "Line-Eingang"
+        TYPE_LINE_DIGITAL -> "Digitaleingang"
+        TYPE_AUX_LINE -> "Aux-Eingang"
         TYPE_USB_HEADSET -> "USB-Headset"
-        TYPE_USB_DEVICE -> "USB-Gerät"
+        TYPE_USB_DEVICE -> "USB-Mikrofon"
+        TYPE_USB_ACCESSORY -> "USB-Zubehör"
         TYPE_HEARING_AID -> "Hörgerät"
         else -> "Eingang Typ $type"
     }

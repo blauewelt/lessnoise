@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.2 — 2026-10-20 (versionCode 25; published: Offline-Version and Online-Version on the website)
+
+In short: Gemessen wird mit dem eingebauten Mikrofon; ein anderes Mikrofon lässt sich unter
+«Einstellungen → Erweitert → Mikrofon» wählen. No new permission.
+
+- **Manual microphone choice (replaces the 0.7.1 refusal):** by default the app stays on the
+  built-in microphone and never switches to a headset by itself. «Einstellungen → Erweitert →
+  Mikrofon» lists the connected microphones (built-in first, «Standard»); the choice is remembered
+  per microphone (type + product name + address, stored as kind + hash). A chosen microphone is
+  used whenever it is connected — at the start and when it is connected or disconnected during a
+  measurement, which then continues with that microphone and its calibration; otherwise the
+  built-in one, with «Mikrofon: eingebaut (gewähltes nicht verbunden)» on «Messen». Classic
+  Bluetooth headsets (HFP/SCO) are listed «nicht nutzbar» (they would need call routing, which the
+  app never starts); USB, wired and LE Audio microphones are pinned with setPreferredDevice. If
+  Android routes another input, the capture is restarted once, then the start fails with «Android
+  nimmt ein anderes Mikrofon als das gewählte. Bitte nochmals starten.»
+- **Calibration per microphone:** database v10 — calibrations, minutes and events carry the
+  microphone; existing rows are the built-in one. «Kalibrieren» calibrates the microphone in use and
+  names it («Mikrofon»); a measurement with a microphone that was never calibrated is uncalibrated.
+  «Alte Messungen anpassen» stays within one microphone; the «Messgrenze» is the built-in one's.
+- **Sent:** a minute measured with another microphone sends its kind in `audio_source`
+  («UNPROCESSED+usb», «+bluetooth», «+wired»); built-in minutes send exactly what 0.7.1 sent.
+  Server: accepts these values (server/DESIGN.md §4.3); until it is redeployed such minutes are
+  refused per record and stay on the phone. Privacy texts updated (datenschutz.html, PRIVACY.md).
+- Texts: Anleitung «Messen» step 1 and «Kalibrieren» (calibration is per microphone).
+- Tests: MicChoiceTest (identity, list, resolution table, route check, wire format vs. the server's
+  list), MicrophoneDbTest (migration 9 → 10, calibration lookup per microphone, payload, re-evaluation
+  keeps the microphone), noise floor and re-evaluation scope per microphone, UI lines; server test
+  for the new `audio_source` values.
+
 ## 0.7.1 — 2026-10-20 (versionCode 24; published: Offline-Version and Online-Version on the website)
 
 In short: Misst nur mit dem eingebauten Mikrofon; Kopfhörer-Mikrofone werden abgelehnt. And 0.7.0

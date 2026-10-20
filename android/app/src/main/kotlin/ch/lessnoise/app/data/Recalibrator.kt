@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 /** Entity-level re-evaluation: the arithmetic is [Recalibration] (pure Kotlin, dsp module). */
 object RecalibrationMapping {
     fun minute(e: MinuteEntity, target: Recalibration.Target): MinuteEntity =
-        Recalibration.recalibrate(e.toRecord(), target).toEntity().copy(id = e.id)
+        Recalibration.recalibrate(e.toRecord(), target).toEntity().copy(id = e.id, mic = e.mic)
 
     /**
      * Events store no offset; it is that of their calibration ([offsets] by id), or the default for
@@ -25,7 +25,7 @@ object RecalibrationMapping {
      */
     fun event(e: EventEntity, offsets: Map<Long, Double>, target: Recalibration.Target): EventEntity {
         val current = e.calibrationId?.let { offsets[it] } ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
-        return Recalibration.recalibrate(e.toEvent(), current, target).toEntity().copy(id = e.id)
+        return Recalibration.recalibrate(e.toEvent(), current, target).toEntity().copy(id = e.id, mic = e.mic)
     }
 }
 
@@ -49,24 +49,27 @@ class Recalibrator(private val db: AppDatabase, private val scope: CoroutineScop
 
     val running: Boolean get() = _state.value is State.Running
 
-    /** (minutes, events) a re-evaluation with [target] would change. */
-    fun counts(target: Recalibration.Target): Flow<Pair<Int, Int>> {
+    /**
+     * (minutes, events) a re-evaluation with [target] would change: those of its audio source and of
+     * the microphone [mic] (0.7.2, the calibration's [CalibrationEntity.mic]).
+     */
+    fun counts(target: Recalibration.Target, mic: String): Flow<Pair<Int, Int>> {
         val dao = db.measurements()
         return combine(
-            dao.minutesToRecalibrate(target.audioSource, target.calibrationId),
-            dao.eventsToRecalibrate(target.audioSource, target.calibrationId),
+            dao.minutesToRecalibrate(target.audioSource, mic, target.calibrationId),
+            dao.eventsToRecalibrate(target.audioSource, mic, target.calibrationId),
         ) { m, e -> m to e }
     }
 
     /** Starts a re-evaluation in the background; false if one is already running. */
-    fun start(target: Recalibration.Target): Boolean {
+    fun start(target: Recalibration.Target, mic: String): Boolean {
         synchronized(this) {
             if (running) return false
             _state.value = State.Running(0, 0)
         }
         scope.launch {
             _state.value = try {
-                run(target)
+                run(target, mic)
             } catch (e: Exception) {
                 State.Failed(e.message ?: e.javaClass.simpleName)
             }
@@ -78,11 +81,11 @@ class Recalibrator(private val db: AppDatabase, private val scope: CoroutineScop
         if (!running) _state.value = State.Idle
     }
 
-    private suspend fun run(target: Recalibration.Target): State {
+    private suspend fun run(target: Recalibration.Target, mic: String): State {
         val dao = db.measurements()
         return db.withTransaction {
-            val minutes = dao.minutesInScope(target.audioSource, target.calibrationId)
-            val events = dao.eventsInScope(target.audioSource, target.calibrationId)
+            val minutes = dao.minutesInScope(target.audioSource, mic, target.calibrationId)
+            val events = dao.eventsInScope(target.audioSource, mic, target.calibrationId)
             val offsets = db.calibrations().all().associate { it.id to it.offsetDb }
             val total = minutes.size + events.size
             var done = 0

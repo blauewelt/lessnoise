@@ -3,6 +3,7 @@ package ch.lessnoise.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.app.data.Mappers.toEntity
 import ch.lessnoise.app.data.Mappers.toEvent
 import ch.lessnoise.app.data.Mappers.toRecord
@@ -133,7 +134,7 @@ class SettingsStore(context: Context) {
     }
 }
 
-/** Calibration offsets per (device model, audio source), with full history. */
+/** Calibration offsets per (device model, audio source, microphone — 0.7.2), with full history. */
 class CalibrationRepository(private val dao: CalibrationDao) {
     companion object {
         val deviceModel: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
@@ -145,8 +146,9 @@ class CalibrationRepository(private val dao: CalibrationDao) {
         val id: Long? get() = entity?.id
     }
 
-    suspend fun active(source: String): Active = Active(dao.latest(deviceModel, source))
-    fun activeFlow(source: String): Flow<CalibrationEntity?> = dao.latestFlow(deviceModel, source)
+    /** The active calibration of [source] and the microphone [mic] (MicChoice.key; default: the built-in one). */
+    suspend fun active(source: String, mic: String = MicChoice.BUILTIN): Active = Active(dao.latest(deviceModel, source, mic))
+    fun activeFlow(source: String, mic: String = MicChoice.BUILTIN): Flow<CalibrationEntity?> = dao.latestFlow(deviceModel, source, mic)
     fun history(): Flow<List<CalibrationEntity>> = dao.historyFlow()
 
     suspend fun save(
@@ -154,6 +156,7 @@ class CalibrationRepository(private val dao: CalibrationDao) {
         referenceDb: Double? = null, measuredRawDb: Double? = null, stdDevDb: Double? = null,
         durationSeconds: Double? = null, calibratorNominalDb: Double? = null,
         toneFrequencyHz: Double? = null, tonality: Double? = null, warnings: List<String> = emptyList(),
+        mic: String = MicChoice.BUILTIN, micLabel: String? = null,
     ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
@@ -163,6 +166,7 @@ class CalibrationRepository(private val dao: CalibrationDao) {
                 referenceDb = referenceDb, measuredRawDb = measuredRawDb, stdDevDb = stdDevDb,
                 durationSeconds = durationSeconds, calibratorNominalDb = calibratorNominalDb,
                 toneFrequencyHz = toneFrequencyHz, tonality = tonality, warnings = warnings.joinToString(","),
+                mic = mic, micLabel = micLabel.takeUnless { MicChoice.isBuiltIn(mic) },
             )
         )
     }
@@ -179,6 +183,8 @@ class CalibrationRepository(private val dao: CalibrationDao) {
                         put("id", c.id)
                         put("device_model", c.deviceModel)
                         put("audio_source", c.audioSource)
+                        // 0.7.2: the microphone's kind only (no name, no hash).
+                        put("microphone", MicChoice.kindId(c.mic))
                         put("offset_db", c.offsetDb)
                         put("method", c.method)
                         put("created", c.createdIso)
@@ -200,8 +206,9 @@ class CalibrationRepository(private val dao: CalibrationDao) {
 
 /** Stored aggregates (minutes, events) and their export. */
 class MeasurementRepository(private val dao: MeasurementDao) {
-    suspend fun insert(m: MinuteRecord) = dao.insertMinute(m.toEntity())
-    suspend fun insert(e: NoiseEvent) = dao.insertEvent(e.toEntity())
+    /** [mic]: the microphone it was measured with (MicChoice.key, 0.7.2). */
+    suspend fun insert(m: MinuteRecord, mic: String = MicChoice.BUILTIN) = dao.insertMinute(m.toEntity().copy(mic = mic))
+    suspend fun insert(e: NoiseEvent, mic: String = MicChoice.BUILTIN) = dao.insertEvent(e.toEntity().copy(mic = mic))
 
     fun recentEvents(limit: Int = 30): Flow<List<EventEntity>> = dao.recentEvents(limit)
     fun minutesFlow() = dao.minutesFlow()

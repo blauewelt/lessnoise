@@ -173,27 +173,66 @@ object MigrationSql {
     /** v8 → v9 (app 0.6.7): the new, empty table; nothing else changes. */
     val MIGRATE_8_9: List<String> = listOf(CREATE_MOVING_SPANS_V9, CREATE_MOVING_SPANS_INDEX_V9)
 
+    /** v9 `calibrations` table and its index, exactly as Room generated them for apps 0.1 – 0.7.1. */
+    const val CREATE_CALIBRATIONS_V9 =
+        "CREATE TABLE IF NOT EXISTS `calibrations` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `deviceModel` TEXT NOT NULL, " +
+            "`audioSource` TEXT NOT NULL, `offsetDb` REAL NOT NULL, `method` TEXT NOT NULL, `createdEpochMs` INTEGER NOT NULL, " +
+            "`createdIso` TEXT NOT NULL, `notes` TEXT NOT NULL, `referenceDb` REAL, `measuredRawDb` REAL, `stdDevDb` REAL, " +
+            "`durationSeconds` REAL, `calibratorNominalDb` REAL, `toneFrequencyHz` REAL, `tonality` REAL, `warnings` TEXT NOT NULL"
+    const val CREATE_CALIBRATIONS_INDEX =
+        "CREATE INDEX IF NOT EXISTS `index_calibrations_deviceModel_audioSource` ON `calibrations` (`deviceModel`, `audioSource`)"
+
+    /**
+     * v9 → v10 (app 0.7.2, manual microphone choice): calibrations, minutes and events get the
+     * microphone they belong to (MicChoice.key). Every existing row is «builtin»: up to 0.7.1 the app
+     * measured only with the built-in microphone. Calibrations also get the microphone's name (NULL).
+     */
+    val MIGRATE_9_10: List<String> = listOf(
+        "ALTER TABLE `calibrations` ADD COLUMN `mic` TEXT NOT NULL DEFAULT 'builtin'",
+        "ALTER TABLE `calibrations` ADD COLUMN `mic_label` TEXT",
+        "ALTER TABLE `minutes` ADD COLUMN `mic` TEXT NOT NULL DEFAULT 'builtin'",
+        "ALTER TABLE `events` ADD COLUMN `mic` TEXT NOT NULL DEFAULT 'builtin'",
+    )
+
+    /** v10 tables, exactly as Room generates them (verified by a unit test). */
+    const val CREATE_CALIBRATIONS_V10 = CREATE_CALIBRATIONS_V9 + ", `mic` TEXT NOT NULL DEFAULT 'builtin', `mic_label` TEXT)"
+    const val CREATE_MINUTES_V10 = CREATE_MINUTES_V4_PREFIX +
+        ", `local_floor_db` REAL, `wind_event_count` INTEGER NOT NULL DEFAULT 0, `mic` TEXT NOT NULL DEFAULT 'builtin')"
+
     /** v5 `events` table, exactly as Room generates it (verified by a unit test). */
     const val CREATE_EVENTS_V5 = CREATE_EVENTS_V4_PREFIX +
         ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
         "`mid_band_rise_db` REAL, `lf_share` REAL, `lf_flutter_db` REAL, `wind` INTEGER NOT NULL DEFAULT 0, `shape` TEXT)"
+
+    /** v10 `events` table (verified by a unit test). */
+    const val CREATE_EVENTS_V10 = CREATE_EVENTS_V4_PREFIX +
+        ", `local_floor_db` REAL, `excess_db` REAL, `rise_s` REAL, `decay_s` REAL, `jaggedness` REAL, " +
+        "`mid_band_rise_db` REAL, `lf_share` REAL, `lf_flutter_db` REAL, `wind` INTEGER NOT NULL DEFAULT 0, `shape` TEXT, " +
+        "`mic` TEXT NOT NULL DEFAULT 'builtin')"
+}
+
+/** 0.7.2: the active calibration of a device model, audio source and microphone (the newest row). */
+object CalibrationSql {
+    const val LATEST = "deviceModel = :model AND audioSource = :source AND mic = :mic ORDER BY createdEpochMs DESC, id DESC LIMIT 1"
 }
 
 /**
  * Records a re-evaluation with a calibration changes: same audio source, measured without or with
- * another calibration — the SQL form of `Recalibration.inScope` (checked by a unit test).
+ * another calibration — the SQL form of `Recalibration.inScope` (checked by a unit test) — and,
+ * since 0.7.2, measured with the calibration's microphone.
  */
 object RecalibrationSql {
-    const val SCOPE = "audioSource = :source AND (calibrationId IS NULL OR calibrationId != :calibrationId)"
+    const val SCOPE = "audioSource = :source AND mic = :mic AND (calibrationId IS NULL OR calibrationId != :calibrationId)"
 }
 
 /**
  * The minutes the noise floor estimate uses (0.6.5): the SQL form of `NoiseFloor.isValid` for one
  * audio source — the app's valid-minute rule (≥ 50 % valid audio, a LAeq) plus an L90 (checked by a
  * unit test against the Kotlin reference). [RAW_L90] is the level without the minute's own offset.
+ * Since 0.7.2 only minutes of the built-in microphone: the floor is that of the phone.
  */
 object NoiseFloorSql {
-    const val VALID = "audioSource = :source AND coverage >= 0.5 AND laeqDb IS NOT NULL AND l90Db IS NOT NULL"
+    const val VALID = "audioSource = :source AND mic = 'builtin' AND coverage >= 0.5 AND laeqDb IS NOT NULL AND l90Db IS NOT NULL"
     const val RAW_L90 = "(l90Db - calibrationOffsetDb)"
     /** n: the number of valid minutes of `:source`. */
     const val COUNT = "SELECT COUNT(*) FROM minutes WHERE $VALID"
@@ -260,5 +299,11 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
 val MIGRATION_8_9 = object : Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
         MigrationSql.MIGRATE_8_9.forEach { db.execSQL(it) }
+    }
+}
+
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        MigrationSql.MIGRATE_9_10.forEach { db.execSQL(it) }
     }
 }

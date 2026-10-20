@@ -66,11 +66,11 @@
   <!-- Release checklist: version, sizes and SHA-256 of the two files in docs/download/ (lessnoise-karte.apk = Online-Version,
        lessnoise.apk = Offline-Version); also data-version / data-code in update.html and the version line on index.html. -->
   <dl class="facts">
-    <dt>Version</dt><dd>0.7.1 (Testversion), Android 8.0 oder neuer</dd>
-    <dt>Online-Version</dt><dd>lessnoise-karte.apk, 18,8 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">3b4151c571e7c25fd1516363232ec10b18b8a388de36af817974bf02ed9bd7d7</code></dd>
+    <dt>Version</dt><dd>0.7.2 (Testversion), Android 8.0 oder neuer</dd>
+    <dt>Online-Version</dt><dd>lessnoise-karte.apk, 18,9 MB</dd>
+    <dt>SHA-256</dt><dd><code class="hash">32bafd3494b014dfcfe35d64927e33bb66dc37134494d943bff89d156849f9bb</code></dd>
     <dt>Offline-Version</dt><dd>lessnoise.apk, 18,8 MB</dd>
-    <dt>SHA-256</dt><dd><code class="hash">70125398b97ba9814e1b90a0d42e10480920d0a5ec52a472b30a26ac552f2ff2</code></dd>
+    <dt>SHA-256</dt><dd><code class="hash">51e2add50e8c7df2e3c06925717f7f08efec3a23b17c3999b71f4a971ffc99c3</code></dd>
     <dt>Zertifikat der Signatur (beide), SHA-256</dt><dd><code class="hash">a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be</code></dd>
   </dl>
   <p class="small">Die Prüfsumme zeigt, ob die Datei unverändert angekommen ist, die Signatur, dass sie vom Projekt stammt. Prüfen auf dem Computer: <code>sha256sum lessnoise-karte.apk</code> muss die Zahl oben ergeben, <code>apksigner verify --print-certs lessnoise-karte.apk</code> das Zertifikat. Mehr in der <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#install-sideload">Anleitung auf GitHub</a> (Englisch).</p>
@@ -79,7 +79,7 @@
 <section id="messen">
   <h2>Messen</h2>
   <ol class="steps">
-    <li>Telefon ans Fenster oder auf den Balkon legen, das Mikrofon frei. Kopfhörer mit Mikrofon vorher trennen; die App misst nur mit dem eingebauten Mikrofon.</li>
+    <li>Telefon ans Fenster oder auf den Balkon legen, das Mikrofon frei. Gemessen wird mit dem eingebauten Mikrofon; ein anderes wählen Sie unter «Einstellungen → Erweitert → Mikrofon».</li>
     <li>Im Tab «Messen» auf «Starten» tippen. Gemessen wird zu jeder Tageszeit, auch bei ausgeschaltetem Bildschirm, bis «Stoppen».</li>
     <li>Im Tab «Messungen» die Messung als Grafik ansehen, über ihre Dauer oder als Tagesverlauf. Jedes laute Ereignis ist ein Punkt, mit Uhrzeit, Spitzenpegel und wahrscheinlicher Quelle.</li>
   </ol>
@@ -94,6 +94,7 @@
     <li>Ein gleichmässiges Geräusch von mindestens 60&nbsp;dB(A) abspielen, etwa Rauschen aus einem Lautsprecher. Unter «Einstellungen → Erweitert → Kalibrieren» bei «Mit Messgerät vergleichen» auf «Messen (30 s)» tippen und gleichzeitig 30 Sekunden mit dem Messgerät messen.</li>
     <li>Den Wert des Messgeräts (LAeq, den Mittelwert über die Messdauer) eintippen und «Übernehmen».</li>
   </ol>
+  <p>Die Kalibrierung gilt für ein Mikrofon: Kalibriert wird das, mit dem die App gerade misst; ein anderes Mikrofon kalibrieren Sie separat.</p>
   <p>Sehr leise Werte, die Ihr Telefon nicht mehr messen kann, zeigt die App seit Version&nbsp;0.6.5 mit «≤», etwa «Grundrauschen ≤&nbsp;34,0&nbsp;dB(A)».</p>
   <p>Ohne Kalibrierung sind die Werte Richtwerte (±&nbsp;5&nbsp;dB). Weitere Methoden: <a href="https://github.com/blauewelt/lessnoise/blob/main/android/README.md#calibration-step-by-step">ausführliche Anleitung</a> (Englisch).</p>
   <p>Haben Sie Zugang zu einem Schallpegelmesser? Ihre Kalibrierung hilft allen mit demselben Telefonmodell – schreiben Sie uns über die <a href="https://github.com/blauewelt/lessnoise/issues">Rückmeldung auf GitHub</a>.</p>

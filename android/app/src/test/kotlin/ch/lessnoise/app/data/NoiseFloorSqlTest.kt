@@ -23,12 +23,14 @@ class NoiseFloorSqlTest {
         l90 ?: Double.NaN, 0, null, emptyMap(), 0, null, offset, source, false, validSeconds = 60.0 * coverage,
     )
 
-    private fun insert(c: Connection, i: Int, l90: Double?, offset: Double, source: String, coverage: Double, laeq: Double?) {
+    private fun insert(c: Connection, i: Int, l90: Double?, offset: Double, source: String, coverage: Double, laeq: Double?, mic: String? = null) {
         c.createStatement().use { st ->
             st.execute(
                 "INSERT INTO minutes (startEpochMs, startIso, durationSeconds, laeqDb, l90Db, eventCount, categorySharesJson, " +
-                    "classifierFrames, calibrationOffsetDb, audioSource, calibrated, validSeconds, coverage, clockCorrections) VALUES " +
-                    "(${i * 60_000L}, 'm$i', 60, ${laeq ?: "NULL"}, ${l90 ?: "NULL"}, 0, '{}', 0, $offset, '$source', 0, ${60 * coverage}, $coverage, 0)"
+                    "classifierFrames, calibrationOffsetDb, audioSource, calibrated, validSeconds, coverage, clockCorrections" +
+                    (if (mic != null) ", mic" else "") + ") VALUES " +
+                    "(${i * 60_000L}, 'm$i', 60, ${laeq ?: "NULL"}, ${l90 ?: "NULL"}, 0, '{}', 0, $offset, '$source', 0, ${60 * coverage}, $coverage, 0" +
+                    (if (mic != null) ", '$mic'" else "") + ")"
             )
         }
     }
@@ -48,7 +50,7 @@ class NoiseFloorSqlTest {
     @Test
     fun sqlMatchesTheKotlinReference() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { c ->
-            c.createStatement().use { it.execute(MigrationSql.CREATE_MINUTES_V5) }
+            c.createStatement().use { it.execute(MigrationSql.CREATE_MINUTES_V10) }
             val rnd = Random(42)
             val records = ArrayList<MinuteRecord>()
             fun add(l90: Double?, offset: Double, source: String, coverage: Double = 1.0, laeq: Double? = (l90 ?: 40.0) + 5) {
@@ -78,6 +80,10 @@ class NoiseFloorSqlTest {
             assertEquals(200, sqlEstimate(c, "UNPROCESSED")!!.minutes)
             // The glitch (-20 dB(A) shown) is not the floor.
             assertEquals(true, sqlEstimate(c, "UNPROCESSED")!!.floorRawDb > -20.0 - default)
+            // 0.7.2: minutes of another microphone (a quiet USB mic) do not count: the floor is the phone's.
+            val before = sqlEstimate(c, "UNPROCESSED")!!
+            repeat(300) { insert(c, 10_000 + it, 5.0, default, "UNPROCESSED", 1.0, 10.0, mic = "usb:0123456789abcdef") }
+            assertEquals(before, sqlEstimate(c, "UNPROCESSED"))
         }
     }
 }

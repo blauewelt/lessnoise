@@ -192,9 +192,12 @@ class PositionRuleTest {
             val t = f.readText()
             for (bad in listOf("PositionWatch", "PositionRule", "unterwegsReadout", "distanceM")) assertFalse(t.contains(bad), "${f.name}: $bad")
         }
-        // 5. The database schema has no new table or column: still v9 with moving_spans (start/end only).
+        // 5. The database schema has no table or column for positions: v9 added moving_spans (start/end
+        // only); v10 (0.7.2) only the microphone key (`mic`, `mic_label`) of minutes, events and calibrations.
         val db = File(src, "main/kotlin/ch/lessnoise/app/data/Database.kt").readText()
-        assertTrue(db.contains("version = 9, exportSchema = false"))
+        assertTrue(db.contains("version = 10, exportSchema = false"))
+        val v10 = File(src, "main/kotlin/ch/lessnoise/app/data/Migrations.kt").readText().substringAfter("val MIGRATE_9_10").substringBefore(")\n")
+        assertFalse(Regex("(?i)lat|lon|position|point").containsMatchIn(v10), v10)
     }
 
     @Test

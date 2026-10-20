@@ -87,6 +87,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
     val recal by vm.recalibration.collectAsStateWithLifecycle()
     val live by c.live.collectAsStateWithLifecycle()
     val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
+    val mic by vm.microphone.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
     val requestPermission = rememberMicPermissionLauncher { granted -> if (granted) pendingMode?.let { vm.start(it) } }
@@ -143,6 +144,9 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
             }
         }
 
+        // Mikrofon (0.7.2): the manual choice ---------------------------------------------------
+        item { MicrophoneCard() }
+
         // Kalibrieren ---------------------------------------------------------------------------
         item {
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -151,6 +155,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                     "Nur nötig, wenn du ein Messgerät hast. Ohne Kalibrierung sind die Werte Richtwerte.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                Text(CalibrationTexts.PER_MICROPHONE, style = MaterialTheme.typography.bodyMedium)
                 MoreLink(Links.CALIBRATE)
             }
         }
@@ -162,14 +167,15 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                     else "Kalibriert am ${Fmt.dateTime(a.createdEpochMs)}: ${Fmt.db(a.offsetDb, 2)} dB (${methodName(a.method)})",
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                // 0.6.5: the phone's noise floor, estimated from the stored minutes (nothing without one).
-                noiseFloor?.takeIf { it.audioSource == vm.source }?.let { nf ->
+                // 0.6.5: the phone's noise floor, estimated from the stored minutes (nothing without one);
+                // 0.7.2: it is that of the built-in microphone.
+                noiseFloor?.takeIf { it.audioSource == vm.source && mic.builtIn }?.let { nf ->
                     Text(floorLine(nf), style = MaterialTheme.typography.bodyMedium)
                 }
                 StatRow("Gerät", vm.deviceModel)
-                // 0.7.1: which microphone measured, once a capture has run (this screen's or the running measurement's).
-                val mic = (if (live.running) live.microphone else null) ?: state.microphone
-                StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source) + (mic?.let { " · $it" } ?: ""))
+                StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source))
+                // 0.7.2: the microphone this screen calibrates now (a running measurement's while one runs).
+                StatRow("Mikrofon", CalibrationTexts.microphoneLine(if (live.running) live.microphone ?: mic.status else mic.status))
             }
         }
         state.message?.let { msg ->
@@ -186,7 +192,8 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
             item {
                 val a = active?.takeIf { it.isCalibrated }
                 val target = a?.let { Recalibration.Target(it.id, it.offsetDb, vm.source) }
-                val counts by remember(target) { target?.let { c.recalibrator.counts(it) } ?: flowOf(0 to 0) }
+                val targetMic = a?.mic ?: ch.lessnoise.app.audio.MicChoice.BUILTIN
+                val counts by remember(target, targetMic) { target?.let { c.recalibrator.counts(it, targetMic) } ?: flowOf(0 to 0) }
                     .collectAsStateWithLifecycle(0 to 0)
                 val (n, m) = counts
                 val runningRecal = recal is Recalibrator.State.Running
@@ -210,7 +217,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                 if (confirm && target != null) {
                     RecalibrationDialog(
                         minutes = n, measuring = measuring,
-                        onConfirm = { confirm = false; c.recalibrator.start(target) },
+                        onConfirm = { confirm = false; c.recalibrator.start(target, targetMic) },
                         onDismiss = { confirm = false },
                     )
                 }
@@ -317,7 +324,8 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                 Text(
                     "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${Fmt.db(h.offsetDb, 2)} dB · " +
-                        AudioSourceSelector.labelDe(h.audioSource) + (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
+                        AudioSourceSelector.labelDe(h.audioSource) + (h.micLabel?.let { " · $it" } ?: "") +
+                        (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

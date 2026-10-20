@@ -61,6 +61,7 @@ class UploadSourceIsolationTest {
         "ch.lessnoise.app.BuildConfig",
         "ch.lessnoise.app.container",
         "ch.lessnoise.app.audio.AudioSourceSelector", // name of the capture source (AudioManager property), no audio
+        "ch.lessnoise.app.audio.MicChoice", // 0.7.2: pure string rule (audio_source + microphone kind), reads nothing
         "ch.lessnoise.app.data.AppDatabase",
         "ch.lessnoise.app.data.CalibrationRepository",
         "ch.lessnoise.app.data.EventEntity",

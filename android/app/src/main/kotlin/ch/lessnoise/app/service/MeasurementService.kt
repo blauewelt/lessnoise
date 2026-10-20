@@ -20,7 +20,7 @@ import androidx.core.content.ContextCompat
 import ch.lessnoise.app.R
 import ch.lessnoise.app.audio.AudioCapture
 import ch.lessnoise.app.audio.AudioSourceSelector
-import ch.lessnoise.app.audio.BuiltInMic
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.app.audio.AudioTap
 import ch.lessnoise.app.audio.AudioTapSession
 import ch.lessnoise.app.audio.NoAudioTap
@@ -28,6 +28,9 @@ import ch.lessnoise.app.edition.AudioTapProvider
 import ch.lessnoise.app.motion.MotionWatch
 import ch.lessnoise.app.classify.YamnetClassifier
 import ch.lessnoise.app.container
+import ch.lessnoise.app.audio.CaptureInfo
+import ch.lessnoise.app.data.AppSettings
+import ch.lessnoise.app.data.CalibrationRepository
 import ch.lessnoise.app.ui.LoudAlerts
 import ch.lessnoise.app.ui.MainActivity
 import ch.lessnoise.dsp.Acoustics
@@ -114,8 +117,14 @@ data class LiveState(
     val unterwegs: Boolean = false,
     /** 0.6.6: the input delivering the audio (BuiltInMic.label), shown in the Labor build only. */
     val inputDevice: String? = null,
-    /** 0.7.1: «Mikrofon: eingebaut» (BuiltInMic.fact), shown next to «Audioquelle» in every edition. */
+    /**
+     * 0.7.2: the line «Mikrofon: …» of the microphone in use (MicChoice.Resolution.status), e.g.
+     * «Mikrofon: eingebaut» or «Mikrofon: eingebaut (gewähltes nicht verbunden)»; shown next to
+     * «Audioquelle» in «Kalibrieren» and, unless it is the plain default, on «Messen».
+     */
     val microphone: String? = null,
+    /** 0.7.2: the key of the microphone in use (MicChoice.key); «builtin» by default. */
+    val micKey: String = MicChoice.BUILTIN,
     /**
      * 0.6.7 («Unterwegs erkannt», editions with the map): in a measurement started with «Messen», the
      * motion detector says the phone is being carried. Meanwhile it behaves like «Unterwegs»: the
@@ -165,6 +174,8 @@ class MeasurementService : Service() {
         private const val LEGACY_CHANNEL = "measurement"
         private const val TAG = "MeasurementService"
         private const val NOTIFICATION_ID = 1
+        /** 0.7.2: reopenings of the capture after a misroute allowed per minute. */
+        private const val MAX_MISROUTES = 3
 
         /** Extras of ACTION_START: the shifted point of a shared measurement (absent: not shared). */
         const val EXTRA_POINT_E = "point_e"
@@ -206,7 +217,21 @@ class MeasurementService : Service() {
     private var classifier: SoundClassifier? = null
     private var inference: ExecutorService? = null
     private val inferenceBusy = AtomicBoolean(false)
-    private val frames = ConcurrentLinkedQueue<ClassifierFrame>()
+    /** Classifier results, tagged with the [generation] of the engine whose window they classified. */
+    private val frames = ConcurrentLinkedQueue<Pair<Int, ClassifierFrame>>()
+    /**
+     * 0.7.2: the engine/capture pair in use; a new pair (other microphone, or the same one reopened)
+     * gets the next number, so a late classifier result of the previous engine is dropped.
+     */
+    @Volatile private var generation = 0
+    /** 0.7.2: the microphone the running capture records from. */
+    @Volatile private var mic: MicChoice.Resolution? = null
+    /** 0.7.2: the audio source of the running measurement (the same for every pipeline of it). */
+    @Volatile private var audioSourceName: String = ""
+    /** 0.7.2: follows the connected microphones while measuring. */
+    private var micWatch: Job? = null
+    /** 0.7.2: times (ms) the capture was reopened because Android routed another input. */
+    private val misroutes = ArrayDeque<Long>()
     private var classifierWindow = FloatArray(ClassifierPreprocessor.YAMNET_INPUT_SAMPLES)
     private var wakeLock: PowerManager.WakeLock? = null
     /** 0.6.8: level text every 2 s, or the fixed «Antippen zum Melden» while the run is «unterwegs». */
@@ -285,28 +310,14 @@ class MeasurementService : Service() {
                 val settings = c.settings.state.value
                 normalizeClassifierInput = settings.classifierNormalize
                 val source = AudioSourceSelector.select(this@MeasurementService)
-                val cal = c.calibrations.active(source)
-                val mapper = if (settings.classifierEnabled) c.categoryMapper else null
+                // 0.7.2: the built-in microphone, or the chosen one if it is connected; its own calibration.
+                val res = c.microphones.resolveNow()
+                val cal = c.calibrations.active(source, res.key)
                 if (settings.classifierEnabled) {
                     classifier = YamnetClassifier(this@MeasurementService, c.labels)
                     inference = Executors.newSingleThreadExecutor { r -> Thread(r, "lessnoise-classifier") }
+                    c.categoryMapper // loaded here (lazily, from assets), not under the lock in openPipeline
                 }
-                val config = EngineConfig(
-                    calibrationOffsetDb = cal.offsetDb,
-                    calibrated = cal.calibrated,
-                    calibrationId = cal.id,
-                    audioSource = source,
-                    eventExcessDb = settings.eventExcessDb,
-                    localFloorWindowSeconds = settings.localFloorWindowSeconds.toDouble(),
-                    windLfShareMin = settings.windLfShareMin,
-                    windFlutterMinDb = settings.windFlutterMinDb,
-                    eventMinLevelDb = settings.eventMinLevelDb,
-                    classifierEnabled = settings.classifierEnabled,
-                    classifierIntervalSeconds = settings.classifierIntervalSeconds.toDouble(),
-                    zone = ZoneId.systemDefault(),
-                )
-                // Sample time is anchored to the wall clock when the first audio block arrives.
-                val eng = MeasurementEngine(config, mapper, EngineListener())
                 // Stop may have been requested (notification "Stopp") while the model was loading.
                 // Commit the start atomically with respect to stopMeasurement(), so a stopped
                 // service never ends up with a running microphone, a held wake lock or a stale
@@ -316,24 +327,8 @@ class MeasurementService : Service() {
                         releaseClassifier()
                         return@launch
                     }
-                    engine = eng
-                    val t = AudioTapProvider.create(this@MeasurementService)
-                    tap = t
+                    audioSourceName = source
                     if (settings.wakeLock) acquireWakeLock()
-                    val cap = AudioCapture(
-                        this@MeasurementService, ::onBlock,
-                        onError = { msg ->
-                            container.live.value = container.live.value.copy(error = BuiltInMic.errorText("Mikrofon-Fehler: ", msg))
-                            // Called on the capture thread: stop from another thread so join() can complete.
-                            scope.launch { stopMeasurement() }
-                        },
-                        onSilenced = { silenced ->
-                            eng.setMicSilenced(silenced)
-                            container.live.update { it.copy(micSilenced = silenced) }
-                        },
-                        onInputDevice = { device -> container.live.update { it.copy(inputDevice = device) } },
-                        onMicrophone = { fact -> container.live.update { it.copy(microphone = fact) } },
-                    )
                     val startedAt = System.currentTimeMillis()
                     measurementRow = scope.async {
                         try {
@@ -343,40 +338,193 @@ class MeasurementService : Service() {
                             null
                         }
                     }
-                    val info = cap.start(source)
-                    capture = cap
-                    t.onSessionStart(
-                        AudioTapSession(
-                            startedAtMs = System.currentTimeMillis(), audioSource = info.source, encoding = info.encoding,
-                            effects = info.effects, inputDevice = info.inputDevice,
-                            calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
-                            calibrated = cal.calibrated, eventExcessDb = config.eventExcessDb,
-                            localFloorWindowSeconds = config.localFloorWindowSeconds,
-                            eventMinLevelDb = config.eventMinLevelDb,
-                            windLfShareMin = config.windLfShareMin, windFlutterMinDb = config.windFlutterMinDb,
-                            classifierEnabled = settings.classifierEnabled,
-                            classifierNormalize = settings.classifierNormalize,
-                            classifierIntervalSeconds = config.classifierIntervalSeconds,
-                        )
-                    )
+                    val info = openPipeline(source, res, cal, settings)
                     live.value = LiveState(
                         running = true, startedAtMs = System.currentTimeMillis(), audioSource = info.source,
                         encoding = info.encoding, effects = info.effects, calibrated = cal.calibrated,
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
                         measurementStartMs = startedAt, unterwegs = unterwegs, inputDevice = info.inputDevice,
-                        microphone = info.microphone,
+                        microphone = res.status, micKey = res.key,
                     )
                     // «Unterwegs erkannt» (0.6.7): only for «Messen» («Unterwegs» is unterwegs anyway),
                     // only in the editions with the map (MotionWatch is a stand-in returning null elsewhere).
                     if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container, position = positionAllowed)
                     watchNotificationTap()
+                    watchMicrophone()
                 }
             } catch (e: Exception) {
-                live.value = LiveState(error = BuiltInMic.errorText("Start fehlgeschlagen: ", e.message))
+                live.value = LiveState(error = MicChoice.errorText("Start fehlgeschlagen: ", e.message))
                 synchronized(this@MeasurementService) {
                     if (stopping) releaseClassifier() else stopMeasurement()
                 }
+            }
+        }
+    }
+
+    /**
+     * 0.7.2: engine, audio tap and capture for the microphone [res] with its calibration [cal]
+     * (called under the service's lock). The engine's records carry [res]'s key. If the capture
+     * cannot start, the exception reaches the caller with [engine] and [tap] set, so that
+     * stopMeasurement() releases them as before 0.7.2.
+     */
+    private fun openPipeline(
+        source: String, res: MicChoice.Resolution, cal: CalibrationRepository.Active, settings: AppSettings,
+    ): CaptureInfo {
+        val config = EngineConfig(
+            calibrationOffsetDb = cal.offsetDb,
+            calibrated = cal.calibrated,
+            calibrationId = cal.id,
+            audioSource = source,
+            eventExcessDb = settings.eventExcessDb,
+            localFloorWindowSeconds = settings.localFloorWindowSeconds.toDouble(),
+            windLfShareMin = settings.windLfShareMin,
+            windFlutterMinDb = settings.windFlutterMinDb,
+            eventMinLevelDb = settings.eventMinLevelDb,
+            classifierEnabled = settings.classifierEnabled,
+            classifierIntervalSeconds = settings.classifierIntervalSeconds.toDouble(),
+            zone = ZoneId.systemDefault(),
+        )
+        val mapper = if (settings.classifierEnabled) container.categoryMapper else null
+        val gen = ++generation
+        frames.clear()
+        // Sample time is anchored to the wall clock when the first audio block arrives.
+        val eng = MeasurementEngine(config, mapper, EngineListener(res.key))
+        engine = eng
+        mic = res
+        val t = AudioTapProvider.create(this)
+        tap = t
+        val cap = AudioCapture(
+            this, ::onBlock,
+            onError = { msg ->
+                container.live.value = container.live.value.copy(error = MicChoice.errorText("Mikrofon-Fehler: ", msg))
+                // Called on the capture thread: stop from another thread so join() can complete.
+                scope.launch { stopMeasurement() }
+            },
+            onSilenced = { silenced ->
+                eng.setMicSilenced(silenced)
+                container.live.update { it.copy(micSilenced = silenced) }
+            },
+            onInputDevice = { device -> container.live.update { it.copy(inputDevice = device) } },
+            onMisrouted = { scope.launch { reopenAfterMisroute(gen) } },
+        )
+        val info = cap.start(source, res)
+        capture = cap
+        t.onSessionStart(
+            AudioTapSession(
+                startedAtMs = System.currentTimeMillis(), audioSource = info.source, encoding = info.encoding,
+                effects = info.effects, inputDevice = info.inputDevice,
+                calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
+                calibrated = cal.calibrated, eventExcessDb = config.eventExcessDb,
+                localFloorWindowSeconds = config.localFloorWindowSeconds,
+                eventMinLevelDb = config.eventMinLevelDb,
+                windLfShareMin = config.windLfShareMin, windFlutterMinDb = config.windFlutterMinDb,
+                classifierEnabled = settings.classifierEnabled,
+                classifierNormalize = settings.classifierNormalize,
+                classifierIntervalSeconds = config.classifierIntervalSeconds,
+            )
+        )
+        return info
+    }
+
+    /** Stops capture, engine (its partial minute and open event are stored) and audio tap (under the lock). */
+    private fun closePipeline() {
+        capture?.stop()
+        capture = null
+        engine?.let { eng ->
+            drainFrames(eng)
+            eng.stop()
+        }
+        engine = null
+        tap.onSessionStop()
+        tap = NoAudioTap
+        frames.clear()
+    }
+
+    /** Delivers the finished classifications of the current engine; drops those of an earlier one. */
+    private fun drainFrames(eng: MeasurementEngine) {
+        val gen = generation
+        while (true) {
+            val (g, frame) = frames.poll() ?: break
+            if (g == gen) eng.onClassifierFrame(frame)
+        }
+    }
+
+    /**
+     * 0.7.2: while measuring, a chosen microphone is connected or disconnected (or the choice
+     * changes): the measurement continues with the newly resolved microphone and its calibration —
+     * the same measurement, a new engine. Only the status line changes if the microphone stays.
+     */
+    private fun watchMicrophone() {
+        micWatch?.cancel()
+        micWatch = scope.launch {
+            container.microphones.resolution.collect { r ->
+                val current = mic ?: return@collect
+                if (r.key != current.key) switchMicrophone(r, expectedGeneration = null)
+                else if (r.status != current.status) {
+                    mic = r
+                    container.live.update { if (it.running) it.copy(microphone = r.status) else it }
+                }
+            }
+        }
+    }
+
+    /**
+     * Reopens the pipeline with [res]: the old engine's partial minute is stored with the old
+     * microphone, the new one starts with [res]'s calibration. [expectedGeneration]: only if that
+     * pipeline is still the current one (a misroute report of a pipeline already replaced is void).
+     */
+    private suspend fun switchMicrophone(res: MicChoice.Resolution, expectedGeneration: Int?) {
+        val source = audioSourceName
+        val cal = try {
+            container.calibrations.active(source, res.key)
+        } catch (e: Exception) {
+            Log.w(TAG, "calibration lookup failed: ${e.javaClass.simpleName}")
+            CalibrationRepository.Active(null)
+        }
+        val settings = container.settings.state.value
+        synchronized(this) {
+            if (stopping || capture == null) return
+            if (expectedGeneration != null && expectedGeneration != generation) return
+            if (expectedGeneration == null && mic?.key == res.key) return
+            // Kinds only in the log, never names or addresses.
+            Log.i(TAG, "microphone ${MicChoice.kindId(mic?.key ?: MicChoice.BUILTIN)} -> ${MicChoice.kindId(res.key)}")
+            closePipeline()
+            try {
+                val info = openPipeline(source, res, cal, settings)
+                container.live.update {
+                    it.copy(
+                        calibrated = cal.calibrated, calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
+                        encoding = info.encoding, effects = info.effects, inputDevice = info.inputDevice,
+                        microphone = res.status, micKey = res.key, micSilenced = false,
+                    )
+                }
+            } catch (e: Exception) {
+                container.live.update { it.copy(error = MicChoice.errorText("Mikrofon-Fehler: ", e.message)) }
+                stopMeasurement()
+            }
+        }
+    }
+
+    /**
+     * 0.7.2: Android routed another input than the resolved microphone during the measurement: reopen
+     * the capture with the microphone resolved now (at most [MAX_MISROUTES] times a minute; then the
+     * measurement stops with [MicChoice.ROUTE_MESSAGE] rather than measuring with the wrong one).
+     */
+    private suspend fun reopenAfterMisroute(gen: Int) {
+        val now = System.currentTimeMillis()
+        val again = synchronized(misroutes) {
+            while (misroutes.isNotEmpty() && now - misroutes.first() > 60_000) misroutes.removeFirst()
+            misroutes.addLast(now)
+            misroutes.size <= MAX_MISROUTES
+        }
+        if (again) {
+            switchMicrophone(container.microphones.resolveNow(), expectedGeneration = gen)
+        } else {
+            synchronized(this) {
+                if (stopping || gen != generation) return
+                container.live.update { it.copy(error = MicChoice.ROUTE_MESSAGE) }
+                stopMeasurement()
             }
         }
     }
@@ -403,7 +551,7 @@ class MeasurementService : Service() {
     private fun onBlock(samples: FloatArray, count: Int) {
         val eng = engine ?: return
         // Deliver finished classifications first, so an event ending in this block can use them.
-        while (true) eng.onClassifierFrame(frames.poll() ?: break)
+        drainFrames(eng)
         eng.process(samples, count)
         tap.onBlock(samples, count, Acoustics.SAMPLE_RATE, System.currentTimeMillis())
         val cls = classifier ?: return
@@ -413,11 +561,12 @@ class MeasurementService : Service() {
             if (end < 0) { inferenceBusy.set(false); return }
             val window = classifierWindow
             val normalize = normalizeClassifierInput
+            val gen = generation
             exec.execute {
                 try {
                     val gainDb = if (normalize) ClassifierPreprocessor.normalize(window) else 0.0
                     val scores = cls.classify(window)
-                    frames.add(ClassifierFrame(end, eng.classifierWindowLength48k, scores, gainDb))
+                    frames.add(gen to ClassifierFrame(end, eng.classifierWindowLength48k, scores, gainDb))
                 } catch (_: Exception) {
                     // A failed inference only loses one classification frame.
                 } finally {
@@ -428,7 +577,8 @@ class MeasurementService : Service() {
         }
     }
 
-    private inner class EngineListener : MeasurementEngine.Listener {
+    /** [micKey]: the microphone of this engine (MicChoice.key); every minute and event it stores carries it. */
+    private inner class EngineListener(private val micKey: String) : MeasurementEngine.Listener {
         override fun onTick(tick: LafTick) {
             container.live.update {
                 it.copy(lafDb = if (tick.valid) tick.lafDb else null, invalidAudio = !tick.valid)
@@ -460,7 +610,7 @@ class MeasurementService : Service() {
             val l = container.live
             // A minute held for a long event can arrive after a later one: show the newest.
             l.update { if ((it.lastMinute?.startEpochMs ?: Long.MIN_VALUE) <= minute.startEpochMs) it.copy(lastMinute = minute) else it }
-            persist("minute") { container.measurements.insert(minute) }
+            persist("minute") { container.measurements.insert(minute, micKey) }
         }
 
         override fun onEventEmitted(event: NoiseEvent, startSample: Long, endSample: Long) {
@@ -476,7 +626,7 @@ class MeasurementService : Service() {
                 )
             }
             persist("event") {
-                val id = container.measurements.insert(event)
+                val id = container.measurements.insert(event, micKey)
                 t.onEventStored(id, event, startSample, endSample)
             }
         }
@@ -505,6 +655,8 @@ class MeasurementService : Service() {
     private fun stopMeasurement() {
         if (stopping) return
         stopping = true
+        micWatch?.cancel()
+        micWatch = null
         capture?.stop()
         capture = null
         motion?.stop()
@@ -518,10 +670,12 @@ class MeasurementService : Service() {
         }
         // The capture thread has ended: finish the engine (partial minute, open event) here.
         engine?.let { eng ->
-            while (true) eng.onClassifierFrame(frames.poll() ?: break)
+            drainFrames(eng)
             eng.stop()
         }
         engine = null
+        mic = null
+        synchronized(misroutes) { misroutes.clear() }
         tap.onSessionStop()
         tap = NoAudioTap
         releaseClassifier()

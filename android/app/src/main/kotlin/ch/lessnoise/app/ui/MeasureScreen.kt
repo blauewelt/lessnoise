@@ -237,6 +237,8 @@ fun MeasureContent(
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     ) { Text("Stoppen", fontSize = 18.sp) }
                     Text("Läuft seit ${Fmt.hm(live.startedAtMs)}. Der Bildschirm darf aus sein.", style = MaterialTheme.typography.bodySmall)
+                    // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
+                    microphoneNote(live)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     shareStatus?.let { ShareStatusLine(it, onShareStatus) }
                     // 0.6.9, Labor·Karte only (null elsewhere): motion value, distance from the start, state.
                     live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -363,6 +365,8 @@ fun EventRow(e: EventEntity, categoryName: (String?) -> String, marker: @Composa
  * compared with floorRaw + 3 dB of the same audio source. Null otherwise.
  */
 fun liveHumLimit(live: LiveState, floor: ch.lessnoise.dsp.NoiseFloor.Limit?): Double? {
+    // 0.7.2: the floor is that of the built-in microphone.
+    if (!ch.lessnoise.app.audio.MicChoice.isBuiltIn(live.micKey)) return null
     val bg = live.backgroundDb ?: return null
     val offset = live.calibrationOffsetDb ?: return null
     val source = live.audioSource ?: return null
@@ -370,3 +374,11 @@ fun liveHumLimit(live: LiveState, floor: ch.lessnoise.dsp.NoiseFloor.Limit?): Do
     // Shown with the running measurement's offset, like the level next to it.
     return floor.floorRawDb + offset + ch.lessnoise.dsp.NoiseFloor.MARGIN_DB
 }
+
+/**
+ * 0.7.2: the line «Mikrofon: …» under «Läuft seit …» while measuring — only when it says something:
+ * another microphone is in use, or the chosen one is not connected / not usable. Null for the plain
+ * default «Mikrofon: eingebaut».
+ */
+fun microphoneNote(live: LiveState): String? =
+    live.microphone?.takeIf { live.running && it != ch.lessnoise.app.audio.MicChoice.STATUS_BUILTIN }

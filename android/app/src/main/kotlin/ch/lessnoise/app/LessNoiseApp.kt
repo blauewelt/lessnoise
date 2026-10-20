@@ -58,6 +58,11 @@ class AppContainer(context: Context) {
     val recalibrator: Recalibrator by lazy { Recalibrator(db, appScope) }
     val live = MutableStateFlow(LiveState())
     /**
+     * 0.7.2: the connected microphones and the user's choice («Einstellungen → Erweitert → Mikrofon»);
+     * the built-in microphone unless another one was chosen and is connected.
+     */
+    val microphones: ch.lessnoise.app.audio.Microphones by lazy { ch.lessnoise.app.audio.Microphones(appContext, appScope) }
+    /**
      * The phone's noise floor («Messgrenze», 0.6.5) for the audio source the app measures with,
      * estimated from the stored minutes (dsp NoiseFloor.kt); refreshed at app start and after each
      * measurement. Stays on the phone.
