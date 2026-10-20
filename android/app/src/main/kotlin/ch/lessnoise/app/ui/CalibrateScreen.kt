@@ -167,7 +167,9 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                     Text(floorLine(nf), style = MaterialTheme.typography.bodyMedium)
                 }
                 StatRow("Gerät", vm.deviceModel)
-                StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source))
+                // 0.7.1: which microphone measured, once a capture has run (this screen's or the running measurement's).
+                val mic = (if (live.running) live.microphone else null) ?: state.microphone
+                StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source) + (mic?.let { " · $it" } ?: ""))
             }
         }
         state.message?.let { msg ->

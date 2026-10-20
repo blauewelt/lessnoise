@@ -56,6 +56,8 @@ data class CaptureInfo(
     val effects: List<String>,
     /** 0.6.6: the input that delivers the audio, e.g. «eingebautes Mikrofon (bottom)» (Labor diagnostics). */
     val inputDevice: String = "unbekannt",
+    /** 0.7.1: «Mikrofon: eingebaut» (BuiltInMic.fact), shown next to «Audioquelle» in every edition. */
+    val microphone: String = "Mikrofon: unbekannt",
 )
 
 /** 0.6.6: Android routes a microphone other than the phone's own; the app does not measure with it. */
@@ -85,6 +87,8 @@ class AudioCapture(
     private val onSilenced: (Boolean) -> Unit = {},
     /** 0.6.6: the input delivering the audio changed to another built-in microphone (Labor diagnostics). */
     private val onInputDevice: (String) -> Unit = {},
+    /** 0.7.1: the routed input as BuiltInMic.fact («Mikrofon: eingebaut»), after every re-check. */
+    private val onMicrophone: (String) -> Unit = {},
 ) {
     companion object {
         private const val TAG = "AudioCapture"
@@ -125,8 +129,12 @@ class AudioCapture(
             }
             // 0.6.6: pin the phone's own microphone before recording starts.
             val inputs = inputDevices()
+            val builtInCount = inputs.count { it.first.type == BuiltInMic.TYPE_BUILTIN_MIC }
             val mic = BuiltInMic.pick(inputs.map { it.first })
             builtIn = mic
+            // Never the address or product name in the log: only counts and types.
+            if (mic == null) Log.i(TAG, "no built-in microphone listed (${inputs.size} inputs): no preferred device")
+            else Log.i(TAG, "built-in microphones: $builtInCount of ${inputs.size} inputs")
             val micInfo = mic?.let { m -> inputs.firstOrNull { it.first.id == m.id }?.second }
             if (micInfo != null && !rec.setPreferredDevice(micInfo)) Log.w(TAG, "setPreferredDevice refused")
             rec.startRecording()
@@ -143,6 +151,7 @@ class AudioCapture(
                 encoding = if (encoding == AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM_16BIT",
                 effects = fx,
                 inputDevice = BuiltInMic.label(routed, route),
+                microphone = BuiltInMic.fact(routed),
             )
         } catch (e: Exception) {
             // Release everything: the caller only keeps a reference after a successful start.
@@ -219,6 +228,7 @@ class AudioCapture(
     private fun verifyRoute(rec: AudioRecord): Boolean {
         val routed = routedDevice(rec)
         val route = BuiltInMic.check(builtIn, routed)
+        if (routed != null) onMicrophone(BuiltInMic.fact(routed))
         if (!BuiltInMic.mayMeasure(route)) {
             if (!wrongRoute && running) {
                 wrongRoute = true

@@ -24,8 +24,11 @@ object BuiltInMic {
     /** The address AOSP gives the phone's main (bottom) microphone when a phone reports several. */
     const val MAIN_MIC_ADDRESS = "bottom"
 
-    /** Shown (error line on «Messen», «Kalibrieren») when Android routes another microphone. */
-    const val WRONG_MIC_MESSAGE = "Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset trennen und neu starten."
+    /**
+     * Shown (error line on «Messen», «Kalibrieren») when Android routes another microphone.
+     * 0.7.1: the owner's wording (0.6.6: «Gemessen wird nur mit dem Mikrofon des Telefons. …»).
+     */
+    const val WRONG_MIC_MESSAGE = "Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen."
 
     /** One input device as AudioManager reports it. */
     data class Device(val id: Int, val type: Int, val address: String = "", val productName: String = "")
@@ -77,6 +80,17 @@ object BuiltInMic {
             if (d.address.isNotBlank()) "$type (${d.address})" else type
         } ?: "unbekannt"
         return if (route == Route.NO_BUILT_IN_MIC) "$device · kein eingebautes Mikrofon gemeldet" else device
+    }
+
+    /**
+     * 0.7.1: the short fact shown next to «Audioquelle» in every edition: «Mikrofon: eingebaut» when
+     * the built-in microphone delivers the audio, «Mikrofon: Bluetooth-Headset!» (with «!») for any
+     * other input, «Mikrofon: unbekannt» when Android does not say. Never the address or product name.
+     */
+    fun fact(routed: Device?): String = when {
+        routed == null -> "Mikrofon: unbekannt"
+        routed.type == TYPE_BUILTIN_MIC -> "Mikrofon: eingebaut"
+        else -> "Mikrofon: ${typeName(routed.type)}!"
     }
 
     fun typeName(type: Int): String = when (type) {

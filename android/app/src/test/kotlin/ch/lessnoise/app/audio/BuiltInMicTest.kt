@@ -80,7 +80,8 @@ class BuiltInMicTest {
     @Test
     fun messageAndErrorLine() {
         assertEquals(
-            "Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset trennen und neu starten.",
+            // 0.7.1: the owner's wording.
+            "Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.",
             BuiltInMic.WRONG_MIC_MESSAGE,
         )
         assertEquals(BuiltInMic.WRONG_MIC_MESSAGE, BuiltInMic.errorText("Start fehlgeschlagen: ", BuiltInMic.WRONG_MIC_MESSAGE))
@@ -97,6 +98,76 @@ class BuiltInMicTest {
         assertEquals("unbekannt", BuiltInMic.label(null, Route.UNKNOWN))
         assertEquals("Bluetooth-Headset (AA:BB:CC:DD:EE:FF) · kein eingebautes Mikrofon gemeldet", BuiltInMic.label(sco, Route.NO_BUILT_IN_MIC))
         assertEquals("Eingang Typ 99", BuiltInMic.typeName(99))
+    }
+
+    /** 0.7.1: the fact next to «Audioquelle» (every edition): built-in or not, never address or name. */
+    @Test
+    fun audioSourceFact() {
+        assertEquals("Mikrofon: eingebaut", BuiltInMic.fact(bottom))
+        assertEquals("Mikrofon: eingebaut", BuiltInMic.fact(back))
+        assertEquals("Mikrofon: Bluetooth-Headset!", BuiltInMic.fact(sco))
+        assertEquals("Mikrofon: LE-Audio-Headset!", BuiltInMic.fact(le))
+        assertEquals("Mikrofon: Kabel-Headset!", BuiltInMic.fact(wired))
+        assertEquals("Mikrofon: USB-Headset!", BuiltInMic.fact(usb))
+        assertEquals("Mikrofon: unbekannt", BuiltInMic.fact(null))
+        for (d in listOf(sco, le)) {
+            val f = BuiltInMic.fact(d)
+            assertFalse(d.address in f || d.productName in f, f)
+        }
+    }
+
+    /**
+     * 0.7.1, the whole policy as one table: inputs → the id pinned, routed type → measure or refuse.
+     * A Bluetooth (SCO / LE Audio), wired or USB route refuses; built-in, unknown, or a phone without a
+     * listed built-in microphone measure.
+     */
+    @Test
+    fun policyTable() {
+        val inputs = listOf(sco, le, usb, back, bottom)
+        val pinned = BuiltInMic.pick(inputs)
+        assertEquals(10, pinned?.id)
+        for ((routed, measures) in listOf(
+            bottom to true, back to true, top to true, null to true,
+            sco to false, le to false, wired to false, usb to false,
+            Device(30, BuiltInMic.TYPE_USB_DEVICE) to false, Device(31, BuiltInMic.TYPE_HEARING_AID) to false,
+        )) assertEquals(measures, BuiltInMic.mayMeasure(BuiltInMic.check(pinned, routed)), routed.toString())
+        // No built-in microphone listed: no preference, and whatever Android routes is measured (as before 0.6.6).
+        assertNull(BuiltInMic.pick(listOf(sco, usb)))
+        assertTrue(BuiltInMic.mayMeasure(BuiltInMic.check(null, sco)))
+    }
+
+    /**
+     * 0.7.1 isolation: pinning needs no permission and touches no Bluetooth or call routing. The app
+     * never starts Bluetooth SCO, never requests a communication device, never changes the audio mode,
+     * and the manifests declare exactly the permissions they declared in 0.7.0.
+     */
+    @Test
+    fun noBluetoothNoCommunicationDeviceNoNewPermission() {
+        val app = locateAppDir()
+        val forbidden = Regex("""startBluetoothSco|stopBluetoothSco|setBluetoothScoOn|isBluetoothScoOn|setCommunicationDevice|clearCommunicationDevice|MODE_IN_COMMUNICATION|MODE_IN_CALL|setSpeakerphoneOn|\.mode\s*=""")
+        val hits = File(app, "src").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && "/test" !in it.path.substringAfter("/src/").let { p -> "/" + p } }
+            .flatMap { f -> f.readLines().mapIndexedNotNull { i, l -> if (forbidden.containsMatchIn(l)) "${f.name}:${i + 1}: ${l.trim()}" else null } }
+            .toList()
+        assertEquals(emptyList(), hits)
+
+        fun permissions(flavour: String): List<String> {
+            val xml = File(app, "src/$flavour/AndroidManifest.xml").readText().replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
+            return Regex("""<uses-permission\b[^>]*>""").findAll(xml).map { m ->
+                val name = Regex("""android:name="android\.permission\.([^"]+)"""").find(m.value)!!.groupValues[1]
+                if ("""tools:node="remove"""" in m.value) "-$name" else name
+            }.toList().sorted()
+        }
+        val net = listOf("ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "ACCESS_NETWORK_STATE", "INTERNET")
+        assertEquals(
+            listOf("-ACCESS_BACKGROUND_LOCATION", "-ACCESS_WIFI_STATE", "-RECEIVE_BOOT_COMPLETED", "FOREGROUND_SERVICE",
+                "FOREGROUND_SERVICE_MICROPHONE", "POST_NOTIFICATIONS", "RECORD_AUDIO", "WAKE_LOCK"),
+            permissions("main"),
+        )
+        assertEquals(net, permissions("public"))
+        assertEquals((net + "FOREGROUND_SERVICE_LOCATION").sorted(), permissions("laborKarte"))
+        assertEquals(net.map { "-$it" }.sorted(), permissions("offline"))
+        assertEquals(net.map { "-$it" }.sorted(), permissions("labor"))
     }
 
     /**
@@ -116,6 +187,10 @@ class BuiltInMicTest {
         )) assertTrue(needle in capture, needle)
         assertTrue(capture.indexOf("setPreferredDevice(") < capture.indexOf("rec.startRecording()"), "pinned before recording")
         assertTrue(capture.indexOf("rec.startRecording()") < capture.indexOf("BuiltInMic.check(mic, routed)"), "checked after recording starts")
+        // 0.7.1: the count of built-in microphones is logged, and the fact reaches «Audioquelle».
+        assertTrue("built-in microphones: \$builtInCount" in capture, "count logged")
+        assertTrue("microphone = BuiltInMic.fact(routed)" in capture, "fact in CaptureInfo")
+        assertTrue("StatRow(\"Audioquelle\"" in code("ui/CalibrateScreen.kt") && "live.microphone" in code("ui/CalibrateScreen.kt"))
         for (path in listOf("service/MeasurementService.kt", "ui/CalibrationViewModel.kt")) {
             assertEquals(2, Regex("""BuiltInMic\.errorText\(""").findAll(code(path)).count(), path)
         }

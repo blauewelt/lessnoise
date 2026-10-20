@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.1 — 2026-10-20 (versionCode 24; published: Offline-Version and Online-Version on the website)
+
+In short: Misst nur mit dem eingebauten Mikrofon; Kopfhörer-Mikrofone werden abgelehnt. And 0.7.0
+(below) reaches the website. No new permission, nothing new stored or sent.
+
+- **Built-in microphone (since 0.6.6, now with the owner's wording):** the app pins the phone's
+  built-in microphone and checks which input Android actually routes after the start and on every
+  routing change. If it is a headset (Bluetooth SCO, LE Audio, wired, USB), it does not measure and
+  says «Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer oder externes Mikrofon
+  trennen.» (was: «Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset trennen und
+  neu starten.»). Never starts Bluetooth SCO, never requests a communication device.
+- **«Mikrofon: eingebaut»** next to «Audioquelle» in «Kalibrieren» (every edition), once this screen
+  or the running measurement has opened the microphone; any other input would read e.g.
+  «Mikrofon: Bluetooth-Headset!». The log names the number of built-in microphones (no names).
+- Tests: the policy as one table (inputs → pinned id, routed type → measure/refuse), the fact text,
+  the refusal text, and an isolation test (no Bluetooth/communication-device calls, manifests'
+  permissions pinned).
+
 ## 0.7.0 — 2026-10-17 (versionCode 23; Labor · Karte build for the owner's phone, not on the website)
 
 In short: one version for three lines of work that were built separately as 0.6.7–0.6.9 (the

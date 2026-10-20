@@ -149,13 +149,17 @@ What the project counts, and who counts it — totals over the whole project, al
 - **Phone app v0.6.6 (published 2026-10-17):** the phone's noise floor
   («Messgrenze», 0.6.5) is estimated from the stored minutes and values at it are shown with «≤»;
   the app measures only with the phone's built-in microphone, never a headset's.
-- **Phone app v0.7.0 (Labor · Karte build for testing, not published yet; built on branches as
-  0.6.7–0.6.9):** «Unterwegs erkannt» — in the Online-Version a measurement started with «Messen»
+- **Phone app v0.7.0 (Labor · Karte build for testing; built on branches as 0.6.7–0.6.9; published
+  as part of 0.7.1):** «Unterwegs erkannt» — in the Online-Version a measurement started with «Messen»
   notices from the motion sensor (on the phone only, no permission, no location) that the phone is
   being carried; meanwhile it alerts like «Unterwegs», «Antippen zum Melden» opens a report, and
   nothing of that time span is shared. «Laut! Melden» sends a report at whatever accuracy the
   phone's location has, with that accuracy (it no longer stops at ± 50 m), and can carry the
   direction the vehicle drove, taken with the phone's compass.
+- **Phone app v0.7.1 (published 2026-10-20, the current version):** 0.7.0 in both public editions;
+  with headphones or a headset connected the app says «Das Telefon misst nur mit dem eingebauten
+  Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.» instead of measuring, and «Kalibrieren»
+  shows «Mikrofon: eingebaut» next to «Audioquelle».
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

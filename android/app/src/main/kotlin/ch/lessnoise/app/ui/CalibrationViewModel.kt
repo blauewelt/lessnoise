@@ -40,6 +40,8 @@ data class CalUiState(
     val calibratorNominalDb: Double = 94.0,
     val noiseFloorDb: Double? = null,
     val message: String? = null,
+    /** 0.7.1: the microphone of the last calibration capture (BuiltInMic.fact), null before one ran. */
+    val microphone: String? = null,
     /** After saving a calibration: offer to re-evaluate earlier measurements with it. */
     val recalOffer: RecalOffer? = null,
 )
@@ -107,11 +109,13 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
             onSilenced = { silenced ->
                 r.onMicSilenced(silenced)
                 if (r.shouldStop) viewModelScope.launch { finish(mode) }
-            })
+            },
+            onMicrophone = { fact -> _state.update { it.copy(microphone = fact) } })
         try {
             c.calibrationActive.value = true
-            cap.start(source)
+            val info = cap.start(source)
             capture = cap
+            _state.update { it.copy(microphone = info.microphone) }
         } catch (e: Exception) {
             c.calibrationActive.value = false
             _state.value = _state.value.copy(running = null, message = BuiltInMic.errorText("Mikrofon konnte nicht geöffnet werden: ", e.message))

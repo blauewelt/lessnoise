@@ -114,6 +114,8 @@ data class LiveState(
     val unterwegs: Boolean = false,
     /** 0.6.6: the input delivering the audio (BuiltInMic.label), shown in the Labor build only. */
     val inputDevice: String? = null,
+    /** 0.7.1: «Mikrofon: eingebaut» (BuiltInMic.fact), shown next to «Audioquelle» in every edition. */
+    val microphone: String? = null,
     /**
      * 0.6.7 («Unterwegs erkannt», editions with the map): in a measurement started with «Messen», the
      * motion detector says the phone is being carried. Meanwhile it behaves like «Unterwegs»: the
@@ -330,6 +332,7 @@ class MeasurementService : Service() {
                             container.live.update { it.copy(micSilenced = silenced) }
                         },
                         onInputDevice = { device -> container.live.update { it.copy(inputDevice = device) } },
+                        onMicrophone = { fact -> container.live.update { it.copy(microphone = fact) } },
                     )
                     val startedAt = System.currentTimeMillis()
                     measurementRow = scope.async {
@@ -362,6 +365,7 @@ class MeasurementService : Service() {
                         calibrationId = cal.id, calibrationOffsetDb = cal.offsetDb,
                         classifierEnabled = settings.classifierEnabled, sharedPoint = point,
                         measurementStartMs = startedAt, unterwegs = unterwegs, inputDevice = info.inputDevice,
+                        microphone = info.microphone,
                     )
                     // «Unterwegs erkannt» (0.6.7): only for «Messen» («Unterwegs» is unterwegs anyway),
                     // only in the editions with the map (MotionWatch is a stand-in returning null elsewhere).

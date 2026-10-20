@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.6.0 published)
+# Weniger Lärm — citizen noise measurement (Android; v0.7.1 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -830,19 +830,24 @@ the website's `lv95.js`.
 - **Audio source.** The app uses Android's `UNPROCESSED` source when the phone declares support
   for it, otherwise `VOICE_RECOGNITION`, and switches off AGC/noise suppression/echo
   cancellation where Android allows it. Some phones still apply processing; calibrate per source.
-- **Built-in microphone only (0.6.6).** The app always measures with the phone's own microphone,
+- **Microphone: built-in only (0.6.6, 0.7.1).** With headphones or a headset connected, the app
+  still measures with the phone's own microphone, or not at all; it never starts Bluetooth SCO,
+  never requests a communication device and needs no extra permission. Details: the app always measures with the phone's own microphone,
   never a connected headset's (Bluetooth, LE Audio, wired, USB): a headset microphone is tuned to
   the wearer's voice, and the calibration belongs to the built-in one. `audio/AudioCapture.kt` lists
   the inputs (`AudioManager.getDevices(GET_DEVICES_INPUTS)`), pins the built-in microphone
   (`TYPE_BUILTIN_MIC`, the «bottom» one if the phone lists several) with `setPreferredDevice`, and
   after `startRecording()` checks `getRoutedDevice()` (API 29+: also the active recording
   configuration's device); it checks again on every routing change. If another input is routed, it
-  does not measure and shows «Gemessen wird nur mit dem Mikrofon des Telefons. Bitte das Headset
-  trennen und neu starten.» (the error line on «Messen» and in «Kalibrieren»). An unknown route
+  does not measure and shows «Das Telefon misst nur mit dem eingebauten Mikrofon. Bitte Kopfhörer
+  oder externes Mikrofon trennen.» (0.7.1; the error line on «Messen» and in «Kalibrieren»). An unknown route
   is checked once more before the first audio block is used; a phone that reports no built-in
   microphone measures as before. The rule is `audio/BuiltInMic.kt` (pure, `BuiltInMicTest`). The
   Labor build shows the delivering input under Einstellungen › Labor («Mikrofon», while measuring)
-  and writes it to `session_start` (`inputDevice`).
+  and writes it to `session_start` (`inputDevice`). Since 0.7.1 every edition shows the microphone
+  next to «Audioquelle» in «Kalibrieren» once a capture has run («unbearbeitet · Mikrofon:
+  eingebaut»; another input would read e.g. «Mikrofon: Bluetooth-Headset!»), and the log names how
+  many built-in microphones the phone lists (counts only, no names or addresses).
 - **Wind** causes large false low-frequency levels. Shield the phone; don't measure in strong
   wind. Since v0.4.0 events that look like wind are flagged and not counted, but the levels (LAeq,
   L90 …) still contain the wind. The wind rule was derived from one night at one window and is
@@ -881,15 +886,22 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.7.0 (versionCode 23, 2026-10-17) is built for the owner's phone as Labor · Karte only; it brings
+v0.7.1 (versionCode 24, published 2026-10-20) is the current public version, signed APKs in
+`../docs/download/`: v0.7.0 below, now in both public editions, plus the owner's wording for the
+built-in-microphone refusal and «Mikrofon: eingebaut» next to «Audioquelle» (see «Known limitations»
+→ «Microphone: built-in only»). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`,
+`dexdump`); not run on a device, in particular the routing with real Bluetooth or LE Audio headsets
+is untested.
+
+v0.7.0 (versionCode 23, 2026-10-17) was built for the owner's phone as Labor · Karte only; it brings
 together three lines of work that were built as 0.6.7–0.6.9 on separate branches: «Unterwegs
 erkannt» with «Antippen zum Melden» and the Labor-only «Melden» button and position signal
 (auto-unterwegs, 0.6.7–0.6.9), «Laut! Melden» at any location accuracy (report-any-accuracy, its
 0.6.7/20 never published), and the optional direction of travel in «Laut! Melden». The server code
 accepts `accuracy_m` up to 10 000 m and the optional `direction` (schema v6); both need a redeploy.
-The public editions on the website stay at 0.6.6 until it has been tried.
+The public editions on the website stayed at 0.6.6 until 0.7.1.
 
-v0.6.6 (versionCode 19, published 2026-10-17) is the current public version, signed APKs in
+v0.6.6 (versionCode 19, published 2026-10-17) was the public version before 0.7.1, signed APKs in
 `../docs/download/`: v0.6.5 (the estimated per-phone noise floor «Messgrenze», versionCode 18, only
 sent to the owner's phone, never on the website) plus measuring with the phone's built-in
 microphone only (see «Known limitations» → «Built-in microphone only»). Verified on the JVM (unit
