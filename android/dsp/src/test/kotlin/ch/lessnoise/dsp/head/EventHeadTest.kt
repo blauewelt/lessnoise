@@ -21,6 +21,8 @@ class EventHeadTest {
         assertEquals(64, head.hidden)
         assertEquals(listOf("carried", "road", "aircraft"), head.classes.filterIndexed { i, _ -> head.enabled[i] })
         assertEquals("weniger-laerm-head-F1-MLP", head.name)
+        // loadDefault tags the name with the bundled file, so manifests tell v1 and v2 apart
+        assertEquals("weniger-laerm-head-F1-MLP/head_F1_MLP_v2", EventHead.loadDefault().name)
     }
 
     @Test

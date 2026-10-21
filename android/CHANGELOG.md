@@ -1,9 +1,19 @@
 # Changelog
 
-## Unreleased — event head (branch event-head; not in any APK yet)
+## 0.7.3 — Labor·Karte only, not published (branch event-head) (versionCode 26)
 
+In short: the Labor·Karte build logs the event head's scores (v2) next to the old category —
+logging only; nothing the app shows, stores or uploads changes. No new permission. The Offline-
+and Online-Version were not built or published at this version (the website stays at 0.7.2).
+
+- **Event head v2 bundled:** `head_F1_MLP_v2.json` (Labor `step3/train`, retrained on the complete
+  v2 labels; same schema, same 68 inputs in the same order, same enabled classes carried / road /
+  aircraft, new weights and thresholds) replaces `head_F1_MLP_nosit.json`. The manifest's
+  `"head":{"model":…}` now reads `weniger-laerm-head-F1-MLP/head_F1_MLP_v2` (JSON name + bundled
+  file), so lines written by v1 and v2 can be told apart. Golden values regenerated (only the
+  probabilities and decisions changed; features and inputs are identical).
 - **Event head, Labor editions only, logging only:** the dsp module ports the event features of the
-  Labor multi-label head (`head_F1_MLP_nosit`: envelope periodicity, 1/3-octave rises, spectral
+  Labor multi-label head (first `head_F1_MLP_nosit`, now v2: envelope periodicity, 1/3-octave rises, spectral
   centroid/flatness/tonality, onset, …) and runs the head per event (`EventHead`, JSON weights
   bundled in dsp). Its per-class probabilities and decision go into the Labor manifest's `event`
   (with the model inputs) and `clip` lines. The category shown, stored and uploaded is unchanged

@@ -88,13 +88,18 @@ class EventHead private constructor(
 
     companion object {
         /** The bundled head (classpath resource of the dsp module). */
-        const val DEFAULT_RESOURCE = "/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json"
+        const val DEFAULT_RESOURCE = "/ch/lessnoise/dsp/head/head_F1_MLP_v2.json"
 
+        /**
+         * The bundled head. Its [name] is the JSON's `name` + "/" + the resource file stem
+         * (e.g. `weniger-laerm-head-F1-MLP/head_F1_MLP_v2`): the Labor exports of different
+         * trainings carry the same JSON `name`, and the manifest must tell them apart.
+         */
         fun loadDefault(): EventHead =
             requireNotNull(EventHead::class.java.getResourceAsStream(DEFAULT_RESOURCE)) { "missing $DEFAULT_RESOURCE" }
-                .use { parse(it.readBytes().toString(Charsets.UTF_8)) }
+                .use { parse(it.readBytes().toString(Charsets.UTF_8), nameSuffix = "/" + DEFAULT_RESOURCE.substringAfterLast('/').removeSuffix(".json")) }
 
-        fun parse(json: String): EventHead {
+        fun parse(json: String, nameSuffix: String = ""): EventHead {
             val o = Json.parseToJsonElement(json).jsonObject
             fun strings(k: String) = o.getValue(k).jsonArray.map { it.jsonPrimitive.content }
             fun doubles(k: String) = o.getValue(k).jsonArray.map { it.jsonPrimitive.double }.toDoubleArray()
@@ -113,7 +118,7 @@ class EventHead private constructor(
             val en = o.getValue("enabled").jsonObject
             val th = o.getValue("thresholds").jsonObject
             return EventHead(
-                name = o["name"]?.jsonPrimitive?.content ?: "event-head",
+                name = (o["name"]?.jsonPrimitive?.content ?: "event-head") + nameSuffix,
                 inputNames = inputs,
                 classes = classes,
                 median = doubles("median"), mean = doubles("mean"), scale = doubles("scale"),

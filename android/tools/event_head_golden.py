@@ -12,7 +12,7 @@ Reference code (read-only, outside the repository; pass other paths with the opt
   --features  /home/claude/labor/step3/features.py        tick_series, kotlin_features, tail_end,
                                                           envelope_features, tick_spectra, spectral_features
   --dataset   /home/claude/labor/step3/train/dataset.py   f1_row (model input transforms)
-  --head      android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json
+  --head      android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json
 
 Usage:  python3 android/tools/event_head_golden.py   (needs numpy, scipy)
 
@@ -201,7 +201,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--features", default="/home/claude/labor/step3/features.py")
     ap.add_argument("--dataset", default="/home/claude/labor/step3/train/dataset.py")
-    ap.add_argument("--head", default=os.path.join(ANDROID, "dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json"))
+    ap.add_argument("--head", default=os.path.join(ANDROID, "dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json"))
     a = ap.parse_args()
     F = load(a.features, "features_ref")
     D = load(a.dataset, "dataset_ref")

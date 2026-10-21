@@ -5,7 +5,7 @@ Inputs (read as data only):
   --replay   CSV of `./gradlew :dsp:replayBatch --args="--manifest …/manifest.jsonl --clips …/clips --out X.csv --offset manifest"`
              (+ X.csv.head_inputs.csv next to it), or the `<out>.clips.csv` of `:dsp:replayNight` (engine only)
   --dataset  /home/claude/labor/step3/train/dataset.npz   (keys, X1 = F1 inputs of every clip, f1_cols)
-  --head     android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json
+  --head     android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json
   --prefix   key prefix of the replayed set (kal | s3 | vor)
 
 Python reference probability per clip = the JSON head applied to the dataset's F1 row (the
@@ -51,7 +51,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--replay", required=True)
     ap.add_argument("--dataset", default="/home/claude/labor/step3/train/dataset.npz")
-    ap.add_argument("--head", default="android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json")
+    ap.add_argument("--head", default="android/dsp/src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json")
     ap.add_argument("--prefix", default="kal")
     a = ap.parse_args()
     J = json.load(open(a.head))

@@ -2,7 +2,7 @@
 
 The event head is a small multi-label classifier (a 2-layer perceptron, 68 inputs → 64 hidden
 units → 9 classes) trained in the Labor analysis (`/home/claude/labor/step3/train`, model
-`head_F1_MLP_nosit`: feature set F1 without the situation features). It works on numbers computed
+`head_F1_MLP_v2` since 0.7.3: feature set F1 without the situation features, trained on the v2 labels; before it `head_F1_MLP_nosit`). It works on numbers computed
 from each event — levels, envelope shape, envelope periodicity and spectral shape — not on audio.
 On the phone it runs **in the Labor editions only and for logging only**: its probabilities and
 decision go into the Labor manifest's `event` and `clip` lines; the category the app shows,
@@ -14,7 +14,7 @@ stores and uploads stays the YAMNet decision, and the public editions do not run
 | class | role |
 |---|---|
 | `classify/EventHead.kt` `EventHeadClassifier` | interface next to `SoundClassifier`: `predict(inputs)`, `decide(scores)`, `evaluate(map by name)` |
-| `classify/EventHead.kt` `EventHead` | loads the JSON (`resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json`), NaN → training median, z-score, ReLU layer, sigmoid layer, `enabled` flags and thresholds |
+| `classify/EventHead.kt` `EventHead` | loads the JSON (`resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json`), NaN → training median, z-score, ReLU layer, sigmoid layer, `enabled` flags and thresholds |
 | `head/TickSpectrum.kt` `TickSpectrum` | per 125 ms tick: 4096-point periodic-Hann FFT of the 16 kHz signal centred on the tick, and its summary |
 | `head/TickSpectrum.kt` `HeadTickStore` | per-tick ring (same numbering as `EventFeatureTracker`): five 25 ms A-weighted mean squares + the spectrum summary |
 | `head/TickSpectrum.kt` `TonalAccumulator` | event-mean 40–800 Hz spectrum, fed tick by tick |
@@ -22,7 +22,7 @@ stores and uploads stays the YAMNet decision, and the public editions do not run
 | `head/HeadFeatures.kt` `HeadInputs.f1` | the model inputs (port of `step3/train/dataset.py` `f1_row`) |
 | `MeasurementEngine(…, eventHead = …)` | records the per-tick values, computes the head once per event, puts the result into `EventFeatures.head` and `DetectedEvent.headScores/headDecision` |
 
-The result (`EventHeadResult`: model name, `scores` class → probability, `decision`, `inputs`)
+The result (`EventHeadResult`: model name — for the bundled head the JSON `name` + "/" + the file stem, e.g. `weniger-laerm-head-F1-MLP/head_F1_MLP_v2` —, `scores` class → probability, `decision`, `inputs`)
 reaches the listener with `onEventClosed`/`onEventEmitted`; `NoiseEvent.headScores` and
 `.headDecision` read it. Room stores `EventFeatures` field by field and ignores `head`, the upload
 reads Room only: nothing of the head is stored in the measurement database or sent.
@@ -110,7 +110,7 @@ Python) does not exclude invalid ticks.
 
 1. Export the new head in the same JSON format (`inputs`, `classes`, `median`, `mean`, `scale`,
    `W1`/`b1`/`W2`/`b2` as base64 little-endian float32, `enabled`, `thresholds`).
-2. Replace `src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_nosit.json` (or add a file and
+2. Replace `src/main/resources/ch/lessnoise/dsp/head/head_F1_MLP_v2.json` (or add a file and
    point `EventHead.DEFAULT_RESOURCE` to it).
 3. Inputs are matched by name. `HeadInputs.f1` produces the 68 F1 names above plus
    `log10_durationS`; a name it does not produce is fed as NaN, i.e. the training median —
