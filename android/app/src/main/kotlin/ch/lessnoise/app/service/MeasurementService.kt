@@ -25,6 +25,7 @@ import ch.lessnoise.app.audio.AudioTap
 import ch.lessnoise.app.audio.AudioTapSession
 import ch.lessnoise.app.audio.NoAudioTap
 import ch.lessnoise.app.edition.AudioTapProvider
+import ch.lessnoise.app.edition.EditionEventHead
 import ch.lessnoise.app.motion.MotionWatch
 import ch.lessnoise.app.classify.YamnetClassifier
 import ch.lessnoise.app.container
@@ -389,7 +390,8 @@ class MeasurementService : Service() {
         val gen = ++generation
         frames.clear()
         // Sample time is anchored to the wall clock when the first audio block arrives.
-        val eng = MeasurementEngine(config, mapper, EngineListener(res.key))
+        // Event head: Labor editions only (logging into the Labor manifest); public editions get null.
+        val eng = MeasurementEngine(config, mapper, EngineListener(res.key), eventHead = EditionEventHead.create())
         engine = eng
         mic = res
         val t = AudioTapProvider.create(this)

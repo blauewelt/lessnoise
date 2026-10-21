@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — event head (branch event-head; not in any APK yet)
+
+- **Event head, Labor editions only, logging only:** the dsp module ports the event features of the
+  Labor multi-label head (`head_F1_MLP_nosit`: envelope periodicity, 1/3-octave rises, spectral
+  centroid/flatness/tonality, onset, …) and runs the head per event (`EventHead`, JSON weights
+  bundled in dsp). Its per-class probabilities and decision go into the Labor manifest's `event`
+  (with the model inputs) and `clip` lines. The category shown, stored and uploaded is unchanged
+  (YAMNet); the public editions do not run it. Details: `dsp/EVENT_HEAD.md`.
+
 ## 0.7.2 — 2026-10-20 (versionCode 25; published: Offline-Version and Online-Version on the website)
 
 In short: Gemessen wird mit dem eingebauten Mikrofon; ein anderes Mikrofon lässt sich unter

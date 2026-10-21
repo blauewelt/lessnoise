@@ -4,6 +4,7 @@ import ch.lessnoise.dsp.EventFeatures
 import ch.lessnoise.dsp.Iso
 import ch.lessnoise.dsp.NoiseEvent
 import ch.lessnoise.dsp.classify.ClassifierResult
+import ch.lessnoise.dsp.classify.EventHeadResult
 import java.io.File
 import java.io.FileOutputStream
 import java.time.ZoneId
@@ -208,6 +209,7 @@ object ManifestLines {
                 .put("category", event.dominantCategory).put("categoryScore", event.dominantScore.toDouble())
                 .putObjects("top3", event.topLabels.take(3).map { Json().put("label", it.label).put("score", it.score.toDouble()) })
             event.features?.let { j.putRaw("features", features(it).build()) }
+            event.features?.head?.let { j.putRaw("head", head(it, withInputs = false).build()) }
         } else {
             j.put("eventStart", null as String?).put("eventEnd", null as String?)
         }
@@ -235,9 +237,27 @@ object ManifestLines {
         .put("wind", f.wind).put("shape", f.shape)
 
     /**
+     * The event head's output (Labor, logging only): `model`, `scores` (class → probability, all
+     * classes, 4 decimals), `decision` (enabled classes at or above their threshold) and, with
+     * [withInputs], the model `inputs` (name → value as fed, null = missing → training median).
+     */
+    fun head(h: EventHeadResult, withInputs: Boolean): Json {
+        val scores = Json()
+        for ((k, v) in h.scores) scores.put(k, v, 4)
+        val j = Json().put("model", h.model).putRaw("scores", scores.build()).putStrings("decision", h.decision)
+        if (withInputs) {
+            val inputs = Json()
+            for ((k, v) in h.inputs) inputs.put(k, v, 4)
+            j.putRaw("inputs", inputs.build())
+        }
+        return j
+    }
+
+    /**
      * Every event (also those without a clip, since 0.4.0) when it is complete: input sample span,
-     * start/end time and [features]. Written from `AudioTap.onEventEnded`, before the event is
-     * stored, so it carries no database id; match it to `clip` lines by `eventStartSample`.
+     * start/end time and [features], plus the event head's [head] with its inputs when the engine
+     * ran one. Written from `AudioTap.onEventEnded`, before the event is stored, so it carries no
+     * database id; match it to `clip` lines by `eventStartSample`.
      */
     fun event(
         session: String, nowMs: Long, zone: ZoneId, startSample: Long, endSample: Long, startEpochMs: Long, endEpochMs: Long,
@@ -249,6 +269,7 @@ object ManifestLines {
             .put("durationS", (endSample - startSample).toDouble() / INPUT_RATE)
             .put("eventStartSample", startSample).put("eventEndSample", endSample)
             .putRaw("features", features(f).build())
+            .also { j -> f.head?.let { j.putRaw("head", head(it, withInputs = true).build()) } }
             .build()
 
     /**

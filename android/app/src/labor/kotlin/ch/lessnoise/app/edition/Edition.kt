@@ -131,6 +131,22 @@ object EditionDiagnostics {
     }
 }
 
+/**
+ * The event head (multi-label classifier on event features, dsp `EventHead`, weights bundled in
+ * the dsp module). Labor only, logging only: its per-class probabilities and decision go into the
+ * manifest's `event` and `clip` lines; the category shown and stored stays YAMNet's.
+ */
+object EditionEventHead {
+    @Volatile private var cached: ch.lessnoise.dsp.classify.EventHead? = null
+
+    fun create(): ch.lessnoise.dsp.classify.EventHeadClassifier? = cached ?: try {
+        ch.lessnoise.dsp.classify.EventHead.loadDefault().also { cached = it }
+    } catch (e: Exception) {
+        Log.w("Labor", "event head not loaded: ${e.javaClass.simpleName}")
+        null
+    }
+}
+
 object AudioTapProvider {
     fun create(context: Context): AudioTap {
         Labor.init(context)

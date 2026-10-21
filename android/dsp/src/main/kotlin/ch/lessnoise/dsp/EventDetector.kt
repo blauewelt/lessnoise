@@ -41,6 +41,10 @@ data class DetectedEvent(
     val minLevelDb: Double = Double.NEGATIVE_INFINITY,
     /** Local floor (L90 of LAF over the trailing local window) at the start, frozen for the event. */
     val localFloorDb: Double = Double.NaN,
+    /** Event head probabilities (class → p), set by the engine once known; null without a head. Logging only. */
+    val headScores: Map<String, Double>? = null,
+    /** Event head decision (enabled classes over their threshold); null without a head. Logging only. */
+    val headDecision: List<String>? = null,
 )
 
 /**

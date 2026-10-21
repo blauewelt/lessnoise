@@ -195,6 +195,40 @@ class PoliciesAndManifestTest {
         assertTrue(""""lfShare":0.985,"lfFlutterDb":0.39,"wind":true,"shape":"impulse"},"offsetOfEventStartInClipMs":5000""" in clipLine, clipLine)
     }
 
+    /** The event head's output (logging only) goes into the event line (with inputs) and the clip line (without). */
+    @Test
+    fun eventAndClipLinesCarryTheEventHead() {
+        val h = ch.lessnoise.dsp.classify.EventHeadResult(
+            model = "weniger-laerm-head-F1-MLP",
+            scores = linkedMapOf("carried" to 0.12345678, "road" to 0.66, "aircraft" to 0.0001),
+            decision = listOf("road"),
+            inputs = linkedMapOf("excessDb" to 12.66, "per50_hz" to Double.NaN),
+        )
+        val f = EventFeatures(41.84, 12.66, 1.748, Double.NaN, 0.0141, 12.52, 0.0083, 0.391, false, EventShape.HUMP, head = h)
+        val line = ManifestLines.event("S", t0, zurich, 480_000, 702_000, t0, t0 + 4625, f)
+        assertTrue(
+            line.endsWith(""""wind":false,"shape":"hump"},"head":{"model":"weniger-laerm-head-F1-MLP",""" +
+                """"scores":{"carried":0.1235,"road":0.66,"aircraft":0.0001},"decision":["road"],""" +
+                """"inputs":{"excessDb":12.66,"per50_hz":null}}}"""),
+            line,
+        )
+        val ev = NoiseEvent(
+            startEpochMs = t0, startIso = "", durationSeconds = 4.625, lafMaxDb = 57.9, selDb = 52.2, backgroundDb = 41.9,
+            thresholdDb = 6.5, dominantCategory = "road_traffic", dominantScore = 0.4f, topLabels = emptyList(),
+            classifierFrames = 1, calibrationId = null, audioSource = "UNPROCESSED", calibrated = false, features = f,
+        )
+        assertEquals(listOf("road"), ev.headDecision)
+        val clip = AssembledClip(480_000, 702_000, 240_000, emptyList(), 702_000, truncated = false, endedEarly = false)
+        val clipLine = ManifestLines.clip("S", t0, zurich, 3, "clips/ev_3.wav", ev, clip, 170_000)
+        assertTrue(
+            """"shape":"hump"},"head":{"model":"weniger-laerm-head-F1-MLP","scores":{"carried":0.1235,"road":0.66,"aircraft":0.0001},""" +
+                """"decision":["road"]},"offsetOfEventStartInClipMs":5000""" in clipLine,
+            clipLine,
+        )
+        // The category written stays the app's (YAMNet) decision.
+        assertTrue(""""category":"road_traffic"""" in clipLine, clipLine)
+    }
+
     @Test
     fun continuousAndStopLines() {
         val open = ManifestLines.continuousOpen("S", t0, zurich, "continuous/20261007_23.m4a", 6000, t0)

@@ -25,6 +25,14 @@ object EditionDiagnostics {
     ) = Unit
 }
 
+/**
+ * The event head (multi-label classifier on event features, logging only). Public: none — the
+ * engine runs without it, nothing of it is computed, stored or sent.
+ */
+object EditionEventHead {
+    fun create(): ch.lessnoise.dsp.classify.EventHeadClassifier? = null
+}
+
 /** Public: there is no audio recorder, the measurement service always gets [NoAudioTap]. */
 object AudioTapProvider {
     fun create(@Suppress("UNUSED_PARAMETER") context: Context): AudioTap = NoAudioTap

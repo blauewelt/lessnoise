@@ -183,6 +183,11 @@ data class EventFeatures(
     val wind: Boolean,
     /** [EventShape] id: hump, jagged, impulse or long. */
     val shape: String,
+    /**
+     * The event head's output (probabilities per class, decision, inputs) when the engine runs a
+     * head; null otherwise. Logging only: not stored in the measurement database, not uploaded.
+     */
+    val head: ch.lessnoise.dsp.classify.EventHeadResult? = null,
 )
 
 /**
@@ -313,6 +318,19 @@ class EventFeatureTracker(val capacityTicks: Int, val tickSeconds: Double = 0.12
 
     fun lafAt(i: Long): Double = if (i < oldest || i >= count) Double.NaN else laf[slot(i)]
 
+    /** Mean square of the A-weighted 250 Hz–4.5 kHz band in tick [i] (NaN if invalid or not held). */
+    fun bandAt(i: Long): Double = if (i < oldest || i >= count) Double.NaN else eBand[slot(i)]
+
+    /** Tick of the LAF curve's maximum in the last [compute]d event. */
+    var lastPeakTick = -1L
+        private set
+    /** First tick of the loudest 1 s ([MID_BAND_TOP_TICKS] ticks by A-weighted energy) of the last [compute]d event. */
+    var lastBestStart = -1L
+        private set
+    /** Number of ticks of that loudest span (min(8, event ticks)). */
+    var lastTopTicks = 0
+        private set
+
     /** Crossing time (in ticks) of [level] between ticks a and a + 1, linearly interpolated. */
     private fun cross(a: Long, level: Double): Double {
         val la = lafAt(a)
@@ -381,6 +399,9 @@ class EventFeatureTracker(val capacityTicks: Int, val tickSeconds: Double = 0.12
 
         // Mid band: loudest 1 s of the event vs the 5 s before it.
         var midRise = Double.NaN
+        lastPeakTick = p
+        lastBestStart = start
+        lastTopTicks = 0
         if (n > 0) {
             val w = minOf(MID_BAND_TOP_TICKS, n)
             var run = 0.0
@@ -391,6 +412,8 @@ class EventFeatureTracker(val capacityTicks: Int, val tickSeconds: Double = 0.12
                 run += eA[slot(i)] - eA[slot(i - w)]
                 if (run > best) { best = run; bestStart = i - w + 1 }
             }
+            lastBestStart = bestStart
+            lastTopTicks = w
             var during = 0.0
             for (i in bestStart until bestStart + w) during += eBand[slot(i)]
             during /= w

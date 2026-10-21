@@ -1116,7 +1116,10 @@ category, top-3 labels, file, `offsetOfEventStartInClipMs`, `truncated`, sample 
 `features`, see below), `event` (since 0.4.0, every event — also without a clip — when it is
 complete: start/end time and input samples and `features` = `localFloorDb`, `excessDb`, `riseS`,
 `decayS`, `jaggedness`, `midBandRiseDb`, `lfShare`, `lfFlutterDb`, `wind`, `shape`, as defined in
-[Event detection](#event-detection-detector-v2); match to `clip` lines by `eventStartSample`),
+[Event detection](#event-detection-detector-v2); match to `clip` lines by `eventStartSample`;
+in Labor builds with the event head (not released yet, see `dsp/EVENT_HEAD.md`) `event` and `clip`
+lines also carry `head` = `model`, per-class `scores`, `decision`, and on `event` lines the
+model `inputs` — logging only, the `category` stays YAMNet's),
 `continuous_open` / `continuous_close` (file, start time, `startInputSample`, codec, sample rate;
 16 kHz sample *j* of the file = input sample `startInputSample + 3·j + 2`), `gap` (blocks the
 encoder could not keep up with, filled with silence so the mapping holds), `storage_full`, and
