@@ -1239,6 +1239,21 @@ for A in app/build/outputs/apk/offline/release/app-offline-release.apk \
 done
 ```
 
+### Signed Labor builds on GitHub Actions (0.7.4)
+
+Labor and Labor·Karte APKs are signed by the workflow `.github/workflows/labor-build.yml`, so no
+session or machine needs the keystore. The keystore and its passwords are repository secrets
+(`LABOR_KEYSTORE_B64` = the `.jks` as base64, `LABOR_KEYSTORE_PASSWORD`, `LABOR_KEY_ALIAS`,
+`LABOR_KEY_PASSWORD`; write-only, set once in Settings › Secrets and variables › Actions). The
+workflow runs on every push to a branch named `labor-*` and by hand (`gh workflow run
+labor-build.yml --ref <branch> -f flavour=laborKarte`). It builds `assembleLaborKarteRelease`,
+checks the signer certificate against the pinned SHA-256 `a3d5d10e…3142be` (fails otherwise),
+and uploads `lessnoise-labor-karte-<version>.apk` plus `SHA256SUMS` as a workflow artifact kept
+for 3 days (`gh run download <run-id>`). The artifact is the only place the Labor APK exists;
+it is never copied into `docs/` or a release. To get a build onto the owner's phone: bump
+`versionCode`/`versionName`, push the `labor-*` branch, wait for the green run, download the
+artifact, and hand over the APK (its SHA-256 is in `SHA256SUMS`).
+
 To publish, follow the release checklist below. The release key cannot be replaced without
 forcing every user to uninstall and reinstall, so keep the keystore and its password backed up.
 

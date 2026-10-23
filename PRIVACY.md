@@ -286,8 +286,8 @@ aufzeichnen» is switched on and confirmed; off by default): event clips (WAV, 1
 per hour), plus a `manifest.jsonl` with the event data and the classifier's per-second results for
 each clip, and `classifier/*.jsonl` with every classifier run (label names and scores, no audio). Files stay on the phone in
 `Android/data/ch.lessnoise.labor/files/audio/` until deleted in the app («Alle Aufnahmen löschen»)
-or by uninstalling it; they leave the phone only if the user shares them («Als ZIP teilen») or
-copies them over USB. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
+or by uninstalling it; they leave the phone only if the user shares them («Als ZIP teilen»), copies them over USB or
+exports them with «In Ordner exportieren» (0.7.4) into a folder the user picks in Android's folder picker — which may be a cloud-storage app's folder, such as Google Drive; the app itself has no network access and sends nothing. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
 (and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` and no location permission
 either (the internal `laborKarte` variant below has them, for «Messwerte teilen» and «Laut! Melden» only).
 Recordings can contain voices of people nearby; use the Labor build only where everyone recorded
@@ -322,8 +322,8 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   `ch.lessnoise.app.labor` or a recording folder name, if it imports a project class that is not
   on its allow-list, if a flavour adds upload classes, if the Labor code touches the upload or the
   network, or if network code appears anywhere but `upload/UploadClient.kt`. Recordings still
-  leave the phone only when the user shares them («Als ZIP teilen») or copies them over USB, as in
-  the Labor build.
+  leave the phone only when the user shares them («Als ZIP teilen»), copies them over USB or exports
+  them to a folder of their choice («In Ordner exportieren», 0.7.4), as in the Labor build.
 - **Motion log (0.7.0, Labor·Karte only):** each change of «Unterwegs erkannt» (still ↔ carried) is
   written as one `motion` line to the local `manifest.jsonl` with its time and the numbers that decided
   it (active seconds, the per-second variation of the acceleration), so the detector can be tuned.

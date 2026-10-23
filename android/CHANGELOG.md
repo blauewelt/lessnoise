@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased — Labor editions only (branch labor-export)
+## 0.7.4 — Labor·Karte only, not published (branch labor-export) (versionCode 27)
+
+In short: the recordings can leave the phone again — incremental export to a folder of your choice
+— and signed Labor builds now come from GitHub Actions (`.github/workflows/labor-build.yml`), so no
+session needs the signing key. Head v2 logging from 0.7.3 unchanged. Offline- and Online-Version
+not built at this version (website stays at 0.7.2).
 
 - **«In Ordner exportieren»** (Labor and Labor·Karte, Einstellungen › Labor) replaces «Ordner
   anzeigen», which opened `Android/data/…` that Android 11+ hides from file managers. The first
