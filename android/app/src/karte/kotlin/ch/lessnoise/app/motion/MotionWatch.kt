@@ -96,6 +96,10 @@ object MotionWatch {
         val minutes = MinuteSummary()
         val recent = RecentMotion()
         var positionWatch: PositionWatch.Handle? = null
+        // 0.7.5, Labor·Karte: wall ms of the latest second the detector saw movement (≥ its enter level, or
+        // while it says MOVING). The position may only switch to MOVING within 3 minutes of it (PositionRule).
+        var lastMovementWall: Long? = null
+        val enterStd = (if (labor) MotionDetector.Thresholds.LABOR else MotionDetector.Thresholds.ONLINE).enterStdMs2
 
         fun writeSpan(change: UnterwegsCombiner.Change?) {
             change ?: return
@@ -127,7 +131,9 @@ object MotionWatch {
 
         val onSecond: ((Long, Double) -> Unit)? = if (!labor) null else { startMs, std ->
             recent.add(std)
-            logMinute(minutes.add(MotionClock.wallMs(startMs, SystemClock.elapsedRealtime(), System.currentTimeMillis()), std))
+            val wall = MotionClock.wallMs(startMs, SystemClock.elapsedRealtime(), System.currentTimeMillis())
+            if (combiner.motion || (!std.isNaN() && std >= enterStd)) lastMovementWall = wall
+            logMinute(minutes.add(wall, std))
             readout()
         }
         val detector = MotionDetector(if (labor) MotionDetector.Thresholds.LABOR else MotionDetector.Thresholds.ONLINE, onSecond)
@@ -169,7 +175,7 @@ object MotionWatch {
         // 0.6.9, Labor·Karte: the position signal, on the same thread (silently none without permission).
         if (labor && position) {
             handler.post {
-                positionWatch = PositionWatch.start(app, handler) { t ->
+                positionWatch = PositionWatch.start(app, handler, lastMovementMs = { lastMovementWall }) { t ->
                     writeSpan(combiner.onPosition(t.moving, t.atMs, t.spanStartMs))
                     EditionDiagnostics.motionTransition(
                         app, t.atMs, if (t.moving) "MOVING" else "STILL", t.spanStartMs,

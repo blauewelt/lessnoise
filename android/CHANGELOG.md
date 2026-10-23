@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.7.5 — Labor·Karte only, not published (branch labor-storage) (versionCode 28)
+
+In short: a full Labor storage cap no longer silences the manifest, the app warns before the cap
+and refuses to start a recording measurement at it, new installs get 5 GB, and the position no
+longer turns a still phone «unterwegs». Offline- and Online-Version unchanged and not built.
+
+- **The cap is an audio budget** (Labor and Labor·Karte). When «Maximaler Speicher» is used up,
+  clips and hour files stop as before, but `event` lines (features and, in Labor·Karte, the event
+  head's scores), `clock` lines and the classifier log go on, up to 200 MB beyond the cap
+  (`StorageBudget.LOG_MARGIN_BYTES`, ≈ 200 h of logging; then one `logs_full` line and only
+  session lines). Before, a full cap stopped the whole recorder: from 2026-10-18 13:05 the owner's
+  manifest got no `event` and no `clip` line for five days, only `motion_minute` and one
+  `storage_full` per session. `storage_full` is written once when it happens (and once per session
+  start while still full, now with `"audio":false,"logging":true`); `session_stop` gains
+  `clipsSkipped` (events without a clip because of the cap) and `linesDropped`.
+- **Warning and block.** With audio recording on, a red line «Speicher fast voll: n MB frei von x GB
+  – Aufnahme würde bald stoppen. Exportieren und löschen, oder Limit erhöhen.» on «Messen» and in
+  Einstellungen › Labor once less than max(10 % of the cap, 200 MB) is free. At the cap «Messen»
+  (and «Unterwegs») does not start and says why: export and delete, raise the limit, or switch
+  recording off. Pure rule `StoragePolicy` (Policies.kt), tested.
+- **Default cap 5 GB** for new installs (choices unchanged; a stored setting keeps its value).
+- **Position rule (Labor·Karte):** the position may switch the run to MOVING only if the motion
+  detector saw movement within the last 3 minutes; fixes worse than 100 m (was 500 m) are ignored,
+  and so is a fix of a still phone whose distance jumped faster than 30 km/h. In the night
+  2026-10-22→23 a still phone (motion median ≈ 0.002 m/s²) was MOVING for 508 minutes because fused
+  fixes wandered 900–2100 m. `byMotion`/`byPosition` are logged as before.
+
 ## 0.7.4 — Labor·Karte only, not published (branch labor-export) (versionCode 27)
 
 In short: the recordings can leave the phone again — incremental export to a folder of your choice

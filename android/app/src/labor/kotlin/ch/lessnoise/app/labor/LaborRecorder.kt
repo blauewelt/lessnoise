@@ -35,6 +35,12 @@ import java.util.concurrent.atomic.AtomicLong
  * bounded queue) and never waits; if a queue is full the data is dropped and counted. Resampling,
  * WAV writing and AAC encoding run on two background-priority threads, so they cannot starve the
  * measurement. One instance per measurement session.
+ *
+ * Storage (0.7.5): «Maximaler Speicher» is an audio budget. When it is used up, clips and the hour
+ * files stop ([audioOn] false) but the recorder keeps logging — `event` lines (features, event
+ * head), `clock` lines and the classifier log — within [StorageBudget.LOG_MARGIN_BYTES] beyond the
+ * cap ([LogGate]). Before 0.7.5 a full budget stopped the whole recorder: five days of `event` lines
+ * were lost (2026-10-18 → 23).
  */
 class LaborRecorder(context: Context, private val settings: LaborSettings) : AudioTap {
 
@@ -65,9 +71,13 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
     private val budget = StorageBudget(settings.maxBytes, dirs.usedBytes())
     private val sampler = ClipRateSampler(settings.clipEvery)
 
+    /** The recorder still listens (false after stop, or when «Audio aufzeichnen» was switched off). */
     @Volatile private var active = true
+    /** Audio (clips, hour files) is still recorded; false once the budget is used up (logging goes on). */
+    @Volatile private var audioOn = true
     private val stopped = AtomicBoolean(false)
     private val fullReported = AtomicBoolean(false)
+    private val logsFullReported = AtomicBoolean(false)
     /** Input samples seen (capture thread). Same count as MeasurementEngine.totalSamples. */
     private var position = 0L
     @Volatile private var anchorSample = 0L
@@ -82,13 +92,16 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
     private val clipErrors = AtomicLong()
     private val continuousFiles = AtomicLong()
     private val aacBlocksDropped = AtomicLong()
+    /** Events that ended while the audio budget was used up (clips on): no clip for them. */
+    private val clipsSkippedStorage = AtomicLong()
     @Volatile private var droppedBusyFinal = 0L
     @Volatile private var skippedRateFinal = 0L
 
     // ---- Writer thread (manifest + clips) -------------------------------------------------
 
     private sealed interface Msg
-    private class Line(val text: String) : Msg
+    /** A manifest line; [essential] lines are written even when the log margin is used up. */
+    private class Line(val text: String, val essential: Boolean = false) : Msg
     private class SessionStart(val s: AudioTapSession) : Msg
     private class ClipAudio(val clip: AssembledClip) : Msg
     private class Stored(val id: Long, val event: NoiseEvent, val startSample: Long) : Msg
@@ -129,6 +142,8 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
 
     override fun onSessionStart(session: AudioTapSession) {
         queue.offer(SessionStart(session))
+        // Already full at the start: one storage_full line right after session_start; measuring and logging go on.
+        if (budget.full) storageFull()
     }
 
     override fun onBlock(samples: FloatArray, count: Int, sampleRate: Int, wallClockMs: Long) {
@@ -136,6 +151,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         position += count
         if (!active) return
         if (!Labor.settings.value.recordAudio) { deactivate(); return }
+        if (!audioOn) return
         if (budget.full) { storageFull(); return }
         assembler?.onBlock(samples, count)
         aacQueue?.let { q ->
@@ -155,12 +171,14 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         pendingCorrectionMs = correctionMs
     }
 
-    override fun onEventStarted(startSample: Long) { if (active) assembler?.onCandidate(startSample) }
-    override fun onEventConfirmed(startSample: Long) { if (active) assembler?.onConfirmed(startSample) }
-    override fun onEventDiscarded(startSample: Long) { if (active) assembler?.onDiscarded(startSample) }
+    override fun onEventStarted(startSample: Long) { if (active && audioOn) assembler?.onCandidate(startSample) }
+    override fun onEventConfirmed(startSample: Long) { if (active && audioOn) assembler?.onConfirmed(startSample) }
+    override fun onEventDiscarded(startSample: Long) { if (active && audioOn) assembler?.onDiscarded(startSample) }
     override fun onEventEnded(startSample: Long, endSample: Long, features: EventFeatures) {
         if (!active) return
-        assembler?.onEnded(startSample, endSample)
+        // 0.7.5: the event line is written also when the audio budget is used up; only the clip is missing.
+        if (audioOn) assembler?.onEnded(startSample, endSample)
+        else if (assembler != null && fullReported.get()) clipsSkippedStorage.incrementAndGet()
         queue.offer(
             Line(ManifestLines.event(sessionId, System.currentTimeMillis(), zone, startSample, endSample, epochMsAt(startSample), epochMsAt(endSample), features))
         )
@@ -181,7 +199,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         if (!stopped.compareAndSet(false, true)) return
         val a = assembler
         if (a != null) {
-            if (active) a.flush()
+            if (active && audioOn) a.flush()
             droppedBusyFinal = a.droppedBusy
         }
         skippedRateFinal = sampler.skipped
@@ -204,11 +222,15 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         status { it.copy(recording = false) }
     }
 
+    /**
+     * The audio budget is used up: stop the audio (clips, hour file), keep logging. Once per session
+     * (the line is written once when it happens, or once right after session_start if already full).
+     */
     private fun storageFull() {
         if (!fullReported.compareAndSet(false, true)) return
-        active = false
+        audioOn = false
         aacStopRequested = true
-        queue.offer(Line(ManifestLines.storageFull(sessionId, System.currentTimeMillis(), zone, budget.usedBytes, budget.maxBytes)))
+        queue.offer(Line(ManifestLines.storageFull(sessionId, System.currentTimeMillis(), zone, budget.usedBytes, budget.maxBytes), essential = true))
         status { it.copy(recording = false, storageFull = true) }
     }
 
@@ -241,12 +263,29 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         val recent = ArrayDeque<ClassifierResult>()
         var lastClassifiedSample = Long.MIN_VALUE
         val classifierLog = ClassifierLog(dirs.classifier, zone)
+        val gate = LogGate(budget)
+
+        // After a line or a classifier-log line: did it use up the budget, or the log margin?
+        fun checkBudget() {
+            if (budget.full) storageFull()
+            if (budget.logsFull && logsFullReported.compareAndSet(false, true)) {
+                queue.offer(
+                    Line(ManifestLines.logsFull(sessionId, System.currentTimeMillis(), zone, budget.usedBytes, budget.maxBytes, budget.logMarginBytes), essential = true)
+                )
+            }
+        }
         var deadline = Long.MAX_VALUE
         var aacDone = aacQueue == null
 
-        fun line(text: String) {
-            if (!started) { early += text; return }
-            try { ManifestFile.append(dirs.manifest, text) } catch (e: Exception) { Log.w(TAG, "manifest: ${e.javaClass.simpleName}") }
+        val earlyEssential = HashSet<String>()
+        fun line(text: String, essential: Boolean = false) {
+            if (!started) { early += text; if (essential) earlyEssential += text; return }
+            try {
+                gate.write(essential) { ManifestFile.append(dirs.manifest, text) }
+                checkBudget()
+            } catch (e: Exception) {
+                Log.w(TAG, "manifest: ${e.javaClass.simpleName}")
+            }
         }
 
         fun clipReady(clip: AssembledClip, id: Long?, event: NoiseEvent?) {
@@ -273,10 +312,10 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
             recent.addLast(r)
             if (r.endSample > lastClassifiedSample) lastClassifiedSample = r.endSample
             while (recent.isNotEmpty() && recent.first().endSample < lastClassifiedSample - TRACE_KEEP_SAMPLES) recent.removeFirst()
-            if (budget.full) return
+            // 0.7.5: the classifier log goes on past the audio budget, within the log margin.
             try {
-                val bytes = classifierLog.append(r.endEpochMs, ManifestLines.classifierLine(sessionId, r, zone))
-                if (!budget.account(bytes)) storageFull()
+                gate.write(essential = false) { classifierLog.append(r.endEpochMs, ManifestLines.classifierLine(sessionId, r, zone)) }
+                checkBudget()
             } catch (e: Exception) {
                 Log.w(TAG, "classifier log: ${e.javaClass.simpleName}")
             }
@@ -304,10 +343,10 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
                     is SessionStart -> {
                         started = true
                         classifierOn = m.s.classifierEnabled
-                        line(ManifestLines.sessionStart(sessionId, m.s.startedAtMs, zone, sessionInfo(m.s)))
-                        early.forEach { line(it) }; early.clear()
+                        line(ManifestLines.sessionStart(sessionId, m.s.startedAtMs, zone, sessionInfo(m.s)), essential = true)
+                        early.forEach { line(it, it in earlyEssential) }; early.clear(); earlyEssential.clear()
                     }
-                    is Line -> line(m.text)
+                    is Line -> line(m.text, m.essential)
                     is Cls -> classified(m.result)
                     is ClipAudio -> {
                         queuedClips.decrementAndGet()
@@ -326,7 +365,9 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
             // Clips whose event never reached the database (should not happen): keep them anyway.
             for (c in awaitingId.values) { clipsWithoutId.incrementAndGet(); clipReady(c, null, null) }
             writeReady(force = true)
-            if (!started) { started = true; early.forEach { line(it) } }
+            if (!started) { started = true; early.forEach { line(it, it in earlyEssential) } }
+            // Lines queued after the loop ended (e.g. storage_full from the last classifier line).
+            while (true) { val m = queue.poll() ?: break; if (m is Line) line(m.text, m.essential) }
             line(
                 ManifestLines.sessionStop(
                     sessionId, System.currentTimeMillis(), zone,
@@ -336,9 +377,11 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
                         clipsDroppedStorage = clipsDroppedStorage.get(), clipsWithoutEventId = clipsWithoutId.get(),
                         clipErrors = clipErrors.get(),
                         continuousFiles = continuousFiles.get(), continuousBlocksDropped = aacBlocksDropped.get(),
+                        clipsSkipped = clipsSkippedStorage.get(), linesDropped = gate.dropped,
                     ),
                     storageFull = budget.full,
-                )
+                ),
+                essential = true,
             )
         } catch (_: InterruptedException) {
         } finally {
@@ -408,7 +451,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
             Labor.openContinuousFile = null
             w.close()
             if (w.file.exists()) {
-                queue.offer(Line(ManifestLines.continuousClose(sessionId, System.currentTimeMillis(), zone, "continuous/$fileName", w.samplesWritten, w.file.length(), reason)))
+                queue.offer(Line(ManifestLines.continuousClose(sessionId, System.currentTimeMillis(), zone, "continuous/$fileName", w.samplesWritten, w.file.length(), reason), essential = true))
                 Labor.filesVersion.update { it + 1 }
             }
         }

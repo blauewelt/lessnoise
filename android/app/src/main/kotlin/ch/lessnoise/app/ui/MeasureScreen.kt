@@ -76,6 +76,8 @@ fun MeasureScreen(
         if (granted) startMeasurement(pendingUnterwegs)
     }
     fun onStart(unterwegs: Boolean) {
+        // 0.7.5, Labor editions only (always null in the public editions): the audio budget is used up.
+        EditionUi.startRefusal(context)?.let { msg -> scope.launch { snackbar.showSnackbar(msg) }; return }
         pendingUnterwegs = unterwegs
         if (hasMicPermission(context)) startMeasurement(unterwegs) else requestPermission()
     }
@@ -101,6 +103,7 @@ fun MeasureScreen(
         onShareStatus = { a -> handleShareAction(a, share, onOpen) },
         // «Unterwegs» (0.6.4 start mode): only in the editions with the map (src/karte); nothing elsewhere.
         onStartUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,
+        storageNotice = { EditionUi.StorageNotice() },
     )
 }
 
@@ -172,6 +175,8 @@ fun MeasureContent(
     onStartUnterwegs: (() -> Unit)? = null,
     /** 0.6.5: the phone's noise floor; «Grundrauschen» shows «≤ …» at it. Null: no floor yet. */
     noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
+    /** 0.7.5, Labor editions: the red storage line («Speicher fast voll …»); nothing in the public editions. */
+    storageNotice: @Composable () -> Unit = {},
 ) {
     LazyColumn(modifier.fillMaxWidth()) {
         item {
@@ -277,6 +282,7 @@ fun MeasureContent(
                     }
                 }
                 if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
+                storageNotice()
                 // Idle: the short form (e.g. «Auf der Karte · zuletzt gesendet 14:05»).
                 if (!live.running && !live.starting) shareStatus?.let { ShareStatusLine(it, onShareStatus) }
                 if (!live.running) updateLine()

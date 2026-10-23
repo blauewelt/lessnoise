@@ -23,6 +23,9 @@ class PositionRuleTest {
     private fun fix(t: Long, eastM: Double, northM: Double, acc: Double?) =
         PositionRule.Fix(t, lat0 + northM / mPerDegLat, lon0 + eastM / mPerDegLon, acc)
 
+    /** The 0.6.9 tests: the motion detector reported movement recently (0.7.5 gate open). */
+    private fun PositionRule.on(f: PositionRule.Fix, ageMs: Long = 0L) = onFix(f, ageMs, motionRecent = true)
+
     @Test
     fun aStillPhoneWithEightyMetreDriftIsNeverMoving() {
         // 8 hours of fixes once a minute, scattered uniformly within 80 m, accuracy 20–60 m; 200 nights.
@@ -33,16 +36,16 @@ class PositionRuleTest {
             for (i in 0 until 480) {
                 val a = r.nextDouble(0.0, 2 * PI)
                 val d = 80 * sqrt(r.nextDouble())
-                val t = rule.onFix(fix(i * 60_000L, d * cos(a), d * sin(a), r.nextDouble(20.0, 60.0)))
+                val t = rule.on(fix(i * 60_000L, d * cos(a), d * sin(a), r.nextDouble(20.0, 60.0)))
                 if (t != null && t.moving) { falseMoving++; return@repeat }
             }
         }
         assertEquals(0, falseMoving)
         // The worst case allowed by ±80 m: two fixes 160 m apart (> 150 m) do not make a ride.
         val rule = PositionRule()
-        assertNull(rule.onFix(fix(0, -80.0, 0.0, 10.0)))
-        repeat(PositionRule.AWAY_FIXES - 1) { assertNull(rule.onFix(fix((it + 1) * 60_000L, 80.0, 0.0, 10.0))) }
-        assertNull(rule.onFix(fix(10 * 60_000L, 0.0, 0.0, 10.0)))
+        assertNull(rule.on(fix(0, -80.0, 0.0, 10.0)))
+        repeat(PositionRule.AWAY_FIXES - 1) { assertNull(rule.on(fix((it + 1) * 60_000L, 80.0, 0.0, 10.0))) }
+        assertNull(rule.on(fix(10 * 60_000L, 0.0, 0.0, 10.0)))
         assertFalse(rule.moving)
     }
 
@@ -50,8 +53,8 @@ class PositionRuleTest {
     fun aTramRideIsMovingAndItsSpanStartsAtTheLastNearFix() {
         val rule = PositionRule()
         // 5 minutes at home, then a tram at 5 m/s (300 m per minute).
-        for (i in 0..4) assertNull(rule.onFix(fix(i * 60_000L, 10.0 * (i % 2), 0.0, 30.0)))
-        val transitions = (1..10).mapNotNull { k -> rule.onFix(fix((4 + k) * 60_000L, 300.0 * k, 0.0, 40.0)) }
+        for (i in 0..4) assertNull(rule.on(fix(i * 60_000L, 10.0 * (i % 2), 0.0, 30.0)))
+        val transitions = (1..10).mapNotNull { k -> rule.on(fix((4 + k) * 60_000L, 300.0 * k, 0.0, 40.0)) }
         assertEquals(1, transitions.size)
         val t = transitions[0]
         assertTrue(t.moving)
@@ -67,51 +70,53 @@ class PositionRuleTest {
     @Test
     fun theThresholdIsTheSumOfTheAccuracyRadiiWhenLarger() {
         val rule = PositionRule()
-        rule.onFix(fix(0, 0.0, 0.0, 200.0))
-        // 350 m away with 200 + 200 m accuracy: not away.
-        repeat(5) { assertNull(rule.onFix(fix((it + 1) * 60_000L, 350.0, 0.0, 200.0))) }
+        rule.on(fix(0, 0.0, 0.0, 90.0))
+        // 170 m away with 90 + 90 m accuracy: not away.
+        repeat(5) { assertNull(rule.on(fix((it + 1) * 60_000L, 170.0, 0.0, 90.0))) }
         assertFalse(rule.moving)
-        // 450 m away: away.
-        val t = (6..9).mapNotNull { rule.onFix(fix(it * 60_000L, 450.0, 0.0, 200.0)) }.single()
-        assertEquals(400.0, t.thresholdM)
+        // 190 m away: away.
+        val t = (6..9).mapNotNull { rule.on(fix(it * 60_000L, 190.0, 0.0, 90.0)) }.single()
+        assertEquals(180.0, t.thresholdM)
     }
 
     @Test
     fun poorOrStaleFixesAreIgnored() {
         val rule = PositionRule()
-        assertNull(rule.onFix(fix(0, 0.0, 0.0, 600.0)))
+        assertNull(rule.on(fix(0, 0.0, 0.0, 600.0)))
         assertNull(rule.referenceMs, "a 600 m fix is not even the reference")
-        assertNull(rule.onFix(fix(0, 0.0, 0.0, null)))
-        assertNull(rule.onFix(fix(0, 0.0, 0.0, 30.0), ageMs = 5 * 60_000L))
+        assertNull(rule.on(fix(0, 0.0, 0.0, null)))
+        assertNull(rule.on(fix(0, 0.0, 0.0, 30.0), ageMs = 5 * 60_000L))
         assertNull(rule.referenceMs)
-        rule.onFix(fix(60_000L, 0.0, 0.0, 30.0))
+        rule.on(fix(60_000L, 0.0, 0.0, 30.0))
         assertEquals(60_000L, rule.referenceMs)
         // Cell-tower fixes far away with accuracy 2 km: ignored, never MOVING.
-        repeat(10) { assertNull(rule.onFix(fix((it + 2) * 60_000L, 1500.0, 0.0, 2000.0))) }
+        repeat(10) { assertNull(rule.on(fix((it + 2) * 60_000L, 1500.0, 0.0, 2000.0))) }
         assertFalse(rule.moving)
         assertEquals(1, rule.fixes)
         // Out of order: dropped.
-        rule.onFix(fix(30 * 60_000L, 0.0, 0.0, 30.0))
-        assertNull(rule.onFix(fix(20 * 60_000L, 5000.0, 0.0, 30.0)))
+        rule.on(fix(30 * 60_000L, 0.0, 0.0, 30.0))
+        assertNull(rule.on(fix(20 * 60_000L, 5000.0, 0.0, 30.0)))
         assertEquals(0.0, rule.distanceM!!, 1.0)
-        assertTrue(PositionRule.accept(500.0, 0))
-        assertFalse(PositionRule.accept(500.1, 0))
+        // 0.7.5: 100 m is the limit (was 500 m).
+        assertTrue(PositionRule.accept(100.0, 0))
+        assertFalse(PositionRule.accept(100.1, 0))
+        assertFalse(PositionRule.accept(500.0, 0))
     }
 
     @Test
     fun comingBackToTheStartEndsItAndTheReferenceIsNeverReplaced() {
         val rule = PositionRule()
-        rule.onFix(fix(0, 0.0, 0.0, 30.0))
+        rule.on(fix(0, 0.0, 0.0, 30.0))
         val ref = rule.referenceMs
-        (1..4).forEach { rule.onFix(fix(it * 60_000L, 1000.0 * it, 0.0, 30.0)) }
+        (1..4).forEach { rule.on(fix(it * 60_000L, 1000.0 * it, 0.0, 30.0)) }
         assertTrue(rule.moving)
         // 30 minutes standing somewhere else: still MOVING (no new reference: the run's point is its start).
-        (5..35).forEach { assertNull(rule.onFix(fix(it * 60_000L, 4000.0, 0.0, 30.0))) }
+        (5..35).forEach { assertNull(rule.on(fix(it * 60_000L, 4000.0, 0.0, 30.0))) }
         assertTrue(rule.moving)
         assertEquals(ref, rule.referenceMs)
         // Back home: two near fixes end it.
-        assertNull(rule.onFix(fix(40 * 60_000L, 20.0, 0.0, 30.0)))
-        val end = rule.onFix(fix(41 * 60_000L, 10.0, 0.0, 30.0))
+        assertNull(rule.on(fix(40 * 60_000L, 20.0, 0.0, 30.0)))
+        val end = rule.on(fix(41 * 60_000L, 10.0, 0.0, 30.0))
         assertNotNull(end)
         assertFalse(end.moving)
         assertEquals(ref, rule.referenceMs)
@@ -121,22 +126,101 @@ class PositionRuleTest {
     fun theUploadHoldCoversWhatThePositionMayStillDecide() {
         val rule = PositionRule()
         assertEquals(0L, rule.holdMs(0L), "no fix: no hold")
-        rule.onFix(fix(0, 0.0, 0.0, 30.0))
-        rule.onFix(fix(60_000L, 10.0, 0.0, 30.0))
+        rule.on(fix(0, 0.0, 0.0, 30.0))
+        rule.on(fix(60_000L, 10.0, 0.0, 30.0))
         assertEquals(60_000L - 60_000L + PositionRule.HOLD_MARGIN_MS, rule.holdMs(60_000L))
         // Away fixes not confirmed yet: everything since the last near fix is held.
-        rule.onFix(fix(120_000L, 400.0, 0.0, 30.0))
-        rule.onFix(fix(180_000L, 700.0, 0.0, 30.0))
+        rule.on(fix(120_000L, 400.0, 0.0, 30.0))
+        rule.on(fix(180_000L, 700.0, 0.0, 30.0))
         assertEquals(190_000L - 60_000L + PositionRule.HOLD_MARGIN_MS, rule.holdMs(190_000L))
-        assertEquals(60_000L, rule.pendingAwaySinceMs(), "at «Stopp» now: the run's end since the last near fix is unterwegs")
+        assertEquals(60_000L, rule.pendingAwaySinceMs(motionRecent = true), "at «Stopp» now: the run's end since the last near fix is unterwegs")
+        assertNull(rule.pendingAwaySinceMs(motionRecent = false), "0.7.5: not from a still phone")
         // The span the confirming away fix opens starts at the last near fix, i.e. before every held record.
-        assertNull(rule.onFix(fix(240_000L, 1000.0, 0.0, 30.0)))
-        val t = rule.onFix(fix(300_000L, 1300.0, 0.0, 30.0))!!
+        assertNull(rule.on(fix(240_000L, 1000.0, 0.0, 30.0)))
+        val t = rule.on(fix(300_000L, 1300.0, 0.0, 30.0))!!
         assertEquals(60_000L, t.spanStartMs)
         // Capped: a fix that never comes cannot hold for ever.
         val r2 = PositionRule()
-        r2.onFix(fix(0, 0.0, 0.0, 30.0))
+        r2.on(fix(0, 0.0, 0.0, 30.0))
         assertEquals(PositionRule.MAX_HOLD_MS, r2.holdMs(3_600_000L))
+    }
+
+    @Test
+    fun aStillPhoneWhoseFixesWanderTwoKilometresStaysStill() {
+        // 0.7.5, the night 2026-10-22→23: accelerometer still (median ≈ 0.002 m/s²) for 508 minutes, fused
+        // fixes 900–2100 m from the start. Without recent movement the position never switches.
+        val rule = PositionRule()
+        assertNull(rule.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = false))
+        for (i in 1..508) {
+            val east = if (i % 3 == 0) 2000.0 else 900.0 + (i % 7) * 150.0
+            val t = rule.onFix(fix(i * 60_000L, east, 0.0, 40.0), motionRecent = false)
+            assertTrue(t == null || !t.moving, "minute $i")
+        }
+        assertFalse(rule.moving)
+        assertTrue(rule.jumpsIgnored > 0, "kilometre jumps within a minute are ignored")
+        assertNull(rule.pendingAwaySinceMs(motionRecent = false))
+        // The simplest case: still phone, every fix 2000 m away (slowly reached), never MOVING.
+        val r2 = PositionRule()
+        r2.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = false)
+        for (i in 1..60) assertNull(r2.onFix(fix(i * 600_000L, 2000.0, 0.0, 30.0), motionRecent = false))
+        assertFalse(r2.moving)
+        assertEquals(2000.0, r2.distanceM!!, 5.0)
+        assertEquals(0, r2.jumpsIgnored, "2 km in 10 minutes is 12 km/h: not a jump, but still no ride")
+    }
+
+    @Test
+    fun jumpsOfAStillPhoneAndPoorFixesAreIgnored() {
+        val rule = PositionRule()
+        rule.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = false)
+        rule.onFix(fix(60_000L, 20.0, 0.0, 30.0), motionRecent = false)
+        // 2000 m in one minute = 120 km/h from a still phone: ignored, the distance stays.
+        assertNull(rule.onFix(fix(120_000L, 2000.0, 0.0, 30.0), motionRecent = false))
+        assertEquals(1, rule.jumpsIgnored)
+        assertEquals(20.0, rule.distanceM!!, 1.0)
+        assertEquals(60_000L, rule.latestMs)
+        // 30 km/h is the line: 490 m in 60 s = 29.4 km/h is kept, 520 m = 31.2 km/h is not.
+        assertFalse(PositionRule.isJump(0.0, 490.0, 60_000L))
+        assertTrue(PositionRule.isJump(0.0, 520.0, 60_000L))
+        assertTrue(PositionRule.isJump(1000.0, 0.0, 0L), "same time: at least 1 s")
+        // A fix worse than 100 m is ignored whatever the motion.
+        assertNull(rule.onFix(fix(180_000L, 0.0, 0.0, 150.0), motionRecent = true))
+        assertEquals(60_000L, rule.latestMs)
+        // With movement the same jump is a fix like any other (a train): counted.
+        val moving = PositionRule()
+        moving.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = true)
+        assertNull(moving.onFix(fix(60_000L, 2000.0, 0.0, 30.0), motionRecent = true))
+        assertEquals(0, moving.jumpsIgnored)
+        assertEquals(2000.0, moving.distanceM!!, 5.0)
+    }
+
+    @Test
+    fun thePositionSwitchesOnlyWithRecentMovementAndNeverReachesBackIntoStillTime() {
+        val rule = PositionRule()
+        rule.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = false)
+        // An hour on the table, fixes drifting 400 m away (slowly): counted as still, no ride.
+        for (i in 1..60) assertNull(rule.onFix(fix(i * 60_000L, 400.0, 0.0, 30.0), motionRecent = false))
+        assertEquals(60 * 60_000L, rule.lastNearMs, "a still phone's away fix bounds a later span start")
+        // Then the phone is carried off: movement, 4 away fixes in a row switch, the span starts at the last still fix.
+        val t = (61..64).mapNotNull { rule.onFix(fix(it * 60_000L, 400.0 + 300.0 * (it - 60), 0.0, 30.0), motionRecent = true) }.single()
+        assertTrue(t.moving)
+        assertEquals(60 * 60_000L, t.spanStartMs)
+        // One still fix in between resets the count.
+        val r2 = PositionRule()
+        r2.onFix(fix(0, 0.0, 0.0, 30.0), motionRecent = true)
+        (1..3).forEach { assertNull(r2.onFix(fix(it * 60_000L, 300.0 * it, 0.0, 30.0), motionRecent = true)) }
+        assertNull(r2.onFix(fix(4 * 60_000L, 1000.0, 0.0, 30.0), motionRecent = false))
+        assertFalse(r2.moving)
+        // Recent movement = within 3 minutes of the detector's last moving second.
+        assertTrue(PositionRule.motionRecent(1_000_000L, 1_000_000L + 180_000L))
+        assertFalse(PositionRule.motionRecent(1_000_000L, 1_000_000L + 180_001L))
+        assertFalse(PositionRule.motionRecent(null, 0L))
+        // The watch asks the motion watch for it on every fix and at «Stopp».
+        val watch = File(app(), "src/laborKarte/kotlin/ch/lessnoise/app/position/PositionWatch.kt").readText()
+        assertTrue(watch.contains("rule.onFix(f, ageMs, motionRecent = recent)"))
+        assertTrue(watch.contains("rule.pendingAwaySinceMs(recent)"))
+        val motion = File(app(), "src/karte/kotlin/ch/lessnoise/app/motion/MotionWatch.kt").readText()
+        assertTrue(motion.contains("PositionWatch.start(app, handler, lastMovementMs = { lastMovementWall })"))
+        assertTrue(motion.contains("if (combiner.motion || (!std.isNaN() && std >= enterStd)) lastMovementWall = wall"))
     }
 
     @Test

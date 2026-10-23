@@ -42,8 +42,81 @@ class PoliciesAndManifestTest {
         assertTrue(b.full)
         // Already over the cap from earlier sessions: full right away.
         assertTrue(StorageBudget(100, 100).full)
-        assertEquals(2_000_000_000L, (StorageBudget.DEFAULT_GB * StorageBudget.GB).toLong())
-        assertEquals(2_000_000_000L, LaborSettings().maxBytes)
+        // 0.7.5: 5 GB for new installs; the choices are unchanged.
+        assertEquals(5_000_000_000L, (StorageBudget.DEFAULT_GB * StorageBudget.GB).toLong())
+        assertEquals(5_000_000_000L, LaborSettings().maxBytes)
+        assertEquals(listOf(0.5, 1.0, 2.0, 5.0, 10.0), StorageBudget.CHOICES_GB)
+        assertTrue(StorageBudget.DEFAULT_GB in StorageBudget.CHOICES_GB)
+    }
+
+    @Test
+    fun fullAudioBudgetKeepsTheLogsGoingWithinTheMargin() {
+        // 0.7.5: the 2026-10-18 case — the cap is reached; audio stops, the logs go on within the margin.
+        val b = StorageBudget(maxBytes = 1_000, initialUsedBytes = 990, logMarginBytes = 100)
+        assertFalse(b.tryReserve(20)) // a clip no longer fits: audio stops
+        assertTrue(b.full)
+        assertFalse(b.logsFull)
+        val gate = LogGate(b)
+        var written = 0
+        // Manifest and classifier-log lines of 30 bytes: 990 + 3·30 = 1080 ≤ 1100 are written …
+        repeat(3) { assertTrue(gate.write(essential = false) { written++; 30L }) }
+        assertFalse(b.logsFull)
+        // … the 4th crosses cap + margin (1110 > 1100): written, then the margin is used up.
+        assertTrue(gate.write(essential = false) { written++; 30L })
+        assertTrue(b.logsFull)
+        // From now on only essential lines (session_stop, storage_full, logs_full) are written.
+        assertFalse(gate.write(essential = false) { written++; 30L })
+        assertFalse(gate.write(essential = false) { written++; 30L })
+        assertTrue(gate.write(essential = true) { written++; 30L })
+        assertEquals(5, written)
+        assertEquals(2, gate.dropped)
+        // A session that starts already full: audio full at once, logging still allowed.
+        val next = StorageBudget(maxBytes = 1_000, initialUsedBytes = 1_000, logMarginBytes = 100)
+        assertTrue(next.full)
+        assertFalse(next.logsFull)
+        assertTrue(LogGate(next).write(essential = false) { 10L })
+        assertTrue(StorageBudget(1_000, 1_100, 100).logsFull)
+        // Log lines also count towards the audio cap: they can fill it, then the audio stops.
+        val c = StorageBudget(maxBytes = 100, initialUsedBytes = 95, logMarginBytes = 50)
+        assertTrue(c.accountLog(10))
+        assertTrue(c.full)
+        assertFalse(c.tryReserve(1))
+        assertEquals(StorageBudget.LOG_MARGIN_BYTES, StorageBudget(1, 0).logMarginBytes)
+    }
+
+    @Test
+    fun nearCapWarningAndBlock() {
+        val gb = StorageBudget.GB
+        fun level(used: Long, max: Long, on: Boolean = true) = StoragePolicy.level(used, max, on)
+        // 5 GB: warn below max(10 % = 500 MB, 200 MB) = 500 MB free.
+        assertEquals(500_000_000L, StoragePolicy.warnBelowBytes(5 * gb))
+        assertEquals(StoragePolicy.Level.NONE, level(4_500_000_000L, 5 * gb))
+        assertEquals(StoragePolicy.Level.WARN, level(4_500_000_001L, 5 * gb))
+        assertEquals(StoragePolicy.Level.WARN, level(5 * gb - 1, 5 * gb))
+        assertEquals(StoragePolicy.Level.BLOCK, level(5 * gb, 5 * gb))
+        assertEquals(StoragePolicy.Level.BLOCK, level(5 * gb + 150_000_000L, 5 * gb), "beyond the cap (log margin): still blocked")
+        // 1 GB: 10 % = 100 MB < 200 MB, so the 200 MB floor applies.
+        assertEquals(200_000_000L, StoragePolicy.warnBelowBytes(gb))
+        assertEquals(StoragePolicy.Level.NONE, level(800_000_000L, gb))
+        assertEquals(StoragePolicy.Level.WARN, level(800_000_001L, gb))
+        // Recording off: nothing, even when full (the cap applies to audio).
+        assertEquals(StoragePolicy.Level.NONE, level(5 * gb, 5 * gb, on = false))
+        assertEquals(null, StoragePolicy.message(5 * gb, 5 * gb, false))
+        // The texts.
+        assertEquals(
+            "Speicher fast voll: 312 MB frei von 5 GB – Aufnahme würde bald stoppen. Exportieren und löschen, oder Limit erhöhen.",
+            StoragePolicy.message(5 * gb - 312_000_000L, 5 * gb, true),
+        )
+        assertEquals(
+            "Speicher voll: 0 MB frei von 2 GB – Messen startet nicht ohne Platz für die Aufnahme. " +
+                "Exportieren und löschen, Limit erhöhen oder Aufnahme ausschalten.",
+            StoragePolicy.message(2 * gb + 5, 2 * gb, true),
+        )
+        assertEquals("0,5 GB", StoragePolicy.gbLabel(500_000_000L))
+        // «Audio aufzeichnen» on, but neither clips nor hour files: no audio, so no warning or block.
+        assertTrue(StoragePolicy.recordsAudio(LaborSettings(recordAudio = true)))
+        assertFalse(StoragePolicy.recordsAudio(LaborSettings(recordAudio = true, clips = false, continuous = false)))
+        assertFalse(StoragePolicy.recordsAudio(LaborSettings(recordAudio = false)))
     }
 
     // ---- Clip rate --------------------------------------------------------------------------
@@ -240,7 +313,15 @@ class PoliciesAndManifestTest {
         assertTrue(""""fromInputSample":48000,"toInputSample":54000,"durationMs":125,"filledWithSilence":true}""" in gap, gap)
         val stop = ManifestLines.sessionStop("S", t0, zurich, ManifestLines.Counts(clipsWritten = 3, continuousBlocksDropped = 2), false)
         assertTrue(stop.endsWith(""""clipsWritten":3,"clipsSkippedRate":0,"clipsDroppedBusy":0,"clipsDroppedQueue":0,"clipsDroppedStorage":0,""" +
-            """"clipsWithoutEventId":0,"clipErrors":0,"continuousFiles":0,"continuousBlocksDropped":2,"storageFull":false}"""), stop)
+            """"clipsWithoutEventId":0,"clipErrors":0,"continuousFiles":0,"continuousBlocksDropped":2,"clipsSkipped":0,"linesDropped":0,"storageFull":false}"""), stop)
+        // 0.7.5: events without a clip because the audio budget was used up, and lines beyond the log margin.
+        val full = ManifestLines.sessionStop("S", t0, zurich, ManifestLines.Counts(clipsSkipped = 41, linesDropped = 7), true)
+        assertTrue(full.endsWith(""""clipsSkipped":41,"linesDropped":7,"storageFull":true}"""), full)
+        val sf = ManifestLines.storageFull("S", t0, zurich, 2_000_000_100L, 2_000_000_000L)
+        assertTrue(sf.startsWith("""{"type":"storage_full","session":"S","""), sf)
+        assertTrue(sf.endsWith(""""usedBytes":2000000100,"maxBytes":2000000000,"audio":false,"logging":true}"""), sf)
+        val lf = ManifestLines.logsFull("S", t0, zurich, 5_200_000_001L, 5_000_000_000L, 200_000_000L)
+        assertTrue(lf.endsWith(""""usedBytes":5200000001,"maxBytes":5000000000,"marginBytes":200000000}"""), lf)
     }
 
     // ---- Classifier trace and log ------------------------------------------------------------

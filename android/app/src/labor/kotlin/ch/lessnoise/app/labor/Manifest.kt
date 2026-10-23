@@ -298,8 +298,21 @@ object ManifestLines {
             .put("durationMs", (toInputSample - fromInputSample) * 1000 / INPUT_RATE).put("filledWithSilence", filled)
             .build()
 
+    /**
+     * The audio budget is used up: clips and hour files stop, the manifest and the classifier log go on
+     * (0.7.5). Once when it happens, and once at a session start while it is still full.
+     */
     fun storageFull(session: String, nowMs: Long, zone: ZoneId, usedBytes: Long, maxBytes: Long): String =
-        base("storage_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes).build()
+        base("storage_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes)
+            .put("audio", false).put("logging", true).build()
+
+    /**
+     * 0.7.5: even the log margin beyond the cap ([StorageBudget.LOG_MARGIN_BYTES]) is used up: from now on
+     * no `event`, `clip`, `clock`, `gap` lines and no classifier log for this session (`session_stop` still comes).
+     */
+    fun logsFull(session: String, nowMs: Long, zone: ZoneId, usedBytes: Long, maxBytes: Long, marginBytes: Long): String =
+        base("logs_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes)
+            .put("marginBytes", marginBytes).build()
 
     data class Counts(
         val clipsWritten: Long = 0,
@@ -311,6 +324,10 @@ object ManifestLines {
         val clipErrors: Long = 0,
         val continuousFiles: Long = 0,
         val continuousBlocksDropped: Long = 0,
+        /** 0.7.5: events (clips on) that got no clip because the audio budget was used up. */
+        val clipsSkipped: Long = 0,
+        /** 0.7.5: manifest lines and classifier-log lines not written because the log margin was used up. */
+        val linesDropped: Long = 0,
     )
 
     fun sessionStop(session: String, nowMs: Long, zone: ZoneId, c: Counts, storageFull: Boolean): String =
@@ -320,6 +337,7 @@ object ManifestLines {
             .put("clipsDroppedStorage", c.clipsDroppedStorage).put("clipsWithoutEventId", c.clipsWithoutEventId)
             .put("clipErrors", c.clipErrors)
             .put("continuousFiles", c.continuousFiles).put("continuousBlocksDropped", c.continuousBlocksDropped)
+            .put("clipsSkipped", c.clipsSkipped).put("linesDropped", c.linesDropped)
             .put("storageFull", storageFull)
             .build()
 }
@@ -328,12 +346,15 @@ object ManifestLines {
 object ManifestFile {
     private val lock = Any()
 
-    fun append(file: File, line: String) {
+    /** Appends [line]; returns the bytes written (for the log margin, 0.7.5). */
+    fun append(file: File, line: String): Long {
         require('\n' !in line)
+        val bytes = (line + "\n").toByteArray(Charsets.UTF_8)
         synchronized(lock) {
             file.parentFile?.mkdirs()
-            FileOutputStream(file, true).use { it.write((line + "\n").toByteArray(Charsets.UTF_8)) }
+            FileOutputStream(file, true).use { it.write(bytes) }
         }
+        return bytes.size.toLong()
     }
 }
 

@@ -1066,8 +1066,17 @@ asks once), and below it:
   hour and at every start of a measurement. A file is finalised when the hour ends or the
   measurement stops; if the app is killed, at most the current hour's file is lost.
 - «Clip-Rate»: a clip for every event, every 2nd or every 5th (the 1st is always kept).
-- «Maximaler Speicher» (default 2 GB): when the audio folder would exceed it, recording stops
-  and the banner says so; **measuring continues**.
+- «Maximaler Speicher» (default 5 GB since 0.7.5; 0.5/1/2/5/10 GB; a stored choice is kept): an
+  **audio** budget. When the audio folder would exceed it, clips and hour files stop and the banner
+  says so; **measuring and logging continue** — `event` and `clock` lines and the classifier log go
+  on up to 200 MB beyond the cap (`StorageBudget.LOG_MARGIN_BYTES`; then a `logs_full` line and
+  only session lines). `storage_full` is written once when it happens and once per session start
+  while still full; `session_stop` counts `clipsSkipped` (events without a clip because of the
+  cap) and `linesDropped`. Below max(10 % of the cap, 200 MB) free, a red line «Speicher fast voll
+  …» shows on «Messen» and in this section; at the cap, with recording on, «Messen» does not start
+  until recording is switched off, the limit raised, or the files exported and deleted
+  (`StoragePolicy` in `labor/Policies.kt`, tested in `PoliciesAndManifestTest`). Before 0.7.5 a full
+  cap also stopped the manifest.
 
 In addition, while recording is on, every classifier run (once per second) is logged to
 `classifier/<yyyyMMdd_HH>.jsonl`, also where no clip exists, so missed events stay visible.

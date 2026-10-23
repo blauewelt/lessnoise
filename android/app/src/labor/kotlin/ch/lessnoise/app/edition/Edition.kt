@@ -73,6 +73,7 @@ import ch.lessnoise.app.labor.LaborPlayer
 import ch.lessnoise.app.labor.LaborRecorder
 import ch.lessnoise.app.labor.RecorderStatus
 import ch.lessnoise.app.labor.StorageBudget
+import ch.lessnoise.app.labor.StoragePolicy
 import ch.lessnoise.app.labor.toastClipNotFound
 import ch.lessnoise.app.ui.SectionCard
 import ch.lessnoise.app.ui.StatRow
@@ -233,6 +234,47 @@ object EditionUi {
         request?.let { r -> ClipPlayerSheet(r, onDismiss = { LaborPlayer.close() }) }
     }
 
+    /**
+     * 0.7.5: why «Messen» must not start, or null. Audio recording is on and its budget is used up:
+     * the owner switches recording off, raises «Maximaler Speicher» or exports and deletes first.
+     * Blocking (walks the audio folder); called on the tap.
+     */
+    fun startRefusal(context: Context): String? {
+        Labor.init(context)
+        val s = Labor.settings.value
+        val audio = StoragePolicy.recordsAudio(s)
+        if (!audio) return null
+        val used = Labor.dirs(context.applicationContext).usedBytes()
+        return if (StoragePolicy.level(used, s.maxBytes, audio) == StoragePolicy.Level.BLOCK) StoragePolicy.message(used, s.maxBytes, audio) else null
+    }
+
+    /**
+     * 0.7.5: the red line «Speicher fast voll …» / «Speicher voll …» (StoragePolicy), on «Messen» and in
+     * the Labor settings, while audio recording is on and the budget is nearly or fully used up.
+     */
+    @Composable
+    fun StorageNotice() {
+        val context = LocalContext.current
+        remember { Labor.init(context) }
+        val s by Labor.settings.collectAsStateWithLifecycle()
+        val version by Labor.filesVersion.collectAsStateWithLifecycle()
+        val live by context.container.live.collectAsStateWithLifecycle()
+        val dirs = remember { Labor.dirs(context) }
+        val audio = StoragePolicy.recordsAudio(s)
+        val running = live.running
+        val used by produceState<Long?>(null, version, running, audio) {
+            if (!audio) { value = null; return@produceState }
+            while (true) {
+                value = withContext(Dispatchers.IO) { dirs.usedBytes() }
+                if (!running) break
+                delay(30_000)
+            }
+        }
+        val u = used
+        val text = if (u == null) null else StoragePolicy.message(u, s.maxBytes, audio)
+        if (text != null) Text(text, color = LaborRed, style = MaterialTheme.typography.bodySmall)
+    }
+
     /** The permanent red banner above every screen. */
     @Composable
     fun Banner() {
@@ -258,7 +300,7 @@ object EditionUi {
             }
             if (st.storageFull) {
                 Text(
-                    "Speicher voll: Aufnahme gestoppt, die Messung läuft weiter.",
+                    "Speicher voll: Aufnahme gestoppt; Messung und Protokoll laufen weiter.",
                     color = Color.White, style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -402,13 +444,14 @@ object EditionUi {
             Text(
                 "Pro 8 h Messung: durchgehend etwa 230 MB (ca. 30 MB pro Stunde), dazu die Clips mit je etwa 0.4 MB " +
                     "(höchstens 2 MB) und das Klassifikator-Protokoll (jede Sekunde die erkannten Geräusche, ca. 1 MB pro Stunde). " +
-                    "Ist der Speicher voll, stoppt nur die Aufnahme, die Messung läuft weiter. " +
+                    "Ist der Speicher voll, stoppt nur die Aufnahme; Messung und Protokoll laufen weiter. " +
                     "Änderungen gelten ab dem nächsten Start der Messung; Ausschalten stoppt eine laufende Aufnahme sofort.",
                 style = MaterialTheme.typography.bodySmall,
             )
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             val sts = stats
             StatRow("Belegt", if (sts == null) "…" else "${mb(sts.usedBytes)} von ${gbLabel(s.maxGb)}")
+            StorageNotice()
             StatRow("Clips", sts?.clipCount?.toString() ?: "…")
             StatRow("Stundendateien", sts?.hourFiles?.toString() ?: "…")
             StatRow("Klassifikator-Protokolle", sts?.classifierFiles?.toString() ?: "…")
@@ -417,7 +460,7 @@ object EditionUi {
             // 0.6.7, Labor·Karte: the motion detector's state (its changes are in manifest.jsonl, type «motion»).
             if (live.running && BuildConfig.FLAVOR == "laborKarte" && !live.unterwegs) StatRow("Bewegung", if (live.moving) "unterwegs erkannt" else "ruhig")
             if (st.storageFull) {
-                Text("Speicher voll: Die Aufnahme wurde gestoppt, die Messung läuft weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
+                Text("Speicher voll: Die Aufnahme wurde gestoppt; Messung und Protokoll laufen weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
             }
             if (recordingNow && st.droppedThisSession > 0) {
                 Text("Verworfen (Schreiben zu langsam oder Speicher voll): ${st.droppedThisSession}", style = MaterialTheme.typography.bodySmall)

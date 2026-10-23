@@ -28,6 +28,18 @@ import kotlin.math.sqrt
  * - MOVING → STILL only when [NEAR_FIXES] fixes in a row are near the **first** fix again (the
  *   phone came back), otherwise at «Stopp». No new reference: the run's shared point is where it was
  *   started, so a minute measured elsewhere must never be shared with it.
+ *
+ * 0.7.5 — the position no longer overrides a still accelerometer (night 2026-10-22→23: 508 minutes
+ * of a still phone, motion median ≈ 0.002 m/s², while fused fixes wandered 900–2100 m and the rule
+ * said MOVING all night). Each fix comes with `motionRecent` ([motionRecent]: the motion detector
+ * reported movement within [MOTION_RECENT_MS]):
+ * - STILL → MOVING only if `motionRecent` for each of the [AWAY_FIXES] away fixes; an away fix of a
+ *   still phone resets the count and moves [lastNearMs] (the earliest a later span may start) to it,
+ *   so a ride seen later never reaches back into hours of a still phone.
+ * - A fix of a still phone (not `motionRecent`) whose distance from the reference changed faster than
+ *   [MAX_STILL_SPEED_MS] since the last accepted fix is ignored (a jump of the fused provider). The
+ *   change of the distance is a lower bound of the jump, so no second coordinate needs to be kept.
+ * - Fixes less accurate than [MAX_ACCURACY_M] = 100 m are ignored (was 500 m).
  */
 class PositionRule {
     /** One fix as delivered (wall-clock [timeMs]). Not stored, except the first (the reference). */
@@ -52,7 +64,7 @@ class PositionRule {
     var latestMs: Long? = null
         private set
 
-    /** Time of the last fix near the reference (the reference itself at first). */
+    /** Time of the last fix near the reference (the reference itself at first), or (0.7.5) of a still phone's away fix. */
     var lastNearMs: Long? = null
         private set
 
@@ -66,12 +78,23 @@ class PositionRule {
     var fixes = 0
         private set
 
-    /** One fix ([ageMs] old when it arrived). Returns the change it causes, or null. */
-    fun onFix(f: Fix, ageMs: Long = 0L): Transition? {
+    /** Fixes of a still phone ignored as jumps (for the log and the tests). */
+    var jumpsIgnored = 0
+        private set
+
+    /**
+     * One fix ([ageMs] old when it arrived); [motionRecent]: the motion detector reported movement
+     * within [MOTION_RECENT_MS] of the fix ([motionRecent] in the companion). Returns the change it causes, or null.
+     */
+    fun onFix(f: Fix, ageMs: Long = 0L, motionRecent: Boolean): Transition? {
         if (!accept(f.accuracyM, ageMs)) return null
         val prev = latestMs
         if (prev != null && f.timeMs < prev) return null
         val acc = f.accuracyM!!
+        if (referenceMs != null && !motionRecent && prev != null) {
+            val d = distance(refLat, refLon, f.latitude, f.longitude)
+            if (isJump(distanceM ?: 0.0, d, f.timeMs - prev)) { jumpsIgnored++; return null }
+        }
         fixes++
         latestMs = f.timeMs
         if (referenceMs == null) {
@@ -85,7 +108,14 @@ class PositionRule {
         val threshold = max(MIN_DISTANCE_M, refAccuracy + acc)
         distanceM = d
         return if (d > threshold) {
-            away++; near = 0
+            near = 0
+            if (!moving && !motionRecent) {
+                // 0.7.5: a still phone does not start a ride here; it counts as «still here» for a later span start.
+                away = 0
+                lastNearMs = f.timeMs
+                return null
+            }
+            away++
             if (!moving && away >= AWAY_FIXES) {
                 moving = true
                 Transition(f.timeMs, true, lastNearMs ?: f.timeMs, d, threshold)
@@ -105,7 +135,7 @@ class PositionRule {
      * from which the run's end counts as «unterwegs» (the last near fix), else null. Conservative: a
      * ride that the stop cut short is not shared either.
      */
-    fun pendingAwaySinceMs(): Long? = if (!moving && away > 0) lastNearMs else null
+    fun pendingAwaySinceMs(motionRecent: Boolean): Long? = if (!moving && away > 0 && motionRecent) lastNearMs else null
 
     /**
      * How long the upload must hold records at [nowMs] so that a span this rule may still decide
@@ -120,8 +150,11 @@ class PositionRule {
     }
 
     companion object {
-        /** Fixes less accurate than this are ignored (a cell-tower fix of a few km says nothing here). */
-        const val MAX_ACCURACY_M = 500.0
+        /**
+         * Fixes less accurate than this are ignored (a cell-tower fix of a few km says nothing here).
+         * 0.7.5: 100 m (was 500 m; the fused provider's Wi-Fi/cell fixes of a still phone wandered by kilometres).
+         */
+        const val MAX_ACCURACY_M = 100.0
         /** Fixes older than this when they arrive are ignored (a cached last position). */
         const val MAX_AGE_MS = 120_000L
         /** The smallest distance that counts as away, whatever the accuracies. */
@@ -131,6 +164,21 @@ class PositionRule {
         const val HOLD_MARGIN_MS = 10_000L
         /** A fix that never comes cannot hold the upload for ever. */
         const val MAX_HOLD_MS = 600_000L
+        /** 0.7.5: movement the motion detector reported at most this long ago lets the position switch to MOVING. */
+        const val MOTION_RECENT_MS = 180_000L
+        /** 0.7.5: 30 km/h — a still phone's fix implying more than this since the last one is a jump, ignored. */
+        const val MAX_STILL_SPEED_MS = 30.0 / 3.6
+
+        /** 0.7.5: did the motion detector report movement (at [lastMovementMs], wall ms) within [MOTION_RECENT_MS] of [nowMs]? */
+        fun motionRecent(lastMovementMs: Long?, nowMs: Long): Boolean =
+            lastMovementMs != null && nowMs - lastMovementMs <= MOTION_RECENT_MS
+
+        /**
+         * 0.7.5: the distance from the reference went from [fromM] to [toM] in [dtMs]: faster than
+         * [MAX_STILL_SPEED_MS] (dt at least 1 s)? Only applied to fixes of a still phone.
+         */
+        fun isJump(fromM: Double, toM: Double, dtMs: Long): Boolean =
+            kotlin.math.abs(toM - fromM) / (max(dtMs, 1_000L) / 1000.0) > MAX_STILL_SPEED_MS
 
         fun accept(accuracyM: Double?, ageMs: Long): Boolean =
             accuracyM != null && !accuracyM.isNaN() && accuracyM > 0.0 && accuracyM <= MAX_ACCURACY_M && ageMs in 0..MAX_AGE_MS

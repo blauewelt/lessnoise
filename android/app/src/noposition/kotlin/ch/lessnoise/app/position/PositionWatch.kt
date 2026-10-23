@@ -23,5 +23,6 @@ object PositionWatch {
 
     fun foregroundType(context: Context): Int? = null
 
-    fun start(context: Context, handler: Handler, onChange: (Transition) -> Unit): Handle? = null
+    @Suppress("UNUSED_PARAMETER")
+    fun start(context: Context, handler: Handler, lastMovementMs: () -> Long?, onChange: (Transition) -> Unit): Handle? = null
 }

@@ -69,7 +69,12 @@ object PositionWatch {
      * signal. Null if location is not granted or no low-power provider is there.
      */
     @SuppressLint("MissingPermission") // granted() first; a later revocation throws SecurityException, caught
-    fun start(context: Context, handler: Handler, onChange: (PositionRule.Transition) -> Unit): Handle? {
+    fun start(
+        context: Context, handler: Handler,
+        /** 0.7.5: wall ms of the motion detector's latest reported movement, or null; read on [handler]'s thread. */
+        lastMovementMs: () -> Long?,
+        onChange: (PositionRule.Transition) -> Unit,
+    ): Handle? {
         val app = context.applicationContext
         if (!granted(app)) return null
         val lm = app.getSystemService(LocationManager::class.java) ?: return null
@@ -82,7 +87,8 @@ object PositionWatch {
                     timeMs = System.currentTimeMillis() - maxOf(0L, ageMs), latitude = l.latitude, longitude = l.longitude,
                     accuracyM = if (l.hasAccuracy()) l.accuracy.toDouble() else null,
                 )
-                val t = synchronized(lock) { rule.onFix(f, ageMs) }
+                val recent = PositionRule.motionRecent(lastMovementMs(), f.timeMs)
+                val t = synchronized(lock) { rule.onFix(f, ageMs, motionRecent = recent) }
                 if (t != null) onChange(t)
             }
 
@@ -116,7 +122,8 @@ object PositionWatch {
             override fun holdMs(nowMs: Long): Long = synchronized(lock) { rule.holdMs(nowMs) }
             override fun stop(): Long? {
                 runCatching { lm.removeUpdates(listener) }
-                return synchronized(lock) { rule.pendingAwaySinceMs() }
+                val recent = PositionRule.motionRecent(lastMovementMs(), System.currentTimeMillis())
+                return synchronized(lock) { rule.pendingAwaySinceMs(recent) }
             }
         }
     }

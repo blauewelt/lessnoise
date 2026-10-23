@@ -72,6 +72,13 @@ object EditionUi {
     @Composable
     fun SettingsSection() {}
 
+    /** Why «Messen» must not start (Labor: audio budget used up), or null. Public: never refused. */
+    fun startRefusal(@Suppress("UNUSED_PARAMETER") context: Context): String? = null
+
+    /** A red storage line on «Messen» (Labor: «Speicher fast voll …»). Public: nothing. */
+    @Composable
+    fun StorageNotice() {}
+
     /** Marker after an event in «Letzte Lärmspitzen» (Labor: a red dot if a clip exists, tap plays it). */
     @Composable
     fun EventMarker(@Suppress("UNUSED_PARAMETER") eventId: Long) {}
