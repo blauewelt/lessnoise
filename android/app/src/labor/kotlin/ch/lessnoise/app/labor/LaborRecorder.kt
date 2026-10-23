@@ -405,6 +405,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         fun close(reason: String) {
             val w = writer ?: return
             writer = null
+            Labor.openContinuousFile = null
             w.close()
             if (w.file.exists()) {
                 queue.offer(Line(ManifestLines.continuousClose(sessionId, System.currentTimeMillis(), zone, "continuous/$fileName", w.samplesWritten, w.file.length(), reason)))
@@ -418,6 +419,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
             dirs.continuous.mkdirs()
             writer = AacFileWriter(File(dirs.continuous, fileName), account = { b -> budget.account(b) })
             fileStartOut = outCount
+            Labor.openContinuousFile = "continuous/$fileName"
             continuousFiles.incrementAndGet()
             queue.offer(Line(ManifestLines.continuousOpen(sessionId, System.currentTimeMillis(), zone, "continuous/$fileName", startInput, epochMsAt(startInput + 2))))
         }
@@ -478,6 +480,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         } catch (_: InterruptedException) {
             try { close("interrupted") } catch (_: Exception) {}
         } finally {
+            Labor.openContinuousFile = null
             q.clear()
             publishDrops()
             queue.offer(AacDone)

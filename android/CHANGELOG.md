@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Labor editions only (branch labor-export)
+
+- **«In Ordner exportieren»** (Labor and Labor·Karte, Einstellungen › Labor) replaces «Ordner
+  anzeigen», which opened `Android/data/…` that Android 11+ hides from file managers. The first
+  press (or «Ordner wählen») opens Android's folder picker — Downloads, USB or the Google Drive
+  app —, the grant is persisted, and every later press copies only the files that are not yet
+  there (ledger of path + size + lastModified; the manifest always, the hour file being written
+  never). Progress and a final «Exportiert: n Dateien, x MB nach …» line in the section.
+- **«Als ZIP teilen»** no longer refuses when the hour files exceed 500 MB: the ZIP leaves them
+  out and the dialog says so (the folder export covers them).
+- Nothing changes in the Offline- and Online-Version; no new permission (the folder grant is a
+  per-folder URI permission from the picker, not a manifest permission).
+
 ## 0.7.3 — Labor·Karte only, not published (branch event-head) (versionCode 26)
 
 In short: the Labor·Karte build logs the event head's scores (v2) next to the old category —

@@ -1074,7 +1074,30 @@ In addition, while recording is on, every classifier run (once per second) is lo
 
 Settings apply from the next start of a measurement; switching recording off stops it at once.
 The section also shows the space used and the number of clips and hour files, and has
-«Ordner anzeigen», «Als ZIP teilen» and «Alle Aufnahmen löschen».
+«In Ordner exportieren» (with «Ordner wählen» and «Wo sind die Dateien?»), «Als ZIP teilen» and
+«Alle Aufnahmen löschen».
+
+**Folder export (branch labor-export, Labor editions only).** «In Ordner exportieren» copies the
+recording folder into a folder the owner picks once through Android's folder picker (the Storage
+Access Framework, `ACTION_OPEN_DOCUMENT_TREE`): Downloads, a USB stick, or the Google Drive app,
+which the picker offers as a destination. The grant is persisted (`takePersistableUriPermission`,
+read + write) and the tree URI kept in the Labor SharedPreferences (`export_tree_uri`); later
+presses export without asking, «Ordner wählen» picks a new folder (which starts with an empty
+ledger). The copy is incremental: `labor/LaborExport.kt` lists `manifest.jsonl`, `clips/*.wav`,
+`classifier/*.jsonl` and `continuous/*.m4a` (the hour file being written, `Labor.openContinuousFile`,
+is left out until the measurement stops), compares each against a ledger of relative path + size +
+lastModified (`filesDir/labor-export-ledger.tsv`, one line per file, rewritten after every copied
+file so an interrupted export resumes) and copies only what is new or changed — the manifest
+always, because it grows. Sub-folders are created in the tree with `DocumentsContract`
+(`LaborExportSaf.kt`), an existing file of the same name is replaced, the copy runs in 1 MB chunks
+on `Dispatchers.IO` with «Export: n von m Dateien, x MB von y MB» in the section and ends with
+«Exportiert: n Dateien, x MB nach ‹Ordner›». A failed file is reported in the message line and
+copied again next time; a lost grant (`SecurityException`, e.g. after the folder was deleted)
+forgets the folder and asks for it again. «Alle Aufnahmen löschen» also clears the ledger. «Als ZIP
+teilen» no longer refuses when the hour files exceed 500 MB: the ZIP then simply leaves them out
+and says so (the folder export covers them). Tests: `IncrementalExportTest` (ledger round trip,
+sources and the open hour file, incremental second run, failed file retried, lost permission,
+cancel) with an in-memory sink.
 
 **Where the files are:** `Android/data/ch.lessnoise.labor/files/audio/` on the phone's shared
 storage (`getExternalFilesDir(null)/audio`):
@@ -1087,7 +1110,8 @@ audio/continuous/<yyyyMMdd_HH>.m4a         (_2, _3 … if the hour already has a
 ```
 
 The folder is visible over USB (file transfer). Many file managers on the phone may no longer
-open `Android/data` since Android 11; then use «Als ZIP teilen» or USB.
+open `Android/data` since Android 11; then use «In Ordner exportieren» (see above), «Als ZIP
+teilen» or USB.
 
 **Storage per 8 h of measurement:** continuous ≈ 29 MB/h (64 kbit/s) ≈ 230 MB; clips ≈ 32 kB per second
 of clip, typically 0.3–0.5 MB each (at most 1.9 MB), e.g. 100 events ≈ 40 MB; classifier log

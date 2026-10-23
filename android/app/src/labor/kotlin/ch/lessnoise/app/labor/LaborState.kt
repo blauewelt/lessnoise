@@ -45,6 +45,8 @@ object Labor {
     val status = MutableStateFlow(RecorderStatus())
     /** Session id of the newest recorder (older ones may still be finishing their files). */
     @Volatile var currentSession: String? = null
+    /** The hour file being written right now (`continuous/<name>`), or null; the folder export leaves it out. */
+    @Volatile var openContinuousFile: String? = null
     /** Event ids that have a clip on disk (for the marker in «Letzte Ereignisse»). */
     val clipEventIds = MutableStateFlow<Set<Long>>(emptySet())
     /** Bumped whenever files were written or deleted (refreshes the storage figures). */

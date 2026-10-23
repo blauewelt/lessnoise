@@ -1,11 +1,12 @@
 package ch.lessnoise.app.edition
 
 import java.util.Locale
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.provider.DocumentsContract
+import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +61,10 @@ import ch.lessnoise.app.labor.ClipLibrary
 import ch.lessnoise.app.labor.ClipPlayerSheet
 import ch.lessnoise.app.labor.ClipRateSampler
 import ch.lessnoise.app.labor.ClipsListDialog
+import ch.lessnoise.app.labor.ExportProgress
+import ch.lessnoise.app.labor.IncrementalExport
+import ch.lessnoise.app.labor.LaborExportStore
+import ch.lessnoise.app.labor.SafExportSink
 import ch.lessnoise.app.labor.Labor
 import ch.lessnoise.app.labor.ManifestFile
 import ch.lessnoise.app.labor.ManifestLines
@@ -273,13 +278,84 @@ object EditionUi {
         val dirs = remember { Labor.dirs(context) }
         val scope = rememberCoroutineScope()
         var confirmOn by remember { mutableStateOf(false) }
-        var showFolder by remember { mutableStateOf(false) }
+        var exportBusy by remember { mutableStateOf(false) }
+        var exportProgress by remember { mutableStateOf<ExportProgress?>(null) }
+        var exportInfo by remember { mutableStateOf(false) }
+        var exportDone by remember { mutableStateOf<String?>(null) }
         var zipPlan by remember { mutableStateOf<LaborDirs.Stats?>(null) }
         var zipBusy by remember { mutableStateOf(false) }
         var confirmDelete by remember { mutableStateOf(false) }
         var showClips by remember { mutableStateOf(false) }
         var message by remember { mutableStateOf<String?>(null) }
         val recordingNow = st.recording && live.running
+
+        // «In Ordner exportieren» (branch labor-export): copies what is not yet in the picked folder. The hour
+        // file being written is left out (Labor.openContinuousFile); the manifest is always re-copied.
+        fun runExport(tree: Uri) {
+            exportBusy = true
+            exportProgress = null
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    try {
+                        val ledger = LaborExportStore.loadLedger(context)
+                        val sources = IncrementalExport.sources(dirs, Labor.openContinuousFile)
+                        val plan = IncrementalExport.plan(sources, ledger)
+                        val sink = SafExportSink(context.contentResolver, tree, LaborExportStore.treeName(context, tree))
+                        val r = IncrementalExport.run(
+                            plan, ledger, sink,
+                            onProgress = { exportProgress = it },
+                            onFileDone = { LaborExportStore.saveLedger(context, ledger) },
+                        )
+                        LaborExportStore.saveLedger(context, ledger)
+                        Result.success(r to (sources.size - plan.size))
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                }
+                exportBusy = false
+                exportProgress = null
+                outcome.fold(
+                    onSuccess = { (r, skipped) ->
+                        exportDone = buildString {
+                            append("Exportiert: ${r.filesCopied} Dateien, ${mb(r.bytesCopied)} nach ${r.destination}")
+                            if (skipped > 0) append(" ($skipped schon vorhanden)")
+                            if (r.failures.isNotEmpty()) append("; ${r.failures.size} fehlgeschlagen: ${r.failures.first().first} (${r.failures.first().second})")
+                            append(".")
+                        }
+                    },
+                    onFailure = { e ->
+                        message = if (e is SecurityException) {
+                            LaborExportStore.setTreeUri(context, null)
+                            "Zugriff auf den Export-Ordner verloren; bitte den Ordner neu wählen."
+                        } else "Export nicht möglich: ${e.javaClass.simpleName}"
+                    },
+                )
+            }
+        }
+        val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                LaborExportStore.changeTree(context, uri)
+                runExport(uri)
+            } catch (e: Exception) {
+                message = "Ordner nicht verwendbar: ${e.javaClass.simpleName}"
+            }
+        }
+        fun exportOrPick() {
+            val tree = LaborExportStore.treeUri(context)
+            if (tree != null && LaborExportStore.hasPermission(context, tree)) runExport(tree)
+            else {
+                if (tree != null) LaborExportStore.setTreeUri(context, null)
+                try {
+                    pickFolder.launch(null)
+                } catch (e: Exception) {
+                    message = "Kein Ordner-Dialog verfügbar: ${e.javaClass.simpleName}"
+                }
+            }
+        }
 
         val stats by produceState<LaborDirs.Stats?>(null, version, recordingNow) {
             while (true) {
@@ -348,11 +424,25 @@ object EditionUi {
             }
             OutlinedButton(onClick = { showClips = true }, enabled = (sts?.clipCount ?: 0) > 0) { Text("Clips anhören") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { showFolder = true }) { Text("Ordner anzeigen") }
+                OutlinedButton(enabled = !exportBusy, onClick = { exportOrPick() }) { Text(if (exportBusy) "Export …" else "In Ordner exportieren") }
                 OutlinedButton(
                     enabled = !zipBusy,
                     onClick = { scope.launch { zipPlan = withContext(Dispatchers.IO) { dirs.stats() } } },
                 ) { Text(if (zipBusy) "ZIP …" else "Als ZIP teilen") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(enabled = !exportBusy, onClick = {
+                    try { pickFolder.launch(null) } catch (e: Exception) { message = "Kein Ordner-Dialog verfügbar: ${e.javaClass.simpleName}" }
+                }) { Text("Ordner wählen") }
+                TextButton(onClick = { exportInfo = true }) { Text("Wo sind die Dateien?") }
+            }
+            exportDone?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            exportProgress?.let { p ->
+                Text(
+                    "Export: ${minOf(p.filesDone + 1, p.filesTotal)} von ${p.filesTotal} Dateien, ${mb(p.bytesDone)} von ${mb(p.bytesTotal)}" +
+                        if (p.current.isNotEmpty()) " – ${p.current.substringAfterLast('/')}" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             OutlinedButton(enabled = !recordingNow, onClick = { confirmDelete = true }) { Text("Alle Aufnahmen löschen") }
             if (recordingNow) Text("Löschen ist während einer Aufnahme nicht möglich.", style = MaterialTheme.typography.bodySmall)
@@ -377,25 +467,24 @@ object EditionUi {
             )
         }
 
-        if (showFolder) {
+        if (exportInfo) {
             val rel = "Android/data/${context.packageName}/files/audio"
+            val tree = LaborExportStore.treeUri(context)
             AlertDialog(
-                onDismissRequest = { showFolder = false },
+                onDismissRequest = { exportInfo = false },
                 title = { Text("Aufnahme-Ordner") },
                 text = {
                     Text(
-                        "Interner Speicher › $rel\n\n${dirs.root.absolutePath}\n\n" +
-                            "Am Computer (USB, Dateiübertragung) ist der Ordner sichtbar. Viele Dateimanager auf dem Telefon " +
-                            "dürfen Android/data ab Android 11 nicht mehr öffnen; dann bitte «Als ZIP teilen» oder USB verwenden."
+                        "Die Aufnahmen liegen im internen Speicher unter $rel. Dateimanager auf dem Telefon dürfen Android/data " +
+                            "ab Android 11 nicht mehr öffnen; am Computer (USB, Dateiübertragung) ist der Ordner sichtbar.\n\n" +
+                            "«In Ordner exportieren» kopiert alles, was noch fehlt, in einen Ordner deiner Wahl – Downloads, ein USB-Stick " +
+                            "oder die Google-Drive-App (sie erscheint im Ordner-Dialog als Ziel). Die Unterordner clips, classifier und " +
+                            "continuous bleiben erhalten; das Manifest wird jedes Mal neu kopiert, die laufende Stundendatei erst nach dem " +
+                            "Stopp der Messung. Ein neuer Ordner lässt sich mit «Ordner wählen» setzen." +
+                            if (tree != null) "\n\nAktueller Export-Ordner: ${LaborExportStore.treeName(context, tree)}" else "\n\nNoch kein Export-Ordner gewählt."
                     )
                 },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showFolder = false
-                        if (!openFolder(context, rel)) message = "Kein Dateimanager kann den Ordner öffnen. Pfad: ${dirs.root.absolutePath}"
-                    }) { Text("Im Dateimanager öffnen") }
-                },
-                dismissButton = { TextButton(onClick = { showFolder = false }) { Text("Schliessen") } },
+                confirmButton = { TextButton(onClick = { exportInfo = false }) { Text("Schliessen") } },
             )
         }
 
@@ -412,7 +501,7 @@ object EditionUi {
                             if (withContinuous) append(" sowie ${plan.hourFiles} Stundendateien")
                             append(", etwa ${mb(total)}.")
                             if (plan.continuousBytes >= LaborDirs.ZIP_CONTINUOUS_LIMIT) {
-                                append("\n\nDie Stundendateien (${mb(plan.continuousBytes)}) sind für ein ZIP zu gross; bitte per USB kopieren.")
+                                append("\n\nOhne die ${plan.hourFiles} Stundendateien (${mb(plan.continuousBytes)}, zu gross für ein ZIP); «In Ordner exportieren» kopiert sie.")
                             }
                             if (total > 100_000_000L) append("\n\nDas ZIP ist gross; nicht jede App kann es versenden.")
                             if (recordingNow) append("\n\nDie laufende Stundendatei ist erst nach dem Stopp der Messung lesbar.")
@@ -460,6 +549,7 @@ object EditionUi {
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 dirs.deleteAll()
+                                LaborExportStore.clearLedger(context)
                                 File(context.externalCacheDir ?: context.cacheDir, "labor_share").listFiles()?.forEach { it.delete() }
                                 Labor.refreshClipIds(dirs)
                             }
@@ -518,22 +608,4 @@ private fun gbLabel(gb: Double): String =
 private fun mb(bytes: Long): String = when {
     bytes >= 1_000_000_000L -> String.format(Locale.GERMANY, "%.2f GB", bytes / 1e9)
     else -> String.format(Locale.GERMANY, "%.1f MB", bytes / 1e6)
-}
-
-/** Tries to open the folder in DocumentsUI (blocked for Android/data on many Android 11+ devices). */
-private fun openFolder(context: Context, relativePath: String): Boolean {
-    val uri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:$relativePath")
-    val intents = listOf(
-        Intent(Intent.ACTION_VIEW).setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR),
-        Intent(Intent.ACTION_VIEW).setDataAndType(uri, "resource/folder"),
-    )
-    for (i in intents) {
-        try {
-            context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
-            return true
-        } catch (_: ActivityNotFoundException) {
-        } catch (_: SecurityException) {
-        }
-    }
-    return false
 }
