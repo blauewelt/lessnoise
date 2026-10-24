@@ -160,7 +160,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (suggested.isEmpty()) {
                         ReportCategory.entries.forEach { cat ->
-                            Button(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                            OutlinedButton(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
                         }
                     } else {
                         // From the «Sehr laut» notification: the categories that fit the detected
