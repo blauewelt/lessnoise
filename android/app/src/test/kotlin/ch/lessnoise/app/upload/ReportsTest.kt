@@ -4,9 +4,9 @@ import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.ui.REPORT_CONSENT_TEXT
+import ch.lessnoise.app.ui.REPORT_SEND_NOTE
 import ch.lessnoise.app.ui.REPORT_SPOT_WARNING
-import ch.lessnoise.app.ui.reportConfirmDialogText
-import ch.lessnoise.app.ui.reportConfirmText
+import ch.lessnoise.app.ui.reportFixLine
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -54,11 +54,6 @@ class ReportsTest {
         // 0.6.4: «anderes Fahrzeug» (was «anderes»); the id stays «andere».
         assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Poser", "anderes Fahrzeug"), ReportCategory.entries.map { it.label })
         assertEquals("andere", ReportCategory.ANDERE.id)
-        val t = java.time.ZonedDateTime.of(2026, 10, 16, 18, 42, 5, 0, java.time.ZoneId.of("Europe/Zurich")).toInstant().toEpochMilli()
-        assertEquals(
-            "Meldung: anderes Fahrzeug, 18:42, Standort ± 12 m – senden?",
-            ch.lessnoise.app.ui.reportConfirmText(ReportCategory.ANDERE, t, 12, java.time.ZoneId.of("Europe/Zurich")),
-        )
         // What is sent is the id, never the label.
         assertEquals("andere", Payloads.report(report().copy(category = ReportCategory.ANDERE.id))["category"]!!.jsonPrimitive.content)
         for (c in ReportCategory.entries) assertEquals(c, ReportCategory.fromId(c.id))
@@ -204,10 +199,11 @@ class ReportsTest {
     @Test
     fun aPoorFixIsReportedAsItIsWithItsAccuracy() {
         // 0.6.7: the owner's «Zu ungenau (± 107 m)» case. The fix becomes the report, the
-        // confirmation says «Standort ± 107 m», and the body carries the accuracy as given.
+        // dialog says «Standort ± 107 m» (0.8.1: the fix line of the one dialog), and the body
+        // carries the accuracy as given.
         val fix = ch.lessnoise.app.location.LocationPolicy.decideReport(47.376912345, 8.541694321, 106.24, precise = true)
         assertIs<ch.lessnoise.app.location.LocationPolicy.ReportOutcome.Fix>(fix)
-        assertEquals("Meldung: Töff, 16:05, Standort ± 107 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, fix.accuracyText, zone))
+        assertEquals("Standort ± 107 m", reportFixLine(fix.accuracyText))
         val r = PendingReport(
             epochMs = now, timeIso = PendingReport.isoSeconds(now, zone),
             lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM, category = ReportCategory.MOTORRAD.id, cell = fix.cell,
@@ -215,32 +211,34 @@ class ReportsTest {
         val o = Payloads.report(r)
         assertEquals("106.2", o["accuracy_m"].toString())
         assertEquals("47.37691", o["lat"].toString(), "the place as the phone has it, not shifted")
-        // The flow: a Fix always goes to the confirmation; only a Problem shows «Kein genauer Standort».
+        // The flow (0.8.1, one dialog): a Fix with a tapped category is sent; only a Problem shows
+        // «Kein genauer Standort» (ReportFlowTest pins the decision itself).
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
-        assertTrue(ui.contains("is LocationPolicy.ReportOutcome.Fix -> ReportStep.Confirm(category, o)"))
-        // 0.7.0: the direction of travel (if taken) is passed along too; 0.7.6: and the licence plate (shown, never sent).
-        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction, plate = plate)"))
+        assertTrue(ui.contains("ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading)"))
+        assertTrue(ui.contains("ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)"))
+        // 0.7.0: the direction of travel (if read) goes with it; 0.7.6: and the licence plate (kept, never sent).
+        assertTrue(ui.contains("category = category.id, cell = fix.cell, direction = direction, plate = plate,"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }
 
     @Test
     fun textsAreShortAndSayWhatIsSent() {
-        assertEquals("Meldung: Töff, 16:05, Standort ± 12 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, 12, zone))
         for (part in listOf("Zeit", "genauer Standort", "Art des Lärms", "nie Audio", "Lärmkarte", "gleichen Ort", "«Vom Server löschen»")) {
             assertTrue(REPORT_CONSENT_TEXT.contains(part), part)
         }
         assertFalse(REPORT_CONSENT_TEXT.contains('ß'))
-        // DESIGN.md §2 rule 10: the report screen states the risk, on every confirmation (0.6.3:
-        // the consent above is skipped once sharing is on).
+        // DESIGN.md §2 rule 10: the report screen states the risk, on every report (0.6.3: the
+        // consent above is skipped once sharing is on). Since 0.8.1 there is no confirmation: the
+        // line is in the one «Laut! Melden» dialog, unconditionally, next to «Antippen sendet die Meldung.».
         assertEquals("Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.", REPORT_SPOT_WARNING)
-        assertEquals(
-            "Meldung: Töff, 16:05, Standort ± 12 m – senden?\nWer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.",
-            reportConfirmDialogText(ReportCategory.MOTORRAD, now, 12, zone),
-        )
+        assertEquals("Antippen sendet die Meldung.", REPORT_SEND_NOTE)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
-        assertTrue(ui.contains("Text(reportConfirmDialogText("), "the «Meldung» dialog shows the warning")
-        assertFalse(ui.contains("Text(reportConfirmText("), "no confirmation without the warning")
+        val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        val line = dialog.lines().single { it.contains("Text(REPORT_SPOT_WARNING") }
+        assertTrue(line.trimStart().startsWith("Text(REPORT_SPOT_WARNING"), "shown on every report, not behind a condition: $line")
+        assertTrue(dialog.contains("Text(REPORT_SEND_NOTE"), "the single tap is announced")
+        assertFalse(ui.contains("reportConfirm"), "0.8.1: no confirmation any more (owner's decision)")
     }
 
     // ---- 0.7.6: «Kontrollschild», on the phone only ------------------------------------------------

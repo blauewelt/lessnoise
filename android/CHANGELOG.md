@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.1 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 33)
+
+In short: «Laut! Melden» is one dialog, and one tap on what was loud sends the report. Until 0.7.8
+it took three dialogs and three taps («Was war laut?» → «Wohin fuhr es?» → «Meldung … – senden?»).
+Same data, same hosts, the one fix, the plate on the phone only. 32/0.8.0 is the public release on
+another branch; this build carries the next number so it installs over it on the test phone.
+
+- **One dialog «Laut! Melden»** (after the first-use consent, unchanged): the compass disc with the
+  streets (200 dp, was 240 dp; tiles still Labor·Karte only) and «Nordost · 47°», the line «Telefon
+  in die Fahrtrichtung halten» (or the figure-eight hint), «Standort wird gesucht …» / «Standort ± n m»,
+  «Kontrollschild (optional)», the six categories in two columns (suggested ones first with
+  «erkannt», now under the label), «Antippen sendet die Meldung.», the rule-10 line «Wer oft vom
+  gleichen Ort meldet, macht ihn auf der Karte sichtbar.», and «Abbrechen». Scrollable on small
+  screens; a tap outside does nothing.
+- **Tapping a category sends**: that category, the compass reading of that instant (true north with
+  the declination at the fix; none without a compass or before its first reading), the plate, the
+  time, the fix. **No confirmation any more** (owner's decision): «Senden», «Richtung übernehmen» and
+  «Überspringen» are gone.
+- **The fix starts when the dialog opens** (was: after the category), so it is usually there before
+  the tap. Tapped earlier: the buttons are disabled under a progress bar and the report goes out when
+  the fix arrives. No fix: «Kein genauer Standort» → «Nochmals» returns to the dialog with the category
+  kept. Labor·Karte: the swisstopo tiles are therefore requested as soon as the dialog has its fix,
+  also if the person then cancels (PRIVACY.md).
+- Code: `ReportDirectionUi` keeps the disc (`Panel`) and the compass (`rememberReading`, which owns
+  the sensors and the orientation lock for the dialog's lifetime); the Step composable is gone; the
+  `src/nomap` stand-in has the same API. `reportConfirmDialogText`, `reportConfirmText` and
+  `reportPlateLine` are deleted (nothing uses them). New pure helpers `reportCategoryRows`,
+  `reportNext` (CHOOSE / WAIT / SEND / FAILED), `reportFixLine`.
+- Tests: new `ReportFlowTest`; `ReportsTest`, `ShareTextsTest`, `ReportDirectionTest` no longer test
+  the confirmation texts; `LoudAlertIsolationTest` pins the stand-in's API; `ReportMapTilesTest` the
+  200 dp disc; `EditionTextTest` 33 / 0.8.1.
+
 ## 0.7.8 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 31)
 
 In short: in «Wohin fuhr es?» the reporter now sees the real streets around them under the arrow,

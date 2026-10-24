@@ -9,16 +9,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -33,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import ch.lessnoise.app.compass.Compass
@@ -62,23 +59,22 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 /**
- * The direction step of «Laut! Melden» (0.6.7, editions with the map; the Offline and Labor builds
- * get the stand-in in src/nomap): right after «Was war laut?», while the location fix is being
- * found, the reporter points the phone where the vehicle drove and taps «Richtung übernehmen»; one
- * tap on «Überspringen» sends the report without a direction, exactly as before 0.6.7. No new
- * permission. Not shown at all on a phone without a compass ([supported]).
+ * The compass of «Laut! Melden» (0.6.7, editions with the map; the Offline and Labor builds get the
+ * stand-in in src/nomap). Until 0.7.8 it was its own step «Wohin fuhr es?» after «Was war laut?»;
+ * since 0.8.1 (Labor·Karte, branch labor-one-tap) it is the top of the one «Laut! Melden» dialog
+ * (LocationFlows.kt): that dialog owns the compass ([rememberReading]) and reads the current value
+ * at the instant a category is tapped, which sends the report; [Panel] draws the disc. No new
+ * permission. On a phone without a compass [rememberReading] is null and no disc is drawn.
  */
 object ReportDirectionUi {
     const val AVAILABLE = true
 
-    const val TITLE = "Wohin fuhr es?"
-    const val INSTRUCTION = "Halte das Telefon in die Fahrtrichtung."
+    /** 0.8.1: the one line under the live label (replaced by [CALIBRATE_HINT] while the compass is unreliable). */
+    const val POINT_HINT = "Telefon in die Fahrtrichtung halten"
     const val CALIBRATE_HINT = "Kompass ungenau: Telefon in Form einer Acht bewegen."
-    const val TAKE = "Richtung übernehmen"
-    const val SKIP = "Überspringen"
 
-    /** Whether the phone has the sensors for the step (rotation vector, or accelerometer + magnetometer). */
-    fun supported(context: Context): Boolean = Compass(context, { 0 }) { _, _ -> }.available
+    /** 0.8.1: the disc's size (0.7.8: 240 dp in its own dialog); it still shows 300 m across. */
+    const val DISC_DP = 200
 
     /**
      * Magnetic declination (degrees, east positive) at the report's own place and time, from
@@ -101,80 +97,73 @@ object ReportDirectionUi {
         return ReportDirection(d, ReportDirection.North.MAGNETIC, ReportDirection.Accuracy.HIGH).label.removePrefix("Richtung ") + " · $d°"
     }
 
-    /** 0.7.8: under the live label while the fix is searched (Labor·Karte, where the streets follow it). */
-    const val LOCATING = "Standort wird gesucht …"
-
     /** 0.7.8: the credit under the disc while swisstopo's tiles are drawn. */
     const val TILE_ATTRIBUTION = "© swisstopo"
 
     /**
-     * The step as a dialog. [onTake] gets the reading at the tap; [onSkip] goes on without one;
-     * [onCancel] (back) cancels the whole report, like «Abbrechen» in the other steps. A tap outside
-     * does nothing, so waving the phone cannot cancel by accident. [fix] (0.7.8; latitude, longitude)
-     * is the report's location fix once it is there, null while it is searched: in Labor·Karte
-     * ([ReportMapTiles.ENABLED]) the real streets around it are drawn under the arrow; the
-     * Online-Version ignores it and shows the rose alone.
+     * The live compass for as long as the calling dialog is in the composition (0.8.1; until 0.7.8
+     * inside the step dialog): the latest reading as state, or null when the phone has no compass
+     * (then the report carries no direction). While it is composed the screen keeps its rotation
+     * (turning the phone flat or upright must not recreate the activity, which would end the report,
+     * nor turn the arrow); the sensors run only while the app is in front.
      */
     @Composable
-    fun Step(fix: Pair<Double, Double>?, onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) {
+    fun rememberReading(): State<CompassReading?>? {
         val context = LocalContext.current
-        var reading by remember { mutableStateOf<CompassReading?>(null) }
+        val reading = remember { mutableStateOf<CompassReading?>(null) }
         val compass = remember {
-            Compass(context, displayRotation = { displayRotation(context) }) { deg, status -> reading = CompassReading(deg, status) }
+            Compass(context, displayRotation = { displayRotation(context) }) { deg, status -> reading.value = CompassReading(deg, status) }
         }
-        // While the step is open the screen keeps its rotation: turning the phone flat or upright
-        // must not recreate the activity (it would end the report) nor turn the arrow.
         DisposableEffect(Unit) {
             val activity = context.findActivity()
             val before = activity?.requestedOrientation
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
             onDispose { if (activity != null && before != null) activity.requestedOrientation = before }
         }
-        // Sensors only while the step is on screen and the app is in front.
         LifecycleResumeEffect(compass) {
             compass.start()
             onPauseOrDispose { compass.stop() }
         }
+        return if (compass.available) reading else null
+    }
+
+    /**
+     * The disc (0.8.1, 200 dp; the drawing of 0.7.8), the live label «Nordost · 47°» and one line
+     * under it: [POINT_HINT], or [CALIBRATE_HINT] while the compass is unreliable. [reading] is the
+     * caller's [rememberReading] (read here, so that only this panel follows the sensor). [fix]
+     * (latitude, longitude) is the report's location fix once it is there, null while it is
+     * searched: in Labor·Karte ([ReportMapTiles.ENABLED]) the real streets around it are drawn
+     * under the arrow; the Online-Version ignores it and shows the rose alone.
+     */
+    @Composable
+    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?) {
         val tiles = rememberStreetTiles(fix)
         // Map north is true north; the compass reads magnetic north. The tiles are turned by the
         // true heading (declination at the fix, Android's built-in model, no network).
         val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
-        val r = reading
-        AlertDialog(
-            onDismissRequest = onCancel,
-            // 0.7.8: wider than the platform's dialog width, so that the 240 dp disc fits on a narrow phone.
-            properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxWidth(0.94f),
-            title = { Text(TITLE) },
-            text = {
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(INSTRUCTION, modifier = Modifier.fillMaxWidth())
-                    DirectionArrow(r?.magneticDeg, declination, fix, tiles)
-                    if (tiles.isNotEmpty() && r != null) {
-                        Text(TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text(
-                        if (r == null) "…" else liveLabel(r.magneticDeg),
-                        style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
-                    )
-                    if (ReportMapTiles.ENABLED && fix == null) {
-                        Text(LOCATING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                    }
-                    if (r != null && showCalibrationHint(r.sensorStatus)) {
-                        Text(CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { reading?.let(onTake) }, enabled = r != null) { Text(TAKE) } },
-            dismissButton = { TextButton(onClick = onSkip) { Text(SKIP) } },
-        )
+        val r = reading.value
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            DirectionArrow(r?.magneticDeg, declination, fix, tiles)
+            if (tiles.isNotEmpty() && r != null) {
+                Text(TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                if (r == null) "…" else liveLabel(r.magneticDeg),
+                style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
+            )
+            if (r != null && showCalibrationHint(r.sensorStatus)) {
+                Text(CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            } else {
+                Text(POINT_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+        }
     }
 
     /**
-     * 0.7.8, Labor·Karte only: swisstopo's tiles around [fix], downloaded while the step is on
-     * screen and kept only in this map (memory), which is dropped with the step. Nothing is
+     * 0.7.8, Labor·Karte only: swisstopo's tiles around [fix], downloaded while the dialog is on
+     * screen and kept only in this map (memory), which is dropped with the dialog. Nothing is
      * requested without the flag, without a fix, or outside Switzerland (the grey map has no data
-     * there). Leaving the step closes the open connections at once.
+     * there). Leaving the dialog closes the open connections at once.
      */
     @Composable
     private fun rememberStreetTiles(fix: Pair<Double, Double>?): Map<ReportMapTiles.Tile, ImageBitmap> {
@@ -229,7 +218,7 @@ object ReportDirectionUi {
         // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
         // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
         val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
-        Canvas(Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(1f)) {
+        Canvas(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f)) {
             val c = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null

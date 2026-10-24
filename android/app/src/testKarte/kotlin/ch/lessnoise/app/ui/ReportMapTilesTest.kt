@@ -171,6 +171,10 @@ class ReportMapTilesTest {
         assertTrue(code.contains("if (!ReportMapTiles.ENABLED || closed) return null"), "the fetcher checks the flag itself")
         val ui = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
         assertTrue(ui.contains("if (!ReportMapTiles.ENABLED || f == null"), "the step starts no download without the flag")
+        // 0.8.1: the disc of the one «Laut! Melden» dialog is 200 dp (still 300 m across, canvasScale).
+        assertEquals(200, ReportDirectionUi.DISC_DP)
+        assertTrue(ui.contains("Canvas(Modifier.widthIn(max = DISC_DP.dp)"))
+        assertEquals("Telefon in die Fahrtrichtung halten", ReportDirectionUi.POINT_HINT)
         // Nothing is written: no file, preference or log in either file.
         val bad = Regex("""\bLog\.|println|SharedPreferences|putString|\bFile\b|FileOutputStream|cacheDir|filesDir|HttpResponseCache|CookieHandler""")
         for (src in listOf(code, ui)) {

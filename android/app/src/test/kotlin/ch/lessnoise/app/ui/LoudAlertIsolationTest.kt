@@ -69,6 +69,9 @@ class LoudAlertIsolationTest {
         val stub = File(app, "src/nomap/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
         assertTrue(stub.contains("const val AVAILABLE = false"))
         for (bad in listOf("Sensor", "GeomagneticField", "Compass(")) assertFalse(stub.contains(bad), bad)
+        // 0.8.1: same API as the real one, no compass: no reading, no disc.
+        assertTrue(stub.contains("fun rememberReading(): State<CompassReading?>? = null"))
+        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?) = Unit"))
     }
 
     @Test

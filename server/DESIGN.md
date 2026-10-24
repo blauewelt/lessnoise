@@ -155,7 +155,9 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     someone who reports often from the same spot (their balcony, their front door) makes that
     spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
     confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
-    sichtbar.», because the first-report consent is skipped once sharing is on.)
+    sichtbar.», because the first-report consent is skipped once sharing is on; since app 0.8.1,
+    which has no confirmation — one tap on the category sends —, the one report dialog says it
+    under the category buttons.)
 
 ## 3. Cell ids
 
@@ -442,7 +444,8 @@ publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer 
 This is the only request with exact coordinates. The app keeps them only until the server has
 answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.7.0,
 editions with the map, phones with a compass) is present only when the reporter pointed the phone
-and tapped «Richtung übernehmen»: the bearing the phone pointed at, corrected from magnetic to true
+and tapped «Richtung übernehmen» (app 0.7.0–0.7.8; since 0.8.1 the compass reading at the moment the
+category is tapped, when the phone has a compass with a reading): the bearing the phone pointed at, corrected from magnetic to true
 north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
 or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
 It is not snapped to a street: no road data exists in the app or on the server (a server-side

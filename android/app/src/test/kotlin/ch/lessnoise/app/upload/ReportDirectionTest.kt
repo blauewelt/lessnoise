@@ -3,7 +3,6 @@ package ch.lessnoise.app.upload
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
-import ch.lessnoise.app.ui.reportConfirmText
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -95,9 +94,7 @@ class ReportDirectionTest {
         assertEquals("Richtung Süd", l(180))
         assertEquals("Richtung Nordwest", l(315))
         assertEquals("Richtung Nord", l(338))
-        assertEquals("Meldung: Poser, 18:05, Standort ± 12 m, Richtung Ost – senden?",
-            reportConfirmText(ReportCategory.POSER, now, 12, zone, east))
-        assertEquals("Meldung: Poser, 18:05, Standort ± 12 m – senden?", reportConfirmText(ReportCategory.POSER, now, 12, zone, null))
+        assertEquals("Richtung Ost", east.label)
     }
 
     // ---- payload and queue --------------------------------------------------------------------

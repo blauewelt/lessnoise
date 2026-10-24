@@ -606,7 +606,8 @@ report's time and the fitting categories first, each marked with a small «erkan
 (since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Poser;
 `road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, but the alert does not fire for
 it; nothing is picked). Then as always: consent if sharing is off, one
-fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
+fix with the app open, the rule-10 line, and only a tap (on «Senden» until 0.7.8, on the category
+since 0.8.1) sends. Swiping it away does
 nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
 (every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
 (`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
@@ -790,38 +791,55 @@ and the offset live only in local variables. With sharing off no
 location is read and the measurement has no point; a measurement without a point is never sent
 (also not a row of 0.6.0 or 0.6.1, which has only a cell).
 
-**«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
-Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Flugzeug, Poser, anderes Fahrzeug — until 0.6.3 «anderes»; «Flugzeug» since 0.7.7 → ids `motorrad`, `auto`,
-`lastwagen`, `flugzeug`, `poser`, `andere`) → one fix (`LocationFetcher.locateForReport`; since 0.6.7 at any
-accuracy, used as the phone has it, until 0.6.6 ≤ 50 m; no fix → the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
-every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
-(DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`) («Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the
-second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and schedules
-an upload (same constraints as the other uploads; registers the device first if needed). If
-sharing is off, the first «Melden» shows a short consent first and switches sharing on only with
-«Ja, einschalten». The queue is a private SharedPreferences file (`reports`, written with
-`commit()`); once the server has answered for a report its coordinates are deleted and only
-category, time and cell stay in the list of sent reports — plus, since 0.7.6, the licence plate if
-one was typed into «Kontrollschild (optional)» in the confirmation (trimmed, capitals, ≤ 12
-characters; `ReportPlate`). The plate is never sent (`Payloads.report` does not read it;
-`ReportsTest.thePlateIsNeverSent`); it is shown in the confirmation («Kontrollschild: ZH 123») and
-in «Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, plate,
-direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the
-server data, or the offline edition taking over also drops unsent reports. While a measurement
-runs there is no «Melden» button: its loud events are uploaded with the measurement's cell anyway.
+**«Laut! Melden» (v0.6.0; one dialog since 0.8.1).** On **Messen**, while no measurement runs, a
+secondary button «Laut! Melden». If sharing is off, the first «Melden» shows a short consent first
+and switches sharing on only with «Ja, einschalten». Then **one dialog «Laut! Melden»** (0.8.1,
+Labor·Karte first, branch `labor-one-tap`; `ui/LocationFlows.kt`; 94 % of the screen wide, its
+content in a vertically scrollable column, a tap outside does nothing). It starts the one fix at once
+(`LocationFetcher.locateForReport`, the location permission asked first if needed; since 0.6.7 at
+any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom: «Erkannt um
+11:14» when it comes from the «Sehr laut» notification; the compass disc (editions with the map and a
+compass, below); «Standort wird gesucht …» until the fix is in, then «Standort ± 12 m»
+(`reportFixLine`); «Kontrollschild (optional)»; the six categories as outlined buttons in two columns
+(Töff / Auto, Lastwagen / Flugzeug, Poser / anderes Fahrzeug — until 0.6.3 «anderes»; «Flugzeug»
+since 0.7.7 → ids `motorrad`, `auto`, `lastwagen`, `flugzeug`, `poser`, `andere`;
+`reportCategoryRows`), «Antippen sendet die Meldung.» and, on every report since 0.6.3, «Wer oft vom
+gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
+«Abbrechen» only. **Tapping a category sends the report**: that category, the compass reading of that
+instant, the plate, the time, the fix. Tapped before the fix is in, the buttons are disabled under a
+progress bar and «Standort wird gesucht …», and the report goes out the moment the fix arrives, with
+the category, plate and reading of the tap (`reportNext`: CHOOSE / WAIT / SEND / FAILED); no fix →
+«Kein genauer Standort» with the reason and «Nochmals» (back to the dialog, a category already
+tapped kept, the fix tried again). Until 0.7.8 this was three dialogs: «Was war laut?» → «Wohin fuhr
+es?» → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» («Senden» / «Abbrechen»); the confirmation is
+gone by the owner's decision (0.8.1). The report is queued (`upload/Reports.kt`: time of the tap to
+the second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and an
+upload is scheduled (same constraints as the other uploads; registers the device first if needed).
+The queue is a private SharedPreferences file (`reports`, written with `commit()`); once the server
+has answered for a report its coordinates are deleted and only category, time and cell stay in the
+list of sent reports — plus, since 0.7.6, the licence plate if one was typed into «Kontrollschild
+(optional)» (trimmed, capitals, ≤ 12 characters; `ReportPlate`). The plate is never sent
+(`Payloads.report` does not read it; `ReportsTest.thePlateIsNeverSent`); it is shown in «Teilen» ›
+«Meldungen». Labor·Karte also writes a `report` line (time, category, plate, direction, no
+coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
+offline edition taking over also drops unsent reports. While a measurement runs there is no «Melden»
+button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
+(grid, the send-or-wait decision, texts, the flow's shape), `ReportsTest`, `ShareTextsTest`.
 
-**«Wohin fuhr es?» (the direction step, 0.6.7; editions with the map).** Right after «Was war
-laut?», while the fix is searched, the reporter points the phone where the vehicle went and taps
-«Richtung übernehmen» («Überspringen» sends none; `src/karte/.../ui/ReportDirectionUi.kt`, the
-compass in `src/karte/.../compass/`; the Offline and Labor builds have the stand-in in `src/nomap`).
-A 240 dp disc (the dialog is 94 % of the screen wide, `usePlatformDefaultWidth = false`, so it fits
-on a 320 dp phone): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
+**The compass of «Laut! Melden» (0.6.7 as the step «Wohin fuhr es?»; since 0.8.1 the top of the one
+dialog; editions with the map).** The reporter points the phone where the vehicle went; the reading
+at the moment a category is tapped goes into the report (until 0.7.8 a separate step after «Was war
+laut?» with «Richtung übernehmen» / «Überspringen»). `src/karte/.../ui/ReportDirectionUi.kt`:
+`rememberReading()` (the `Compass` of `src/karte/.../compass/` while the dialog is composed, the
+screen's orientation locked meanwhile, the sensors only while the app is in front; null on a phone
+without a compass, which then gets no disc and sends no direction) and `Panel` (the drawing); the
+Offline and Labor builds have the stand-in in `src/nomap` with the same API and no sensors. A 200 dp
+disc (240 dp in 0.7.8's own dialog): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
 16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
-below, the figure-eight hint while the compass is unreliable; the screen's orientation is locked
-and the sensors run only while the step is on screen and the app is in front. **0.7.8, Labor·Karte
+below and one line «Telefon in die Fahrtrichtung halten», replaced by the figure-eight hint while the
+compass is unreliable. **0.7.8, Labor·Karte
 only** (`ReportMapTiles.ENABLED` = `BuildConfig.LABOR_UNTERWEGS`): once the fix is there
-(`LocationFlows` passes it as `fix` in the Confirm state; null while locating, then «Standort wird
-gesucht …» under the label), the real streets around it are drawn under the arrow — swisstopo's grey
+(`LocationFlows` passes it as `fix`; null while locating), the real streets around it are drawn under the arrow — swisstopo's grey
 map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
 zoom 18, every tile that touches the 150 m disc around the fix (9–16 tiles; a zoom-18 tile is only
 ≈ 103 m in Switzerland, so a plain 3 × 3 block would leave the edge of a 300 m view empty), scaled so
@@ -830,8 +848,8 @@ declination at the fix), the fix at the centre as a small dot, at 60 % opacity, 
 in the dark theme like the website's map, «© swisstopo» under the disc. Downloads:
 `HttpURLConnection` on `Dispatchers.IO`, at most 4 at a time, nearest tile first, GET, 5 s
 timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile, decoded with
-`BitmapFactory`, kept in a `remember`ed map only for the life of the step, open connections closed
-when the step goes away; a tile that fails is simply not drawn. Nothing for a fix outside
+`BitmapFactory`, kept in a `remember`ed map only for the life of the dialog, open connections closed
+when the dialog goes away; a tile that fails is simply not drawn. Nothing for a fix outside
 Switzerland's bounding box. Privacy: swisstopo sees tile requests for the area around the
 reporter's **true** position (PRIVACY.md, «Internal variant `laborKarte`»); that is why the
 Online-Version keeps the rose without tiles until its privacy page says so. The 0.7.6 decorative
@@ -869,7 +887,7 @@ nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
 `UploadClient.kt` (the only class of the upload that opens connections — the others in the app are the
-map tab's WebView and, Labor·Karte only, the tiles of «Wohin fuhr es?», `ui/ReportMapTiles.kt`: `HttpURLConnection`, one host from
+map tab's WebView and, Labor·Karte only, the tiles under the compass of «Laut! Melden», `ui/ReportMapTiles.kt`: `HttpURLConnection`, one host from
 `BuildConfig.API_BASE`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, cells per record, reports, `rejected`, delete; pure JVM),
 `Reports.kt` (the report queue), `UploadState.kt` (settings, id, markers, the share decision and the
@@ -1383,7 +1401,7 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
   src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
-                ReportMapTiles.kt, 0.7.8: the tiles of «Wohin fuhr es?», downloading in `laborKarte` only), compiled
+                ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading in `laborKarte` only), compiled
                 into `public` and `laborKarte` only
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
