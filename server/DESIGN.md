@@ -386,7 +386,7 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
-  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 10 000 m
+  "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.8.1), ≤ 10 000 m
   "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere
   "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
@@ -440,7 +440,11 @@ of up to 50 reports, bearer auth as above:
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
-`accuracy_m` ≤ 50).
+`accuracy_m` ≤ 50). Since app 0.8.1 (Labor·Karte first) the reporter can drag the map under the dot
+to correct the place (the car drove on, or the fix is off): then `lat`/`lon` are the place set by
+hand, at most 2 km from the fix, and `accuracy_m` is a fixed 15 — not a measured accuracy, but the
+precision of a dot placed by a finger on a 300 m map. Nothing in the body says which it was; the
+server treats both alike.
 This is the only request with exact coordinates. The app keeps them only until the server has
 answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.7.0,
 editions with the map, phones with a compass) is present only when the reporter pointed the phone

@@ -23,6 +23,19 @@ another branch; this build carries the next number so it installs over it on the
   the fix arrives. No fix: «Kein genauer Standort» → «Nochmals» returns to the dialog with the category
   kept. Labor·Karte: the swisstopo tiles are therefore requested as soon as the dialog has its fix,
   also if the person then cancels (PRIVACY.md).
+- **Move the map under the dot** (owner's request: the car drove away, or the fix is off; Labor·Karte,
+  where the streets are drawn): a one-finger drag on the disc moves the map, the dot stays at the
+  centre. The drag is turned back by the disc's rotation, so up the screen moves along where the
+  phone points; while the finger is down the disc does not follow the compass; the map stops 2 km
+  from the fix. Under the disc «Standort von Hand gesetzt» and «Zurück zum Standort» (back to the
+  fix). The tap then sends the place under the dot with a fixed accuracy of 15 m
+  (`MANUAL_ACCURACY_M`) and its own 100 m cell in the local list; not moved, the fix as before. After
+  the finger lifts (300 ms) the tiles touching the 150 m circle around the new centre are requested
+  (tiles already in memory not again, at most 64 kept; same host, 4 at a time, 512 kB, Switzerland
+  only): swisstopo can then also see the area of the place set by hand (PRIVACY.md). The Online-Version
+  and the stand-in have no drag. Pure maths in `ReportMapTiles` (`screenDragToMapOffset`,
+  `offsetToLatLon`, `latLonToOffset`, `clampOffset`, `evict`) and `LocationFlows` (`reportMovedPlace`,
+  `reportPlace`); `Panel(reading, fix, moved, onMove)`.
 - Code: `ReportDirectionUi` keeps the disc (`Panel`) and the compass (`rememberReading`, which owns
   the sensors and the orientation lock for the dialog's lifetime); the Step composable is gone; the
   `src/nomap` stand-in has the same API. `reportConfirmDialogText`, `reportConfirmText` and
@@ -30,7 +43,9 @@ another branch; this build carries the next number so it installs over it on the
   `reportNext` (CHOOSE / WAIT / SEND / FAILED), `reportFixLine`.
 - Tests: new `ReportFlowTest`; `ReportsTest`, `ShareTextsTest`, `ReportDirectionTest` no longer test
   the confirmation texts; `LoudAlertIsolationTest` pins the stand-in's API; `ReportMapTilesTest` the
-  200 dp disc; `EditionTextTest` 33 / 0.8.1.
+  200 dp disc and (moving the map) the drag rotation at 0°/±90°/180°, 100 px = 150 m on a 200 px disc,
+  the 2 km stop and the tile eviction; `ReportFlowTest` the moved place (15 m, its own cell, 2 km);
+  `EditionTextTest` 33 / 0.8.1.
 
 ## 0.7.8 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 31)
 

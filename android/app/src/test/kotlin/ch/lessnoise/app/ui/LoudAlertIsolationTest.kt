@@ -71,7 +71,9 @@ class LoudAlertIsolationTest {
         for (bad in listOf("Sensor", "GeomagneticField", "Compass(")) assertFalse(stub.contains(bad), bad)
         // 0.8.1: same API as the real one, no compass: no reading, no disc.
         assertTrue(stub.contains("fun rememberReading(): State<CompassReading?>? = null"))
-        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?) = Unit"))
+        // 0.8.1 (same build): the place moved under the dot; the stand-in has no disc, so no drag.
+        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onMove: (Pair<Double, Double>) -> Boolean) = Unit"))
+        assertFalse(stub.contains("pointerInput"))
     }
 
     @Test

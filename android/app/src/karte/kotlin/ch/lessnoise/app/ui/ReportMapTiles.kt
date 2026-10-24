@@ -15,6 +15,7 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.ln
+import kotlin.math.sin
 import kotlin.math.sinh
 import kotlin.math.tan
 
@@ -142,6 +143,72 @@ object ReportMapTiles {
     fun placement(t: Tile, p: TilePoint, scale: Double): DoubleArray {
         val k = TILE_PX * scale
         return doubleArrayOf((t.x - p.x) * k, (t.y - p.y) * k, (t.x + 1 - p.x) * k, (t.y + 1 - p.y) * k)
+    }
+
+    // ---- 0.8.1 (same build): the map moved under the dot by hand ---------------------------------
+
+    /** At most this many tiles stay in memory while the map is moved (≈ 16 MB as 256 × 256 ARGB); the farthest go first. */
+    const val CACHE_MAX = 64
+
+    /**
+     * A one-finger drag on the disc, ([dx], [dy]) canvas pixels on the screen (x right, y down), as
+     * the same move of the map in its own north-up frame (x east, y south, canvas pixels).
+     * [rotationDeg] is the rotation the map is drawn with (−true heading; Compose's `rotate`:
+     * positive = clockwise on the screen): the drag is turned back by it, so that dragging up the
+     * screen moves the map along the direction the phone points.
+     */
+    fun screenDragToMapOffset(dx: Double, dy: Double, rotationDeg: Double): Pair<Double, Double> {
+        val a = Math.toRadians(-rotationDeg)
+        val c = cos(a)
+        val s = sin(a)
+        return (dx * c - dy * s) to (dx * s + dy * c)
+    }
+
+    /**
+     * The place under the dot (the disc's centre) once the map has been moved by [offsetPx] canvas
+     * pixels (north-up frame, x east, y south) from [fix] (latitude, longitude), drawn at [scale]
+     * canvas pixels per tile pixel at zoom [zoom]: moving the map east puts the dot west of the fix.
+     */
+    fun offsetToLatLon(fix: Pair<Double, Double>, offsetPx: Pair<Double, Double>, zoom: Int, scale: Double): Pair<Double, Double> {
+        val p = tilePoint(fix.first, fix.second, zoom)
+        val k = TILE_PX * scale
+        return latLon(TilePoint(zoom, p.x - offsetPx.first / k, p.y - offsetPx.second / k))
+    }
+
+    /** The inverse of [offsetToLatLon]: the map offset (canvas pixels) that puts [place] under the dot. */
+    fun latLonToOffset(fix: Pair<Double, Double>, place: Pair<Double, Double>, zoom: Int, scale: Double): Pair<Double, Double> {
+        val p = tilePoint(fix.first, fix.second, zoom)
+        val q = tilePoint(place.first, place.second, zoom)
+        val k = TILE_PX * scale
+        return (p.x - q.x) * k to (p.y - q.y) * k
+    }
+
+    /**
+     * The owner's limit for a place set by hand: at most this far from the fix. A report 10 km away
+     * is not what moving the map is for (the car drove away, or the fix is off).
+     */
+    const val MAX_DRAG_M = 2_000.0
+
+    /** Ground metres of a map offset of [offsetPx] canvas pixels at [scale] canvas pixels per tile pixel, latitude [lat], zoom [zoom]. */
+    fun offsetMetres(offsetPx: Pair<Double, Double>, lat: Double, scale: Double, zoom: Int = ZOOM): Double =
+        hypot(offsetPx.first, offsetPx.second) / scale * metresPerPixel(lat, zoom)
+
+    /**
+     * The 2 km rule ([MAX_DRAG_M]): a proposed offset within the limit is kept; one beyond it is
+     * shortened onto the limit in the same direction, so the map stops there (sliding along the
+     * edge is still possible).
+     */
+    fun clampOffset(offsetPx: Pair<Double, Double>, lat: Double, scale: Double, zoom: Int = ZOOM, maxM: Double = MAX_DRAG_M): Pair<Double, Double> {
+        val m = offsetMetres(offsetPx, lat, scale, zoom)
+        if (m <= maxM) return offsetPx
+        val f = maxM / m
+        return offsetPx.first * f to offsetPx.second * f
+    }
+
+    /** The tiles to drop from [have] so that at most [max] stay: the farthest from [centre] (tile centre to point). */
+    fun evict(have: Collection<Tile>, centre: TilePoint, max: Int = CACHE_MAX): List<Tile> {
+        if (have.size <= max) return emptyList()
+        return have.sortedByDescending { hypot(it.x + 0.5 - centre.x, it.y + 0.5 - centre.y) }.take(have.size - max)
     }
 }
 

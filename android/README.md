@@ -808,7 +808,19 @@ gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10;
 «Abbrechen» only. **Tapping a category sends the report**: that category, the compass reading of that
 instant, the plate, the time, the fix. Tapped before the fix is in, the buttons are disabled under a
 progress bar and «Standort wird gesucht …», and the report goes out the moment the fix arrives, with
-the category, plate and reading of the tap (`reportNext`: CHOOSE / WAIT / SEND / FAILED); no fix →
+the category, plate and reading of the tap (`reportNext`: CHOOSE / WAIT / SEND / FAILED). **Moving the
+map under the dot** (0.8.1, Labor·Karte, where the streets are drawn): a one-finger drag on the disc
+moves the map, the dot stays at the centre and marks the place to report (when the car drove on or
+the fix is off). The drag is turned back by the disc's rotation, so up the screen moves along the
+direction the phone points (`ReportMapTiles.screenDragToMapOffset`, `offsetToLatLon`); while the
+finger is down the disc does not follow the compass; the map stops 2 km from the fix
+(`ReportMapTiles.clampOffset`, and `reportMovedPlace` refuses a place beyond 2 km or outside
+Switzerland). Under the disc «Standort von Hand gesetzt» then replaces «Standort ± n m», with
+«Zurück zum Standort» to return to the fix. A tap sends the place under the dot with
+`MANUAL_ACCURACY_M` = 15 m and its own 100 m cell (`reportPlace`); not moved, the fix as it is. When
+the finger lifts (300 ms later, `TILE_DEBOUNCE_MS`) the tiles touching the 150 m circle around the
+new centre are requested, those already in memory not again (at most 64 kept, the farthest dropped);
+same host and caps as below. No fix →
 «Kein genauer Standort» with the reason and «Nochmals» (back to the dialog, a category already
 tapped kept, the fix tried again). Until 0.7.8 this was three dialogs: «Was war laut?» → «Wohin fuhr
 es?» → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» («Senden» / «Abbrechen»); the confirmation is
@@ -824,7 +836,7 @@ list of sent reports — plus, since 0.7.6, the licence plate if one was typed i
 coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
 offline edition taking over also drops unsent reports. While a measurement runs there is no «Melden»
 button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
-(grid, the send-or-wait decision, texts, the flow's shape), `ReportsTest`, `ShareTextsTest`.
+(grid, the send-or-wait decision, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
 
 **The compass of «Laut! Melden» (0.6.7 as the step «Wohin fuhr es?»; since 0.8.1 the top of the one
 dialog; editions with the map).** The reporter points the phone where the vehicle went; the reading

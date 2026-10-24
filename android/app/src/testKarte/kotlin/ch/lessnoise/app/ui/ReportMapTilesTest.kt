@@ -161,6 +161,98 @@ class ReportMapTilesTest {
         assertEquals(5_000, ReportMapTiles.TIMEOUT_MS)
     }
 
+    // ---- 0.8.1 (same build): the map moved under the dot ---------------------------------------
+
+    private fun closePair(e: Pair<Double, Double>, a: Pair<Double, Double>, tol: Double, what: String) {
+        close(e.first, a.first, tol, "$what x"); close(e.second, a.second, tol, "$what y")
+    }
+
+    @Test
+    fun aDragIsTurnedBackByTheDiscsRotation() {
+        // 0°: the phone points north, the map is north-up; up the screen (dy < 0) is up the map.
+        closePair(0.0 to -100.0, ReportMapTiles.screenDragToMapOffset(0.0, -100.0, 0.0), 1e-9, "0°")
+        closePair(30.0 to 40.0, ReportMapTiles.screenDragToMapOffset(30.0, 40.0, 0.0), 1e-9, "0° any")
+        // The phone points east: the map is drawn turned by −90° (counter-clockwise), north is to
+        // the left of the screen. A drag up the screen moves the map along the phone's direction,
+        // east: map offset (+100, 0) — the map slides east under the dot (which then lies west of the fix).
+        closePair(100.0 to 0.0, ReportMapTiles.screenDragToMapOffset(0.0, -100.0, -90.0), 1e-9, "−90° up")
+        // … and a drag to the right of the screen (= south on the ground) moves the map south.
+        closePair(0.0 to 100.0, ReportMapTiles.screenDragToMapOffset(100.0, 0.0, -90.0), 1e-9, "−90° right")
+        // +90° (the phone points west) mirrors it: the map moves west.
+        closePair(-100.0 to 0.0, ReportMapTiles.screenDragToMapOffset(0.0, -100.0, 90.0), 1e-9, "90° up")
+        // 180°: the phone points south, the map is upside down; up the screen is down the map.
+        closePair(0.0 to 100.0, ReportMapTiles.screenDragToMapOffset(0.0, -100.0, 180.0), 1e-9, "180° up")
+        closePair(-30.0 to -40.0, ReportMapTiles.screenDragToMapOffset(30.0, 40.0, 180.0), 1e-9, "180° any")
+        // Turning back keeps the length, and drawing with the rotation gives the screen drag again
+        // (Compose's rotate: positive = clockwise on a y-down screen).
+        for (deg in listOf(-213.0, -90.0, -47.5, 0.0, 12.0, 90.0, 180.0, 359.0)) {
+            val (mx, my) = ReportMapTiles.screenDragToMapOffset(17.0, -23.0, deg)
+            close(hypot(17.0, -23.0), hypot(mx, my), 1e-9, "length $deg")
+            val a = Math.toRadians(deg)
+            close(17.0, mx * cos(a) - my * sin(a), 1e-9, "back x $deg"); close(-23.0, mx * sin(a) + my * cos(a), 1e-9, "back y $deg")
+        }
+    }
+
+    @Test
+    fun anOffsetIsAKnownDistanceOnTheGround() {
+        val fix = lat to lon
+        val mpp = ReportMapTiles.metresPerPixel(lat)
+        // A 200-px canvas shows 300 m: 1.5 m per canvas pixel, so 100 px = 150 m.
+        val scale = ReportMapTiles.canvasScale(200.0, lat)
+        close(1.5, mpp / scale, 1e-12, "m per canvas px")
+        // The map moved 100 px DOWN (south) puts the dot 150 m NORTH of the fix.
+        val (nLat, nLon) = ReportMapTiles.offsetToLatLon(fix, 0.0 to 100.0, ReportMapTiles.ZOOM, scale)
+        close(lon, nLon, 1e-12, "same longitude")
+        // 150 m of latitude: 150 / 111 133 m per degree at 47.4° ≈ 0.0013497° (Mercator's local scale is
+        // exact to ≈ 1e-5 relative over 150 m); the tolerance is 1 % of the distance.
+        close(150.0, (nLat - lat) * 111_133.0, 1.5, "150 m north")
+        // The map moved 100 px to the right (east) puts the dot 150 m WEST.
+        val (wLat, wLon) = ReportMapTiles.offsetToLatLon(fix, 100.0 to 0.0, ReportMapTiles.ZOOM, scale)
+        close(lat, wLat, 1e-9, "same latitude")
+        close(-150.0, (wLon - lon) * 111_320.0 * cos(Math.toRadians(lat)), 1.5, "150 m west")
+        // Zero is the fix; latLonToOffset is the inverse.
+        closePair(fix, ReportMapTiles.offsetToLatLon(fix, 0.0 to 0.0, ReportMapTiles.ZOOM, scale), 1e-12, "zero")
+        closePair(0.0 to 100.0, ReportMapTiles.latLonToOffset(fix, nLat to nLon, ReportMapTiles.ZOOM, scale), 1e-6, "inverse")
+        close(150.0, ReportMapTiles.offsetMetres(0.0 to 100.0, lat, scale), 1e-9, "offsetMetres")
+        // Phone pointing east (disc turned by −90°), the finger 100 px DOWN the screen.
+        val d = ReportMapTiles.screenDragToMapOffset(0.0, 100.0, -90.0)
+        val (eLat, eLon) = ReportMapTiles.offsetToLatLon(fix, d, ReportMapTiles.ZOOM, scale)
+        close(lat, eLat, 1e-9, "east: same latitude")
+        // Dragging down the screen pulls the map towards the reporter: the dot moves forward, east.
+        close(150.0, (eLon - lon) * 111_320.0 * cos(Math.toRadians(lat)), 1.5, "150 m east")
+    }
+
+    @Test
+    fun theDragStopsAt2km() {
+        val scale = ReportMapTiles.canvasScale(200.0, lat) // 1.5 m per canvas px
+        assertEquals(2_000.0, ReportMapTiles.MAX_DRAG_M)
+        // 1000 px = 1.5 km: kept as it is.
+        closePair(0.0 to 1000.0, ReportMapTiles.clampOffset(0.0 to 1000.0, lat, scale), 0.0, "1.5 km")
+        // 3000 px = 4.5 km diagonally: shortened onto 2 km in the same direction.
+        val c = ReportMapTiles.clampOffset(1800.0 to -2400.0, lat, scale)
+        close(2_000.0, ReportMapTiles.offsetMetres(c, lat, scale), 1e-6, "on the limit")
+        close(1800.0 / -2400.0, c.first / c.second, 1e-12, "same direction")
+        // The place there is 2 km from the fix on the ground (Mercator, ≈ 0.1 % over 2 km).
+        val north = ReportMapTiles.clampOffset(0.0 to 10_000.0, lat, scale)
+        val (la, _) = ReportMapTiles.offsetToLatLon(lat to lon, north, ReportMapTiles.ZOOM, scale)
+        close(2_000.0, (la - lat) * 111_133.0, 5.0, "2 km north")
+    }
+
+    @Test
+    fun theFarthestTilesAreDroppedFirst() {
+        val p = ReportMapTiles.tilePoint(lat, lon)
+        val c = ReportMapTiles.tileOf(p)
+        val near = (0 until 10).map { Tile(18, c.x + it, c.y) }
+        assertEquals(emptyList(), ReportMapTiles.evict(near, p, max = 10))
+        assertEquals(listOf(Tile(18, c.x + 9, c.y), Tile(18, c.x + 8, c.y)), ReportMapTiles.evict(near, p, max = 8))
+        assertEquals(64, ReportMapTiles.CACHE_MAX)
+        // The 150 m rule around a moved centre: the tiles of a place 1 km east are other tiles.
+        val east = ReportMapTiles.offsetToLatLon(lat to lon, -1000.0 / 1.5 to 0.0, 18, ReportMapTiles.canvasScale(200.0, lat))
+        val moved = ReportMapTiles.tilesAround(east.first, east.second)
+        assertTrue(moved.size in 9..16)
+        assertTrue(moved.none { it in ReportMapTiles.tilesAround(lat, lon) })
+    }
+
     /** Tiles only in Labor·Karte; the Online-Version (flavour public) shows the rose alone. */
     @Test
     fun onlyInLaborKarte() {
@@ -171,6 +263,12 @@ class ReportMapTilesTest {
         assertTrue(code.contains("if (!ReportMapTiles.ENABLED || closed) return null"), "the fetcher checks the flag itself")
         val ui = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
         assertTrue(ui.contains("if (!ReportMapTiles.ENABLED || f == null"), "the step starts no download without the flag")
+        // 0.8.1 (same build): the drag exists only with the flag and the streets shown; tiles for a
+        // moved centre only after the finger lifts, debounced.
+        assertTrue(ui.contains("val canDrag = ReportMapTiles.ENABLED && fix != null && tiles.isNotEmpty() && r != null"))
+        assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"))
+        assertTrue(ui.contains("if (c != f) delay(TILE_DEBOUNCE_MS)"))
+        assertTrue(ui.contains("DirectionArrow(frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
         // 0.8.1: the disc of the one «Laut! Melden» dialog is 200 dp (still 300 m across, canvasScale).
         assertEquals(200, ReportDirectionUi.DISC_DP)
         assertTrue(ui.contains("Canvas(Modifier.widthIn(max = DISC_DP.dp)"))

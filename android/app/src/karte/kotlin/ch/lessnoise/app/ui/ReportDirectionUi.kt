@@ -44,6 +44,14 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
@@ -127,6 +135,9 @@ object ReportDirectionUi {
         return if (compass.available) reading else null
     }
 
+    /** 0.8.1: after a drag ends, wait this long before the tiles around the new centre are requested (a new touch cancels it). */
+    const val TILE_DEBOUNCE_MS = 300L
+
     /**
      * The disc (0.8.1, 200 dp; the drawing of 0.7.8), the live label «Nordost · 47°» and one line
      * under it: [POINT_HINT], or [CALIBRATE_HINT] while the compass is unreliable. [reading] is the
@@ -134,16 +145,78 @@ object ReportDirectionUi {
      * (latitude, longitude) is the report's location fix once it is there, null while it is
      * searched: in Labor·Karte ([ReportMapTiles.ENABLED]) the real streets around it are drawn
      * under the arrow; the Online-Version ignores it and shows the rose alone.
+     *
+     * 0.8.1 (same build), Labor·Karte only: once the streets are shown, a one-finger drag on the
+     * disc moves the map under the dot, which stays at the centre (the place to report when the
+     * car drove on or the fix is off). [moved] is the place under the dot (null: the fix, not
+     * moved); every move calls [onMove] with the new place, which the caller takes (true) or
+     * refuses (false, e.g. outside Switzerland: the map stops there); the caller resets by passing
+     * null again. The drag is turned back by the disc's
+     * rotation ([ReportMapTiles.screenDragToMapOffset]), the disc does not follow the compass while
+     * the finger is down, and the map stops [ReportMapTiles.MAX_DRAG_M] from the fix.
      */
     @Composable
-    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?) {
-        val tiles = rememberStreetTiles(fix)
+    fun Panel(
+        reading: State<CompassReading?>,
+        fix: Pair<Double, Double>?,
+        moved: Pair<Double, Double>?,
+        onMove: (Pair<Double, Double>) -> Boolean,
+    ) {
+        // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
+        var frozenDeg by remember(fix) { mutableStateOf<Double?>(null) }
+        var dragging by remember(fix) { mutableStateOf(false) }
+        val centre = moved ?: fix
+        val tiles = rememberStreetTiles(fix, centre.takeUnless { dragging })
         // Map north is true north; the compass reads magnetic north. The tiles are turned by the
         // true heading (declination at the fix, Android's built-in model, no network).
         val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
         val r = reading.value
+        val heading by rememberUpdatedState(r?.magneticDeg)
+        val movedNow by rememberUpdatedState(moved)
+        val onMoveNow by rememberUpdatedState(onMove)
+        val canDrag = ReportMapTiles.ENABLED && fix != null && tiles.isNotEmpty() && r != null
+        val drag = if (!canDrag) Modifier else Modifier
+            // Touch-down to lift: the disc keeps the heading of the touch-down (else the map would
+            // slide under the finger as the compass turns it) and no tiles are requested. Consumes nothing.
+            .pointerInput(fix) {
+                try {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        frozenDeg = heading
+                        dragging = true
+                        do {
+                            val event = awaitPointerEvent()
+                        } while (event.changes.any { it.pressed })
+                        frozenDeg = null
+                        dragging = false
+                    }
+                } finally {
+                    // The disc follows the compass again also if the gesture ends because the map went away.
+                    frozenDeg = null
+                    dragging = false
+                }
+            }
+            .pointerInput(fix) {
+                // The map offset of this drag (canvas pixels, north-up), kept here so that several
+                // move events within one frame add up before the caller's state comes back.
+                var off = 0.0 to 0.0
+                detectDragGestures(
+                    onDragStart = {
+                        val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
+                        off = movedNow?.let { ReportMapTiles.latLonToOffset(fix, it, ReportMapTiles.ZOOM, scale) } ?: (0.0 to 0.0)
+                    },
+                ) { change, amount ->
+                    change.consume()
+                    val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
+                    // The rotation the map is drawn with (frozen since touch-down).
+                    val rotation = -((frozenDeg ?: heading ?: 0.0) + declination)
+                    val d = ReportMapTiles.screenDragToMapOffset(amount.x.toDouble(), amount.y.toDouble(), rotation)
+                    val next = ReportMapTiles.clampOffset(off.first + d.first to off.second + d.second, fix.first, scale)
+                    if (onMoveNow(ReportMapTiles.offsetToLatLon(fix, next, ReportMapTiles.ZOOM, scale))) off = next
+                }
+            }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            DirectionArrow(r?.magneticDeg, declination, fix, tiles)
+            DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
             if (tiles.isNotEmpty() && r != null) {
                 Text(TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -164,20 +237,39 @@ object ReportDirectionUi {
      * screen and kept only in this map (memory), which is dropped with the dialog. Nothing is
      * requested without the flag, without a fix, or outside Switzerland (the grey map has no data
      * there). Leaving the dialog closes the open connections at once.
+     *
+     * 0.8.1 (same build): the tiles touching the 150 m circle around [centre] — the fix, or the
+     * place moved under the dot — [TILE_DEBOUNCE_MS] after the drag ended ([centre] is null while
+     * the finger is down: nothing is requested on the move events). Tiles already in memory or
+     * already requested are not requested again; same host, same caps (4 at a time, 512 kB, only
+     * a centre in Switzerland). At most [ReportMapTiles.CACHE_MAX] stay, the farthest dropped.
      */
     @Composable
-    private fun rememberStreetTiles(fix: Pair<Double, Double>?): Map<ReportMapTiles.Tile, ImageBitmap> {
+    private fun rememberStreetTiles(fix: Pair<Double, Double>?, centre: Pair<Double, Double>?): Map<ReportMapTiles.Tile, ImageBitmap> {
         val tiles = remember(fix) { mutableStateMapOf<ReportMapTiles.Tile, ImageBitmap>() }
         val fetcher = remember(fix) { ReportTileFetcher() }
+        // Requested and not answered yet (touched on the main thread only).
+        val pending = remember(fix) { mutableSetOf<ReportMapTiles.Tile>() }
+        val gate = remember(fix) { Semaphore(ReportMapTiles.PARALLEL) }
+        // The downloads outlive a new centre (a running one is not thrown away); they end with the dialog.
+        val scope = rememberCoroutineScope()
         DisposableEffect(fetcher) { onDispose { fetcher.close() } }
-        LaunchedEffect(fetcher) {
+        LaunchedEffect(fetcher, centre) {
             val f = fix
-            if (!ReportMapTiles.ENABLED || f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect
-            val gate = Semaphore(ReportMapTiles.PARALLEL)
-            for (t in ReportMapTiles.tilesAround(f.first, f.second)) {
-                launch {
+            val c = centre
+            if (!ReportMapTiles.ENABLED || f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect
+            if (c != f) delay(TILE_DEBOUNCE_MS)
+            val at = ReportMapTiles.tilePoint(c.first, c.second)
+            for (t in ReportMapTiles.tilesAround(c.first, c.second)) {
+                if (t in tiles || t in pending) continue
+                pending += t
+                scope.launch {
                     val image = gate.withPermit { withContext(Dispatchers.IO) { fetcher.fetch(t) } }
-                    if (image != null) tiles[t] = image
+                    pending -= t
+                    if (image != null) {
+                        tiles[t] = image
+                        for (old in ReportMapTiles.evict(tiles.keys, at)) tiles.remove(old)
+                    }
                 }
             }
         }
@@ -198,13 +290,19 @@ object ReportDirectionUi {
      * across, faint (60 %) and fading in, clipped to the disc; dark theme: inverted like the
      * website's map. The 0.7.6 decorative street grid is gone in every edition. Before the first
      * reading ([magneticDeg] null) only the ring and the ticks, faint, and a grey arrow.
+     *
+     * 0.8.1 (same build): [fix] is the place at the centre — the fix, or the place the map was
+     * moved to under the dot; [scaleLat] the fix's own latitude, for the 300 m scale (the same one
+     * the drag converts with); [drag] is the panel's drag handler (or nothing).
      */
     @Composable
     private fun DirectionArrow(
         magneticDeg: Double?,
         declination: Double,
         fix: Pair<Double, Double>?,
+        scaleLat: Double?,
         tiles: Map<ReportMapTiles.Tile, ImageBitmap>,
+        drag: Modifier,
     ) {
         val ink = MaterialTheme.colorScheme.onSurface
         val accent = MaterialTheme.colorScheme.primary
@@ -218,7 +316,7 @@ object ReportDirectionUi {
         // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
         // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
         val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
-        Canvas(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f)) {
+        Canvas(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f).then(drag)) {
             val c = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null
@@ -228,7 +326,8 @@ object ReportDirectionUi {
             // The real streets, clipped to the disc, turned by the true heading.
             if (live && point != null && fix != null && onMap) {
                 val disc = Path().apply { addOval(Rect(c, radius)) }
-                val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
+                // The scale of the fix's latitude, as the drag uses: the map stays under the finger.
+                val scale = ReportMapTiles.canvasScale(size.width.toDouble(), scaleLat ?: fix.first)
                 clipPath(disc) {
                     rotate(-((magneticDeg ?: 0.0) + declination).toFloat(), c) {
                         for ((t, image) in tiles) {

@@ -19,8 +19,8 @@ object ReportDirectionUi {
     @Composable
     fun rememberReading(): State<CompassReading?>? = null
 
-    /** Same signature as the real disc; draws nothing. */
+    /** Same signature as the real disc (0.8.1 with the place moved under the dot); draws nothing, so nothing can be moved. */
     @Suppress("UNUSED_PARAMETER")
     @Composable
-    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?) = Unit
+    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onMove: (Pair<Double, Double>) -> Boolean) = Unit
 }

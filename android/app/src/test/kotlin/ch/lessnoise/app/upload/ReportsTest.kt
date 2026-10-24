@@ -217,7 +217,10 @@ class ReportsTest {
         assertTrue(ui.contains("ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading)"))
         assertTrue(ui.contains("ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)"))
         // 0.7.0: the direction of travel (if read) goes with it; 0.7.6: and the licence plate (kept, never sent).
-        assertTrue(ui.contains("category = category.id, cell = fix.cell, direction = direction, plate = plate,"))
+        // 0.8.1 (same build): the place is the fix, or the one moved under the dot (ReportFlowTest).
+        assertTrue(ui.contains("val place = reportPlace(fix, moved)"))
+        assertTrue(ui.contains("lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,"))
+        assertTrue(ui.contains("category = category.id, cell = place.cell, direction = direction, plate = plate,"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }

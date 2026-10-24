@@ -45,6 +45,7 @@ import ch.lessnoise.app.container
 import ch.lessnoise.app.edition.EditionDiagnostics
 import ch.lessnoise.app.location.LocationFetcher
 import ch.lessnoise.app.location.LocationPolicy
+import ch.lessnoise.app.upload.CellInput
 import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
@@ -53,6 +54,7 @@ import ch.lessnoise.app.upload.ReportQueue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.ZoneId
+import kotlin.math.hypot
 
 // Karten editions only (BuildConfig.UPLOAD_AVAILABLE): «Laut! Melden». The fix for a shared
 // measurement is in ShareFlow.kt (0.6.3). The Offline and Labor editions never show either (no
@@ -106,19 +108,23 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
     // 0.7.6: «Kontrollschild (optional)»; on the phone only, never sent.
     var plateText by remember { mutableStateOf("") }
+    // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
+    var moved by remember { mutableStateOf<ReportPlace?>(null) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; chosenReading = null; plateText = ""
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; chosenReading = null; plateText = ""; moved = null
     }
 
     fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?) {
-        // True north from the declination at the report's own fix (magnetic if that fails).
-        val direction = reading?.toDirection(ReportDirectionUi.declination(fix.lat, fix.lon, tapMs))
+        // The fix, or the place moved under the dot (with MANUAL_ACCURACY_M and its own cell).
+        val place = reportPlace(fix, moved)
+        // True north from the declination at the report's own place (magnetic if that fails).
+        val direction = reading?.toDirection(ReportDirectionUi.declination(place.lat, place.lon, tapMs))
         val plate = ReportPlate.normalize(plateText)
         val zone = ZoneId.systemDefault()
         val report = PendingReport(
             epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
-            lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM,
-            category = category.id, cell = fix.cell, direction = direction, plate = plate,
+            lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,
+            category = category.id, cell = place.cell, direction = direction, plate = plate,
         )
         ReportQueue.add(c.upload.reports, report)
         // Labor·Karte: one `report` line in the local manifest (no-op in every other edition).
@@ -164,6 +170,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     fun open() {
         step = ReportStep.Report
         fixOutcome = null
+        moved = null
         if (LocationFetcher.hasPreciseLocation(context)) locate() else permission.launch(LocationFetcher.PERMISSIONS)
     }
 
@@ -210,13 +217,23 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         if (suggested.isNotEmpty()) {
                             Text("Erkannt um ${Fmt.hm(tapMs)}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
                         }
-                        if (reading != null) ReportDirectionUi.Panel(reading, fix?.let { it.lat to it.lon })
+                        if (reading != null) {
+                            ReportDirectionUi.Panel(reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon }) { p ->
+                                // Taken only within 2 km of the fix and in Switzerland; else the map stops.
+                                val next = fix?.let { reportMovedPlace(it, p.first, p.second) }
+                                if (next != null && !waiting) moved = next
+                                next != null && !waiting
+                            }
+                        }
                         // While a tapped report waits for the fix, the line under the grid says so instead.
                         if (!waiting) Text(
-                            reportFixLine(fix?.accuracyText),
+                            reportFixLine(fix?.accuracyText, moved != null),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
+                        if (!waiting && moved != null) {
+                            TextButton(onClick = { moved = null }) { Text(REPORT_MOVE_BACK) }
+                        }
                         OutlinedTextField(
                             value = plateText,
                             onValueChange = { plateText = ReportPlate.typing(it) },
@@ -336,8 +353,58 @@ const val REPORT_SEND_NOTE = "Antippen sendet die Meldung."
 /** While the fix is searched (0.7.8 under the disc in Labor·Karte; 0.8.1 in the one dialog). */
 const val REPORT_LOCATING = "Standort wird gesucht …"
 
-/** «Standort wird gesucht …» while there is no fix, then «Standort ± 12 m». */
-fun reportFixLine(accuracyM: Int?): String = accuracyM?.let { "Standort ± $it m" } ?: REPORT_LOCATING
+/**
+ * «Standort wird gesucht …» while there is no fix, then «Standort ± 12 m»; 0.8.1 (same build):
+ * [REPORT_MOVED_LINE] once the map was moved under the dot ([moved]).
+ */
+fun reportFixLine(accuracyM: Int?, moved: Boolean = false): String = when {
+    accuracyM == null -> REPORT_LOCATING
+    moved -> REPORT_MOVED_LINE
+    else -> "Standort ± $accuracyM m"
+}
+
+// ---- 0.8.1 (same build, Labor·Karte): the map moved under the dot -------------------------------
+// The disc (src/karte ReportDirectionUi.Panel) lets the person drag the map under the dot when
+// the car drove on or the fix is off; the place under the dot is then the report's place.
+
+/** Under the disc once the map was moved, instead of «Standort ± n m». */
+const val REPORT_MOVED_LINE = "Standort von Hand gesetzt"
+
+/** The button under that line: back to the fix. */
+const val REPORT_MOVE_BACK = "Zurück zum Standort"
+
+/** The accuracy sent with a place set by hand (the dot is placed on a 300 m map by a finger). */
+const val MANUAL_ACCURACY_M = 15.0
+
+/** At most this far from the fix (owner: a report 10 km away is not what this is for). */
+const val REPORT_MAX_MOVE_M = 2_000.0
+
+/**
+ * Slack on [REPORT_MAX_MOVE_M] for this check, which measures in LV95 metres (LV95 = the Swiss
+ * national grid, close to true ground metres), while the disc stops the map at 2 km in Web
+ * Mercator metres (a sphere of 6378 km): the two differ by up to about 2 m per km here (east–west),
+ * so the disc's own limit always passes this one.
+ */
+const val REPORT_MOVE_SLACK_M = 10.0
+
+/** The place a report is sent with: latitude, longitude, accuracy (m) and the 100 m cell kept on the phone. */
+data class ReportPlace(val lat: Double, val lon: Double, val accuracyM: Double, val cell: String)
+
+/**
+ * The map moved under the dot to ([lat], [lon]): that place with [MANUAL_ACCURACY_M] and its own
+ * 100 m cell (the same `CellInput.fromLatLon` as [LocationPolicy.decideReport]), or null when it is
+ * outside Switzerland or more than [REPORT_MAX_MOVE_M] from [fix] (then the map stops moving).
+ */
+fun reportMovedPlace(fix: LocationPolicy.ReportOutcome.Fix, lat: Double, lon: Double): ReportPlace? {
+    val at = CellInput.fromLatLon(lat, lon, how = "Standort") as? CellInput.Parsed.Ok ?: return null
+    val from = CellInput.fromLatLon(fix.lat, fix.lon, how = "Standort") as? CellInput.Parsed.Ok ?: return null
+    if (hypot(at.e - from.e, at.n - from.n) > REPORT_MAX_MOVE_M + REPORT_MOVE_SLACK_M) return null
+    return ReportPlace(lat, lon, MANUAL_ACCURACY_M, at.cell)
+}
+
+/** What a tap sends: the place moved under the dot, or (not moved) the fix as it is. */
+fun reportPlace(fix: LocationPolicy.ReportOutcome.Fix, moved: ReportPlace?): ReportPlace =
+    moved ?: ReportPlace(fix.lat, fix.lon, fix.accuracyM, fix.cell)
 
 /** What the one dialog does next (0.8.1). */
 enum class ReportNext {
