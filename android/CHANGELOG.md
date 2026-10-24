@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.2 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 34)
+
+In short: the tab «Karte» is dark when the app is; «Laut! Melden» has its «Senden» back; the
+«Kontrollschild» field has a camera button (no text recognition yet). Same data, same hosts, no new
+permission, no new dependency in the Offline and Labor builds.
+
+- **Dark «Karte»**: the map page's own dark style (prefers-color-scheme, docs/map/karte.css with the
+  CSS filter on the swisstopo tiles) is used when the app is dark (`isSystemInDarkTheme()`). The
+  WebView was always light because the Activity theme is light; it is now created with a dark
+  platform theme when the app is dark (`MapDark`). Algorithmic darkening of the WebView stays off;
+  old WebViews: force dark with «web theme darkening only». New dependency in the two map editions
+  only: `androidx.webkit:webkit:1.12.1`. No website change; allowed hosts and CSP unchanged.
+- **«Senden»** (owner's decision): a tap on a category selects it (one, drawn filled; «erkannt»
+  kept), «Senden» sends with the compass reading of that tap; enabled with a category and a fix
+  present or still searched (then it waits as before). «Antippen sendet die Meldung.» removed; the
+  rule-10 line stays. From the «Sehr laut» notification a single suggested category is preselected
+  (one tap: «Senden»); two suggestions (Töff/Poser, Auto/Lastwagen — today's usual case) preselect
+  nothing.
+- **Camera button on «Kontrollschild»**: opens the phone's camera app (no camera permission), the
+  photo goes to the app's cache and is deleted at once, unread. **No text recognition**: the bundled
+  Google ML Kit was checked and not added (Google Play services, Firebase's logging transport to
+  firebaselogging.googleapis.com, about +20 MB); the field says «Foto gelöscht – Erkennung noch
+  nicht eingebaut, bitte eintippen». `PlateOcr.bestPlate` (Swiss canton plates, FL, foreign
+  fallback) is written and tested for when a recogniser is decided.
+
 ## 0.8.1 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 33)
 
 In short: «Laut! Melden» is one dialog, and one tap on what was loud sends the report. Until 0.7.8
