@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.8.0 — 2026-10-24 (versionCode 32; published: Offline-Version and Online-Version on the website)
+
+In short: the first published version since 0.7.2. It brings the changes of the unpublished
+Labor·Karte builds 0.7.3–0.7.8 that concern «Laut! Melden» and the «Sehr laut» notification to the
+**Online-Version**: one notification instead of two, a compass with the real streets under the
+arrow, an optional licence-plate field that stays on the phone, the new category «Flugzeug», and an
+«erkannt» marker instead of pre-filled buttons. **One privacy change:** while «Wohin fuhr es?» is
+open, the Online-Version now loads swisstopo's map tiles around your true position (below). The
+**Offline-Version** has none of these features (no reports, no notification, no map); for it 0.8.0
+changes nothing you can see. No new permission in either edition.
+
+- **One notification for «Sehr laut»** (Online-Version). A very loud vehicle while «Unterwegs» no
+  longer adds a second notification: the measurement's own notification turns into the alert for
+  30 s («Sehr laut: Töff & Poser, 84 dB – Antippen zum Melden», with sound and vibration on the
+  channel «Sehr laut»), with «Melden» and «Stopp»; then it shows the level again (0.7.6).
+- **Compass with real streets in «Wohin fuhr es?»** (Online-Version). The arrow stands in a compass
+  rose that turns with the phone (0.7.6), and once the report's location is found, swisstopo's grey
+  map of the ≈ 300 m around you lies under it, turned like the ground in front of you (0.7.8; until
+  then «Standort wird gesucht …»). The dialog is wider (94 % of the screen) for the larger disc.
+  **Privacy:** for this the app requests from swisstopo (the Federal Office of Topography,
+  `wmts.geo.admin.ch`, the same host the tab «Karte» already uses) the tiles touching the 150 m
+  circle around your **true** position — GET only, no redirects, no cache, no cookies, only inside
+  Switzerland, only while that step is open, kept in memory only. swisstopo sees those requests
+  with your IP address, like a visitor looking at that area on the map; nothing of it is stored or
+  sent to the project's server. docs/datenschutz.html, PRIVACY.md and server/DESIGN.md §2 rule 7
+  say so.
+- **«Kontrollschild (optional)»** in the confirmation of «Laut! Melden» (Online-Version): one text
+  field, at most 12 characters. The plate is stored **on the phone only** (report queue and the list
+  of sent reports under «Teilen»), never sent; the report body is unchanged (0.7.6).
+- **New category «Flugzeug»** (Online-Version, server, map): Töff, Auto, Lastwagen, Flugzeug, Poser,
+  anderes Fahrzeug; on the map marker «F». The server accepts `flugzeug` from this release on (it
+  deploys from `main` with this version); a «Flugzeug» report sent to a server without it would be
+  refused and dropped (0.7.7).
+- **«erkannt» instead of filled buttons** in «Was war laut?» (Online-Version): every category button
+  looks alike; one that fits the «Sehr laut» event has a small «erkannt» after its label, so nothing
+  looks preselected (0.7.7).
+- **Not in the published editions** (Labor builds only, unchanged by this release): the event head
+  v2 scores in the Labor manifest (0.7.3, logging only; the public editions do not run the head),
+  «In Ordner exportieren» (0.7.4), the Labor storage cap as an audio budget with warning and start
+  block, the 5 GB default (0.7.5), the position rule of Labor·Karte (0.7.5; the published editions
+  have no position signal), the Labor·Karte `report` manifest line (0.7.6), and signed Labor builds
+  from GitHub Actions (0.7.4).
+- **Release builds from GitHub Actions** (`.github/workflows/release-build.yml`): both published
+  APKs are built and signed by a workflow with the repository's keystore secrets and checked there
+  (signer certificate, package and version, permissions per PRIVACY.md, no Labor classes, no map,
+  WebView, alert or motion classes in the Offline-Version), so no session needs the key.
+- Tests: `UploadSourceIsolationTest` and `ReportMapTilesTest` pin that the tile download has no
+  edition flag any more, is started only by the direction step with a fix inside Switzerland, and
+  is compiled only into the editions with the map (public, laborKarte).
+
 ## 0.7.8 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 31)
 
 In short: in «Wohin fuhr es?» the reporter now sees the real streets around them under the arrow,

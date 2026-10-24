@@ -84,7 +84,7 @@ test("the home page: two buttons, which to choose, the version line and the link
   // Online-Version first (the default), the Offline-Version as the more private alternative.
   await expect(page.locator("#version")).toContainText(/^Die Online-Version .* Die Offline-Version ist für alle, die noch mehr Privatsphäre möchten:/);
   await expect(page.locator("#download a.button").first()).toHaveText("Online-Version herunterladen");
-  await expect(page.locator("#download .release")).toHaveText("Version 0.7.2, Android 8 oder neuer.");
+  await expect(page.locator("#download .release")).toHaveText("Version 0.8.0, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
   // «Source Code ist hier» links the repository (owner's text, 2026-10-15).
@@ -115,7 +115,7 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
   // The «Stadtlärm» 0.5.x note left the Anleitung (owner, 2026-10-15); update.html#new-app still explains it.
   await expect(page.locator("#stadtlaerm, #installation .note")).toHaveCount(0);
   await expect(page.locator("#installation")).toContainText("«Dateien»");
-  await expect(page.locator("#pruefsummen .facts")).toContainText("0.7.2");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("0.8.0");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
   await expect(page.locator("#teilen")).toContainText("Laut! Melden");
   await expect(page.locator("#daten")).toContainText("CSV");

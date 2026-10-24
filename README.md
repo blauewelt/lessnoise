@@ -172,11 +172,17 @@ What the project counts, and who counts it — totals over the whole project, al
 - **Phone app v0.7.1 (published 2026-10-20):** 0.7.0 in both public editions;
   with headphones or a headset connected the app said «Das Telefon misst nur mit dem eingebauten
   Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.» instead of measuring.
-- **Phone app v0.7.2 (published 2026-10-20, the current version):** the built-in microphone stays
+- **Phone app v0.7.2 (published 2026-10-20):** the built-in microphone stays
   the default and the app never switches to a headset by itself, but another microphone (USB, wired,
   LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
   whenever it is connected. Calibration is per microphone; a minute measured with another
   microphone sends that microphone's kind with its audio source.
+- **Phone app v0.8.0 (published 2026-10-24, the current version):** in the Online-Version one
+  notification for «Sehr laut» instead of two; in «Laut! Melden» a compass rose with the real
+  streets around you under the direction arrow (map tiles from swisstopo, which sees those requests
+  with your IP address), an optional «Kontrollschild» field that stays on the phone, the category
+  «Flugzeug» and an «erkannt» marker instead of pre-filled buttons. The Offline-Version is
+  unchanged for its users. Both APKs are built and signed by GitHub Actions.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.7.8-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.8.0-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -75,9 +75,9 @@ class EditionTextTest {
         if (BuildConfig.FLAVOR == "labor") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor"))
         else if (BuildConfig.FLAVOR == "laborKarte") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor-karte"))
         else assertFalse(BuildConfig.VERSION_NAME.contains('-'), BuildConfig.VERSION_NAME)
-        // 0.7.8 (versionCode 31; built as Labor·Karte only, branch labor-report-ui): one version for all four flavours.
-        assertEquals(31, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.7.8"), BuildConfig.VERSION_NAME)
+        // 0.8.0 (versionCode 32; published: Offline- and Online-Version, branch release-0.8.0): one version for all four flavours.
+        assertEquals(32, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.8.0"), BuildConfig.VERSION_NAME)
     }
 
     @Test
