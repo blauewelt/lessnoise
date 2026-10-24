@@ -810,6 +810,34 @@ direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off,
 server data, or the offline edition taking over also drops unsent reports. While a measurement
 runs there is no «Melden» button: its loud events are uploaded with the measurement's cell anyway.
 
+**«Wohin fuhr es?» (the direction step, 0.6.7; editions with the map).** Right after «Was war
+laut?», while the fix is searched, the reporter points the phone where the vehicle went and taps
+«Richtung übernehmen» («Überspringen» sends none; `src/karte/.../ui/ReportDirectionUi.kt`, the
+compass in `src/karte/.../compass/`; the Offline and Labor builds have the stand-in in `src/nomap`).
+A 240 dp disc (the dialog is 94 % of the screen wide, `usePlatformDefaultWidth = false`, so it fits
+on a 320 dp phone): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
+16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
+below, the figure-eight hint while the compass is unreliable; the screen's orientation is locked
+and the sensors run only while the step is on screen and the app is in front. **0.7.8, Labor·Karte
+only** (`ReportMapTiles.ENABLED` = `BuildConfig.LABOR_UNTERWEGS`): once the fix is there
+(`LocationFlows` passes it as `fix` in the Confirm state; null while locating, then «Standort wird
+gesucht …» under the label), the real streets around it are drawn under the arrow — swisstopo's grey
+map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
+zoom 18, every tile that touches the 150 m disc around the fix (9–16 tiles; a zoom-18 tile is only
+≈ 103 m in Switzerland, so a plain 3 × 3 block would leave the edge of a 300 m view empty), scaled so
+that the disc is 300 m across whatever the screen density, turned by the true heading (magnetic +
+declination at the fix), the fix at the centre as a small dot, at 60 % opacity, fading in, inverted
+in the dark theme like the website's map, «© swisstopo» under the disc. Downloads:
+`HttpURLConnection` on `Dispatchers.IO`, at most 4 at a time, nearest tile first, GET, 5 s
+timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile, decoded with
+`BitmapFactory`, kept in a `remember`ed map only for the life of the step, open connections closed
+when the step goes away; a tile that fails is simply not drawn. Nothing for a fix outside
+Switzerland's bounding box. Privacy: swisstopo sees tile requests for the area around the
+reporter's **true** position (PRIVACY.md, «Internal variant `laborKarte`»); that is why the
+Online-Version keeps the rose without tiles until its privacy page says so. The 0.7.6 decorative
+street lines are gone in every edition. Pure maths and its tests: `ReportMapTiles`,
+`src/testKarte/.../ui/ReportMapTilesTest.kt` (Zürich main station fixture computed in Python).
+
 **What happens in the background.** At the first opt-in the shared measurements of the last 7 days
 are included; afterwards nothing measured while sharing is off is ever sent (except the measurement
 running when sharing is switched on, as a whole). Since 0.6.3, while a shared measurement runs
@@ -840,7 +868,8 @@ token (401) stops uploads until «Neu starten». The local database stays the so
 nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
-`UploadClient.kt` (the only class that opens connections: `HttpURLConnection`, one host from
+`UploadClient.kt` (the only class of the upload that opens connections — the others in the app are the
+map tab's WebView and, Labor·Karte only, the tiles of «Wohin fuhr es?», `ui/ReportMapTiles.kt`: `HttpURLConnection`, one host from
 `BuildConfig.API_BASE`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, cells per record, reports, `rejected`, delete; pure JVM),
 `Reports.kt` (the report queue), `UploadState.kt` (settings, id, markers, the share decision and the
@@ -1353,7 +1382,8 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
                 location/: the one-fix location code; data/: Room incl. the measurements table)
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
-  src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code), compiled
+  src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
+                ReportMapTiles.kt, 0.7.8: the tiles of «Wohin fuhr es?», downloading in `laborKarte` only), compiled
                 into `public` and `laborKarte` only
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)

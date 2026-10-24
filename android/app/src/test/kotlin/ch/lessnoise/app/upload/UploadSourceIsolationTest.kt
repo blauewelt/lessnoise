@@ -22,8 +22,10 @@ import kotlin.test.fail
  * 2. No flavour source set (src/labor, src/laborKarte, src/public, src/offline) contains classes
  *    of the upload package: every edition uploads with exactly this code.
  * 3. The Labor code (app/src/labor/) does not touch the upload or any network API.
- * 4. Network code exists in exactly two files of the app: upload/UploadClient.kt and (0.6.3) the
- *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.).
+ * 4. Network code exists in exactly three files of the app: upload/UploadClient.kt, (0.6.3) the
+ *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.), and
+ *    (0.7.8) the tile download of «Wohin fuhr es?», src/karte/.../ui/ReportMapTiles.kt: swisstopo's
+ *    tiles only, only in Labor·Karte (BuildConfig.LABOR_UNTERWEGS), GET, no redirects, no cache.
  *
  * It reads the source files, so it runs the same in every flavour (testOfflineDebugUnitTest …
  * testLaborKarteDebugUnitTest). Comments are ignored; string literals are checked.
@@ -147,9 +149,11 @@ class UploadSourceIsolationTest {
     }
 
     /**
-     * Network code exists in exactly two files: the upload's UploadClient.kt (one host, opt-in) and,
-     * since 0.6.3, the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
-     * which shows the website's map page once the tab is opened.
+     * Network code exists in exactly three files: the upload's UploadClient.kt (one host, opt-in),
+     * since 0.6.3 the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
+     * which shows the website's map page once the tab is opened, and since 0.7.8 the tile download
+     * of the direction step, src/karte/.../ui/ReportMapTiles.kt (checked below: one address
+     * template on swisstopo's host, only with BuildConfig.LABOR_UNTERWEGS, so only in laborKarte).
      */
     @Test
     fun networkCodeOnlyInUploadClientAndTheMapTab() {
@@ -158,9 +162,35 @@ class UploadSourceIsolationTest {
         assertTrue(files.size > 30, "sources not found under $roots")
         val hits = files.filter { f -> networkCode.containsMatchIn(KotlinSource.parse(f.readText()).code) }.map { it.relativeTo(appDir.parentFile).path }
         assertEquals(
-            listOf("app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt", "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt"),
+            listOf(
+                "app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt",
+                // 0.7.8: swisstopo's tiles under the arrow of «Wohin fuhr es?» (Labor·Karte only; see below).
+                "app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt",
+                "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt",
+            ),
             hits, "network code in: $hits",
         )
+        // 0.7.8: the tile download builds every address from its one template on wmts.geo.admin.ch
+        // (the map page's tile host), opens connections only in ReportTileFetcher.fetch, which
+        // returns at once unless BuildConfig.LABOR_UNTERWEGS (true only in laborKarte), and
+        // follows no redirect, uses no cache and sends no cookie (no CookieHandler in the app).
+        val tiles = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt").readText())
+        assertEquals(
+            listOf("https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"),
+            tiles.literals.filter { "://" in it || it.startsWith("http") || it.startsWith("ws") },
+            "ReportMapTiles.kt names one address",
+        )
+        assertEquals(1, Regex("""\.openConnection\(\)""").findAll(tiles.code).count())
+        assertTrue(tiles.code.contains("URI(ReportMapTiles.url(tile)).toURL().openConnection()"), "connections only to tile addresses")
+        assertTrue(tiles.code.contains("val ENABLED: Boolean = BuildConfig.LABOR_UNTERWEGS"))
+        assertTrue(tiles.code.contains("if (!ReportMapTiles.ENABLED || closed) return null"))
+        for (r in listOf("conn.instanceFollowRedirects = false", "conn.useCaches = false", "conn.requestMethod = \"GET\"")) {
+            assertTrue(tiles.code.contains(r), "ReportMapTiles.kt lacks «$r»")
+        }
+        val tileForbidden = Regex("""\b(doOutput|outputStream|setDoOutput|Cookie\w*|HttpResponseCache|LocationFetcher|LocationManager|UploadClient|Socket|WebView)\b""")
+        assertEquals(null, tileForbidden.find(tiles.code)?.value, "ReportMapTiles.kt sends nothing but GET")
+        val allCode = files.joinToString("\n") { KotlinSource.parse(it.readText()).code }
+        assertTrue(!Regex("""\b(CookieHandler|HttpResponseCache)\b""").containsMatchIn(allCode), "no app-wide cookie store or HTTP cache")
         // The WebView's address comes from MapLinks (Links.MAP + fragment) only, and the map tab
         // uses no other network API than the WebView.
         val map = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").readText())

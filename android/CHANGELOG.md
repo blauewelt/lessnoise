@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.8 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 31)
+
+In short: in «Wohin fuhr es?» the reporter now sees the real streets around them under the arrow,
+turning with the phone, so they can recognise where they stand and turn the phone to where the
+vehicle went. **Labor·Karte only, and a privacy change there:** swisstopo (the Federal Office of
+Topography, `wmts.geo.admin.ch`) receives, at report time, map-tile requests for the area around the
+reporter's true position, with the phone's IP address (PRIVACY.md, «Internal variant `laborKarte`»).
+The Online-Version shows the compass rose without tiles and requests nothing; its privacy page
+(docs/datenschutz.html) must say so in the same change that enables it there. Offline and Labor
+(without the map) unchanged. Nothing new is sent to the project's server.
+
+- **Streets under the arrow** (Labor·Karte, `BuildConfig.LABOR_UNTERWEGS`). Once the location fix
+  is there, swisstopo's grey map (the website map's tiles) at zoom 18 around the fix, 300 m across
+  the 240 dp disc, turned by the true heading, faint (60 %) and fading in, the reporter as a dot at
+  the centre, «© swisstopo» below. 9–16 tiles (every tile touching the 150 m disc; a zoom-18 tile
+  is ≈ 103 m, so 3 × 3 would leave the disc's edge empty), downloaded while the step is on screen
+  only, 5 s timeouts, in memory only, cancelled when the step closes; a missing tile is simply not
+  drawn. While the fix is searched: the rose alone and «Standort wird gesucht …».
+- **Wider dialog** for the 240 dp disc (94 % of the screen width; until 0.7.7 a 160 dp disc in the
+  platform's dialog width). The 0.7.6 decorative street lines are gone in every edition.
+- Tests: `ReportMapTilesTest` (Web Mercator tile maths against a Python fixture, round trips, tile
+  coverage of the disc, 300 m at any screen density, the URL equals docs/map/karte.js `TILES`, the
+  flag); `UploadSourceIsolationTest` allows network code in `ReportMapTiles.kt` and pins its one
+  address, GET only, no redirects, no cache and the flag.
+
 ## 0.7.7 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 30)
 
 In short: «Was war laut?» no longer looks like a multiple choice when it comes from the «Sehr

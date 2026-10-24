@@ -17,6 +17,8 @@ object ReportDirectionUi {
 
     fun declination(lat: Double, lon: Double, timeMs: Long): Double? = null
 
+    /** Same signature as the real step (0.7.8: [fix] for the streets of Labor·Karte); ignores everything. */
+    @Suppress("UNUSED_PARAMETER")
     @Composable
-    fun Step(onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) = Unit
+    fun Step(fix: Pair<Double, Double>?, onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) = Unit
 }

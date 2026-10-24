@@ -122,7 +122,10 @@ accordingly before you share them.
   finds network code in exactly one file, `android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`
   (the upload), and nothing in the audio path; since 0.6.3 the only other network code is the WebView of
   the tab «Karte», `android/app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt` (`grep -rn WebView android/app/src`),
-  which is compiled into the Online-Version and the internal `laborKarte` only (`android/app/src/labor/` is the separate Labor build, see below). The only file writes are the CSV/JSON exports in
+  and, since 0.7.8, the tile download of «Wohin fuhr es?», `android/app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt`,
+  which is compiled into the Online-Version too but downloads only in the internal `laborKarte`
+  (`BuildConfig.LABOR_UNTERWEGS`, false in the Online-Version; see «Internal variant `laborKarte`» below);
+  both are compiled into the Online-Version and the internal `laborKarte` only (`android/app/src/labor/` is the separate Labor build, see below). The only file writes are the CSV/JSON exports in
   `android/app/.../data/Repositories.kt` and `android/app/.../ui/CalibrationViewModel.kt`, which contain aggregates only.
 
 ## «Messwerte teilen» (opt-in upload, from v0.5.0)
@@ -192,7 +195,7 @@ and the Labor build do not have it: their builds contain no map screen and no We
 | **When** | Only when you open the tab. Nothing is loaded before you open it. Since the 0.6.3 map tab fix the page is kept while you look at another tab, so that coming back does not load it again: it is then hidden and paused (JavaScript timers stopped, a page still loading is stopped; what the page had already started fetching may still finish), nothing new is loaded and the view is not moved; it is closed with the app's screen. It is not reloaded when shown again; the page keeps its data up to date by itself (below, «The website»: it asks for the published map files every 30 seconds while it is visible), and when the tab is shown again the app asks it to check at once. |
 | **What it loads** | Like a browser that opens the map page: the page and its scripts from `wenigerlaerm.ch` (GitHub Pages), the map tiles from `wmts.geo.admin.ch` (swisstopo, the Federal Office of Topography), the published map files (fields, reports) from `api.lessnoise.ch` (or, if that host cannot be reached, `api.stadtlaerm.ch`, the same server). The app refuses any other host (`MapLinks.allowedHost`), in addition to the page's own Content-Security-Policy. Links to other pages (Datenschutz, GitHub, swisstopo …) open in your browser. These hosts see your IP address, as for any visitor of the map. |
 | **What it sends** | No measurement, no location, no device id, no cookies. Where the map opens: at the **shifted** point of your newest shared measurement (the point that was already sent, never your true location, which the app does not keep), at zoom 16, written into the address after `#` (`karte.html#lat=…&lon=…&z=16`); browsers never send that part to a server, the page's script reads it on the phone. Without a shared measurement the plain map opens (`karte.html#metric`). When your point appears or changes later (e.g. the first fix of a measurement while the tab is kept), the app moves the view by replacing only that part after `#`: the one script it ever runs in the page is `location.replace('#lat=…&lon=…&z=16')` (built only from the shifted point, `MapLinks.recentreScript`), no reload and no new history entry; it sends nothing either. What remains: the map tiles for the area on screen are requested from swisstopo, so swisstopo can tell from the tile requests (with your IP address) which area of a few hundred metres is being looked at — when the tab opens at your measurement, an area near your shifted point — as for anyone who looks at that area on the website. |
-| **Locked down** | JavaScript on (the map needs it); no DOM storage, no file or content access, no JavaScript bridge to the app (the page cannot call the app; the app runs only two fixed scripts in the page and reads nothing back: the `location.replace` above, and `window.KarteCheck && window.KarteCheck()` when the tab is shown again, the page's own check for new map files), geolocation off (every permission request of the page is denied), no cookies at all, mixed content never, usage metrics of the WebView off (`android.webkit.WebView.MetricsOptOut`). Safe Browsing stays as Android's default (on): Android's WebView may check page addresses against Google Safe Browsing, as Chrome does. `UploadSourceIsolationTest` checks these settings and that the WebView is the app's only network code besides `UploadClient.kt`; `MapLinksTest` checks the address, the allowed hosts (= the page's CSP) and which links stay in the app. |
+| **Locked down** | JavaScript on (the map needs it); no DOM storage, no file or content access, no JavaScript bridge to the app (the page cannot call the app; the app runs only two fixed scripts in the page and reads nothing back: the `location.replace` above, and `window.KarteCheck && window.KarteCheck()` when the tab is shown again, the page's own check for new map files), geolocation off (every permission request of the page is denied), no cookies at all, mixed content never, usage metrics of the WebView off (`android.webkit.WebView.MetricsOptOut`). Safe Browsing stays as Android's default (on): Android's WebView may check page addresses against Google Safe Browsing, as Chrome does. `UploadSourceIsolationTest` checks these settings and that the WebView is the app's only network code besides `UploadClient.kt` (and, since 0.7.8, the Labor·Karte-only tile download of «Wohin fuhr es?», `ReportMapTiles.kt`, see «Internal variant `laborKarte`»); `MapLinksTest` checks the address, the allowed hosts (= the page's CSP) and which links stay in the app. |
 | **Permissions** | None added: it uses the `INTERNET` permission the Online-Version already has. |
 
 ## On the server: what is stored and what the map publishes (schema v4, from 0.6.2)
@@ -321,7 +324,8 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   cache dirs, `ContentResolver`, assets, `MediaStore` …), an audio class, the Labor package
   `ch.lessnoise.app.labor` or a recording folder name, if it imports a project class that is not
   on its allow-list, if a flavour adds upload classes, if the Labor code touches the upload or the
-  network, or if network code appears anywhere but `upload/UploadClient.kt`. Recordings still
+  network, or if network code appears anywhere but `upload/UploadClient.kt`, the map tab's WebView
+  (`ui/MapScreen.kt`) and, since 0.7.8, the tile download `ui/ReportMapTiles.kt` (below). Recordings still
   leave the phone only when the user shares them («Als ZIP teilen»), copies them over USB or exports
   them to a folder of their choice («In Ordner exportieren», 0.7.4), as in the Labor build.
 - **Motion log (0.7.0, Labor·Karte only):** each change of «Unterwegs erkannt» (still ↔ carried) is
@@ -331,6 +335,20 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
 - **Report log (0.7.6, Labor·Karte only):** at «Senden» in «Laut! Melden» one `report` line in the local
   `manifest.jsonl`: time, category, the licence plate if one was typed in, and the direction — no
   coordinates. It stays on the phone like the rest of the manifest; the upload never reads it.
+- **Streets under the compass (0.7.8, Labor·Karte only):** in «Laut! Melden», step «Wohin fuhr es?»,
+  once the report's location fix is there, the app downloads swisstopo's grey map tiles
+  (`wmts.geo.admin.ch`, swisstopo = the Federal Office of Topography; the same tiles as the website's
+  map) for the area of about 150 m around the fix — 9 to 16 tiles at zoom 18 — and draws them faint
+  under the arrow, turning with the phone. Unlike the tab «Karte», which opens near the *shifted*
+  point, these requests are for the area around your **true** position: swisstopo receives them
+  with your IP address at the moment you report, as plain HTTPS image requests (no cookies, no
+  referrer, a fixed User-Agent «LessNoise», no other data). They are made only while that step is
+  on screen (cancelled when it closes), only for a fix inside Switzerland's bounding box (where the grey map has data), and the tiles are kept only in
+  memory for that step — nothing is written to the phone, nothing is sent to the project's server
+  that it did not receive before (the report itself is unchanged). The Online-Version does not do
+  this: it shows the compass rose without tiles, as 0.7.6 did (without its decorative street lines),
+  and requests nothing from swisstopo in this step (`ReportMapTiles.ENABLED` =
+  `BuildConfig.LABOR_UNTERWEGS`; `ReportMapTilesTest`, `UploadSourceIsolationTest`).
 - The banner says «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen»; Einstellungen → Über die App
   shows «Weniger Lärm Labor · Karte». The server counts its `app_version` (e.g. `0.6.0-labor-karte`) under
   «andere» in `stats.json` (it does not match the server's version pattern).

@@ -9,7 +9,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +41,25 @@ import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.ReportDirection
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 
 /**
  * The direction step of «Laut! Melden» (0.6.7, editions with the map; the Offline and Labor builds
@@ -83,13 +101,22 @@ object ReportDirectionUi {
         return ReportDirection(d, ReportDirection.North.MAGNETIC, ReportDirection.Accuracy.HIGH).label.removePrefix("Richtung ") + " · $d°"
     }
 
+    /** 0.7.8: under the live label while the fix is searched (Labor·Karte, where the streets follow it). */
+    const val LOCATING = "Standort wird gesucht …"
+
+    /** 0.7.8: the credit under the disc while swisstopo's tiles are drawn. */
+    const val TILE_ATTRIBUTION = "© swisstopo"
+
     /**
      * The step as a dialog. [onTake] gets the reading at the tap; [onSkip] goes on without one;
      * [onCancel] (back) cancels the whole report, like «Abbrechen» in the other steps. A tap outside
-     * does nothing, so waving the phone cannot cancel by accident.
+     * does nothing, so waving the phone cannot cancel by accident. [fix] (0.7.8; latitude, longitude)
+     * is the report's location fix once it is there, null while it is searched: in Labor·Karte
+     * ([ReportMapTiles.ENABLED]) the real streets around it are drawn under the arrow; the
+     * Online-Version ignores it and shows the rose alone.
      */
     @Composable
-    fun Step(onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) {
+    fun Step(fix: Pair<Double, Double>?, onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) {
         val context = LocalContext.current
         var reading by remember { mutableStateOf<CompassReading?>(null) }
         val compass = remember {
@@ -108,19 +135,31 @@ object ReportDirectionUi {
             compass.start()
             onPauseOrDispose { compass.stop() }
         }
+        val tiles = rememberStreetTiles(fix)
+        // Map north is true north; the compass reads magnetic north. The tiles are turned by the
+        // true heading (declination at the fix, Android's built-in model, no network).
+        val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
         val r = reading
         AlertDialog(
             onDismissRequest = onCancel,
-            properties = DialogProperties(dismissOnClickOutside = false),
+            // 0.7.8: wider than the platform's dialog width, so that the 240 dp disc fits on a narrow phone.
+            properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth(0.94f),
             title = { Text(TITLE) },
             text = {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(INSTRUCTION, modifier = Modifier.fillMaxWidth())
-                    DirectionArrow(r?.magneticDeg)
+                    DirectionArrow(r?.magneticDeg, declination, fix, tiles)
+                    if (tiles.isNotEmpty() && r != null) {
+                        Text(TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Text(
                         if (r == null) "…" else liveLabel(r.magneticDeg),
                         style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
                     )
+                    if (ReportMapTiles.ENABLED && fix == null) {
+                        Text(LOCATING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
                     if (r != null && showCalibrationHint(r.sensorStatus)) {
                         Text(CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
@@ -132,41 +171,93 @@ object ReportDirectionUi {
     }
 
     /**
-     * The live compass (0.7.6): a schematic compass rose that turns with the phone, so that it is
-     * obvious that the reading is live. The arrow stays fixed and points up the screen, i.e. where
-     * the phone points (accent colour). Around it the rose is turned by −[magneticDeg]: the ring, 16
-     * ticks (the four cardinal ones longer) and the letters N, O, S, W (German: Ost) on north, east,
-     * south and west — N larger and in the accent colour. The letters move with the rose but stay
-     * upright so they can be read. Behind it a faint «schematic map»: three thin grey lines across
-     * the disc like a street grid, drawn in the turning frame so they visibly turn too. They are
-     * purely decorative: no map data, no place, nothing read or stored. Before the first reading
-     * ([magneticDeg] null) only the ring and the ticks, faint, and a grey arrow.
+     * 0.7.8, Labor·Karte only: swisstopo's tiles around [fix], downloaded while the step is on
+     * screen and kept only in this map (memory), which is dropped with the step. Nothing is
+     * requested without the flag, without a fix, or outside Switzerland (the grey map has no data
+     * there). Leaving the step closes the open connections at once.
      */
     @Composable
-    private fun DirectionArrow(magneticDeg: Double?) {
+    private fun rememberStreetTiles(fix: Pair<Double, Double>?): Map<ReportMapTiles.Tile, ImageBitmap> {
+        val tiles = remember(fix) { mutableStateMapOf<ReportMapTiles.Tile, ImageBitmap>() }
+        val fetcher = remember(fix) { ReportTileFetcher() }
+        DisposableEffect(fetcher) { onDispose { fetcher.close() } }
+        LaunchedEffect(fetcher) {
+            val f = fix
+            if (!ReportMapTiles.ENABLED || f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect
+            val gate = Semaphore(ReportMapTiles.PARALLEL)
+            for (t in ReportMapTiles.tilesAround(f.first, f.second)) {
+                launch {
+                    val image = gate.withPermit { withContext(Dispatchers.IO) { fetcher.fetch(t) } }
+                    if (image != null) tiles[t] = image
+                }
+            }
+        }
+        return tiles
+    }
+
+    /**
+     * The live compass (0.7.6; 0.7.8 with the streets): a schematic compass rose that turns with the
+     * phone, so that it is obvious that the reading is live. The arrow stays fixed and points up the
+     * screen, i.e. where the phone points (accent colour). Around it the rose is turned by
+     * −[magneticDeg]: the ring, 16 ticks (the four cardinal ones longer) and the letters N, O, S, W
+     * (German: Ost) on north, east, south and west — N larger and in the accent colour. The letters
+     * move with the rose but stay upright so they can be read.
+     *
+     * Under it (0.7.8, Labor·Karte, once [fix] and the first tiles are there): the real streets,
+     * swisstopo's grey map, turned by the true heading (magnetic + [declination]) so that the map
+     * lies like the ground in front of the reporter, the fix at the centre (a small dot), 300 m
+     * across, faint (60 %) and fading in, clipped to the disc; dark theme: inverted like the
+     * website's map. The 0.7.6 decorative street grid is gone in every edition. Before the first
+     * reading ([magneticDeg] null) only the ring and the ticks, faint, and a grey arrow.
+     */
+    @Composable
+    private fun DirectionArrow(
+        magneticDeg: Double?,
+        declination: Double,
+        fix: Pair<Double, Double>?,
+        tiles: Map<ReportMapTiles.Tile, ImageBitmap>,
+    ) {
         val ink = MaterialTheme.colorScheme.onSurface
         val accent = MaterialTheme.colorScheme.primary
+        val surface = MaterialTheme.colorScheme.surface
+        val dark = surface.luminance() < 0.5f
         val measurer = rememberTextMeasurer()
         val letterStyle = MaterialTheme.typography.labelLarge.copy(color = ink, fontWeight = FontWeight.Medium)
         val northStyle = MaterialTheme.typography.titleMedium.copy(color = accent, fontWeight = FontWeight.Bold)
-        Canvas(Modifier.size(160.dp)) {
+        val point = remember(fix) { fix?.let { ReportMapTiles.tilePoint(it.first, it.second) } }
+        val fade by animateFloatAsState(if (tiles.isNotEmpty() && magneticDeg != null) 1f else 0f, tween(400), label = "tiles")
+        // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
+        // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
+        val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
+        Canvas(Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(1f)) {
             val c = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null
             val turn = -(magneticDeg ?: 0.0).toFloat()
             val faint = if (live) 1f else 0.4f
-            rotate(turn, c) {
-                // The schematic street grid, clipped to the disc (decorative only).
-                if (live) {
-                    val disc = Path().apply { addOval(Rect(c, radius)) }
-                    clipPath(disc) {
-                        val street = ink.copy(alpha = 0.12f)
-                        val w = 3.dp.toPx()
-                        drawLine(street, Offset(c.x - radius, c.y - radius * 0.28f), Offset(c.x + radius, c.y - radius * 0.40f), w)
-                        drawLine(street, Offset(c.x - radius, c.y + radius * 0.46f), Offset(c.x + radius, c.y + radius * 0.30f), w)
-                        drawLine(street, Offset(c.x + radius * 0.22f, c.y - radius), Offset(c.x + radius * 0.36f, c.y + radius), w)
+            val onMap = fade > 0f
+            // The real streets, clipped to the disc, turned by the true heading.
+            if (live && point != null && fix != null && onMap) {
+                val disc = Path().apply { addOval(Rect(c, radius)) }
+                val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
+                clipPath(disc) {
+                    rotate(-((magneticDeg ?: 0.0) + declination).toFloat(), c) {
+                        for ((t, image) in tiles) {
+                            val b = ReportMapTiles.placement(t, point, scale)
+                            val left = (c.x + b[0]).roundToInt()
+                            val top = (c.y + b[1]).roundToInt()
+                            drawImage(
+                                image,
+                                srcOffset = IntOffset.Zero, srcSize = IntSize(image.width, image.height),
+                                dstOffset = IntOffset(left, top),
+                                dstSize = IntSize((c.x + b[2]).roundToInt() - left, (c.y + b[3]).roundToInt() - top),
+                                alpha = ReportMapTiles.TILE_ALPHA * fade, colorFilter = tileFilter, filterQuality = FilterQuality.Medium,
+                            )
+                        }
                     }
                 }
+            }
+            rotate(turn, c) {
                 drawCircle(ink.copy(alpha = 0.35f * faint), radius, c, style = Stroke(2.dp.toPx()))
                 // 16 ticks every 22.5°, inward from the ring; the cardinal ones (every 4th) longer.
                 for (i in 0 until 16) {
@@ -190,6 +281,8 @@ object ReportDirectionUi {
                     val layout = measurer.measure(letter, if (i == 0) northStyle else letterStyle)
                     val a = Math.toRadians(i * 90.0 + turn)
                     val p = Offset(c.x + sin(a).toFloat() * letterRadius, c.y - cos(a).toFloat() * letterRadius)
+                    // Over the map a soft disc behind each letter keeps it legible.
+                    if (onMap) drawCircle(surface.copy(alpha = 0.75f * fade), 11.dp.toPx(), p)
                     drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f))
                 }
             }
@@ -206,8 +299,23 @@ object ReportDirectionUi {
                 close()
             }
             drawPath(arrow, if (live) accent else ink.copy(alpha = 0.3f))
+            // The reporter: a small dot at the centre, where the fix lies on the map.
+            if (onMap) {
+                drawCircle(surface, 5.dp.toPx(), c)
+                drawCircle(ink, 3.dp.toPx(), c)
+            }
         }
     }
+
+    /** Colour inversion, dimmed to 82 % (RGB' = 0.82 · (255 − RGB)), alpha kept. */
+    private val INVERT_DIM = ColorMatrix(
+        floatArrayOf(
+            -0.82f, 0f, 0f, 0f, 209f,
+            0f, -0.82f, 0f, 0f, 209f,
+            0f, 0f, -0.82f, 0f, 209f,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    )
 
     /** The rose's letters, clockwise from north: Nord, Ost, Süd, West. */
     private val CARDINALS = listOf("N", "O", "S", "W")
