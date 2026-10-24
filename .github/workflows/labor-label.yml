@@ -1,0 +1,165 @@
+# Label the clips of one Labor recording with Gemini (tools/labelling).
+#
+# What it does: downloads one recording export (a zip of manifest.jsonl + clips/*.wav, made
+# downloadable on Google Drive by the owner for the run), runs stage A (what is audible) and stage B
+# («loud vehicle» questions) of tools/labelling/label.py, and uploads the labels as a workflow
+# artifact (14 days). The audio stays on the runner and is deleted at the end of the job, also when
+# a step fails.
+#
+# The artifact holds model descriptions of the owner's own recordings and nothing else: JSONL rows
+# with the model's answers, the clip keys and file names, the measured context numbers (local time,
+# dB levels) and a summary.json with counts and run parameters. No audio, no API key.
+# Because this repository is public, run logs and artifacts can be seen by signed-in GitHub users;
+# the Drive file id appears in this run's log, so switch the zip's link sharing off after the run.
+#
+# Secret: GEMINI_API_KEY (Settings › Secrets and variables › Actions). It is passed only as a step
+# environment variable to label.py, which never prints it.
+#
+# Run: Actions → «Labor labelling» → Run workflow, or
+#   gh workflow run labor-label.yml --ref <branch> -f drive_file_id=<id> -f max_clips=20
+
+name: Labor labelling
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive_file_id:
+        description: "Google Drive file id of the recording zip (shared «anyone with the link» for the run)"
+        required: true
+        type: string
+      set_name:
+        description: "Set name, also the clip-key prefix (default: rec-<UTC date>)"
+        required: false
+        default: ""
+        type: string
+      model:
+        description: "Gemini model id"
+        required: false
+        default: "gemini-3.8-flash"
+        type: string
+      stage:
+        description: "A, B or AB"
+        required: false
+        default: "AB"
+        type: choice
+        options: ["AB", "A", "B"]
+      max_clips:
+        description: "At most this many clips (first in manifest order); 0 = all"
+        required: false
+        default: "0"
+        type: string
+      only_gist:
+        description: "Optional https URL of a JSON list of clip keys (e.g. a raw gist); empty = all clips"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      DRIVE_FILE_ID: ${{ inputs.drive_file_id }}
+      SET_NAME_INPUT: ${{ inputs.set_name }}
+      MODEL: ${{ inputs.model }}
+      STAGE: ${{ inputs.stage }}
+      MAX_CLIPS: ${{ inputs.max_clips }}
+      ONLY_URL: ${{ inputs.only_gist }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/labelling/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r tools/labelling/requirements.txt
+
+      - name: Check inputs and the API key secret
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -eu
+          if [ -z "${GEMINI_API_KEY:-}" ]; then echo "::error::repository secret GEMINI_API_KEY is not set"; exit 1; fi
+          [[ "$DRIVE_FILE_ID" =~ ^[A-Za-z0-9_-]{10,200}$ ]] || { echo "::error::drive_file_id is not a Drive file id"; exit 1; }
+          [[ "$MODEL" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || { echo "::error::model id has unexpected characters"; exit 1; }
+          [[ "$MAX_CLIPS" =~ ^[0-9]{1,7}$ ]] || { echo "::error::max_clips must be a whole number"; exit 1; }
+          name="${SET_NAME_INPUT:-rec-$(date -u +%Y%m%d)}"
+          [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { echo "::error::set_name: letters, digits, . _ - only (max 64)"; exit 1; }
+          if [ -n "$ONLY_URL" ] && [[ ! "$ONLY_URL" =~ ^https:// ]]; then echo "::error::only_gist must be an https URL"; exit 1; fi
+          echo "SET_NAME=$name" >> "$GITHUB_ENV"
+          echo "LABOR_DATA=$RUNNER_TEMP/data" >> "$GITHUB_ENV"
+          echo "set $name, model $MODEL, stage $STAGE, max_clips $MAX_CLIPS"
+
+      - name: Download the recording zip from Google Drive
+        run: |
+          set -eu
+          curl -sS -L --fail --retry 3 \
+            "https://drive.usercontent.google.com/download?id=${DRIVE_FILE_ID}&export=download&confirm=t" \
+            -o "$RUNNER_TEMP/data.zip"
+          kind=$(file -b "$RUNNER_TEMP/data.zip")
+          echo "downloaded: $(stat -c %s "$RUNNER_TEMP/data.zip") bytes, $kind"
+          case "$kind" in
+            Zip\ archive*) ;;
+            *HTML*|*html*)
+              echo "::error::Google Drive returned an HTML page, not the zip: the file is not shared «anyone with the link», the id is wrong, or Drive asks for a sign-in"
+              exit 1 ;;
+            *) echo "::error::the download is not a zip archive ($kind)"; exit 1 ;;
+          esac
+
+      - name: Unzip
+        run: |
+          set -eu
+          mkdir -p "$LABOR_DATA/$SET_NAME"
+          unzip -q "$RUNNER_TEMP/data.zip" -d "$LABOR_DATA/$SET_NAME"
+          rm -f "$RUNNER_TEMP/data.zip"
+          find "$LABOR_DATA/$SET_NAME" -maxdepth 2 -name manifest.jsonl | sed "s|$LABOR_DATA/||"
+          echo "clips: $(find "$LABOR_DATA/$SET_NAME" -name 'ev_*.wav' | wc -l)"
+
+      - name: Fetch the clip list
+        if: inputs.only_gist != ''
+        run: |
+          set -eu
+          curl -sS -L --fail --retry 3 "$ONLY_URL" -o "$RUNNER_TEMP/only.json"
+          python -I -c "import json,sys; x=json.load(open(sys.argv[1])); assert isinstance(x, list), 'not a JSON list'; print(len(x), 'entries')" "$RUNNER_TEMP/only.json"
+          echo "ONLY_ARGS=--only $RUNNER_TEMP/only.json" >> "$GITHUB_ENV"
+
+      - name: Dry run (what will be sent)
+        run: python -I tools/labelling/label.py --set "$SET_NAME" --model "$MODEL" --stage "$STAGE" --max-clips "$MAX_CLIPS" --out-dir labels --dry-run ${ONLY_ARGS:-}
+
+      - name: Stage A (what is audible)
+        if: contains(inputs.stage, 'A')
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -I tools/labelling/label.py --set "$SET_NAME" --model "$MODEL" --stage A --max-clips "$MAX_CLIPS" --out-dir labels ${ONLY_ARGS:-}
+
+      - name: Stage B (loud vehicle, on stage-A vehicle clips)
+        if: contains(inputs.stage, 'B')
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python -I tools/labelling/label.py --set "$SET_NAME" --model "$MODEL" --stage B --max-clips "$MAX_CLIPS" --out-dir labels ${ONLY_ARGS:-}
+
+      - name: Summary
+        if: always()
+        run: |
+          python -I tools/labelling/summary.py --labels labels \
+            --param "set_name=${SET_NAME:-}" --param "model=$MODEL" --param "stage=$STAGE" \
+            --param "max_clips=$MAX_CLIPS" --param "only_list=$([ -n "$ONLY_URL" ] && echo yes || echo no)" \
+            --param "run_id=$GITHUB_RUN_ID" --param "commit=$GITHUB_SHA" --param "ref=$GITHUB_REF_NAME"
+
+      - name: Remove the audio from the runner
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/data" "$RUNNER_TEMP/data.zip" "$RUNNER_TEMP/only.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: labels-${{ env.SET_NAME || 'unnamed' }}-${{ github.run_id }}
+          path: labels/
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,0 +1,116 @@
+# Signed Labor·Karte build on GitHub Actions.
+#
+# Why: the release keystore must not travel through chat sessions. It lives only in this
+# repository's Actions secrets (LABOR_KEYSTORE_B64, LABOR_KEYSTORE_PASSWORD, LABOR_KEY_ALIAS,
+# LABOR_KEY_PASSWORD); the workflow decodes it into the runner's temp folder, signs, verifies
+# the signer certificate against the pinned fingerprint and uploads the APK as a workflow
+# artifact (3 days). Nothing is published: a Labor APK never goes into docs/ or a release.
+#
+# Runs on every push to a branch named labor-* and by hand (Actions → «Labor build» → Run
+# workflow, or `gh workflow run labor-build.yml --ref <branch>`).
+
+name: Labor build
+
+on:
+  push:
+    branches: ["labor-*"]
+  workflow_dispatch:
+    inputs:
+      flavour:
+        description: "laborKarte (owner's test phone) or labor"
+        default: "laborKarte"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: labor-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FLAVOUR: ${{ github.event.inputs.flavour || 'laborKarte' }}
+      # SHA-256 of the signer certificate of every published and Labor APK so far
+      # (android/README.md → Install; WORKLOG entries since 0.4.0).
+      EXPECTED_CERT_SHA256: a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Check that the signing secrets exist
+        env:
+          KS: ${{ secrets.LABOR_KEYSTORE_B64 }}
+          SP: ${{ secrets.LABOR_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.LABOR_KEY_ALIAS }}
+          KP: ${{ secrets.LABOR_KEY_PASSWORD }}
+        run: |
+          for v in KS SP KA KP; do
+            if [ -z "${!v}" ]; then echo "::error::signing secret $v is empty"; exit 1; fi
+          done
+
+      - name: Write keystore and keystore.properties (outside the checkout)
+        env:
+          KS: ${{ secrets.LABOR_KEYSTORE_B64 }}
+          SP: ${{ secrets.LABOR_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.LABOR_KEY_ALIAS }}
+          KP: ${{ secrets.LABOR_KEY_PASSWORD }}
+        run: |
+          set -eu
+          umask 077
+          printf '%s' "$KS" | tr -d '\n\r ' | base64 -d > "$RUNNER_TEMP/release.jks"
+          cat > "$RUNNER_TEMP/keystore.properties" <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$SP
+          keyAlias=$KA
+          keyPassword=$KP
+          EOF
+          echo "keystore: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes"
+
+      - name: Build signed release APK
+        working-directory: android
+        run: |
+          set -eu
+          task="assemble$(echo "$FLAVOUR" | sed 's/^./\U&/')Release"
+          echo "task: $task"
+          ./gradlew --no-daemon "$task" -Pstadtlaerm.keystoreProperties="$RUNNER_TEMP/keystore.properties"
+
+      - name: Verify signer and name the file
+        working-directory: android
+        run: |
+          set -eu
+          apk=$(ls app/build/outputs/apk/"$FLAVOUR"/release/*.apk | head -1)
+          bt=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          "$bt/apksigner" verify --print-certs "$apk" | tee /tmp/certs.txt
+          got=$(grep -i 'SHA-256 digest' /tmp/certs.txt | head -1 | awk '{print $NF}')
+          if [ "$got" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::signer certificate $got is not the expected $EXPECTED_CERT_SHA256"; exit 1
+          fi
+          ver=$("$bt/aapt2" dump badging "$apk" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)
+          code=$("$bt/aapt2" dump badging "$apk" | sed -n "s/.*versionCode='\([^']*\)'.*/\1/p" | head -1)
+          name=$(echo "$FLAVOUR" | sed 's/laborKarte/labor-karte/')
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
+          cp "$apk" "$out/lessnoise-$name-$ver.apk"
+          ( cd "$out" && sha256sum *.apk | tee SHA256SUMS )
+          echo "APK_DIR=$out" >> "$GITHUB_ENV"
+          echo "ARTIFACT=lessnoise-$name-$ver-$code" >> "$GITHUB_ENV"
+
+      - name: Remove the keystore from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/keystore.properties"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.APK_DIR }}
+          retention-days: 3
+          if-no-files-found: error
