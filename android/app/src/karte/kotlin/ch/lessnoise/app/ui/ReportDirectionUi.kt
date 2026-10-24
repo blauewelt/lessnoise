@@ -71,7 +71,7 @@ import kotlin.math.roundToInt
  * stand-in in src/nomap). Until 0.7.8 it was its own step «Wohin fuhr es?» after «Was war laut?»;
  * since 0.8.1 (Labor·Karte, branch labor-one-tap) it is the top of the one «Laut! Melden» dialog
  * (LocationFlows.kt): that dialog owns the compass ([rememberReading]) and reads the current value
- * at the instant a category is tapped, which sends the report; [Panel] draws the disc. No new
+ * at the instant «Senden» is tapped (0.8.2; in 0.8.1 the category tap, which sent); [Panel] draws the disc. No new
  * permission. On a phone without a compass [rememberReading] is null and no disc is drawn.
  */
 object ReportDirectionUi {

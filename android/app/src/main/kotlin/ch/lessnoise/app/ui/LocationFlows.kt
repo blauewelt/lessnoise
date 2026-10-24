@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -75,18 +79,22 @@ private sealed interface ReportStep {
  * shows, top to bottom: the compass disc (ReportDirectionUi, editions with the map and a compass;
  * Labor·Karte draws the streets around the fix), the fix line («Standort wird gesucht …» /
  * «Standort ± n m»), «Kontrollschild (optional)», the category buttons in two columns and the
- * lines [REPORT_SEND_NOTE] and [REPORT_SPOT_WARNING]. **Tapping a category sends the report**:
- * that category, the compass reading of that instant (true north with the declination at the
- * fix; none without a compass or before its first reading), the plate (on the phone only), the
- * time [tapMs] and the fix. Without a fix yet the buttons are disabled and the report goes out
- * as soon as the fix arrives ([reportNext]); without a fix at all: «Kein genauer Standort» with
- * «Nochmals» (back to the dialog, the chosen category kept, the fix tried again). There is no
- * confirmation any more (owner's decision, 0.8.1). The time is the tap on «Laut! Melden», to the
- * second. [onQueued] is called once the report is queued.
+ * line [REPORT_SPOT_WARNING]; then «Abbrechen» and [REPORT_SEND]. Since 0.8.2 (owner's decision)
+ * **tapping a category selects it** (exactly one, drawn filled, the others outlined) and
+ * **«Senden» sends the report**: that category, the compass reading of the «Senden» tap (true
+ * north with the declination at the report's place; none without a compass or before its first
+ * reading), the plate (on the phone only), the time [tapMs] and the fix. «Senden» is enabled with
+ * a category selected and a fix present or still searched ([reportSendEnabled]); tapped before the
+ * fix, everything is disabled under a progress bar and the report goes out as soon as the fix
+ * arrives ([reportNext]); without a fix at all: «Kein genauer Standort» with «Nochmals» (back to
+ * the dialog, the selected category kept, the fix tried again). In 0.8.1 the category tap itself
+ * sent. The time is the tap on «Laut! Melden», to the second. [onQueued] is called once the report
+ * is queued.
  *
  * Since 0.6.3 the same flow also starts from the «Sehr laut» notification (src/karte/…/alert,
  * «Unterwegs»), also while a measurement runs: [preset] then carries the event's time (used as the
- * report time instead of the tap) and the categories to suggest (first, marked «erkannt», nothing is picked);
+ * report time instead of the tap) and the categories to suggest (first, marked «erkannt»; since
+ * 0.8.2 a single suggestion is preselected, so «Senden» is the one tap left, [reportPreselected]);
  * [onPresetUsed] is called once the flow has taken it. Since 0.6.4 the button is also shown while
  * a measurement started as «Unterwegs» runs (MeasureContent).
  *
@@ -103,15 +111,17 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var job by remember { mutableStateOf<Job?>(null) }
     // The fix: null while it is searched.
     var fixOutcome by remember { mutableStateOf<LocationPolicy.ReportOutcome?>(null) }
-    // The category tapped while the fix was still missing, and the compass reading of that tap.
+    // 0.8.2: the SELECTED category (a tap selects; «Senden» sends), whether «Senden» was tapped
+    // (then it waits for the fix if needed), and the compass reading of the «Senden» tap.
     var chosen by remember { mutableStateOf<ReportCategory?>(null) }
+    var sending by remember { mutableStateOf(false) }
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
     // 0.7.6: «Kontrollschild (optional)»; on the phone only, never sent.
     var plateText by remember { mutableStateOf("") }
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; chosenReading = null; plateText = ""; moved = null
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; moved = null
     }
 
     fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?) {
@@ -137,13 +147,13 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         onQueued()
     }
 
-    /** After a tap or a fix: send, keep waiting, or say why there is no fix ([reportNext]). */
+    /** After «Senden» or a fix: send, keep waiting, or say why there is no fix ([reportNext]). */
     fun advance() {
         val o = fixOutcome
-        when (reportNext(chosen, o)) {
+        when (reportNext(chosen, o, sending)) {
             ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading)
             ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)
-            ReportNext.CHOOSE, ReportNext.WAIT -> Unit
+            ReportNext.CHOOSE, ReportNext.READY, ReportNext.WAIT -> Unit
         }
     }
 
@@ -194,10 +204,14 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
             // The compass lives as long as this dialog (null: no compass on this phone / edition).
             val reading = ReportDirectionUi.rememberReading()
             val fix = fixOutcome as? LocationPolicy.ReportOutcome.Fix
-            val waiting = chosen != null
-            fun tap(category: ReportCategory) {
-                if (chosen != null) return
-                chosen = category
+            // «Senden» tapped before the fix: everything waits for it.
+            val waiting = sending
+            fun select(category: ReportCategory) {
+                if (!waiting) chosen = category
+            }
+            fun sendTap() {
+                if (!reportSendEnabled(chosen, fixOutcome, sending)) return
+                sending = true
                 chosenReading = reading?.value
                 advance()
             }
@@ -250,23 +264,24 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         for (row in reportCategoryRows(reportCategoryOrder(suggested))) {
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (cat in row) {
-                                    CategoryButton(cat, cat in suggested, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { tap(cat) }
+                                    CategoryButton(cat, cat in suggested, selected = cat == chosen, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { select(cat) }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                         if (waiting) {
-                            // A category was tapped before the fix: it goes out as soon as the fix is there.
+                            // «Senden» was tapped before the fix: it goes out as soon as the fix is there.
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                             Text(REPORT_LOCATING, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
-                        } else {
-                            Text(REPORT_SEND_NOTE, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
                         }
                         // DESIGN.md §2 rule 10: the report screen states the risk, on every report.
                         Text(REPORT_SPOT_WARNING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
                     }
                 },
-                confirmButton = {},
+                // 0.8.2: the explicit send (owner's decision), enabled with a category and a fix (or one being searched).
+                confirmButton = {
+                    TextButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending)) { Text(REPORT_SEND) }
+                },
                 dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
             )
         }
@@ -279,7 +294,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                     LocationSettingsButton(context, s.outcome)
                 }
             },
-            // Back to the one dialog; a category already tapped stays chosen and is sent with the new fix.
+            // Back to the one dialog; the selected category stays selected, and if «Senden» was already
+            // tapped the report goes out with the new fix.
             confirmButton = { TextButton(onClick = { open() }) { Text("Nochmals") } },
             dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
         )
@@ -289,6 +305,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         cancel()
         tapMs = timeMs
         suggested = suggest
+        // 0.8.2: exactly one suggestion (from the «Sehr laut» notification) is preselected; two: none.
+        chosen = reportPreselected(suggest)
         // Skipped when sharing is already on (the person said «Ja, auf die Karte» or switched it on).
         if (c.upload.store.state.value.enabled) open() else step = ReportStep.Consent
     }
@@ -304,27 +322,33 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
 }
 
 /**
- * One category button of the grid (0.8.1): outlined like all of them (0.7.7), the label centred,
- * a suggested one with the small «erkannt» under its label (two columns leave no room beside it).
+ * One category button of the grid (0.8.1): the label centred, a suggested one with the small
+ * «erkannt» under its label (two columns leave no room beside it). 0.8.2: the [selected] one is
+ * drawn filled, the others outlined (0.7.7); the selection is also told to TalkBack.
  */
 @Composable
-private fun CategoryButton(cat: ReportCategory, suggested: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    OutlinedButton(
-        onClick = onClick, enabled = enabled, modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-    ) {
+private fun CategoryButton(cat: ReportCategory, suggested: Boolean, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val padding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+    val m = modifier.semantics { this.selected = selected }
+    val content: @Composable () -> Unit = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(cat.label, textAlign = TextAlign.Center)
             if (suggested) {
                 Text(
                     REPORT_SUGGESTED_MARK,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    // On the filled button the primary colour would vanish: the button's own text colour.
+                    color = if (selected) LocalContentColor.current else MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     softWrap = false,
                 )
             }
         }
+    }
+    if (selected) {
+        Button(onClick = onClick, enabled = enabled, modifier = m, contentPadding = padding) { content() }
+    } else {
+        OutlinedButton(onClick = onClick, enabled = enabled, modifier = m, contentPadding = padding) { content() }
     }
 }
 
@@ -334,7 +358,7 @@ private fun CategoryButton(cat: ReportCategory, suggested: Boolean, enabled: Boo
  */
 data class ReportPreset(val epochMs: Long, val suggested: List<ReportCategory>)
 
-/** The small marker on a suggested category's button (0.7.7; before: a filled button; 0.8.1: under the label). */
+/** The small marker on a suggested category's button (0.7.7; before: a filled button; 0.8.1: under the label; 0.8.2: filled now means selected). */
 const val REPORT_SUGGESTED_MARK = "erkannt"
 
 /** The category buttons with [suggested] first, in their own order; the rest as always. */
@@ -347,8 +371,14 @@ fun reportCategoryRows(order: List<ReportCategory>): List<List<ReportCategory>> 
 /** 0.8.1: the title of the one dialog. */
 const val REPORT_TITLE = "Laut! Melden"
 
-/** 0.8.1: under the grid, so that the single tap is not a surprise. */
-const val REPORT_SEND_NOTE = "Antippen sendet die Meldung."
+/** 0.8.2: the dialog's confirm button (0.8.1 had none: the category tap sent, and a line under the grid said so). */
+const val REPORT_SEND = "Senden"
+
+/**
+ * 0.8.2: the category selected when the dialog opens: the one suggestion of the «Sehr laut»
+ * notification, so that «Senden» is the only tap left; with two suggestions (or none) nothing.
+ */
+fun reportPreselected(suggested: List<ReportCategory>): ReportCategory? = suggested.singleOrNull()
 
 /** While the fix is searched (0.7.8 under the disc in Labor·Karte; 0.8.1 in the one dialog). */
 const val REPORT_LOCATING = "Standort wird gesucht …"
@@ -402,19 +432,22 @@ fun reportMovedPlace(fix: LocationPolicy.ReportOutcome.Fix, lat: Double, lon: Do
     return ReportPlace(lat, lon, MANUAL_ACCURACY_M, at.cell)
 }
 
-/** What a tap sends: the place moved under the dot, or (not moved) the fix as it is. */
+/** What «Senden» sends: the place moved under the dot, or (not moved) the fix as it is. */
 fun reportPlace(fix: LocationPolicy.ReportOutcome.Fix, moved: ReportPlace?): ReportPlace =
     moved ?: ReportPlace(fix.lat, fix.lon, fix.accuracyM, fix.cell)
 
-/** What the one dialog does next (0.8.1). */
+/** What the one dialog does next (0.8.1; 0.8.2: with «Senden»). */
 enum class ReportNext {
-    /** No category tapped yet: the dialog waits for the tap (the fix may or may not be there). */
+    /** No category selected: not sendable, the dialog waits (the fix may or may not be there). */
     CHOOSE,
 
-    /** A category was tapped, the fix is still searched: the buttons are disabled, it goes out with the fix. */
+    /** 0.8.2: a category selected, «Senden» not tapped yet: the dialog waits for «Senden». */
+    READY,
+
+    /** «Senden» tapped, the fix is still searched: everything is disabled, it goes out with the fix. */
     WAIT,
 
-    /** A category and a fix: the report is queued now. */
+    /** A category, «Senden» and a fix: the report is queued now. */
     SEND,
 
     /** No fix (no permission, location off, none found, outside Switzerland): «Kein genauer Standort». */
@@ -422,16 +455,24 @@ enum class ReportNext {
 }
 
 /**
- * «Send now or wait for the fix»: [chosen] the tapped category (null: none yet), [fix] the outcome
- * of the one fix (null: still searched). A failed fix is shown at once, tapped or not, since
- * nothing can be sent without one.
+ * «Send now or wait»: [chosen] the selected category (null: none), [fix] the outcome of the one fix
+ * (null: still searched), [sendTapped] whether «Senden» was tapped (0.8.2). A failed fix is shown
+ * at once, sent or not, since nothing can be sent without one.
  */
-fun reportNext(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome?): ReportNext = when {
+fun reportNext(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): ReportNext = when {
     fix is LocationPolicy.ReportOutcome.Problem -> ReportNext.FAILED
     chosen == null -> ReportNext.CHOOSE
+    !sendTapped -> ReportNext.READY
     fix == null -> ReportNext.WAIT
     else -> ReportNext.SEND
 }
+
+/**
+ * 0.8.2: whether «Senden» can be tapped: a category selected, the fix present or still searched
+ * (then the report waits for it), and not already sent and waiting.
+ */
+fun reportSendEnabled(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): Boolean =
+    chosen != null && !sendTapped && fix !is LocationPolicy.ReportOutcome.Problem
 
 /**
  * The short consent before the first report while «Teilen» is off: what is sent, never audio, that
@@ -445,7 +486,7 @@ const val REPORT_CONSENT_TEXT =
 /**
  * The risk server/DESIGN.md §2 rule 10 asks the report screen to state. Since 0.6.3 on the
  * confirmation of EVERY report (the consent, REPORT_CONSENT_TEXT, is skipped once sharing is on);
- * since 0.8.1, without a confirmation, in the one «Laut! Melden» dialog under the buttons.
+ * since 0.8.1 in the one «Laut! Melden» dialog under the buttons (0.8.2: above «Senden»).
  */
 const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
 

@@ -79,14 +79,14 @@ class ShareTextsTest {
     @Test
     fun theLicencePlateIsShownInTheListButNeverSaidToBeSent() {
         // 0.7.6: «Kontrollschild (optional)» in «Laut! Melden»; on the phone only. Since 0.8.1 the
-        // confirmation that repeated it («Kontrollschild: ZH 123») is gone (one tap sends).
+        // confirmation that repeated it («Kontrollschild: ZH 123») is gone (0.8.2: «Senden» in the one dialog).
         val zone = java.time.ZoneId.of("Europe/Zurich")
         val t = java.time.ZonedDateTime.of(2026, 10, 24, 16, 5, 3, 0, zone).toInstant().toEpochMilli()
         // The sent list (Teilen › Meldungen).
         val sent = ch.lessnoise.app.upload.SentReport(t, "motorrad", "h1_2", plate = "ZH 123")
         assertEquals("24.10. 16:05 · Töff · ZH 123", sentReportLine("24.10. 16:05", sent))
         assertEquals("24.10. 16:05 · Töff", sentReportLine("24.10. 16:05", sent.copy(plate = null)))
-        // The field: one label, normalised when a category is tapped (0.8.1; before: on «Senden»).
+        // The field: one label, normalised when the report is sent (on «Senden»; 0.8.1: at the category tap).
         assertEquals("Kontrollschild (optional)", ch.lessnoise.app.upload.ReportPlate.LABEL)
         // What the app says is sent with a report does not mention the plate (it is not sent).
         for (line in SHARE_SENT_BULLETS + shareLocationBullets(50) + consentLines(50)) assertFalse(line.contains("Kontrollschild"), line)

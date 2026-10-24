@@ -156,8 +156,8 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
     confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
     sichtbar.», because the first-report consent is skipped once sharing is on; since app 0.8.1,
-    which has no confirmation — one tap on the category sends —, the one report dialog says it
-    under the category buttons.)
+    which has no separate confirmation, the one report dialog says it under the category buttons,
+    since 0.8.2 just above its «Senden».)
 
 ## 3. Cell ids
 

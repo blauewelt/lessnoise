@@ -4,7 +4,7 @@ import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.ui.REPORT_CONSENT_TEXT
-import ch.lessnoise.app.ui.REPORT_SEND_NOTE
+import ch.lessnoise.app.ui.REPORT_SEND
 import ch.lessnoise.app.ui.REPORT_SPOT_WARNING
 import ch.lessnoise.app.ui.reportFixLine
 import kotlinx.coroutines.runBlocking
@@ -211,7 +211,7 @@ class ReportsTest {
         val o = Payloads.report(r)
         assertEquals("106.2", o["accuracy_m"].toString())
         assertEquals("47.37691", o["lat"].toString(), "the place as the phone has it, not shifted")
-        // The flow (0.8.1, one dialog): a Fix with a tapped category is sent; only a Problem shows
+        // The flow (0.8.1, one dialog; 0.8.2 with «Senden»): a Fix with a selected category is sent; only a Problem shows
         // «Kein genauer Standort» (ReportFlowTest pins the decision itself).
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         assertTrue(ui.contains("ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading)"))
@@ -232,16 +232,17 @@ class ReportsTest {
         }
         assertFalse(REPORT_CONSENT_TEXT.contains('ß'))
         // DESIGN.md §2 rule 10: the report screen states the risk, on every report (0.6.3: the
-        // consent above is skipped once sharing is on). Since 0.8.1 there is no confirmation: the
-        // line is in the one «Laut! Melden» dialog, unconditionally, next to «Antippen sendet die Meldung.».
+        // consent above is skipped once sharing is on). Since 0.8.1 there is no separate confirmation: the
+        // line is in the one «Laut! Melden» dialog, unconditionally, above «Senden» (0.8.2).
         assertEquals("Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.", REPORT_SPOT_WARNING)
-        assertEquals("Antippen sendet die Meldung.", REPORT_SEND_NOTE)
+        assertEquals("Senden", REPORT_SEND)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
         val line = dialog.lines().single { it.contains("Text(REPORT_SPOT_WARNING") }
         assertTrue(line.trimStart().startsWith("Text(REPORT_SPOT_WARNING"), "shown on every report, not behind a condition: $line")
-        assertTrue(dialog.contains("Text(REPORT_SEND_NOTE"), "the single tap is announced")
-        assertFalse(ui.contains("reportConfirm"), "0.8.1: no confirmation any more (owner's decision)")
+        assertTrue(dialog.contains("Text(REPORT_SEND)"), "0.8.2: the explicit «Senden»")
+        assertFalse(ui.contains("Antippen sendet die Meldung."), "0.8.2: a tap no longer sends")
+        assertFalse(ui.contains("reportConfirm"), "0.8.1: no separate confirmation dialog (owner's decision)")
     }
 
     // ---- 0.7.6: «Kontrollschild», on the phone only ------------------------------------------------
