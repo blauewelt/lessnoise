@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * 0.7.8: the tile arithmetic of the streets under the arrow in «Wohin fuhr es?» (Labor·Karte). No
+ * 0.7.8: the tile arithmetic of the streets under the arrow in «Wohin fuhr es?» (since 0.8.0 in every edition with the map). No
  * tile is fetched here: the maths only.
  *
  * Fixture, computed in Python 3 with the same standard Web Mercator formula
@@ -161,16 +161,24 @@ class ReportMapTilesTest {
         assertEquals(5_000, ReportMapTiles.TIMEOUT_MS)
     }
 
-    /** Tiles only in Labor·Karte; the Online-Version (flavour public) shows the rose alone. */
+    /**
+     * 0.8.0: the tiles are on in both editions with the map (this test runs for public and
+     * laborKarte); no edition flag is left. The step still requests nothing without a fix or
+     * outside Switzerland, and a closed fetcher requests nothing.
+     */
     @Test
-    fun onlyInLaborKarte() {
-        assertEquals(BuildConfig.FLAVOR == "laborKarte", ReportMapTiles.ENABLED, BuildConfig.FLAVOR)
+    fun inEveryEditionWithTheMap() {
+        assertTrue(BuildConfig.FLAVOR == "public" || BuildConfig.FLAVOR == "laborKarte", BuildConfig.FLAVOR)
         val app = listOf(File("."), File("app")).first { File(it, "src/karte").isDirectory }
         val code = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt").readText()
-        assertTrue(code.contains("val ENABLED: Boolean = BuildConfig.LABOR_UNTERWEGS"))
-        assertTrue(code.contains("if (!ReportMapTiles.ENABLED || closed) return null"), "the fetcher checks the flag itself")
+        assertFalse(code.contains("LABOR_UNTERWEGS"), "no Labor-only flag in ReportMapTiles.kt")
+        assertTrue(code.contains("if (closed) return null"), "a closed fetcher requests nothing")
         val ui = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
-        assertTrue(ui.contains("if (!ReportMapTiles.ENABLED || f == null"), "the step starts no download without the flag")
+        assertTrue(
+            ui.contains("if (f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect"),
+            "no download without a fix or outside Switzerland",
+        )
+        assertTrue(ui.contains("if (fix == null) {"), "«Standort wird gesucht …» while the fix is searched, in every edition with the map")
         // Nothing is written: no file, preference or log in either file.
         val bad = Regex("""\bLog\.|println|SharedPreferences|putString|\bFile\b|FileOutputStream|cacheDir|filesDir|HttpResponseCache|CookieHandler""")
         for (src in listOf(code, ui)) {

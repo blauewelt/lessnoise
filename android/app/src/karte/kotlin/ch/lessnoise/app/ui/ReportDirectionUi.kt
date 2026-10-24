@@ -101,7 +101,7 @@ object ReportDirectionUi {
         return ReportDirection(d, ReportDirection.North.MAGNETIC, ReportDirection.Accuracy.HIGH).label.removePrefix("Richtung ") + " · $d°"
     }
 
-    /** 0.7.8: under the live label while the fix is searched (Labor·Karte, where the streets follow it). */
+    /** 0.7.8: under the live label while the fix is searched (the streets follow it; since 0.8.0 in the Online-Version too). */
     const val LOCATING = "Standort wird gesucht …"
 
     /** 0.7.8: the credit under the disc while swisstopo's tiles are drawn. */
@@ -111,9 +111,8 @@ object ReportDirectionUi {
      * The step as a dialog. [onTake] gets the reading at the tap; [onSkip] goes on without one;
      * [onCancel] (back) cancels the whole report, like «Abbrechen» in the other steps. A tap outside
      * does nothing, so waving the phone cannot cancel by accident. [fix] (0.7.8; latitude, longitude)
-     * is the report's location fix once it is there, null while it is searched: in Labor·Karte
-     * ([ReportMapTiles.ENABLED]) the real streets around it are drawn under the arrow; the
-     * Online-Version ignores it and shows the rose alone.
+     * is the report's location fix once it is there, null while it is searched: the real streets
+     * around it are drawn under the arrow (0.7.8 Labor·Karte; since 0.8.0 also the Online-Version).
      */
     @Composable
     fun Step(fix: Pair<Double, Double>?, onTake: (CompassReading) -> Unit, onSkip: () -> Unit, onCancel: () -> Unit) {
@@ -157,7 +156,7 @@ object ReportDirectionUi {
                         if (r == null) "…" else liveLabel(r.magneticDeg),
                         style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
                     )
-                    if (ReportMapTiles.ENABLED && fix == null) {
+                    if (fix == null) {
                         Text(LOCATING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }
                     if (r != null && showCalibrationHint(r.sensorStatus)) {
@@ -171,9 +170,9 @@ object ReportDirectionUi {
     }
 
     /**
-     * 0.7.8, Labor·Karte only: swisstopo's tiles around [fix], downloaded while the step is on
-     * screen and kept only in this map (memory), which is dropped with the step. Nothing is
-     * requested without the flag, without a fix, or outside Switzerland (the grey map has no data
+     * 0.7.8 (Labor·Karte; since 0.8.0 also the Online-Version): swisstopo's tiles around [fix],
+     * downloaded while the step is on screen and kept only in this map (memory), which is dropped
+     * with the step. Nothing is requested without a fix, or outside Switzerland (the grey map has no data
      * there). Leaving the step closes the open connections at once.
      */
     @Composable
@@ -183,7 +182,7 @@ object ReportDirectionUi {
         DisposableEffect(fetcher) { onDispose { fetcher.close() } }
         LaunchedEffect(fetcher) {
             val f = fix
-            if (!ReportMapTiles.ENABLED || f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect
+            if (f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect
             val gate = Semaphore(ReportMapTiles.PARALLEL)
             for (t in ReportMapTiles.tilesAround(f.first, f.second)) {
                 launch {
@@ -203,7 +202,7 @@ object ReportDirectionUi {
      * (German: Ost) on north, east, south and west — N larger and in the accent colour. The letters
      * move with the rose but stay upright so they can be read.
      *
-     * Under it (0.7.8, Labor·Karte, once [fix] and the first tiles are there): the real streets,
+     * Under it (0.7.8; since 0.8.0 in the Online-Version too; once [fix] and the first tiles are there): the real streets,
      * swisstopo's grey map, turned by the true heading (magnetic + [declination]) so that the map
      * lies like the ground in front of the reporter, the fix at the centre (a small dot), 300 m
      * across, faint (60 %) and fading in, clipped to the disc; dark theme: inverted like the

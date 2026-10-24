@@ -133,7 +133,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     if (askDirection && (s0 is ReportStep.Locating || s0 is ReportStep.Confirm)) {
         // While the fix is searched (or already there): «Wohin fuhr es?».
         ReportDirectionUi.Step(
-            // 0.7.8: the fix once it is there (Labor·Karte draws the streets around it; null while locating).
+            // 0.7.8: the fix once it is there (the streets are drawn around it, since 0.8.0 in the Online-Version too; null while locating).
             fix = if (s0 is ReportStep.Confirm) s0.fix.lat to s0.fix.lon else null,
             onTake = { reading = it; askDirection = false },
             onSkip = { reading = null; askDirection = false },

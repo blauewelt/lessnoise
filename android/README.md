@@ -818,8 +818,9 @@ A 240 dp disc (the dialog is 94 % of the screen wide, `usePlatformDefaultWidth =
 on a 320 dp phone): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
 16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
 below, the figure-eight hint while the compass is unreliable; the screen's orientation is locked
-and the sensors run only while the step is on screen and the app is in front. **0.7.8, Labor·Karte
-only** (`ReportMapTiles.ENABLED` = `BuildConfig.LABOR_UNTERWEGS`): once the fix is there
+and the sensors run only while the step is on screen and the app is in front. **Streets under the
+arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the Online-Version**, i.e. in both editions with
+the map — `src/karte` is not compiled into Offline or Labor): once the fix is there
 (`LocationFlows` passes it as `fix` in the Confirm state; null while locating, then «Standort wird
 gesucht …» under the label), the real streets around it are drawn under the arrow — swisstopo's grey
 map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
@@ -833,8 +834,8 @@ timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile,
 `BitmapFactory`, kept in a `remember`ed map only for the life of the step, open connections closed
 when the step goes away; a tile that fails is simply not drawn. Nothing for a fix outside
 Switzerland's bounding box. Privacy: swisstopo sees tile requests for the area around the
-reporter's **true** position (PRIVACY.md, «Internal variant `laborKarte`»); that is why the
-Online-Version keeps the rose without tiles until its privacy page says so. The 0.7.6 decorative
+reporter's **true** position, with the phone's IP address (PRIVACY.md, «Laut! Melden» and «What it
+loads»; docs/datenschutz.html says so since 0.8.0, when the Online-Version got the tiles). The 0.7.6 decorative
 street lines are gone in every edition. Pure maths and its tests: `ReportMapTiles`,
 `src/testKarte/.../ui/ReportMapTilesTest.kt` (Zürich main station fixture computed in Python).
 
@@ -869,7 +870,7 @@ nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
 `UploadClient.kt` (the only class of the upload that opens connections — the others in the app are the
-map tab's WebView and, Labor·Karte only, the tiles of «Wohin fuhr es?», `ui/ReportMapTiles.kt`: `HttpURLConnection`, one host from
+map tab's WebView and, since 0.8.0 in the Online-Version too, the tiles of «Wohin fuhr es?», `ui/ReportMapTiles.kt` (wmts.geo.admin.ch only): `HttpURLConnection`, one host from
 `BuildConfig.API_BASE`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, cells per record, reports, `rejected`, delete; pure JVM),
 `Reports.kt` (the report queue), `UploadState.kt` (settings, id, markers, the share decision and the
@@ -1383,7 +1384,7 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
   src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
-                ReportMapTiles.kt, 0.7.8: the tiles of «Wohin fuhr es?», downloading in `laborKarte` only), compiled
+                ReportMapTiles.kt, 0.7.8: the tiles of «Wohin fuhr es?», downloading since 0.8.0 in `public` too), compiled
                 into `public` and `laborKarte` only
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)

@@ -25,7 +25,8 @@ import kotlin.test.fail
  * 4. Network code exists in exactly three files of the app: upload/UploadClient.kt, (0.6.3) the
  *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.), and
  *    (0.7.8) the tile download of «Wohin fuhr es?», src/karte/.../ui/ReportMapTiles.kt: swisstopo's
- *    tiles only, only in Labor·Karte (BuildConfig.LABOR_UNTERWEGS), GET, no redirects, no cache.
+ *    tiles only, GET, no redirects, no cache; since 0.8.0 in both editions with the map (Online-Version
+ *    and Labor·Karte; src/karte is compiled into neither the Offline nor the Labor build).
  *
  * It reads the source files, so it runs the same in every flavour (testOfflineDebugUnitTest …
  * testLaborKarteDebugUnitTest). Comments are ignored; string literals are checked.
@@ -153,7 +154,9 @@ class UploadSourceIsolationTest {
      * since 0.6.3 the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
      * which shows the website's map page once the tab is opened, and since 0.7.8 the tile download
      * of the direction step, src/karte/.../ui/ReportMapTiles.kt (checked below: one address
-     * template on swisstopo's host, only with BuildConfig.LABOR_UNTERWEGS, so only in laborKarte).
+     * template on swisstopo's host, started only by the direction step with a fix inside
+     * Switzerland; 0.7.8 Labor·Karte only, since 0.8.0 also the Online-Version — src/karte is
+     * compiled into public and laborKarte only).
      */
     @Test
     fun networkCodeOnlyInUploadClientAndTheMapTab() {
@@ -164,16 +167,19 @@ class UploadSourceIsolationTest {
         assertEquals(
             listOf(
                 "app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt",
-                // 0.7.8: swisstopo's tiles under the arrow of «Wohin fuhr es?» (Labor·Karte only; see below).
+                // 0.7.8: swisstopo's tiles under the arrow of «Wohin fuhr es?» (0.8.0: Online-Version too; see below).
                 "app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt",
                 "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt",
             ),
             hits, "network code in: $hits",
         )
         // 0.7.8: the tile download builds every address from its one template on wmts.geo.admin.ch
-        // (the map page's tile host), opens connections only in ReportTileFetcher.fetch, which
-        // returns at once unless BuildConfig.LABOR_UNTERWEGS (true only in laborKarte), and
+        // (the map page's tile host), opens connections only in ReportTileFetcher.fetch, and
         // follows no redirect, uses no cache and sends no cookie (no CookieHandler in the app).
+        // 0.8.0: the Labor·Karte-only flag (BuildConfig.LABOR_UNTERWEGS) is gone, the download runs
+        // in the Online-Version too. What still bounds it: the file is in src/karte (compiled only
+        // into public and laborKarte, pinned below), the fetcher is created and called only by the
+        // direction step, and that step requests nothing without a fix or outside Switzerland.
         val tiles = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt").readText())
         assertEquals(
             listOf("https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"),
@@ -182,8 +188,21 @@ class UploadSourceIsolationTest {
         )
         assertEquals(1, Regex("""\.openConnection\(\)""").findAll(tiles.code).count())
         assertTrue(tiles.code.contains("URI(ReportMapTiles.url(tile)).toURL().openConnection()"), "connections only to tile addresses")
-        assertTrue(tiles.code.contains("val ENABLED: Boolean = BuildConfig.LABOR_UNTERWEGS"))
-        assertTrue(tiles.code.contains("if (!ReportMapTiles.ENABLED || closed) return null"))
+        assertTrue(tiles.code.contains("if (closed) return null"), "a closed fetcher requests nothing")
+        assertTrue(!Regex("""\bLABOR_UNTERWEGS\b|\bENABLED\b""").containsMatchIn(tiles.code), "0.8.0: no edition flag left in ReportMapTiles.kt")
+        // Only the direction step creates a fetcher and calls fetch, and only with a fix in Switzerland.
+        val creators = files.filter { Regex("""\bReportTileFetcher\(""").containsMatchIn(KotlinSource.parse(it.readText()).code) }
+            .map { it.relativeTo(appDir.parentFile).path }
+        assertEquals(listOf("app/src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt"), creators, "ReportTileFetcher created in: $creators")
+        val step = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()).code
+        assertEquals(1, Regex("""\.fetch\(""").findAll(step).count(), "one fetch call in the direction step")
+        assertTrue(
+            step.contains("if (f == null || !ReportMapTiles.inSwitzerland(f.first, f.second)) return@LaunchedEffect"),
+            "the step requests nothing without a fix or outside Switzerland",
+        )
+        // The file is compiled only into the two editions with the map (public, laborKarte).
+        val gradle = File(appDir, "build.gradle.kts").readText()
+        assertEquals(2, Regex("""kotlin\.srcDir\("src/karte/kotlin"\)""").findAll(gradle).count(), "src/karte in public and laborKarte only")
         for (r in listOf("conn.instanceFollowRedirects = false", "conn.useCaches = false", "conn.requestMethod = \"GET\"")) {
             assertTrue(tiles.code.contains(r), "ReportMapTiles.kt lacks «$r»")
         }

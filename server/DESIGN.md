@@ -116,6 +116,18 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    measurement and no location; the centre of the view (the shifted point of the newest shared
    measurement) is in the URL fragment, which never leaves the phone — but the tiles requested for
    the area on screen tell swisstopo which area is being looked at, as for any visitor of the map.
+   Since app 0.8.0 (first in the internal Labor·Karte build, 0.7.8) the Online-Version also talks
+   to swisstopo in «Laut! Melden»: while the step «Wohin fuhr es?» is open and the report's
+   location fix is there, it requests the grey map's tiles (`wmts.geo.admin.ch`, the same host and
+   tile set as the map page) for the ≈ 150 m around the reporter's **true** position, to draw the
+   streets under the direction arrow — GET only, no redirects, no cache, no cookies, only tiles
+   touching the 150 m circle, only inside Switzerland, kept in memory for that step only. swisstopo
+   sees those requests with the phone's IP address, like a visitor looking at that area on the map;
+   nothing of it is stored by the app or sent to our server. So the hosts the Online-Version talks
+   to are exactly: our API host `api.lessnoise.ch` (upload and reports; the map page in the tab
+   falls back to `api.stadtlaerm.ch`, the same machine, if it cannot reach it), wenigerlaerm.ch
+   (map tab) and wmts.geo.admin.ch (map tab and the direction step). The Offline-Version talks to
+   none.
 8. **Minimisation on publish.** Event times are published only as counts per day and per
    clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
    (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,

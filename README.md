@@ -17,7 +17,9 @@ hat, samt Genauigkeit, Kategorie, ab 0.7.0 wahlweise die Fahrtrichtung als Kompa
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte. Der Standort wird nie im
 Hintergrund gelesen. Seit 0.6.3 zeigt der Tab «Karte» die Lärmkarte der Website in der App; er lädt
 sie nur, solange er offen ist, wie ein Browser (Seite, Kartenbilder von swisstopo, Kartendaten) und
-sendet dabei keine Messwerte und keinen Standort. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
+sendet dabei keine Messwerte und keinen Standort. Ab 0.8.0 lädt «Laut! Melden» im Schritt «Wohin fuhr es?» die
+Kartenbilder der Umgebung des genauen Standorts von swisstopo, damit man die Strassen unter dem
+Pfeil sieht; swisstopo erfährt dabei die IP-Adresse und die Gegend, wie bei der Karte. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
 keine Internet- und keine Standort-Berechtigung, dafür keine Karte und keine Meldungen. Ein fest
 montierter Fenstersensor ist in Entwicklung. Download und Anleitung:
 [wenigerlaerm.ch](https://wenigerlaerm.ch).
@@ -44,7 +46,7 @@ levels and statistics are kept. Up to v0.4.0 the app had no internet permission 
 has the **«Offline-Version»** (`lessnoise.apk`; app id `ch.lessnoise.app` since 0.6.0), the edition
 for even more privacy. The **«Online-Version»** (`lessnoise-karte.apk`, the default download since
 0.6.2, same app id, installs over the other
-and keeps the data) uses the internet for two things only. (1) The opt-in upload «Messwerte teilen» described in
+and keeps the data) uses the internet for three things only. (1) The opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until you say yes («Auf die Lärmkarte?» at the
 first «Starten», one dialog that names what is sent, what never, where and how to delete; or the
 switch in «Teilen»); while a shared measurement runs each loud moment about 30 s after it ended and the minutes every 2 minutes (the live map), over mobile data too
@@ -63,7 +65,14 @@ uploads. (2) Since 0.6.3 the tab «Karte», a locked-down WebView
 that shows `https://wenigerlaerm.ch/karte.html` once the tab is opened (kept paused while another tab is shown), like a browser: the page, the
 swisstopo tiles and the published map files, no other host, no cookies, no measurement and no
 location sent (the view is in the part after `#`, which never leaves the phone; swisstopo sees which
-map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». Its
+map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». (3) Since 0.8.0, in «Laut! Melden»,
+while the step «Wohin fuhr es?» is open and the report's fix is there, swisstopo's grey map tiles
+(`wmts.geo.admin.ch`, the Federal Office of Topography; the host the map tab already uses) for the
+≈ 150 m around the reporter's **true** position, to draw the streets under the direction arrow
+(`android/app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt`): GET only, no redirects, no
+cache, no cookies, only inside Switzerland, kept in memory for that step only; swisstopo sees those
+tile requests with the phone's IP address, like a visitor of the map, and nothing of it is stored or
+sent to the project's server. The Online-Version's
 location permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) is used only
 while the app is open: one fix right after «Starten» of a shared measurement (moved by the location
 noise on the phone; since 0.6.3 the measurement does not wait for it) and one per report; location is never read in the background (no
