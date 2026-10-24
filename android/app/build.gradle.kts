@@ -248,6 +248,12 @@ dependencies {
     // It does no networking itself; not an analytics or crash-reporting SDK.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
+    // 0.8.2: the tab «Karte» (src/karte, editions with the map only) follows the app's dark theme:
+    // WebSettingsCompat's algorithmic-darkening / force-dark switches. AndroidX, Apache-2.0, no
+    // networking of its own. Not in the Offline and Labor builds, which have no WebView.
+    "publicImplementation"("androidx.webkit:webkit:1.12.1")
+    "laborKarteImplementation"("androidx.webkit:webkit:1.12.1")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation(kotlin("test"))
     // JVM SQLite to check the Room migration SQL without a device.

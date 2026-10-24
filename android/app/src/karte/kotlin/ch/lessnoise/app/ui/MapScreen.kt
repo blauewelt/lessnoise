@@ -1,7 +1,9 @@
 package ch.lessnoise.app.ui
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Bitmap
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -14,6 +16,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +39,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,6 +48,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import ch.lessnoise.app.container
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -78,6 +84,10 @@ import java.io.ByteArrayInputStream
 // - Locked down: JavaScript on (Leaflet needs it); no DOM storage (the page uses none); no file or
 //   content access; no JavaScript bridge; geolocation off and every permission request denied; no
 //   cookies at all; mixed content never; Safe Browsing as Android's default (on).
+// - Dark (0.8.2): the page has its own dark style (docs/style.css, docs/map/karte.css: `@media
+//   (prefers-color-scheme: dark)`, which also greys the swisstopo tiles down by a CSS filter). The
+//   WebView reports dark to the page exactly when the app is dark ([MapDark]); no algorithmic
+//   darkening by the WebView, no website change.
 
 /** The map tab of the editions with the map. */
 object MapTab {
@@ -89,7 +99,44 @@ object MapTab {
      */
     @Composable
     fun Content(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}) =
-        MapScreen(modifier, visible, onOpen)
+        // The same signal as the app's colours (LessNoiseTheme(dark = isSystemInDarkTheme())).
+        MapScreen(modifier, visible, onOpen, isDark = isSystemInDarkTheme())
+}
+
+/**
+ * 0.8.2: the page's light or dark style follows the app's theme. The app decides dark only in
+ * Compose (`LessNoiseTheme(dark = isSystemInDarkTheme())`); its Activity theme
+ * (res/values/themes.xml, `Theme.Material.Light.NoActionBar`, no values-night) always says
+ * `isLightTheme = true`. WebView sets the page's `prefers-color-scheme` from the `isLightTheme` of
+ * the theme it is created with (androidx.webkit WebSettingsCompat.setAlgorithmicDarkeningAllowed,
+ * for apps with targetSdk ≥ 33, which this app is), so a WebView made with the Activity's context
+ * would always be light. Hence:
+ *
+ * - [context]: when dark, the WebView is created with a theme whose `isLightTheme` is false
+ *   (`Theme.Material.NoActionBar`); the page then gets `prefers-color-scheme: dark`.
+ * - [settings]: algorithmic darkening is NOT allowed (the page's own dark CSS only, never an
+ *   inversion by the WebView); on old WebViews without that feature (the pre-Android-13 "force
+ *   dark" model) force dark ON with the strategy «web theme darkening only» when dark (the page's
+ *   own dark style, nothing else), OFF when light.
+ *
+ * A change of the system's dark mode recreates the Activity (MainActivity does not handle uiMode
+ * itself), so the WebView is created again with the new theme.
+ */
+object MapDark {
+    fun context(base: Context, isDark: Boolean): Context =
+        if (isDark) ContextThemeWrapper(base, android.R.style.Theme_Material_NoActionBar) else base
+
+    @Suppress("DEPRECATION") // setForceDark / setForceDarkStrategy: only for WebViews without ALGORITHMIC_DARKENING
+    fun settings(settings: WebSettings, isDark: Boolean) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
+        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            WebSettingsCompat.setForceDark(settings, if (isDark) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF)
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK_STRATEGY)) {
+                WebSettingsCompat.setForceDarkStrategy(settings, WebSettingsCompat.DARK_STRATEGY_WEB_THEME_DARKENING_ONLY)
+            }
+        }
+    }
 }
 
 /** Loading state of the page. */
@@ -99,7 +146,7 @@ enum class MapLoad { LOADING, LOADED, ERROR }
 const val MAP_ERROR_TEXT = "Karte nicht erreichbar – Internet prüfen"
 
 @Composable
-fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}) {
+fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (Screen) -> Unit = {}, isDark: Boolean = false) {
     val c = LocalContext.current.container
     val context = LocalContext.current
     val live by c.live.collectAsStateWithLifecycle()
@@ -115,6 +162,8 @@ fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (S
     // it) and «Nochmals».
     var reshow by remember { mutableIntStateOf(0) }
     val shown by rememberUpdatedState(visible)
+    // Behind the page until it has drawn (no white flash in dark mode).
+    val pageBackground = MaterialTheme.colorScheme.background.toArgb()
 
     fun perform(w: WebView, step: MapCentring.Step) {
         when (step) {
@@ -180,9 +229,11 @@ fun MapScreen(modifier: Modifier = Modifier, visible: Boolean = true, onOpen: (S
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
-                    WebView(ctx).also { w ->
+                    WebView(MapDark.context(ctx, isDark)).also { w ->
+                        w.setBackgroundColor(pageBackground)
                         configure(
                             w,
+                            isDark = isDark,
                             onProgress = { progress = it },
                             onStarted = {
                                 centring.pageStarted()
@@ -281,6 +332,7 @@ fun MapStatusContent(load: MapLoad, progress: Int, onRetry: () -> Unit, modifier
 @SuppressLint("SetJavaScriptEnabled")
 private fun configure(
     web: WebView,
+    isDark: Boolean,
     onProgress: (Int) -> Unit,
     onStarted: () -> Unit,
     onFinished: () -> Unit,
@@ -298,6 +350,7 @@ private fun configure(
         setSupportMultipleWindows(false)          // target=_blank goes through shouldOverrideUrlLoading
         safeBrowsingEnabled = true                // Android's default, stated explicitly
     }
+    MapDark.settings(web.settings, isDark)        // 0.8.2: the page's own dark style when the app is dark
     // No cookies for this WebView (the app has no other one): neither first- nor third-party.
     CookieManager.getInstance().apply {
         setAcceptCookie(false)

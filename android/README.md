@@ -686,7 +686,14 @@ gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Kart
 laufend» for 2 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
 on «Messen» does). The WebView's history is never used: the system back gesture is an undo stack of the
 tabs opened (`TabHistory`: every switch, tapped or opened from a status line or banner, pushes the
-tab left; back pops; with nothing left back leaves the app; at most 30 entries). No permission is
+tab left; back pops; with nothing left back leaves the app; at most 30 entries). Since 0.8.2
+(Labor·Karte first) the page is dark when the app is (`isSystemInDarkTheme()`, the same signal as
+the app's colours): the Activity theme is light (`Theme.Material.Light.NoActionBar`), so the WebView
+is created with a dark platform theme (`MapDark.context`, `isLightTheme = false`), which makes the
+page's `prefers-color-scheme` dark and applies its own dark CSS (docs/style.css, docs/map/karte.css,
+including the CSS filter on the swisstopo tiles); the WebView's algorithmic darkening stays off
+(`androidx.webkit` `setAlgorithmicDarkeningAllowed(false)`; on old WebViews force dark with
+«web theme darkening only»; `MapDark.settings`, `MapLinksTest`). No permission is
 added. Privacy: [PRIVACY.md](../PRIVACY.md), «The tab «Karte»».
 
 ## «Messwerte teilen» (opt-in upload)
