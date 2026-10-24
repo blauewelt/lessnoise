@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.7.2 published)
+# Weniger Lärm — citizen noise measurement (Android; v0.8.0 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -948,7 +948,15 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.7.2 (versionCode 25, published 2026-10-20) is the current public version, signed APKs in
+v0.8.0 (versionCode 32, published 2026-10-24) is the current public version, signed APKs in
+`../docs/download/`, built and signed by `.github/workflows/release-build.yml`: in the Online-Version
+one notification for «Sehr laut», the compass rose with swisstopo's streets under the arrow of
+«Wohin fuhr es?» (tile requests for the area around the true position, see PRIVACY.md), the
+«Kontrollschild» field (on the phone only), the category «Flugzeug» and the «erkannt» marker
+(CHANGELOG 0.8.0). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`, `dexdump`, in
+the workflow and again locally); not run on a device.
+
+v0.7.2 (versionCode 25, published 2026-10-20) was the public version before 0.8.0, signed APKs then in
 `../docs/download/`: the manual microphone choice (see «Measuring» → «Microphone»): built-in by
 default, another microphone only if chosen and connected, calibration per microphone, the
 microphone's kind in a minute's `audio_source` (server change: needs a redeploy before such minutes
@@ -1308,6 +1316,24 @@ for 3 days (`gh run download <run-id>`). The artifact is the only place the Labo
 it is never copied into `docs/` or a release. To get a build onto the owner's phone: bump
 `versionCode`/`versionName`, push the `labor-*` branch, wait for the green run, download the
 artifact, and hand over the APK (its SHA-256 is in `SHA256SUMS`).
+
+### Signed published builds on GitHub Actions (0.8.0)
+
+The two published APKs are built the same way by `.github/workflows/release-build.yml` (same
+secrets, same key; a separate file so that it can never build a Labor flavour): `gh workflow run
+release-build.yml --ref <branch>` (also on every push to a `release-*` branch, except changes
+only under `docs/` or to `WORKLOG.md`). It runs `:dsp:test`, `:app:testOfflineDebugUnitTest`,
+`:app:testPublicDebugUnitTest`, builds `assembleOfflineRelease assemblePublicRelease` signed, runs
+`tools/check_release_apk.py` on each APK (signer certificate `a3d5d10e…3142be`; `aapt2` package
+`ch.lessnoise.app` and the version of `app/build.gradle.kts`; `aapt2 dump permissions` exactly
+the PRIVACY.md set per edition; `dexdump`: no Labor classes or strings in either, and in the
+offline one no `MapScreen*`, `ReportMapTiles*`, `alert/*`, `loud_alert`, `MotionDetector*` and no
+`ch/lessnoise` class referring to `WebView` or `SensorManager`, all present in the public one —
+checklist step 2), and uploads `lessnoise.apk`, `lessnoise-karte.apk`, `SHA256SUMS` and `SIZES`
+as the artifact `lessnoise-release-<version>-<code>` (14 days). It has read-only access and never
+touches `docs/`: copying the APKs into `docs/download/` and filling in the website (checklist
+steps 4–7) is a separate commit. The same script runs locally on any release APK
+(`python3 tools/check_release_apk.py offline <apk> --version … --code … --build-tools …`).
 
 To publish, follow the release checklist below. The release key cannot be replaced without
 forcing every user to uninstall and reinstall, so keep the keystore and its password backed up.
