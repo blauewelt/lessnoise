@@ -307,6 +307,22 @@ object ManifestLines {
             .put("audio", false).put("logging", true).build()
 
     /**
+     * 0.7.6, Labor·Karte only: a «Laut! Melden» report confirmed with «Senden» (`time` = the report's
+     * time): `cat` the category id, `plate` the licence plate as typed (null without one), `direction`
+     * the bearing in whole degrees with `north` (true/magnetic) and `accuracy` (null without a
+     * direction). No coordinates. Stays in this file on the phone, like the rest of the manifest.
+     */
+    fun report(
+        session: String, reportMs: Long, zone: ZoneId, category: String, plate: String?,
+        bearingDeg: Int?, north: String?, accuracy: String?,
+    ): String {
+        val j = base("report", session, reportMs, zone).put("cat", category).put("plate", plate)
+        if (bearingDeg == null) j.put("direction", null as String?)
+        else j.putRaw("direction", Json().put("deg", bearingDeg).put("north", north).put("accuracy", accuracy).build())
+        return j.build()
+    }
+
+    /**
      * 0.7.5: even the log margin beyond the cap ([StorageBudget.LOG_MARGIN_BYTES]) is used up: from now on
      * no `event`, `clip`, `clock`, `gap` lines and no classifier log for this session (`session_stop` still comes).
      */

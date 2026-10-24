@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.7.6 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 29)
+
+In short: «Sehr laut» is one notification instead of two, the compass step «Wohin fuhr es?» shows a
+compass rose that visibly turns with the phone, and «Laut! Melden» has an optional licence-plate
+field that stays on the phone. Nothing new is sent to the server; no new permission. The code is in
+`src/main` and `src/karte`, so the Online-Version would get the same changes when it is next built;
+only Labor·Karte is built at this version. Offline and Labor (without the map) unchanged.
+
+- **One notification for «Sehr laut»** (editions with the map). Until 0.7.5 a very loud vehicle
+  while «unterwegs» posted a second notification (id 7501) next to «Messung läuft». Now the alert
+  replaces the content of the measurement's own notification for 30 s: one heads-up with sound and
+  vibration on the channel «Sehr laut» (unchanged, importance high), title «Sehr laut: Töff & Poser,
+  84 dB», text «Antippen zum Melden», tap and a «Melden» button open «Laut! Melden» with the event's
+  time as before, «Stopp» stays. During the 30 s neither the level text nor a change of the report
+  tap overwrites it; then the next post restores the normal notification (silent channel, level
+  text or «Antippen zum Melden», whatever is in force then). `LoudAlertNotifier` hands the alert to
+  `MeasurementService` (`ACTION_LOUD_ALERT`); the window is a pure rule in `NotificationCadence`
+  (`alertUntil`, `alertOpen`, `levelDue`), tested in `ServicePolicyTest`. If the owner switched the
+  «Sehr laut» channel off, nothing replaces the notification.
+- **Compass rose in «Wohin fuhr es?»** (editions with the map). The fixed arrow (where the phone
+  points) now stands in a 160 dp compass rose that turns with the phone: ring, 16 ticks, the letters
+  N, O, S, W (N larger, in the accent colour) and a faint schematic street grid that turns with it
+  (decorative, no map data). Live label «Nordost · 47°», calibration hint, buttons, orientation lock
+  and sensor lifecycle unchanged.
+- **«Kontrollschild (optional)»** in the confirmation of «Laut! Melden» (editions with «Laut!
+  Melden»): one text field, capitals, at most 12 characters, no format check (trimmed, spaces
+  collapsed). The plate is stored **on the phone only**: in the report queue and, after sending, in
+  the list of sent reports («24.10. 16:05 · Töff · ZH 123» under «Teilen» › «Meldungen»); the report
+  body sent to the server is unchanged and has no plate (`ReportsTest.thePlateIsNeverSent`). The
+  confirmation shows «Kontrollschild: ZH 123» as a last line. Labor·Karte also writes a `report` line
+  (time, category, plate, direction; no coordinates) to the local `manifest.jsonl` at «Senden».
+
 ## 0.7.5 — Labor·Karte only, not published (branch labor-storage) (versionCode 28)
 
 In short: a full Labor storage cap no longer silences the manifest, the app warns before the cap

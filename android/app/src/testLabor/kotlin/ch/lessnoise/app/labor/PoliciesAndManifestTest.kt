@@ -324,6 +324,17 @@ class PoliciesAndManifestTest {
         assertTrue(lf.endsWith(""""usedBytes":5200000001,"maxBytes":5000000000,"marginBytes":200000000}"""), lf)
     }
 
+    @Test
+    fun reportLine() {
+        // 0.7.6, Labor·Karte: «Senden» in «Laut! Melden» writes one line; no coordinates.
+        val r = ManifestLines.report("S", t0, zurich, "motorrad", "ZH 123", 47, "true", "high")
+        assertTrue(r.startsWith("""{"type":"report","session":"S","""), r)
+        assertTrue(r.endsWith(""""cat":"motorrad","plate":"ZH 123","direction":{"deg":47,"north":"true","accuracy":"high"}}"""), r)
+        val bare = ManifestLines.report("none", t0, zurich, "auto", null, null, null, null)
+        assertTrue(bare.endsWith(""""cat":"auto","plate":null,"direction":null}"""), bare)
+        for (bad in listOf("lat", "lon", "cell")) assertFalse(r.contains("\"$bad\""), bad)
+    }
+
     // ---- Classifier trace and log ------------------------------------------------------------
 
     private fun result(endSample: Long, endMs: Long, gain: Double, ignored: Boolean = false) = ClassifierResult(

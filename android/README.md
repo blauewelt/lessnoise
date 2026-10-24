@@ -590,7 +590,16 @@ watches `LiveState.lastEvent`: an event that is not wind, with LAFmax ≥ 75 dB(
 level as shown — calibrated if the phone is, else with the default offset; uncalibrated phones
 alert too) and category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» /
 «Antippen zum Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default
-sound and vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. A
+sound and vibration), at most one every 2 minutes. Since 0.7.6 this is **one notification**: the
+alert replaces the content of the measurement's own notification (id 1) for 30 s instead of a
+second notification (id 7501, auto-cancel, until 0.7.5). `LoudAlertNotifier.show` sends
+`MeasurementService.ACTION_LOUD_ALERT` (title, channel, tap) with `startService`; the service posts
+id 1 once on the `loud_alert` channel (not silent, not only-once: this post makes the heads-up),
+with the tap as content intent and a «Melden» action next to «Stopp»; for
+`LOUD_ALERT_WINDOW_MS` (30 s) neither the 2-s level posts nor the report-tap watcher overwrite it
+(`NotificationCadence.alertUntil`/`alertOpen`; `levelDue` false), and the first post after the
+window restores the normal notification on the silent `measurement_active` channel. Without a
+running measurement, or with the «Sehr laut» channel switched off, the action does nothing. A
 measurement started with «Messen» never alerts. The tap opens `MainActivity` with the event's start
 time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
 report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
@@ -790,7 +799,12 @@ an upload (same constraints as the other uploads; registers the device first if 
 sharing is off, the first «Melden» shows a short consent first and switches sharing on only with
 «Ja, einschalten». The queue is a private SharedPreferences file (`reports`, written with
 `commit()`); once the server has answered for a report its coordinates are deleted and only
-category, time and cell stay in the list of sent reports. Switching sharing off, deleting the
+category, time and cell stay in the list of sent reports — plus, since 0.7.6, the licence plate if
+one was typed into «Kontrollschild (optional)» in the confirmation (trimmed, capitals, ≤ 12
+characters; `ReportPlate`). The plate is never sent (`Payloads.report` does not read it;
+`ReportsTest.thePlateIsNeverSent`); it is shown in the confirmation («Kontrollschild: ZH 123») and
+in «Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, plate,
+direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the
 server data, or the offline edition taking over also drops unsent reports. While a measurement
 runs there is no «Melden» button: its loud events are uploaded with the measurement's cell anyway.
 

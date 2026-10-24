@@ -16,6 +16,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.IntentCompat
 import androidx.core.content.ContextCompat
 import ch.lessnoise.app.R
 import ch.lessnoise.app.audio.AudioCapture
@@ -168,6 +169,19 @@ class MeasurementService : Service() {
         const val ACTION_START = "ch.lessnoise.app.START"
         const val ACTION_STOP = "ch.lessnoise.app.STOP"
         /**
+         * 0.7.6 (editions with the map): the «Sehr laut» alert (src/karte/…/alert/) replaces the
+         * content of this service's notification for [LOUD_ALERT_WINDOW_MS] instead of posting a second
+         * notification. Sent with startService while a measurement runs; ignored otherwise. Extras:
+         * [EXTRA_ALERT_TITLE], [EXTRA_ALERT_CHANNEL] (the alert's own channel, importance HIGH, created
+         * by the sender) and [EXTRA_ALERT_TAP] (the PendingIntent that opens «Laut! Melden»).
+         */
+        const val ACTION_LOUD_ALERT = "ch.lessnoise.app.LOUD_ALERT"
+        const val EXTRA_ALERT_TITLE = "alert_title"
+        const val EXTRA_ALERT_CHANNEL = "alert_channel"
+        const val EXTRA_ALERT_TAP = "alert_tap"
+        /** 0.7.6: how long the alert stays in the notification before the level text comes back. */
+        const val LOUD_ALERT_WINDOW_MS = 30_000L
+        /**
          * Since 0.3.3 importance DEFAULT (icon in the status bar). A channel's importance cannot be
          * raised after it was created, hence a new id; the old LOW channel is deleted.
          */
@@ -271,6 +285,7 @@ class MeasurementService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopMeasurement(); return START_NOT_STICKY }
+            ACTION_LOUD_ALERT -> { showLoudAlert(intent, startId); return START_NOT_STICKY }
             else -> {
                 val unterwegs = intent?.getBooleanExtra(EXTRA_UNTERWEGS, false) == true
                 startMeasurement(if (unterwegs) null else pointOf(intent), unterwegs)
@@ -599,7 +614,9 @@ class MeasurementService : Service() {
             val now = System.currentTimeMillis()
             synchronized(cadence) {
                 if (cadence.levelDue(now)) {
-                    val text = MeasurementNotification.text(
+                    // 0.7.6: the first post after a «Sehr laut» alert may come in report mode (Online-Version
+                    // «unterwegs»): then the tap's fixed text, else the level text as always.
+                    val text = currentTap?.text ?: MeasurementNotification.text(
                         laeqDb = second.laeqRunning60sDb, calibrated = l.value.calibrated,
                         silenced = l.value.micSilenced || second.validFraction == 0.0, note = tap.notificationNote,
                     )
@@ -668,6 +685,7 @@ class MeasurementService : Service() {
         synchronized(cadence) {
             cadence.modeChanged(false)
             cadence.tapChanged(false, false)
+            cadence.endAlert()
             currentTap = null
         }
         // The capture thread has ended: finish the engine (partial minute, open event) here.
@@ -839,6 +857,9 @@ class MeasurementService : Service() {
                     val modeChanged = cadence.modeChanged(reportTap?.text != null)
                     val tapChanged = cadence.tapChanged(reportTap?.intent != null, reportTap?.button != null)
                     if (!modeChanged && !tapChanged) return@collect
+                    // 0.7.6: a «Sehr laut» alert is in the notification: the change is applied by the
+                    // first post after its window (NotificationCadence.levelDue), not over the alert.
+                    if (cadence.alertOpen(System.currentTimeMillis())) return@collect
                     val text = reportTap?.text ?: l.laeq60sDb?.let {
                         MeasurementNotification.text(laeqDb = it, calibrated = l.calibrated, silenced = l.micSilenced, note = tap.notificationNote)
                     } ?: MeasurementNotification.STARTING
@@ -846,6 +867,64 @@ class MeasurementService : Service() {
                 }
             }
         }
+    }
+
+    /**
+     * 0.7.6 (editions with the map): ACTION_LOUD_ALERT. While a measurement runs, the notification
+     * (id [NOTIFICATION_ID], the foreground service's own) is posted ONCE with the alert: on the
+     * alert's channel (importance HIGH, so this one post makes the heads-up with sound and
+     * vibration), its title, «Antippen zum Melden», the tap as content intent and as a «Melden»
+     * action next to «Stopp». For [LOUD_ALERT_WINDOW_MS] nothing overwrites it (NotificationCadence);
+     * then the next level post restores the normal notification on the silent channel.
+     */
+    private fun showLoudAlert(intent: Intent, startId: Int) {
+        val title = intent.getStringExtra(EXTRA_ALERT_TITLE)
+        val channel = intent.getStringExtra(EXTRA_ALERT_CHANNEL)
+        val tapIntent = IntentCompat.getParcelableExtra(intent, EXTRA_ALERT_TAP, PendingIntent::class.java)
+        val live = container.live.value
+        synchronized(this) {
+            if (!live.running || stopping) {
+                // A service started only by this intent (no measurement at all) must not stay started;
+                // one that is stopping ends itself (stopMeasurement).
+                if (!live.running && !live.starting && !stopping) stopSelf(startId)
+                return
+            }
+        }
+        if (title == null || channel == null || tapIntent == null) return
+        // A channel the owner switched off (or that does not exist) would drop the post: then the
+        // measurement's notification stays as it is, and no window holds back its level text.
+        val nm = getSystemService(NotificationManager::class.java)
+        val ch = nm.getNotificationChannel(channel)
+        if (ch == null || ch.importance == NotificationManager.IMPORTANCE_NONE) return
+        val now = System.currentTimeMillis()
+        synchronized(cadence) {
+            if (!cadence.alertUntil(now, now + LOUD_ALERT_WINDOW_MS)) return
+            nm.notify(NOTIFICATION_ID, alertNotification(channel, title, tapIntent, now))
+        }
+    }
+
+    private fun alertNotification(channel: String, title: String, tapIntent: PendingIntent, whenMs: Long): Notification {
+        val stop = PendingIntent.getService(
+            this, 1, Intent(this, MeasurementService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return NotificationCompat.Builder(this, channel)
+            .setSmallIcon(R.drawable.ic_stat_level)
+            .setContentTitle(title)
+            .setContentText(MeasurementNotification.ALERT_TEXT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setWhen(whenMs)
+            .setShowWhen(true)
+            .setOngoing(true)
+            // This one post must alert (heads-up, sound, vibration from the HIGH channel): not silent,
+            // not only-once; the restoring post afterwards is silent again (notification()).
+            .setOnlyAlertOnce(false)
+            .setContentIntent(tapIntent)
+            .addAction(0, "Stopp", stop)
+            .addAction(0, MeasurementNotification.ALERT_BUTTON, tapIntent)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .build()
     }
 
     private fun notification(text: String, reportTap: NotificationTap? = null): Notification {

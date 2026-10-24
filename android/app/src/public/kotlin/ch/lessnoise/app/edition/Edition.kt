@@ -23,6 +23,13 @@ object EditionDiagnostics {
         context: Context, minuteStartMs: Long, medianMs2: Double?, maxMs2: Double?, seconds: Int,
         distanceM: Int?, state: String, motion: Boolean, position: Boolean,
     ) = Unit
+
+    /** 0.7.6: the Labor·Karte `report` line at «Senden». Public: nothing is written. */
+    @Suppress("UNUSED_PARAMETER")
+    fun report(
+        context: Context, reportMs: Long, category: String, plate: String?,
+        bearingDeg: Int?, north: String?, accuracy: String?,
+    ) = Unit
 }
 
 /**

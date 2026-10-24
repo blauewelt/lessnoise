@@ -135,6 +135,26 @@ object EditionDiagnostics {
             Log.w("Labor", "motion_minute line: ${e.javaClass.simpleName}")
         }
     }
+
+    /**
+     * 0.7.6, Labor·Karte (the only Labor build with «Laut! Melden»): at «Senden» one `report` line in
+     * manifest.jsonl — time, category, licence plate, direction; no coordinates. Plain values only: the
+     * Labor code does not see the upload package (UploadSourceIsolationTest).
+     */
+    fun report(
+        context: Context, reportMs: Long, category: String, plate: String?,
+        bearingDeg: Int?, north: String?, accuracy: String?,
+    ) {
+        try {
+            val line = ManifestLines.report(
+                Labor.currentSession ?: "none", reportMs, java.time.ZoneId.systemDefault(), category, plate, bearingDeg, north, accuracy,
+            )
+            ManifestFile.append(Labor.dirs(context.applicationContext).manifest, line)
+            Labor.filesVersion.update { it + 1 }
+        } catch (e: Exception) {
+            Log.w("Labor", "report line: ${e.javaClass.simpleName}")
+        }
+    }
 }
 
 /**

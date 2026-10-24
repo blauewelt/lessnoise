@@ -202,8 +202,8 @@ class ReportsTest {
         // The flow: a Fix always goes to the confirmation; only a Problem shows «Kein genauer Standort».
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         assertTrue(ui.contains("is LocationPolicy.ReportOutcome.Fix -> ReportStep.Confirm(category, o)"))
-        // 0.7.0: the direction of travel (if taken) is passed along too.
-        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction)"))
+        // 0.7.0: the direction of travel (if taken) is passed along too; 0.7.6: and the licence plate (shown, never sent).
+        assertTrue(ui.contains("reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction, plate = plate)"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }
@@ -225,5 +225,53 @@ class ReportsTest {
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         assertTrue(ui.contains("Text(reportConfirmDialogText("), "the «Meldung» dialog shows the warning")
         assertFalse(ui.contains("Text(reportConfirmText("), "no confirmation without the warning")
+    }
+
+    // ---- 0.7.6: «Kontrollschild», on the phone only ------------------------------------------------
+
+    @Test
+    fun thePlateIsNormalisedAndCapped() {
+        assertEquals("ZH 123", ReportPlate.normalize("  zh   123 "))
+        assertEquals("ZH 123", ReportPlate.normalize("zh\t123"))
+        assertEquals(null, ReportPlate.normalize("   "))
+        assertEquals(null, ReportPlate.normalize(null))
+        assertEquals("BE 123 456 A", ReportPlate.normalize("be 123 456 abc"), "at most 12 characters")
+        assertEquals(12, ReportPlate.MAX_LENGTH)
+        assertEquals("ZH 1", ReportPlate.typing("zh 1"))
+        assertEquals(12, ReportPlate.typing("x".repeat(20)).length)
+        // No trailing space when the cut lands on one.
+        assertEquals("ABCDEFGHIJK", ReportPlate.normalize("abcdefghijk lmn"))
+    }
+
+    @Test
+    fun thePlateIsStoredRoundTripsAndSurvivesSending() {
+        val r = listOf(report(0).copy(plate = "ZH 123"), report(1))
+        val json = ReportJson.pending(r)
+        assertEquals(r, ReportJson.parsePending(json))
+        assertTrue(json.contains("\"plate\":\"ZH 123\""), json)
+        assertEquals(1, Regex("\"plate\"").findAll(json).count(), "absent when null")
+        // Files written before 0.7.6 have no plate.
+        assertEquals(listOf<String?>(null), ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto"}]""").map { it.plate })
+        val sent = r.map { it.toSent() }
+        assertEquals(listOf<String?>("ZH 123", null), sent.map { it.plate })
+        assertEquals(sent, ReportJson.parseSent(ReportJson.sent(sent)))
+        assertEquals(1, Regex("\"plate\"").findAll(ReportJson.sent(sent)).count())
+    }
+
+    @Test
+    fun thePlateIsNeverSent() = runBlocking {
+        val r = report().copy(plate = "ZH 123")
+        val o = Payloads.report(r)
+        assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
+        assertFalse(o.toString().contains("plate") || o.toString().contains("ZH 123"), o.toString())
+        // Through the real upload: what the server receives has no plate; the phone keeps it.
+        val reports = MemoryReportStore()
+        ReportQueue.add(reports, r)
+        val (up, _) = setup(reports)
+        assertIs<Uploader.Outcome.Done>(up.run())
+        val bodies = server.requests.map { it.body.toString() }
+        assertTrue(server.requests.any { it.path.endsWith("/reports") })
+        for (b in bodies) assertFalse(b.contains("plate") || b.contains("ZH 123"), b)
+        assertEquals(listOf<String?>("ZH 123"), reports.state.value.sent.map { it.plate })
     }
 }

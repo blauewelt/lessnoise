@@ -32,6 +32,16 @@ object MeasurementNotification {
     const val SILENCED = "Mikrofon stumm (z. B. Anruf) – zählt nicht"
 
     /**
+     * 0.7.6, editions with the map: the text of the «Sehr laut» alert while it replaces this
+     * notification ([NotificationCadence.alertUntil]); the same words as the alert rule's TEXT in
+     * src/karte (LoudAlertTest checks that they agree).
+     */
+    const val ALERT_TEXT = "Antippen zum Melden"
+
+    /** 0.7.6: the label of the alert's report action, next to «Stopp» (the same as the report-now button in src/karte). */
+    const val ALERT_BUTTON = "Melden"
+
+    /**
      * Content text: the running 1-min LAeq as «Letzte Minute»; [note] is appended (Labor build).
      * [calibrated] is no longer shown (0.6.1: «Richtwerte» is said once, under Einstellungen › Datenschutz).
      */
@@ -60,6 +70,12 @@ class NotificationTap(
  * level text every [everyMs] (as before). While the run is «unterwegs» (report mode) the text is fixed,
  * so nothing is posted per second; a change of mode posts at once ([modeChanged]) and makes the next
  * level text due immediately. Thread-safe (capture thread and the service's state collector).
+ *
+ * 0.7.6 (editions with the map): the «Sehr laut» alert replaces the notification's content for a
+ * window ([alertUntil], MeasurementService.LOUD_ALERT_WINDOW_MS = 30 s) instead of posting a second
+ * notification. While the window is open nothing else is posted ([levelDue] false, [alertOpen] true
+ * for the tap watcher); the first [levelDue] after it is true at once, also in report mode, so the
+ * service restores the normal notification (with the tap state in force at that moment).
  */
 class NotificationCadence(private val everyMs: Long = 2000) {
     private var reportMode = false
@@ -92,9 +108,47 @@ class NotificationCadence(private val everyMs: Long = 2000) {
         return true
     }
 
-    /** A second's result at [nowMs]: whether to post the level text now (never in report mode). */
+    /** End of the open alert window (epoch ms); [Long.MIN_VALUE]: none. */
+    private var alertUntilMs = Long.MIN_VALUE
+    /** An alert was posted and the normal notification has not been restored yet. */
+    private var restoreAfterAlert = false
+
+    /**
+     * 0.7.6: an alert replaces the notification now ([nowMs]) until [untilMs]. True if the window is
+     * open, i.e. the service must post the alert now (once); a later alert extends the window.
+     */
+    @Synchronized
+    fun alertUntil(nowMs: Long, untilMs: Long): Boolean {
+        if (untilMs <= nowMs) return false
+        alertUntilMs = untilMs
+        restoreAfterAlert = true
+        return true
+    }
+
+    /** Whether an alert window is open at [nowMs]: then nothing may overwrite the alert. */
+    @Synchronized
+    fun alertOpen(nowMs: Long): Boolean = nowMs < alertUntilMs
+
+    /** The measurement stopped: no window, nothing to restore. */
+    @Synchronized
+    fun endAlert() {
+        alertUntilMs = Long.MIN_VALUE
+        restoreAfterAlert = false
+    }
+
+    /**
+     * A second's result at [nowMs]: whether to post the notification now. Never while an alert window
+     * is open; once right after it (also in report mode: the service then posts the tap's fixed text
+     * or the level text); otherwise the level text every [everyMs], never in report mode.
+     */
     @Synchronized
     fun levelDue(nowMs: Long): Boolean {
+        if (nowMs < alertUntilMs) return false
+        if (restoreAfterAlert) {
+            restoreAfterAlert = false
+            lastLevelMs = nowMs
+            return true
+        }
         if (reportMode || nowMs - lastLevelMs < everyMs) return false
         lastLevelMs = nowMs
         return true

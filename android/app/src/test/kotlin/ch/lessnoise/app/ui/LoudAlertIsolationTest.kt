@@ -39,6 +39,15 @@ class LoudAlertIsolationTest {
         // 0.6.8: no «Antippen zum Melden» on the measurement notification in the Offline and Labor builds.
         assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? = null"))
         assertTrue(stub.contains("fun presetFrom(intent: Intent?, tapMs: Long = 0L): ReportPreset? = null"))
+        // 0.7.6: the alert goes into the measurement's own notification (MeasurementService.ACTION_LOUD_ALERT);
+        // only src/karte sends that action, so the Offline and Labor builds never post an alert.
+        for (d in listOf("src/main", "src/nomap", "src/public", "src/offline", "src/labor", "src/laborKarte")) {
+            val senders = File(app, d).walkTopDown()
+                .filter { it.isFile && it.extension == "kt" && it.readText().contains(".setAction(MeasurementService.ACTION_LOUD_ALERT)") }
+                .map { it.name }.toList()
+            assertEquals(emptyList(), senders, d)
+        }
+        assertFalse(stub.contains("ACTION_LOUD_ALERT"))
         // No new permission: POST_NOTIFICATIONS was already declared for the measurement's notification.
         assertTrue(File(app, "src/main/AndroidManifest.xml").readText().contains("android.permission.POST_NOTIFICATIONS"))
         for (m in listOf("src/public/AndroidManifest.xml", "src/laborKarte/AndroidManifest.xml", "src/offline/AndroidManifest.xml", "src/labor/AndroidManifest.xml")) {

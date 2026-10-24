@@ -1,6 +1,8 @@
 package ch.lessnoise.app.alert
 
 import ch.lessnoise.app.service.LiveEvent
+import ch.lessnoise.app.service.MeasurementNotification
+import ch.lessnoise.app.service.MeasurementService
 import ch.lessnoise.app.ui.START_MEASURE
 import ch.lessnoise.app.ui.START_UNTERWEGS
 import ch.lessnoise.app.ui.UNTERWEGS_HINT
@@ -102,8 +104,49 @@ class LoudAlertTest {
         // The notifier puts the event's START into the intent (the report's time), not the tap.
         val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         assertTrue(notifier.contains(".putExtra(LoudAlertIntent.EXTRA_EVENT_MS, e.startEpochMs)"))
-        assertTrue(notifier.contains("NotificationManager.IMPORTANCE_HIGH") && notifier.contains(".setAutoCancel(true)"))
+        assertTrue(notifier.contains("NotificationManager.IMPORTANCE_HIGH"))
         assertFalse(notifier.contains("setDeleteIntent"), "swiping it away does nothing")
+    }
+
+    @Test
+    fun oneNotificationTheAlertReplacesTheMeasurementsOwnFor30s() {
+        // 0.7.6: no second notification (id 7501 until 0.7.5); the notifier hands the alert to the
+        // running service, which posts notification 1 once on the HIGH channel, then the level text.
+        val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val code = notifier.lines().filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("//") }.joinToString("\n")
+        assertFalse(code.contains(".notify("), "the notifier posts nothing itself")
+        assertFalse(code.contains("7501"))
+        assertFalse(code.contains("NotificationCompat"))
+        assertTrue(code.contains("context.startService("))
+        assertTrue(code.contains(".setAction(MeasurementService.ACTION_LOUD_ALERT)"))
+        assertTrue(code.contains(".putExtra(MeasurementService.EXTRA_ALERT_TITLE, LoudAlertRule.title(e))"))
+        assertTrue(code.contains(".putExtra(MeasurementService.EXTRA_ALERT_CHANNEL, CHANNEL)"))
+        assertTrue(code.contains(".putExtra(MeasurementService.EXTRA_ALERT_TAP, pending)"))
+        assertTrue(code.contains("runCatching {"), "startService may throw when the service is not in the foreground")
+        assertTrue(code.contains("ensureChannel()"), "the HIGH channel still exists: the alert post uses it")
+        // The service: one alerting post on id 1 (not startForeground), the window of 30 s.
+        val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
+        assertTrue(service.contains("ACTION_LOUD_ALERT -> { showLoudAlert(intent, startId); return START_NOT_STICKY }"))
+        assertTrue(service.contains("nm.notify(NOTIFICATION_ID, alertNotification(channel, title, tapIntent, now))"))
+        assertTrue(service.contains("if (!cadence.alertUntil(now, now + LOUD_ALERT_WINDOW_MS)) return"))
+        assertTrue(service.contains("if (!live.running || stopping) {"), "ignored without a running measurement")
+        assertEquals(30_000L, MeasurementService.LOUD_ALERT_WINDOW_MS)
+        val alert = service.substring(service.indexOf("private fun alertNotification("), service.indexOf("private fun notification("))
+        assertTrue(alert.contains("NotificationCompat.Builder(this, channel)"))
+        assertTrue(alert.contains(".setOnlyAlertOnce(false)"))
+        assertFalse(alert.contains("setSilent"), "this one post must make the heads-up")
+        assertTrue(alert.contains(".setOngoing(true)"))
+        assertTrue(alert.contains(".setContentIntent(tapIntent)"))
+        assertTrue(alert.contains(".addAction(0, \"Stopp\", stop)"))
+        assertTrue(alert.contains(".addAction(0, MeasurementNotification.ALERT_BUTTON, tapIntent)"))
+        assertTrue(alert.contains("FOREGROUND_SERVICE_IMMEDIATE"))
+        assertFalse(alert.contains("startForeground"))
+        // The tap watcher does not post over an open alert; the level posts restore the notification after it.
+        assertTrue(service.contains("if (cadence.alertOpen(System.currentTimeMillis())) return@collect"))
+        assertTrue(service.contains("cadence.endAlert()"))
+        // The texts in src/main agree with the rule's and the report button's.
+        assertEquals(LoudAlertRule.TEXT, MeasurementNotification.ALERT_TEXT)
+        assertEquals(ReportTap.BUTTON, MeasurementNotification.ALERT_BUTTON)
     }
 
     private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }

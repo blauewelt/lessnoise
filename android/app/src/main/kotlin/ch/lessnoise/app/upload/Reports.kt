@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -125,8 +126,13 @@ data class PendingReport(
     val cell: String?,
     /** App 0.6.7: where the vehicle drove, if the reporter gave it; dropped after sending. */
     val direction: ReportDirection? = null,
+    /**
+     * App 0.7.6: the licence plate («Kontrollschild», optional, [ReportPlate.normalize]). Kept ON THE
+     * PHONE ONLY, also after sending (in [SentReport]); never sent: Payloads.report does not read it.
+     */
+    val plate: String? = null,
 ) {
-    fun toSent(): SentReport = SentReport(epochMs, category, cell)
+    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate)
 
     companion object {
         private val ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx")
@@ -137,8 +143,28 @@ data class PendingReport(
     }
 }
 
-/** What remains on the phone of a sent report: category, time and cell. No coordinates. */
-data class SentReport(val epochMs: Long, val category: String, val cell: String?)
+/**
+ * What remains on the phone of a sent report: category, time and cell, and (0.7.6) the licence plate
+ * if one was typed in — it never left the phone. No coordinates.
+ */
+data class SentReport(val epochMs: Long, val category: String, val cell: String?, val plate: String? = null)
+
+/**
+ * The «Kontrollschild (optional)» field of «Laut! Melden» (0.7.6). No validation of the format (Swiss,
+ * foreign, partial plates are all fine): trimmed, inner whitespace collapsed to one space, upper case,
+ * at most [MAX_LENGTH] characters. Stored on the phone only, never sent.
+ */
+object ReportPlate {
+    const val MAX_LENGTH = 12
+    const val LABEL = "Kontrollschild (optional)"
+
+    /** What the field keeps while typing: upper case, at most [MAX_LENGTH] characters (spaces kept). */
+    fun typing(s: String): String = s.uppercase(java.util.Locale.ROOT).take(MAX_LENGTH)
+
+    /** The stored value: «  zh  123 » → «ZH 123»; blank → null. */
+    fun normalize(s: String?): String? =
+        s?.trim()?.replace(Regex("""\s+"""), " ")?.uppercase(java.util.Locale.ROOT)?.take(MAX_LENGTH)?.trim()?.takeIf { it.isNotEmpty() }
+}
 
 data class ReportSnapshot(
     val pending: List<PendingReport> = emptyList(),
@@ -244,12 +270,15 @@ object ReportJson {
                 r.direction?.let { d ->
                     put("dir", buildJsonObject { put("deg", d.bearingDeg); put("n", d.north.id); put("a", d.accuracy.id) })
                 }
+                r.plate?.let { put("plate", it) }
             })
         }
     }.toString()
 
     fun sent(list: List<SentReport>): String = buildJsonArray {
-        list.forEach { r -> add(buildJsonObject { put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) } }) }
+        list.forEach { r ->
+            add(buildJsonObject { put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) } })
+        }
     }.toString()
 
     fun parsePending(s: String?): List<PendingReport> = try {
@@ -260,6 +289,7 @@ object ReportJson {
                 o["lon"]!!.jsonPrimitive.double, o["acc"]!!.jsonPrimitive.double, o["cat"]!!.jsonPrimitive.content,
                 o["cell"]?.jsonPrimitive?.content,
                 direction(o["dir"] as? JsonObject),
+                plate(o),
             )
         }
     } catch (_: Exception) {
@@ -279,10 +309,13 @@ object ReportJson {
         null
     }
 
+    /** A stored plate (0.7.6); absent in files of older versions. */
+    private fun plate(o: JsonObject): String? = (o["plate"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
     fun parseSent(s: String?): List<SentReport> = try {
         if (s == null) emptyList() else Json.parseToJsonElement(s).jsonArray.map {
             val o = it.jsonObject
-            SentReport(o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content)
+            SentReport(o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o))
         }
     } catch (_: Exception) {
         emptyList()

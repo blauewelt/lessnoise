@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.lessnoise.app.container
 import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.ReportSnapshot
+import ch.lessnoise.app.upload.SentReport
 import ch.lessnoise.app.upload.SiteSettings
 import ch.lessnoise.app.upload.UploadSnapshot
 import ch.lessnoise.app.upload.Uploader
@@ -326,6 +327,10 @@ private fun SigmaSetting(current: Int, onChange: (Int) -> Unit) {
 }
 
 /** «Meldungen»: waiting and sent reports (sent ones without coordinates: category and time). */
+/** «12.10. 16:05 · Töff», with a licence plate (0.7.6, on the phone only) «… · Töff · ZH 123». */
+internal fun sentReportLine(time: String, s: SentReport): String =
+    "$time · ${ReportCategory.fromId(s.category)?.label ?: s.category}" + (s.plate?.let { " · $it" } ?: "")
+
 @Composable
 private fun ReportsCard(r: ReportSnapshot) {
     if (r.pending.isEmpty() && r.sent.isEmpty()) return
@@ -333,10 +338,7 @@ private fun ReportsCard(r: ReportSnapshot) {
         if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
         StatRow("Gesendet", r.sent.size.toString())
         r.sent.takeLast(5).reversed().forEach { s ->
-            Text(
-                "${Fmt.dateTime(s.epochMs)} · ${ReportCategory.fromId(s.category)?.label ?: s.category}",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodySmall)
         }
     }
 }

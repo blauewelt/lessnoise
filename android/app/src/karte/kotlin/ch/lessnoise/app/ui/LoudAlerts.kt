@@ -24,8 +24,11 @@ import android.app.PendingIntent
  * builds get the stand-in in src/nomap): the button «Unterwegs» next to «Messen» starts a
  * measurement that is never shared (no point, no minutes, no events: LiveState.unterwegs,
  * MeasurementEntity.unterwegs). While it runs, a very loud vehicle (≥ 75 dB(A), «Töff & Poser» or
- * «Strassenverkehr») shows the «Sehr laut» notification, at most one every 2 minutes; a tap opens
- * «Laut! Melden» with the event's time. A measurement started with «Messen» never alerts: a phone
+ * «Strassenverkehr») shows the «Sehr laut» alert, at most one every 2 minutes; a tap opens
+ * «Laut! Melden» with the event's time. Since 0.7.6 the alert is not a second notification: it
+ * replaces the content of the measurement's own notification for 30 s (one heads-up with sound and
+ * vibration on the channel «Sehr laut», then the level text again; alert/LoudAlertNotifier.kt,
+ * MeasurementService.ACTION_LOUD_ALERT). A measurement started with «Messen» never alerts: a phone
  * on the windowsill must not wake its owner at every loud pass. (0.6.3 had a remembered switch
  * instead; its preference file «loud_alert» is no longer read.)
  */

@@ -5,10 +5,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.NotificationCompat
-import ch.lessnoise.app.R
 import ch.lessnoise.app.service.LiveEvent
 import ch.lessnoise.app.service.LiveState
+import ch.lessnoise.app.service.MeasurementService
 import ch.lessnoise.app.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
@@ -17,10 +16,16 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * The «Sehr laut» notification: its own channel (importance HIGH: heads-up, the default sound and
- * vibration, adjustable in Android's settings), one id (a new one replaces the previous), auto
- * cancel; a tap opens «Laut! Melden» with the event's time ([LoudAlertIntent]). Swiping it away
- * does nothing. Without the POST_NOTIFICATIONS permission (Android 13+) it simply does not show.
+ * The «Sehr laut» alert. Since 0.7.6 it is ONE notification: the alert replaces the content of the
+ * running measurement's notification (id 1, MeasurementService) for 30 s
+ * (MeasurementService.LOUD_ALERT_WINDOW_MS) instead of posting a second notification next to
+ * «Messung läuft». [show] hands the alert to the service (ACTION_LOUD_ALERT); the service posts its
+ * notification once on this channel (importance HIGH: heads-up, the default sound and vibration,
+ * adjustable in Android's settings), with the title «Sehr laut: …», «Antippen zum Melden», the tap as
+ * content intent and as a «Melden» button next to «Stopp»; after the window the level text comes back
+ * on the silent measurement channel. A tap opens «Laut! Melden» with the event's time
+ * ([LoudAlertIntent]). Without the POST_NOTIFICATIONS permission (Android 13+) nothing shows.
+ * Until 0.7.5 this class posted its own notification (id 7501, auto cancel).
  */
 class LoudAlertNotifier(private val context: Context) {
     private val nm: NotificationManager = context.getSystemService(NotificationManager::class.java)
@@ -35,6 +40,8 @@ class LoudAlertNotifier(private val context: Context) {
     }
 
     fun show(e: LiveEvent) {
+        // startService can throw (IllegalStateException) if the service is not in the foreground; the
+        // alert rule already requires a running measurement, so then there is nothing to alert in.
         runCatching {
             ensureChannel()
             val tap = Intent(context, MainActivity::class.java)
@@ -45,30 +52,23 @@ class LoudAlertNotifier(private val context: Context) {
             val pending = PendingIntent.getActivity(
                 context, REQUEST, tap, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            val n = NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_level)
-                .setContentTitle(LoudAlertRule.title(e))
-                .setContentText(LoudAlertRule.TEXT)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_EVENT)
-                .setWhen(e.startEpochMs)
-                .setShowWhen(true)
-                .setAutoCancel(true)
-                .setContentIntent(pending)
-                .build()
-            nm.notify(NOTIFICATION_ID, n)
+            context.startService(
+                Intent(context, MeasurementService::class.java)
+                    .setAction(MeasurementService.ACTION_LOUD_ALERT)
+                    .putExtra(MeasurementService.EXTRA_ALERT_TITLE, LoudAlertRule.title(e))
+                    .putExtra(MeasurementService.EXTRA_ALERT_CHANNEL, CHANNEL)
+                    .putExtra(MeasurementService.EXTRA_ALERT_TAP, pending),
+            )
         }
     }
 
     companion object {
         const val CHANNEL = "loud_alert"
-        /** The measurement's notification is 1 (MeasurementService); this one replaces itself. */
-        const val NOTIFICATION_ID = 7501
         private const val REQUEST = 2
     }
 }
 
-/** Watches the live state: an event that passes [LoudAlertRule] shows the notification. */
+/** Watches the live state: an event that passes [LoudAlertRule] shows the alert (in the measurement's notification since 0.7.6). */
 object LoudAlertWatcher {
     fun start(scope: CoroutineScope, live: StateFlow<LiveState>, notifier: LoudAlertNotifier) {
         scope.launch {

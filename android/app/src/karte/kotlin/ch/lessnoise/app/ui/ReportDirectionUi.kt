@@ -23,10 +23,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -35,6 +40,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import ch.lessnoise.app.compass.Compass
 import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.ReportDirection
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * The direction step of «Laut! Melden» (0.6.7, editions with the map; the Offline and Labor builds
@@ -125,41 +132,85 @@ object ReportDirectionUi {
     }
 
     /**
-     * The live arrow: it always points up the screen, i.e. where the phone points; the ring around
-     * it turns with the compass, its tick and «N» stay on north.
+     * The live compass (0.7.6): a schematic compass rose that turns with the phone, so that it is
+     * obvious that the reading is live. The arrow stays fixed and points up the screen, i.e. where
+     * the phone points (accent colour). Around it the rose is turned by −[magneticDeg]: the ring, 16
+     * ticks (the four cardinal ones longer) and the letters N, O, S, W (German: Ost) on north, east,
+     * south and west — N larger and in the accent colour. The letters move with the rose but stay
+     * upright so they can be read. Behind it a faint «schematic map»: three thin grey lines across
+     * the disc like a street grid, drawn in the turning frame so they visibly turn too. They are
+     * purely decorative: no map data, no place, nothing read or stored. Before the first reading
+     * ([magneticDeg] null) only the ring and the ticks, faint, and a grey arrow.
      */
     @Composable
     private fun DirectionArrow(magneticDeg: Double?) {
         val ink = MaterialTheme.colorScheme.onSurface
         val accent = MaterialTheme.colorScheme.primary
-        Canvas(Modifier.size(120.dp)) {
+        val measurer = rememberTextMeasurer()
+        val letterStyle = MaterialTheme.typography.labelLarge.copy(color = ink, fontWeight = FontWeight.Medium)
+        val northStyle = MaterialTheme.typography.titleMedium.copy(color = accent, fontWeight = FontWeight.Bold)
+        Canvas(Modifier.size(160.dp)) {
             val c = Offset(size.width / 2, size.height / 2)
-            val radius = size.minDimension / 2 - 6.dp.toPx()
-            drawCircle(ink.copy(alpha = 0.35f), radius, c, style = Stroke(2.dp.toPx()))
-            if (magneticDeg != null) {
-                rotate(-magneticDeg.toFloat(), c) {
-                    val n = Path().apply {
-                        moveTo(c.x, c.y - radius - 4.dp.toPx())
-                        lineTo(c.x - 6.dp.toPx(), c.y - radius + 8.dp.toPx())
-                        lineTo(c.x + 6.dp.toPx(), c.y - radius + 8.dp.toPx())
-                        close()
+            val radius = size.minDimension / 2 - 4.dp.toPx()
+            val live = magneticDeg != null
+            val turn = -(magneticDeg ?: 0.0).toFloat()
+            val faint = if (live) 1f else 0.4f
+            rotate(turn, c) {
+                // The schematic street grid, clipped to the disc (decorative only).
+                if (live) {
+                    val disc = Path().apply { addOval(Rect(c, radius)) }
+                    clipPath(disc) {
+                        val street = ink.copy(alpha = 0.12f)
+                        val w = 3.dp.toPx()
+                        drawLine(street, Offset(c.x - radius, c.y - radius * 0.28f), Offset(c.x + radius, c.y - radius * 0.40f), w)
+                        drawLine(street, Offset(c.x - radius, c.y + radius * 0.46f), Offset(c.x + radius, c.y + radius * 0.30f), w)
+                        drawLine(street, Offset(c.x + radius * 0.22f, c.y - radius), Offset(c.x + radius * 0.36f, c.y + radius), w)
                     }
-                    drawPath(n, ink)
+                }
+                drawCircle(ink.copy(alpha = 0.35f * faint), radius, c, style = Stroke(2.dp.toPx()))
+                // 16 ticks every 22.5°, inward from the ring; the cardinal ones (every 4th) longer.
+                for (i in 0 until 16) {
+                    val cardinal = i % 4 == 0
+                    val a = Math.toRadians(i * 22.5)
+                    val len = if (cardinal) 12.dp.toPx() else 6.dp.toPx()
+                    val dx = sin(a).toFloat()
+                    val dy = -cos(a).toFloat()
+                    drawLine(
+                        ink.copy(alpha = (if (cardinal) 0.7f else 0.4f) * faint),
+                        Offset(c.x + dx * radius, c.y + dy * radius),
+                        Offset(c.x + dx * (radius - len), c.y + dy * (radius - len)),
+                        (if (cardinal) 2.dp else 1.dp).toPx(),
+                    )
                 }
             }
-            val a = Path().apply {
-                moveTo(c.x, c.y - radius * 0.8f)
-                lineTo(c.x - radius * 0.32f, c.y - radius * 0.2f)
-                lineTo(c.x - radius * 0.11f, c.y - radius * 0.2f)
-                lineTo(c.x - radius * 0.11f, c.y + radius * 0.6f)
-                lineTo(c.x + radius * 0.11f, c.y + radius * 0.6f)
-                lineTo(c.x + radius * 0.11f, c.y - radius * 0.2f)
-                lineTo(c.x + radius * 0.32f, c.y - radius * 0.2f)
+            // The letters: their places turn with the rose, the letters themselves stay upright.
+            if (live) {
+                val letterRadius = radius - 24.dp.toPx()
+                for ((i, letter) in CARDINALS.withIndex()) {
+                    val layout = measurer.measure(letter, if (i == 0) northStyle else letterStyle)
+                    val a = Math.toRadians(i * 90.0 + turn)
+                    val p = Offset(c.x + sin(a).toFloat() * letterRadius, c.y - cos(a).toFloat() * letterRadius)
+                    drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f))
+                }
+            }
+            // The fixed arrow: where the phone points.
+            val r = radius * 0.62f
+            val arrow = Path().apply {
+                moveTo(c.x, c.y - r)
+                lineTo(c.x - r * 0.36f, c.y - r * 0.25f)
+                lineTo(c.x - r * 0.12f, c.y - r * 0.25f)
+                lineTo(c.x - r * 0.12f, c.y + r * 0.7f)
+                lineTo(c.x + r * 0.12f, c.y + r * 0.7f)
+                lineTo(c.x + r * 0.12f, c.y - r * 0.25f)
+                lineTo(c.x + r * 0.36f, c.y - r * 0.25f)
                 close()
             }
-            drawPath(a, if (magneticDeg == null) ink.copy(alpha = 0.3f) else accent)
+            drawPath(arrow, if (live) accent else ink.copy(alpha = 0.3f))
         }
     }
+
+    /** The rose's letters, clockwise from north: Nord, Ost, Süd, West. */
+    private val CARDINALS = listOf("N", "O", "S", "W")
 
     private fun displayRotation(context: Context): Int =
         try {

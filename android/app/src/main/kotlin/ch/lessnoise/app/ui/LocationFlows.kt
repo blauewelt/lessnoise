@@ -14,7 +14,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,14 +28,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import ch.lessnoise.app.container
+import ch.lessnoise.app.edition.EditionDiagnostics
 import ch.lessnoise.app.location.LocationFetcher
 import ch.lessnoise.app.location.LocationPolicy
 import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.ReportDirection
+import ch.lessnoise.app.upload.ReportPlate
 import ch.lessnoise.app.upload.ReportQueue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -83,8 +89,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     // 0.6.7: the direction step is open while true; the reading taken there (null: skipped / none).
     var askDirection by remember { mutableStateOf(false) }
     var reading by remember { mutableStateOf<CompassReading?>(null) }
+    // 0.7.6: «Kontrollschild (optional)» in the confirmation; on the phone only, never sent.
+    var plateText by remember { mutableStateOf("") }
     fun cancel() {
-        job?.cancel(); step = null; askDirection = false; reading = null
+        job?.cancel(); step = null; askDirection = false; reading = null; plateText = ""
     }
 
     fun locate(category: ReportCategory) {
@@ -196,20 +204,40 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
             val direction = remember(s, reading) {
                 reading?.toDirection(ReportDirectionUi.declination(s.fix.lat, s.fix.lon, tapMs))
             }
+            val plate = ReportPlate.normalize(plateText)
             AlertDialog(
                 onDismissRequest = { cancel() },
                 title = { Text("Meldung") },
-                text = { Text(reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = plateText,
+                            onValueChange = { plateText = ReportPlate.typing(it) },
+                            label = { Text(ReportPlate.LABEL) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Characters,
+                                autoCorrectEnabled = false,
+                                imeAction = ImeAction.Done,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(reportConfirmDialogText(s.category, tapMs, s.fix.accuracyText, direction = direction, plate = plate))
+                    }
+                },
                 confirmButton = {
                     TextButton(onClick = {
                         val zone = ZoneId.systemDefault()
-                        ReportQueue.add(
-                            c.upload.reports,
-                            PendingReport(
-                                epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
-                                lat = s.fix.lat, lon = s.fix.lon, accuracyM = s.fix.accuracyM,
-                                category = s.category.id, cell = s.fix.cell, direction = direction,
-                            ),
+                        val report = PendingReport(
+                            epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
+                            lat = s.fix.lat, lon = s.fix.lon, accuracyM = s.fix.accuracyM,
+                            category = s.category.id, cell = s.fix.cell, direction = direction, plate = plate,
+                        )
+                        ReportQueue.add(c.upload.reports, report)
+                        // Labor·Karte: one `report` line in the local manifest (no-op in every other edition).
+                        EditionDiagnostics.report(
+                            context, report.epochMs, report.category, report.plate,
+                            direction?.bearingDeg, direction?.north?.id, direction?.accuracy?.id,
                         )
                         c.upload.uploadSoon(5)
                         cancel()
@@ -265,10 +293,18 @@ const val REPORT_CONSENT_TEXT =
  */
 const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
 
-/** The text of the «Meldung» dialog: what is sent, then [REPORT_SPOT_WARNING]. */
+/**
+ * The text of the «Meldung» dialog: what is sent, then [REPORT_SPOT_WARNING]; with a licence plate
+ * (0.7.6) a last line «Kontrollschild: ZH 123» — it stays on the phone (never sent).
+ */
 fun reportConfirmDialogText(
     category: ReportCategory, tapMs: Long, accuracyM: Int, zone: ZoneId = ZoneId.systemDefault(), direction: ReportDirection? = null,
-): String = reportConfirmText(category, tapMs, accuracyM, zone, direction) + "\n" + REPORT_SPOT_WARNING
+    plate: String? = null,
+): String = reportConfirmText(category, tapMs, accuracyM, zone, direction) + "\n" + REPORT_SPOT_WARNING +
+    (plate?.let { "\n" + reportPlateLine(it) } ?: "")
+
+/** «Kontrollschild: ZH 123» (0.7.6). */
+fun reportPlateLine(plate: String): String = "Kontrollschild: $plate"
 
 /** «Meldung: Töff, 16:05, Standort ± 12 m – senden?»; with a direction (0.6.7) «…, Standort ± 12 m, Richtung Nordost – senden?» */
 fun reportConfirmText(
