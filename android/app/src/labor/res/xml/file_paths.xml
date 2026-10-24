@@ -4,6 +4,8 @@
 <paths>
     <!-- Exported CSV/JSON aggregates (as in the public app). -->
     <cache-path name="exports" path="exports/" />
+    <!-- 0.8.2 (as in the public app): the one photo of «Kontrollschild», deleted at once (ui/PlateCamera.kt). -->
+    <cache-path name="plate" path="plate/" />
     <!-- Labor only: ZIP of the audio clips + manifest. -->
     <external-cache-path name="labor_share" path="labor_share/" />
     <cache-path name="labor_share_internal" path="labor_share/" />

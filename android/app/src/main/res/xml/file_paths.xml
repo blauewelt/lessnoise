@@ -2,4 +2,7 @@
 <paths>
     <!-- Only exported CSV/JSON aggregates live here; never audio. -->
     <cache-path name="exports" path="exports/" />
+    <!-- 0.8.2: the one photo of «Kontrollschild» (ui/PlateCamera.kt), written by the camera app
+         through a write grant for this one file and deleted as soon as the camera returns. -->
+    <cache-path name="plate" path="plate/" />
 </paths>

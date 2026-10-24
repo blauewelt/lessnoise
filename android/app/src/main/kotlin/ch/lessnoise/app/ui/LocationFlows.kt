@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -45,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import ch.lessnoise.app.R
 import ch.lessnoise.app.container
 import ch.lessnoise.app.edition.EditionDiagnostics
 import ch.lessnoise.app.location.LocationFetcher
@@ -118,10 +122,19 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
     // 0.7.6: «Kontrollschild (optional)»; on the phone only, never sent.
     var plateText by remember { mutableStateOf("") }
+    // 0.8.2: the line under the field after a photo («Kein Kontrollschild erkannt», …); null: none.
+    var plateNote by remember { mutableStateOf<String?>(null) }
+    val plateCamera = rememberPlateCamera { r ->
+        when (r) {
+            is PlatePhoto.Found -> { plateText = ReportPlate.typing(r.plate); plateNote = null }
+            is PlatePhoto.Note -> plateNote = r.text
+            PlatePhoto.Cancelled -> Unit
+        }
+    }
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; moved = null
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; plateNote = null; moved = null
     }
 
     fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?) {
@@ -250,10 +263,17 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         }
                         OutlinedTextField(
                             value = plateText,
-                            onValueChange = { plateText = ReportPlate.typing(it) },
+                            onValueChange = { plateText = ReportPlate.typing(it); plateNote = null },
                             label = { Text(ReportPlate.LABEL) },
                             singleLine = true,
                             enabled = !waiting,
+                            // 0.8.2: the phone's camera app (no camera permission; PlateCamera).
+                            trailingIcon = {
+                                IconButton(onClick = { plateCamera() }, enabled = !waiting) {
+                                    Icon(painterResource(R.drawable.ic_plate_camera), contentDescription = PlateCamera.BUTTON)
+                                }
+                            },
+                            supportingText = plateNote?.let { n -> { Text(n) } },
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Characters,
                                 autoCorrectEnabled = false,

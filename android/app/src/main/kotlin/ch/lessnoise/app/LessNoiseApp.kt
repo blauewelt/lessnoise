@@ -26,6 +26,8 @@ class LessNoiseApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // 0.8.2: a «Kontrollschild» photo left behind if the app was killed while the camera was open.
+        if (BuildConfig.UPLOAD_AVAILABLE) container.appScope.launch { ch.lessnoise.app.ui.PlateCamera.clearLeftovers(this@LessNoiseApp) }
         // The phone's noise floor («Messgrenze», 0.6.5): estimated once per app start, off the main thread.
         container.noiseFloor.refresh()
         // «Messwerte teilen»: keeps the upload schedule in line with the setting and uploads after

@@ -126,7 +126,9 @@ accordingly before you share them.
   which is compiled into the Online-Version too but downloads only in the internal `laborKarte`
   (`BuildConfig.LABOR_UNTERWEGS`, false in the Online-Version; see «Internal variant `laborKarte`» below);
   both are compiled into the Online-Version and the internal `laborKarte` only (`android/app/src/labor/` is the separate Labor build, see below). The only file writes are the CSV/JSON exports in
-  `android/app/.../data/Repositories.kt` and `android/app/.../ui/CalibrationViewModel.kt`, which contain aggregates only.
+  `android/app/.../data/Repositories.kt` and `android/app/.../ui/CalibrationViewModel.kt`, which contain aggregates only
+  (and, since 0.8.2, the one «Kontrollschild» photo the phone's camera app writes into `cache/plate/`,
+  deleted as soon as the camera returns; `ui/PlateCamera.kt`, below).
 
 ## «Messwerte teilen» (opt-in upload, from v0.5.0)
 
@@ -261,7 +263,9 @@ the commands below use the second name, run them on each):
 1. Source: `find android/app/src -path '*labor*'` lists the only recording code;
    `grep -rln "FileOutputStream\|MediaMuxer\|MediaCodec\|RIFF" android/app/src/main android/app/src/public android/dsp/src/main`
    finds nothing; the only file writes there are the CSV/JSON exports (`writeText` in
-   `Repositories.kt` and `CalibrationViewModel.kt`), which contain aggregates only.
+   `Repositories.kt` and `CalibrationViewModel.kt`), which contain aggregates only (since 0.8.2 the
+   «Kontrollschild» photo is written by the camera app, not by this app, and deleted at once:
+   `ui/PlateCamera.kt`).
 2. The built APK: list its classes and strings, e.g. with the Android SDK (cmdline-tools,
    build-tools 35)
    ```sh
@@ -332,7 +336,7 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   written as one `motion` line to the local `manifest.jsonl` with its time and the numbers that decided
   it (active seconds, the per-second variation of the acceleration), so the detector can be tuned.
   It stays in that file on the phone like the rest of the manifest; the upload never reads it.
-- **Report log (0.7.6, Labor·Karte only):** when a report is queued in «Laut! Melden» (0.7.6–0.7.8 at «Senden», since 0.8.1 at the category tap) one `report` line in the local
+- **Report log (0.7.6, Labor·Karte only):** when a report is queued in «Laut! Melden» (0.7.6–0.7.8 at «Senden», in 0.8.1 at the category tap, since 0.8.2 at «Senden» again) one `report` line in the local
   `manifest.jsonl`: time, category, the licence plate if one was typed in, and the direction — no
   coordinates. It stays on the phone like the rest of the manifest; the upload never reads it.
 - **Streets under the compass (0.7.8, Labor·Karte only):** in «Laut! Melden» (0.7.8: step «Wohin fuhr es?»; since
@@ -351,6 +355,19 @@ maintainer's own test phone (flavour `laborKarte`, `./gradlew assembleLaborKarte
   this: it shows the compass rose without tiles, as 0.7.6 did (without its decorative street lines),
   and requests nothing from swisstopo in this dialog (`ReportMapTiles.ENABLED` =
   `BuildConfig.LABOR_UNTERWEGS`; `ReportMapTilesTest`, `UploadSourceIsolationTest`).
+- **Camera button on «Kontrollschild» (0.8.2, first in Labor·Karte; the code is in `src/main`, so the
+  Online-Version gets it with its next release from this branch):** the small camera button in the
+  field opens the phone's own camera app (Android's `ACTION_IMAGE_CAPTURE`); the app itself has **no
+  camera permission** and declares none (`aapt2 dump permissions` lists none). The camera app writes
+  the one photo into this app's private cache (`cache/plate/`, a write grant for that one file),
+  and the app **deletes it at once** when the camera returns (and any leftover at the next photo
+  and at app start). **In 0.8.2 there is no text recognition:** the photo is deleted unread, the field
+  stays empty and says so; you type the plate as before. An on-device recognition (Google ML Kit's
+  bundled model) was checked and not added, because it brings Google Play services and Firebase's
+  logging transport, which reports usage to Google (`firebaselogging.googleapis.com`); if a
+  recognition is added later, only the text recognised on the phone goes into the field. Nothing of
+  the photo is sent, and the plate stays on the phone as before (`ReportsTest.thePlateIsNeverSent`,
+  `PlateOcrTest`).
 - The banner says «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen»; Einstellungen → Über die App
   shows «Weniger Lärm Labor · Karte». The server counts its `app_version` (e.g. `0.6.0-labor-karte`) under
   «andere» in `stats.json` (it does not match the server's version pattern).

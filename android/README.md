@@ -842,7 +842,21 @@ upload is scheduled (same constraints as the other uploads; registers the device
 The queue is a private SharedPreferences file (`reports`, written with `commit()`); once the server
 has answered for a report its coordinates are deleted and only category, time and cell stay in the
 list of sent reports — plus, since 0.7.6, the licence plate if one was typed into «Kontrollschild
-(optional)» (trimmed, capitals, ≤ 12 characters; `ReportPlate`). The plate is never sent
+(optional)» (trimmed, capitals, ≤ 12 characters; `ReportPlate`). Since 0.8.2 the field has a small
+camera button (`ui/PlateCamera.kt`, a vector icon `res/drawable/ic_plate_camera.xml`): it opens the
+phone's camera app with `ActivityResultContracts.TakePicture()` (no camera permission: the camera app
+takes the photo), which writes the photo into `cache/plate/` through the FileProvider path «plate»;
+the app deletes it in `finally` as soon as the camera returns, and leftovers at the next photo and at
+app start. **No text recognition in 0.8.2** (`PlateCamera.OCR = false`): the bundled Google ML Kit text
+recognition (`com.google.mlkit:text-recognition:16.0.1`) was checked and not added — it pulls in
+Google Play services (`play-services-base`, `-basement`, `-tasks`, `-mlkit-text-recognition`),
+Firebase components and the `com.google.android.datatransport` CCT backend (usage logs to
+`firebaselogging.googleapis.com`, a merged job service and alarm receiver) and adds about 20 MB to the
+release APK (WORKLOG.md, 0.8.2). The photo is therefore deleted unread and the field says «Foto gelöscht
+– Erkennung noch nicht eingebaut, bitte eintippen». The plate picker for a future on-device
+recogniser is pure and tested: `PlateOcr.bestPlate(lines)` prefers a Swiss plate (canton code + 1–6
+digits, spaces/dashes/dots between), then «FL» + digits, then a 4–10-character line that is mostly
+letters and digits; nothing found → «Kein Kontrollschild erkannt» (`PlateOcrTest`). The plate is never sent
 (`Payloads.report` does not read it; `ReportsTest.thePlateIsNeverSent`); it is shown in «Teilen» ›
 «Meldungen». Labor·Karte also writes a `report` line (time, category, plate, direction, no
 coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
