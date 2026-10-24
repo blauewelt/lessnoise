@@ -241,6 +241,7 @@ path.cell:focus { outline: none; }
 .report-poser { background: #7e22ce; }
 .report-lastwagen { background: #0f766e; }
 .report-auto { background: #4a5668; }
+.report-flugzeug { background: #17202e; }
 .report-andere { background: #ffffff; color: #17202e; border-color: #17202e; box-shadow: none; }
 
 /* ---------- card (after earth's pixel inspector) ---------- */

@@ -19,7 +19,7 @@ DB_MIN, DB_MAX = 0.0, 140.0
 CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 # Categories of a manual report (§4.7), as the app offers them.
-REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
+REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere")
 # Since app 0.7.0 a report is sent at whatever accuracy the phone's fix has (owner, 2026-10-17);
 # this bound only rejects nonsense, it is no quality gate. Until then it was 200 m.
 MAX_REPORT_ACCURACY_M = 10_000.0

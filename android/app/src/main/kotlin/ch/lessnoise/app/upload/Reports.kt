@@ -29,6 +29,8 @@ enum class ReportCategory(val id: String, val label: String) {
     MOTORRAD("motorrad", "Töff"),
     AUTO("auto", "Auto"),
     LASTWAGEN("lastwagen", "Lastwagen"),
+    /** 0.7.7: aircraft; the server accepts the id once its schema change is deployed (server/DESIGN.md §4.7). */
+    FLUGZEUG("flugzeug", "Flugzeug"),
     POSER("poser", "Poser"),
     /** 0.6.4: label «anderes Fahrzeug» (was «anderes»); the id stays «andere» (server, reports.json). */
     ANDERE("andere", "anderes Fahrzeug");

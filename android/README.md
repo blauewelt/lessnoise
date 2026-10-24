@@ -602,8 +602,10 @@ window restores the normal notification on the silent `measurement_active` chann
 running measurement, or with the «Sehr laut» channel switched off, the action does nothing. A
 measurement started with «Messen» never alerts. The tap opens `MainActivity` with the event's start
 time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
-report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
-`road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
+report's time and the fitting categories first, each marked with a small «erkannt» after its label
+(since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Poser;
+`road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, but the alert does not fire for
+it; nothing is picked). Then as always: consent if sharing is off, one
 fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
 nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
 (every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
@@ -789,8 +791,8 @@ location is read and the measurement has no point; a measurement without a point
 (also not a row of 0.6.0 or 0.6.1, which has only a cell).
 
 **«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
-Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes Fahrzeug — until 0.6.3 «anderes» → ids `motorrad`, `auto`,
-`lastwagen`, `poser`, `andere`) → one fix (`LocationFetcher.locateForReport`; since 0.6.7 at any
+Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Flugzeug, Poser, anderes Fahrzeug — until 0.6.3 «anderes»; «Flugzeug» since 0.7.7 → ids `motorrad`, `auto`,
+`lastwagen`, `flugzeug`, `poser`, `andere`) → one fix (`LocationFetcher.locateForReport`; since 0.6.7 at any
 accuracy, used as the phone has it, until 0.6.6 ≤ 50 m; no fix → the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
 every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
 (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`) («Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the

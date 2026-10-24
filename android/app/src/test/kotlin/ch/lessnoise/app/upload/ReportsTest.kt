@@ -49,9 +49,10 @@ class ReportsTest {
 
     @Test
     fun categoriesMapToTheServersIdsAndShortLabels() {
-        assertEquals(listOf("motorrad", "auto", "lastwagen", "poser", "andere"), ReportCategory.entries.map { it.id })
+        // 0.7.7: «Flugzeug» after «Lastwagen».
+        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"), ReportCategory.entries.map { it.id })
         // 0.6.4: «anderes Fahrzeug» (was «anderes»); the id stays «andere».
-        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Poser", "anderes Fahrzeug"), ReportCategory.entries.map { it.label })
+        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Poser", "anderes Fahrzeug"), ReportCategory.entries.map { it.label })
         assertEquals("andere", ReportCategory.ANDERE.id)
         val t = java.time.ZonedDateTime.of(2026, 10, 16, 18, 42, 5, 0, java.time.ZoneId.of("Europe/Zurich")).toInstant().toEpochMilli()
         assertEquals(
@@ -62,6 +63,21 @@ class ReportsTest {
         assertEquals("andere", Payloads.report(report().copy(category = ReportCategory.ANDERE.id))["category"]!!.jsonPrimitive.content)
         for (c in ReportCategory.entries) assertEquals(c, ReportCategory.fromId(c.id))
         assertEquals(null, ReportCategory.fromId("velo"))
+    }
+
+    /** The server rejects a report whose category it does not know (server/stadtlaerm_server/schemas.py REPORT_CATEGORIES). */
+    @Test
+    fun serverAcceptsEveryCategoryInTheSameOrder() {
+        var dir: java.io.File? = java.io.File("").absoluteFile
+        var schemas: java.io.File? = null
+        while (dir != null && schemas == null) {
+            schemas = java.io.File(dir, "server/stadtlaerm_server/schemas.py").takeIf { it.isFile }
+            dir = dir.parentFile
+        }
+        val text = schemas!!.readText()
+        val list = Regex("""REPORT_CATEGORIES\s*=\s*\(([^)]*)\)""").find(text)!!.groupValues[1]
+        val accepted = Regex(""""([^"]+)"""").findAll(list).map { it.groupValues[1] }.toList()
+        assertEquals(ReportCategory.entries.map { it.id }, accepted)
     }
 
     @Test

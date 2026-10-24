@@ -6,6 +6,7 @@ import ch.lessnoise.app.service.MeasurementService
 import ch.lessnoise.app.ui.START_MEASURE
 import ch.lessnoise.app.ui.START_UNTERWEGS
 import ch.lessnoise.app.ui.UNTERWEGS_HINT
+import ch.lessnoise.app.ui.REPORT_SUGGESTED_MARK
 import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.ui.reportCategoryOrder
 import ch.lessnoise.app.upload.ReportCategory
@@ -91,9 +92,14 @@ class LoudAlertTest {
         val p = LoudAlertIntent.preset(LoudAlertIntent.ACTION, t0, "loud_vehicle")
         assertEquals(ReportPreset(t0, listOf(ReportCategory.MOTORRAD, ReportCategory.POSER)), p)
         assertEquals(listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN), LoudAlertIntent.preset(LoudAlertIntent.ACTION, t0, "road_traffic")!!.suggested)
-        // Suggested first and highlighted, all five still there: nothing is picked silently.
+        // 0.7.7: aircraft would suggest «Flugzeug» (the alert itself still never fires for it, above).
+        assertEquals(listOf(ReportCategory.FLUGZEUG), LoudAlertRule.suggested("aircraft"))
+        assertEquals("Flugzeug", LoudAlertRule.categoryLabel("aircraft"))
+        assertEquals(emptyList<ReportCategory>(), LoudAlertRule.suggested("rail_tram"))
+        // Suggested first and marked «erkannt», all six still there: nothing is picked silently.
+        assertEquals("erkannt", REPORT_SUGGESTED_MARK)
         assertEquals(
-            listOf(ReportCategory.MOTORRAD, ReportCategory.POSER, ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.ANDERE),
+            listOf(ReportCategory.MOTORRAD, ReportCategory.POSER, ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG, ReportCategory.ANDERE),
             reportCategoryOrder(p!!.suggested),
         )
         assertEquals(ReportCategory.entries.toList(), reportCategoryOrder(emptyList()))

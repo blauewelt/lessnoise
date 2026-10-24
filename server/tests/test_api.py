@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from stadtlaerm_server.aggregate import ZONE
 from stadtlaerm_server.app import hash_token
+from stadtlaerm_server.schemas import REPORT_CATEGORIES
 
 SITE = {
     "cell": "h26824_12473",
@@ -512,6 +513,17 @@ def test_reports_round_trip_and_validation(client, settings):
     assert client.post(url, json=[report(recent(3))] * 51, headers=auth).status_code == 413
     assert client.post(url, json=report(recent(3)), headers=auth).status_code == 422
     assert client.post(url, json=[report(recent(3))]).status_code == 401
+
+
+def test_every_report_category_is_accepted(client, settings):
+    """App 0.7.7 adds «flugzeug»: each id of REPORT_CATEGORIES is stored as sent."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    body = [report(recent(20 - i), category=c) for i, c in enumerate(REPORT_CATEGORIES)]
+    r = client.post(url, json=body, headers=auth).json()
+    assert r == {"accepted": len(REPORT_CATEGORIES), "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert [c for (c,) in rows(settings, "SELECT category FROM reports ORDER BY time_utc")] == list(REPORT_CATEGORIES)
+    assert "flugzeug" in REPORT_CATEGORIES
 
 
 def test_reports_count_against_the_device_rate_limit(make_client):

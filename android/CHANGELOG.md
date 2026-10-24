@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.7.7 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 30)
+
+In short: «Was war laut?» no longer looks like a multiple choice when it comes from the «Sehr
+laut» notification, and «Laut! Melden» has a new category «Flugzeug». The code is in `src/main` and
+`src/karte`, so the Online-Version would get the same changes when it is next built; only
+Labor·Karte is built at this version. **The server must have the schema change deployed before a
+«Flugzeug» report is accepted**: until then the server rejects it (field `category`) and the app
+drops it from the queue as it drops every refused report (it is counted in `refusedTotal`, which
+«Teilen» shows as «n Werte waren zu alt und wurden nicht übernommen.»; it is not in the list of sent
+reports and is not sent again). Offline and Labor (without the map) unchanged.
+
+- **Marker instead of filled buttons** (editions with «Laut! Melden»). From the «Sehr laut»
+  notification the fitting categories were filled buttons and the others outlined, which read as
+  if they were already selected. Now every category button is outlined alike; a fitting one has a
+  small «erkannt» in the accent colour after its label. The fitting ones still come first, «Erkannt
+  um 11:14» stays, and nothing is picked.
+- **New category «Flugzeug»** (id `flugzeug`), between «Lastwagen» and «Poser»: Töff, Auto,
+  Lastwagen, Flugzeug, Poser, anderes Fahrzeug. The «Sehr laut» alert still fires only for
+  `loud_vehicle` and `road_traffic` (`LoudAlertRule.CATEGORIES` unchanged); should it ever fire for
+  `aircraft`, «Flugzeug» is the suggested category. Server: `flugzeug` in `REPORT_CATEGORIES`
+  (schemas.py) and in `reports.json` `categories`; map: marker «F», legend «Flugzeug». Nothing new
+  leaves the phone: a report still carries time, location, accuracy, category and the optional
+  direction.
+
 ## 0.7.6 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 29)
 
 In short: «Sehr laut» is one notification instead of two, the compass step «Wohin fuhr es?» shows a

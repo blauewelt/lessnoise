@@ -9,7 +9,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -26,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -71,7 +75,7 @@ private sealed interface ReportStep {
  *
  * Since 0.6.3 the same flow also starts from the «Sehr laut» notification (src/karte/…/alert,
  * «Unterwegs»), also while a measurement runs: [preset] then carries the event's time (used as the
- * report time instead of the tap) and the categories to suggest (highlighted, nothing is picked);
+ * report time instead of the tap) and the categories to suggest (first, marked «erkannt», nothing is picked);
  * [onPresetUsed] is called once the flow has taken it. Since 0.6.4 the button is also shown while
  * a measurement started as «Unterwegs» runs (MeasureContent).
  *
@@ -160,13 +164,30 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         }
                     } else {
                         // From the «Sehr laut» notification: the categories that fit the detected
-                        // sound first and filled, the others outlined; the person still chooses.
+                        // sound first. Since 0.7.7 every button is outlined alike (filled ones read
+                        // as already selected); a fitting one carries a small «erkannt» after its
+                        // label. The person still chooses one.
                         Text("Erkannt um ${Fmt.hm(tapMs)}", style = MaterialTheme.typography.bodySmall)
                         reportCategoryOrder(suggested).forEach { cat ->
-                            if (cat in suggested) {
-                                Button(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
-                            } else {
-                                OutlinedButton(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) { Text(cat.label) }
+                            OutlinedButton(onClick = { choose(cat) }, modifier = Modifier.fillMaxWidth()) {
+                                // Two equal weights around the label keep it centred like the
+                                // buttons without a marker; the marker sits in the right one.
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Spacer(Modifier.weight(1f))
+                                    Text(cat.label)
+                                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        if (cat in suggested) {
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                REPORT_SUGGESTED_MARK,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -273,6 +294,9 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
  * (the report's time), [suggested] the categories that fit the detected sound (highlighted).
  */
 data class ReportPreset(val epochMs: Long, val suggested: List<ReportCategory>)
+
+/** The small marker after a suggested category's label in «Was war laut?» (0.7.7; before: a filled button). */
+const val REPORT_SUGGESTED_MARK = "erkannt"
 
 /** The category buttons with [suggested] first, in their own order; the rest as always. */
 fun reportCategoryOrder(suggested: List<ReportCategory>): List<ReportCategory> =

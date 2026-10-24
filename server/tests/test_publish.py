@@ -263,7 +263,7 @@ def test_reports_json(conn, tmp_path):
     r = load(out / "reports.json")
     assert set(r) == {"generated_at", "from", "to", "categories", "reports"}
     assert (r["from"], r["to"]) == ("2026-09-26", "2026-10-25")
-    assert r["categories"] == ["motorrad", "auto", "lastwagen", "poser", "andere"]
+    assert r["categories"] == ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"]
     assert r["reports"] == [
         {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None},
         {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None},

@@ -321,11 +321,12 @@
   var HIGHLIGHT = "loud_vehicle";   // the app's default highlight
 
   // Manual reports (server: reports.json). The letter is the marker's identity; the colour
-  // only helps (three hues that pass the all-pairs colour-vision checks, two neutral).
+  // only helps (three hues that pass the all-pairs colour-vision checks, three neutral).
   var REPORT_CATEGORIES = [
     { id: "motorrad", name: "Motorrad", letter: "M" },
     { id: "poser", name: "Poser", letter: "P" },
     { id: "lastwagen", name: "Lastwagen", letter: "L" },
+    { id: "flugzeug", name: "Flugzeug", letter: "F" },   // app 0.7.7
     { id: "auto", name: "Auto", letter: "A" },
     { id: "andere", name: "Andere", letter: "+" },
   ];

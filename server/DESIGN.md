@@ -385,7 +385,7 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
   "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 10 000 m
-  "category": "motorrad",                // motorrad | auto | lastwagen | poser | andere
+  "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere
   "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
@@ -431,7 +431,7 @@ of up to 50 reports, bearer auth as above:
   "lat": 47.37691,
   "lon": 8.54169,
   "accuracy_m": 12.3,
-  "category": "motorrad | auto | lastwagen | poser | andere",
+  "category": "motorrad | auto | lastwagen | flugzeug | poser | andere",
   "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" }
 }
 ```
@@ -746,7 +746,7 @@ schema v2 is removed on the first publish after the update.
 {
   "generated_at": "2026-10-08T18:40:00+02:00",
   "from": "2026-09-09", "to": "2026-10-08",
-  "categories": ["motorrad", "auto", "lastwagen", "poser", "andere"],
+  "categories": ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"],
   "reports": [
     { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87 }
   ]
@@ -862,7 +862,7 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   (Tag = 6–22 Uhr, Nacht = 22–6 Uhr.)
 - Layer **«Meldungen»** (on by default, checkbox «Meldungen zeigen»): the reports of the chosen
   period from `reports.json` as small round markers with a letter per category (M Motorrad,
-  P Poser, L Lastwagen, A Auto, + Andere; the colour only helps), tooltip «category · day,
+  P Poser, L Lastwagen, F Flugzeug (app 0.7.7), A Auto, + Andere; the colour only helps), tooltip «category · day,
   hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
 - Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
   figures each with *when* they were measured (events: the total and, under «Alle», each of the

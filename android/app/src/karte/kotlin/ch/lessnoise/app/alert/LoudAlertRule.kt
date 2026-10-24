@@ -51,6 +51,7 @@ object LoudAlertRule {
     fun categoryLabel(category: String?): String = when (category) {
         "loud_vehicle" -> "Töff & Poser"
         "road_traffic" -> "Strassenverkehr"
+        "aircraft" -> "Flugzeug"
         else -> "Lärm"
     }
 
@@ -61,6 +62,8 @@ object LoudAlertRule {
     fun suggested(category: String?): List<ReportCategory> = when (category) {
         "loud_vehicle" -> listOf(ReportCategory.MOTORRAD, ReportCategory.POSER)
         "road_traffic" -> listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN)
+        // 0.7.7: only reached if the alert ever fires for aircraft; CATEGORIES does not include it.
+        "aircraft" -> listOf(ReportCategory.FLUGZEUG)
         else -> emptyList()
     }
 }

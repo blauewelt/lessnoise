@@ -372,11 +372,11 @@ test("reports layer: on by default, one lettered marker per report of the period
   await expect(markers).toHaveCount(in7.length);
   await expect(page.locator("#reports-count")).toHaveText(`${in7.length} Meldungen in diesem Zeitraum`);
   const legend = await page.locator("#legend-reports li:not(.reports-head)").allTextContents();
-  expect(legend.map((t) => t.slice(1))).toEqual(["Motorrad", "Poser", "Lastwagen", "Auto", "Andere"]);
+  expect(legend.map((t) => t.slice(1))).toEqual(["Motorrad", "Poser", "Lastwagen", "Flugzeug", "Auto", "Andere"]);
   // the marker carries category and hour, nothing else
   const labels = await markers.locator("span").evaluateAll((s) => s.map((x) => x.getAttribute("aria-label")));
   for (const l of labels) {
-    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?$/);
+    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Flugzeug|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?$/);
   }
   const first = in7[0];
   const firstDir = M.reportDirection(first);
