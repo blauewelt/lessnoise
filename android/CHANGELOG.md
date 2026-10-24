@@ -26,6 +26,11 @@ longer turns a still phone «unterwegs». Offline- and Online-Version unchanged 
   and so is a fix of a still phone whose distance jumped faster than 30 km/h. In the night
   2026-10-22→23 a still phone (motion median ≈ 0.002 m/s²) was MOVING for 508 minutes because fused
   fixes wandered 900–2100 m. `byMotion`/`byPosition` are logged as before.
+- **Labelling pipeline (tools only, no app change).** `tools/labelling/` ports the Step 2 Gemini
+  labeller into the repository (stage A unchanged; stage B now asks the «loud vehicle» questions:
+  sound before the rise, tyres or engine dominant, 0–10 score, class change), with tests, and
+  `.github/workflows/labor-label.yml` runs it by hand on a recording zip shared from Google Drive
+  (secret `GEMINI_API_KEY`; audio deleted on the runner, labels kept as a 14-day artifact).
 
 ## 0.7.4 — Labor·Karte only, not published (branch labor-export) (versionCode 27)
 

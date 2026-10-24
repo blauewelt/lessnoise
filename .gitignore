@@ -36,3 +36,6 @@ node_modules/
 # Playwright output
 test-results/
 playwright-report/
+
+# Labor labelling output (tools/labelling, default --out-dir): model descriptions of personal recordings
+/labels/

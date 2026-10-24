@@ -104,6 +104,7 @@ What the project counts, and who counts it — totals over the whole project, al
 | [`android/`](android/) | Android app (Kotlin): measurement service, on-device sound classifier, calibration, UI, plus the platform-independent `dsp` module. See [android/README.md](android/README.md) for install, calibration and build instructions |
 | [`firmware/`](firmware/) | Planned ESP32-S3 windowsill sensor (placeholder, no code yet) |
 | [`tools/weather/`](tools/weather/) | Command-line tool that joins MeteoSwiss station weather (wind, gusts, rain, temperature) with the app's CSV export, per minute, hour and night |
+| [`tools/labelling/`](tools/labelling/) | Gemini labeller for the clips of the maintainer's own Labor recordings (what is audible; «loud vehicle» questions) and its GitHub Actions workflow; recordings and labels are never committed |
 | [`docs/`](docs/) | The website [wenigerlaerm.ch](https://wenigerlaerm.ch) (static HTML/CSS, one hash-pinned inline script on `update.html`, served by GitHub Pages), the noise map `karte.html` (vendored Leaflet, swisstopo tiles and the project's API as its only external hosts; see [docs/README.md](docs/README.md)) and, in `docs/download/`, the offline edition's APK as a fallback for old links (new downloads come from GitHub Releases) |
 | [`scripts/`](scripts/) | `stamp_assets.py` (cache stamps of the map page), `download_stats.py` and `usage_report.py` (usage numbers, see above), tests in `scripts/tests/` |
 | [`PRIVACY.md`](PRIVACY.md) | What the project does with sound, with references into the code |

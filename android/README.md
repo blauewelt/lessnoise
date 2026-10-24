@@ -1184,6 +1184,17 @@ file shows «Clip nicht gefunden».
 logs (and the hour files only if they total < 500 MB) and opens the share menu; it shows the size
 first. Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
 
+**Model labels for a recording** (0.7.5, tools only). `tools/labelling/label.py` sends every clip of an
+exported recording to a Gemini model and writes what it hears as JSON lines: stage A asks what is
+audible (phone or carrier, road vehicle, rain, rail, aircraft, voices, wind on the microphone),
+stage B asks, for the vehicle clips, what was audible before the rise, whether tyres or engine
+dominate, a 0–10 «loud vehicle» score and whether the sound changes class during the rise. It reads
+the clip lines of `manifest.jsonl` and the WAVs, peak-normalised in memory. The workflow
+`.github/workflows/labor-label.yml` (run by hand) does the same in GitHub Actions on a zip the owner
+shares on Google Drive for the run, deletes the audio afterwards and keeps only the labels, as a
+14-day artifact. Recordings and labels are personal data and never go into this repository; see
+[tools/labelling/README.md](../tools/labelling/README.md).
+
 **Performance.** The capture thread only copies (ring buffer, one block copy into a bounded
 queue) and never waits; resampling, WAV writing, logging and AAC encoding run on two
 background-priority threads. A finished clip waits up to 2.5 s for the classifier result that
