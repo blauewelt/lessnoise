@@ -34,12 +34,12 @@ import java.time.ZoneId
 
 /**
  * Screens of the Online-Version, rendered on the JVM (Paparazzi) at phone width (1080 px at 420 dpi ≈
- * 411 dp), synthetic values: since 0.8.3 «Messen» with the mode switch in its states (idle «Am Fenster»
- * and «Unterwegs» with the floating «Laut! Melden», running on the map, «Unterwegs erkannt», no
- * location, light and dark), the consent dialog, the simplified «Teilen», and the bottom bar with
- * «Karte» over the map tab's error state and its banner (the WebView itself does not render on the
- * JVM). Written to $stadtlaerm.screenshotDir/0.8.3 (default app/build/screenshots/0.8.3), for review
- * only; the website's PNGs in docs/ are not made here.
+ * 411 dp), synthetic values: since 0.8.4 «Messen» without a mode switch (idle with «Laut! Melden» on
+ * top, light and dark, «Mehr dazu» open, the Labor·Karte variant with «Unterwegs aufnehmen»; running
+ * on the map, carried («Unterwegs erkannt»), no location, light and dark), the consent dialog, the
+ * simplified «Teilen», and the bottom bar with «Karte» over the map tab's error state and its banner
+ * (the WebView itself does not render on the JVM). Written to $stadtlaerm.screenshotDir/0.8.4
+ * (default app/build/screenshots/0.8.4), for review only; the website's PNGs in docs/ are not made here.
  */
 class ShareScreenshots {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -60,7 +60,7 @@ class ShareScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.3")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.4")),
         useDeviceResolution = true,
     )
 
@@ -79,12 +79,12 @@ class ShareScreenshots {
 
     private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
 
-    /** «Messen» as the app shows it: inside the bottom bar (so the floating «Laut! Melden» sits above it). */
+    /** «Messen» as the app shows it: inside the bottom bar. */
     private fun messenScreen(
         name: String,
         live: LiveState,
         status: ShareStatus?,
-        mode: MeasureMode = MeasureMode.WINDOW,
+        unterwegsButton: Boolean = false,
         dark: Boolean = false,
         events: List<EventEntity> = emptyList(),
         moreOpen: Boolean = false,
@@ -96,7 +96,8 @@ class ShareScreenshots {
                         live = live, events = events, calibrating = false,
                         categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
                         modifier = Modifier.padding(padding).fillMaxSize(),
-                        shareStatus = status, mode = mode, moreOpen = moreOpen,
+                        shareStatus = status, moreOpen = moreOpen,
+                        onUnterwegs = if (unterwegsButton) ({}) else null,
                     )
                 }
             }
@@ -118,34 +119,22 @@ class ShareScreenshots {
     private val runningSent =
         shareStatus(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, ms(18, 30), true, LocateState.Idle, true) { "18:42" }!!
 
-    // 0.8.3: the mode switch «Am Fenster» | «Unterwegs», one primary button, one line, the status chip.
+    // 0.8.4: no mode switch. Idle = on the road: «Laut! Melden» (primary) on top, «Messung starten» (tonal), one line, the chip.
     @Test
-    fun messenIdleFenster() = messenScreen("messen-idle-fenster", LiveState(), idleSent)
+    fun messenIdle() = messenScreen("messen-idle", LiveState(), idleSent)
 
     @Test
-    fun messenIdleFensterDark() = messenScreen("messen-idle-fenster-dark", LiveState(), idleSent, dark = true)
+    fun messenIdleDark() = messenScreen("messen-idle-dark", LiveState(), idleSent, dark = true)
 
     @Test
     fun messenIdleMehrDazu() = messenScreen("messen-idle-mehr-dazu", LiveState(), idleSent, moreOpen = true)
 
-    // «Unterwegs» idle: «Laut! Melden» is the floating button above the bottom bar.
+    // Labor·Karte only: the third button «Unterwegs aufnehmen» (rendered here with the Online-Version's
+    // composable and onUnterwegs set, as MeasureScreen does when LoudAlerts.AVAILABLE).
     @Test
-    fun messenIdleUnterwegs() = messenScreen("messen-idle-unterwegs", LiveState(), idleSent, mode = MeasureMode.ROAD)
+    fun messenIdleLaborKarte() = messenScreen("messen-idle-labor-karte", LiveState(), idleSent, unterwegsButton = true)
 
-    @Test
-    fun messenIdleUnterwegsDark() = messenScreen("messen-idle-unterwegs-dark", LiveState(), idleSent, mode = MeasureMode.ROAD, dark = true)
-
-    @Test
-    fun messenUnterwegsRunning() {
-        val status = shareStatus(on, true, ms(18, 30), false, LocateState.Idle, true, unterwegs = true) { "18:42" }!!
-        val events = listOf(event(2, ms(18, 41, 5), 84.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
-        messenScreen(
-            "messen-unterwegs-running", runningLive(status, unterwegs = true, laf = 81.4).copy(dominantCategory = "loud_vehicle"),
-            status, mode = MeasureMode.ROAD, events = events,
-        )
-    }
-
-    // An «Am Fenster» run while the phone is carried: the switch shows «Unterwegs erkannt», the stored choice stays.
+    // A window run while the phone is carried: the chip «Unterwegs erkannt · nichts auf die Karte» is the only sign.
     @Test
     fun messenRunningErkannt() {
         val status = shareStatus(on, true, ms(18, 30), true, LocateState.Idle, true, moving = true) { "18:42" }!!
@@ -161,6 +150,7 @@ class ShareScreenshots {
         shareStatus(on, true, ms(18, 30), false, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff), true, hm = Fmt::hm)!!,
     )
 
+    // Running = at the window: level card, «Stoppen», «Läuft seit …», the chip, Lärmspitzen; no «Laut! Melden».
     @Test
     fun messenOnTheMap() = messen("messen-running-on-the-map", runningSent)
 

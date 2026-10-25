@@ -5,9 +5,9 @@ import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.upload.ReportCategory
 import kotlin.math.roundToInt
 
-// «Unterwegs» and the «Sehr laut» notification (0.6.3). Compiled only into the editions with the
-// map (src/karte, flavours public and laborKarte); pure, so that LoudAlertTest (src/testKarte)
-// checks the rules on the JVM in both.
+// «Unterwegs» and the «Sehr laut» notification (0.6.3). Since 0.8.4 compiled only into Labor·Karte
+// (src/laborKarte; until 0.8.3 src/karte, also the Online-Version); pure, so that LoudAlertTest
+// (src/testLaborKarte) checks the rules on the JVM.
 
 /** When a detected event alerts, and what the notification says. */
 object LoudAlertRule {

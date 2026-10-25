@@ -45,9 +45,11 @@ import ch.lessnoise.app.edition.EditionUi
 import ch.lessnoise.chart.LessNoiseTheme
 
 class MainActivity : ComponentActivity() {
-    // A tap on the «Sehr laut» notification (0.6.3, editions with the map; always null elsewhere):
-    // «Laut! Melden» with the event's time and suggested categories. Since 0.6.8 also the tap on the
-    // measurement notification while «unterwegs»: the time of the tap (now), nothing preselected.
+    // «Laut! Melden» opened from outside the app (always null in the Offline and Labor builds): since
+    // 0.8.4 the app shortcut and the home-screen widget (editions with the map, src/karte/…/report/):
+    // the time of the tap (now), nothing preselected. Labor·Karte also: the «Sehr laut» notification
+    // (the event's time and suggested categories) and the notification's «Melden» (the time of the tap).
+    // Read in onCreate (a cold start from the shortcut or the widget) and in onNewIntent (app open).
     private var alertPreset by mutableStateOf<ReportPreset?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {

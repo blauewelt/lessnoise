@@ -20,16 +20,18 @@ import ch.lessnoise.app.service.NotificationTap
 import android.app.PendingIntent
 
 /**
- * «Unterwegs» (0.6.3; since 0.6.4 a start mode, editions with the map only; the Offline and Labor
- * builds get the stand-in in src/nomap): the button «Unterwegs» next to «Messen» starts a
+ * «Unterwegs» (0.6.3; since 0.6.4 a start mode; since 0.8.4 Labor·Karte ONLY — this file is in
+ * src/laborKarte; the Online-Version has the stand-in in src/nounterwegs, the Offline and Labor builds
+ * the one in src/nomap): the Labor button «Unterwegs aufnehmen» under «Messung starten» starts a
  * measurement that is never shared (no point, no minutes, no events: LiveState.unterwegs,
  * MeasurementEntity.unterwegs). While it runs, a very loud vehicle (≥ 75 dB(A), «Töff & Poser» or
  * «Strassenverkehr») shows the «Sehr laut» alert, at most one every 2 minutes; a tap opens
  * «Laut! Melden» with the event's time. Since 0.7.6 the alert is not a second notification: it
  * replaces the content of the measurement's own notification for 30 s (one heads-up with sound and
  * vibration on the channel «Sehr laut», then the level text again; alert/LoudAlertNotifier.kt,
- * MeasurementService.ACTION_LOUD_ALERT). A measurement started with «Messen» never alerts: a phone
- * on the windowsill must not wake its owner at every loud pass. (0.6.3 had a remembered switch
+ * MeasurementService.ACTION_LOUD_ALERT). A measurement started with «Messung starten» never alerts
+ * while the phone lies still: a phone on the windowsill must not wake its owner at every loud pass
+ * (while it is carried, «Unterwegs erkannt», it does, as since 0.6.7). (0.6.3 had a remembered switch
  * instead; its preference file «loud_alert» is no longer read.)
  */
 object LoudAlerts {
@@ -70,6 +72,7 @@ object LoudAlerts {
      */
     fun presetFrom(intent: Intent?, tapMs: Long = System.currentTimeMillis()): ReportPreset? {
         intent ?: return null
+        // 0.8.4: the same action as the shortcut and the widget (ReportNow, src/karte).
         ReportTap.preset(intent.action, tapMs)?.let { return it }
         return LoudAlertIntent.preset(
             intent.action,

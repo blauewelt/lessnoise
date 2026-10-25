@@ -54,7 +54,8 @@ object MeasurementNotification {
 /**
  * 0.6.8, editions with the map: the measurement notification while the run is «unterwegs» — its
  * [text] («Antippen zum Melden») and the [intent] its tap fires («Laut! Melden»). Built by
- * ui/LoudAlerts.reportTap (src/karte); the Offline and Labor builds never have one.
+ * ui/LoudAlerts.reportTap — since 0.8.4 only in Labor·Karte (src/laborKarte); the Online-Version
+ * (src/nounterwegs), the Offline and the Labor builds never have one.
  * 0.6.9 (Labor·Karte): [text] null keeps the level text (posted every 2 s as usual), [intent] null
  * keeps the usual tap (open the app), [button] adds an action [buttonLabel] («Melden») next to «Stopp».
  */

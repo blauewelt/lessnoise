@@ -10,7 +10,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 0.6.8: «Antippen zum Melden» on the measurement notification while «unterwegs» (src/testKarte: public and laborKarte). */
+/** 0.6.8: «Antippen zum Melden» on the measurement notification while «unterwegs» (since 0.8.4 Labor·Karte only: src/testLaborKarte). */
 class ReportTapTest {
     private val t0 = 1_760_000_000_000L
 
@@ -31,11 +31,14 @@ class ReportTapTest {
     @Test
     fun itsIntentIsDistinctFromTheSehrLautTap() {
         assertNotEquals(LoudAlertIntent.ACTION, ReportTap.ACTION)
+        // 0.8.4: the notification's «Melden», the shortcut and the widget are one intent (ReportNow, src/karte).
+        assertEquals(ch.lessnoise.app.report.ReportNow.ACTION, ReportTap.ACTION)
+        assertNotEquals(ch.lessnoise.app.report.ReportNow.WIDGET_REQUEST, ReportTap.REQUEST)
         // Request codes: service 0 (open) and 1 (Stopp), «Sehr laut» 2, this one 3.
         val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
         assertTrue(service.contains("PendingIntent.getActivity(\n            this, 0,"))
         assertTrue(service.contains("PendingIntent.getService(\n            this, 1,"))
-        val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val notifier = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         assertTrue(notifier.contains("private const val REQUEST = 2"))
         assertEquals(3, ReportTap.REQUEST)
         // The «Sehr laut» tap is not a report-now tap and vice versa.
@@ -43,7 +46,7 @@ class ReportTapTest {
         assertNull(LoudAlertIntent.preset(ReportTap.ACTION, t0, "loud_vehicle"))
         // The facade builds the PendingIntent from the rule's action and request code, single-top
         // (an open app gets it in onNewIntent).
-        val facade = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
+        val facade = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         assertTrue(facade.contains(".setAction(t.action)"))
         assertTrue(facade.contains("context, t.requestCode, intent,"))
         assertTrue(facade.contains("Intent.FLAG_ACTIVITY_SINGLE_TOP"))
@@ -61,7 +64,7 @@ class ReportTapTest {
         val main = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/ui/MainActivity.kt").readText()
         assertTrue(main.contains("LoudAlerts.presetFrom(intent, System.currentTimeMillis())"))
         assertTrue(main.contains("override fun onNewIntent(intent: Intent) {\n        super.onNewIntent(intent)\n        takeAlert(intent)"))
-        val facade = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
+        val facade = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         val build = facade.substring(facade.indexOf("fun reportTap("), facade.indexOf("fun presetFrom("))
         assertFalse(build.contains("putExtra"), "no time or category in the report-now intent")
         val manifest = File(repo(), "android/app/src/main/AndroidManifest.xml").readText()
@@ -120,8 +123,9 @@ class ReportButtonTest {
         assertEquals(ReportPreset(t0, emptyList()), ReportTap.preset(ReportTap.ACTION, t0))
     }
 
+    /** Without the Labor flag the rule is 0.6.8's (the Online-Version until 0.8.3; no edition calls it so since 0.8.4). */
     @Test
-    fun theOnlineVersionIsExactlyAs068() {
+    fun withoutTheLaborFlagItIsThe068Rule() {
         assertNull(ReportTap.forState(running = true, unterwegs = false, moving = false))
         val t = ReportTap.forState(running = true, unterwegs = false, moving = true)!!
         assertEquals(ReportTap.TEXT, t.text)
@@ -137,7 +141,7 @@ class ReportButtonTest {
         val lk = gradle.substring(gradle.indexOf("create(\"laborKarte\")"), gradle.indexOf("sourceSets {"))
         assertTrue(lk.contains("buildConfigField(\"boolean\", \"LABOR_UNTERWEGS\", \"true\")"))
         assertEquals(ch.lessnoise.app.BuildConfig.FLAVOR == "laborKarte", ch.lessnoise.app.BuildConfig.LABOR_UNTERWEGS)
-        val facade = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
+        val facade = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         assertTrue(facade.contains("ReportTap.forState(running, unterwegs, moving, labor = BuildConfig.LABOR_UNTERWEGS)"))
         assertTrue(facade.contains("intent = pending.takeIf { t.contentTap }"))
         assertTrue(facade.contains("button = pending.takeIf { t.button }"))

@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 35
-        versionName = "0.8.3"
+        versionCode = 36
+        versionName = "0.8.4"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -64,6 +64,9 @@ android {
         // «Melden» button on the measurement notification in every state, the motion detector's
         // thresholds for trams and trains, and the position as a second signal (src/laborKarte/kotlin).
         // The Online-Version keeps the 0.6.8 behaviour until this is released there.
+        // 0.8.4: «Unterwegs aufnehmen» and the «Sehr laut» notification are Labor·Karte-only code
+        // (src/laborKarte/kotlin/…/alert, …/ui/LoudAlerts.kt); the Online-Version has no measurement on
+        // the road at all (src/nounterwegs stand-in), so this flag no longer gates anything public.
         buildConfigField("boolean", "LABOR_UNTERWEGS", "false")
     }
 
@@ -146,11 +149,18 @@ android {
         // The tab «Karte» (0.6.3): the website's map page in a WebView (src/karte/.../MapScreen.kt),
         // compiled ONLY into the two editions with the map. The Offline and Labor builds get the
         // stand-in src/nomap/.../MapTab.kt (no tab, no WebView in their dex).
+        // 0.8.4: src/karte/res (the widget «Laut! Melden», the shortcut's icon and labels) goes with
+        // src/karte/kotlin into both editions with the map; each has its own res/xml/shortcuts.xml
+        // (the shortcut's targetPackage is the literal application id).
         named("public") {
             kotlin.srcDir("src/karte/kotlin")
+            res.srcDir("src/karte/res")
             // 0.6.9: the stand-in of the position signal, which only laborKarte has (src/laborKarte/kotlin);
             // the editions without the map never reach it (their MotionWatch is the src/nomap stand-in).
             kotlin.srcDir("src/noposition/kotlin")
+            // 0.8.4: the stand-in of «Unterwegs» / «Sehr laut» (ui/LoudAlerts.kt): no measurement on the
+            // road in the Online-Version; the real facade and alert/ are in src/laborKarte/kotlin.
+            kotlin.srcDir("src/nounterwegs/kotlin")
         }
         named("labor") {
             kotlin.srcDir("src/nomap/kotlin")
@@ -163,12 +173,15 @@ android {
             kotlin.srcDir("src/labor/kotlin")
             kotlin.srcDir("src/karte/kotlin")
             res.srcDir("src/labor/res")
+            res.srcDir("src/karte/res")
         }
         named("testLaborKarte") {
             kotlin.srcDir("src/testLabor/kotlin")
             kotlin.srcDir("src/testKarte/kotlin")
         }
-        // JVM tests of src/karte (0.6.3: the «Sehr laut» alert), run for both editions with the map.
+        // JVM tests of src/karte (map, compass, motion detector, 0.8.4 shortcut and widget), run for both
+        // editions with the map. Since 0.8.4 the «Sehr laut» / «Unterwegs» tests (LoudAlertTest,
+        // ReportTapTest, MotionAlertTest) are in src/testLaborKarte, with the code they test.
         named("testPublic") {
             kotlin.srcDir("src/testKarte/kotlin")
         }

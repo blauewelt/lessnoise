@@ -3,12 +3,11 @@ package ch.lessnoise.app.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,7 +29,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -38,14 +37,10 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,17 +84,18 @@ fun MeasureScreen(
     val scope = rememberCoroutineScope()
     // Karten editions: «Auf die Lärmkarte?» once, and the fix while measuring (ShareFlow.kt, 0.6.3).
     val share = LocalShareController.current
-    // «Unterwegs» (0.6.4, editions with the map): a start mode that shares nothing. Since 0.8.3 chosen
-    // with the mode switch at the top (remembered, MeasureModeStore) instead of a second start button.
+    // «Unterwegs» (0.6.4): a measurement that shares nothing, with the «Sehr laut» notification. Since
+    // 0.8.4 Labor·Karte only (LoudAlerts.AVAILABLE; the button «Unterwegs aufnehmen»); the Online-Version
+    // has no measurement on the road (0.8.3's mode switch is gone): measuring means the window.
     val askUnterwegs = LoudAlerts.rememberUnterwegsPermission()
-    var mode by remember { mutableStateOf(if (LoudAlerts.AVAILABLE) MeasureModeStore.load(context) else MeasureMode.WINDOW) }
     var pendingUnterwegs by remember { mutableStateOf(false) }
     fun startMeasurement(unterwegs: Boolean) {
+        val road = unterwegs && LoudAlerts.AVAILABLE
         when {
-            share != null -> share.start(unterwegs)
-            else -> MeasurementService.start(context, unterwegs = unterwegs && LoudAlerts.AVAILABLE)
+            share != null -> share.start(road)
+            else -> MeasurementService.start(context, unterwegs = road)
         }
-        if (unterwegs) askUnterwegs()
+        if (road) askUnterwegs()
     }
     val requestPermission = rememberMicPermissionLauncher { granted ->
         if (granted) startMeasurement(pendingUnterwegs)
@@ -113,7 +109,8 @@ fun MeasureScreen(
     val report = if (BuildConfig.UPLOAD_AVAILABLE) {
         rememberReportAction(
             onQueued = { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } },
-            // From the «Sehr laut» notification (0.6.3, editions with the map): also while measuring.
+            // From the shortcut / widget (0.8.4) and, Labor·Karte, the «Sehr laut» and «Melden» notification
+            // taps: the dialog opens directly, also while measuring.
             preset = reportPreset, onPresetUsed = onReportPresetUsed,
         )
     } else null
@@ -123,17 +120,16 @@ fun MeasureScreen(
         live = live, events = events, calibrating = calibrating, modifier = modifier,
         noiseFloor = noiseFloor,
         categoryName = { categoryName(context, it) },
-        // «Am Fenster» starts as «Messen» did, «Unterwegs» with EXTRA_UNTERWEGS as the «Unterwegs» button did.
-        onStart = { onStart(unterwegs = LoudAlerts.AVAILABLE && mode == MeasureMode.ROAD) },
+        // «Messung starten»: the window measurement (shared if sharing is on), as «Messen» always did.
+        onStart = { onStart(unterwegs = false) },
         onStop = { MeasurementService.stop(context) },
         onReport = report,
         updateLine = { UpdateReminderLine() },
         eventMarker = { EditionUi.EventMarker(it) },
         shareStatus = status,
         onShareStatus = { a -> handleShareAction(a, share, onOpen) },
-        // The mode switch: only in the editions with the map (src/karte); none elsewhere.
-        mode = if (LoudAlerts.AVAILABLE) mode else null,
-        onMode = { m -> mode = m; MeasureModeStore.save(context, m) },
+        // Labor·Karte only: «Unterwegs aufnehmen» starts with EXTRA_UNTERWEGS, as 0.8.3's «Unterwegs» did.
+        onUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,
         storageNotice = { EditionUi.StorageNotice() },
     )
 }
@@ -248,69 +244,14 @@ fun StatusChip(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modi
 }
 
 /**
- * 0.8.3: the mode switch «Am Fenster» | «Unterwegs» (Material segmented buttons). Disabled while a
- * measurement runs or starts; the selected segment keeps its colours then, so the mode stays readable,
- * and a tap on the row says «Zum Wechseln zuerst stoppen».
- */
-@Composable
-fun ModeSwitch(shown: ShownMode, enabled: Boolean, onMode: (MeasureMode) -> Unit, modifier: Modifier = Modifier) {
-    val cs = MaterialTheme.colorScheme
-    var lockedTap by remember { mutableStateOf(false) }
-    LaunchedEffect(enabled) { if (enabled) lockedTap = false }
-    val colors = SegmentedButtonDefaults.colors(
-        activeContainerColor = cs.primaryContainer,
-        activeContentColor = cs.onPrimaryContainer,
-        activeBorderColor = cs.outline,
-        disabledActiveContainerColor = cs.primaryContainer,
-        disabledActiveContentColor = cs.onPrimaryContainer,
-        disabledActiveBorderColor = cs.outline,
-        disabledInactiveContainerColor = Color.Transparent,
-        disabledInactiveContentColor = cs.onSurfaceVariant.copy(alpha = 0.6f),
-        disabledInactiveBorderColor = cs.outline,
-    )
-    Column(modifier) {
-        Box {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                MeasureMode.entries.forEachIndexed { i, m ->
-                    SegmentedButton(
-                        selected = shown.segment == m,
-                        onClick = { onMode(m) },
-                        enabled = enabled,
-                        shape = SegmentedButtonDefaults.itemShape(index = i, count = MeasureMode.entries.size),
-                        colors = colors,
-                        icon = {
-                            Icon(
-                                if (m == MeasureMode.WINDOW) AppIcons.Window else AppIcons.Walk,
-                                contentDescription = null, modifier = Modifier.size(18.dp),
-                            )
-                        },
-                    ) { Text(modeLabel(m, shown), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                }
-            }
-            if (!enabled) {
-                // Disabled segments take no taps; this layer does, to say why nothing changes.
-                Box(
-                    Modifier.matchParentSize().clickable(
-                        interactionSource = remember { MutableInteractionSource() }, indication = null,
-                    ) { lockedTap = true },
-                )
-            }
-        }
-        if (lockedTap && !enabled) {
-            Text(
-                MODE_LOCKED, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
-            )
-        }
-    }
-}
-
-/**
- * «Messen» without the app container (also rendered on the JVM for the screenshots). Since 0.8.3: the
- * mode switch (editions with the map), one primary button with one line under it, the status chip,
- * «Laut! Melden» (a floating button in «Unterwegs», an outlined button under «Messung starten» at the
- * window), «Mehr dazu» folded. While measuring: the level card (level, bar, Grundrauschen, «Klingt
- * nach») and the last Lärmspitzen.
+ * «Messen» without the app container (also rendered on the JVM for the screenshots). Since 0.8.4 no
+ * mode switch: idle means the person holds the phone (on the road), running means it lies at a
+ * window. Idle, editions with the map ([onReport] set): «Laut! Melden» (primary, 56 dp) on top, then
+ * «Messung starten» (tonal) with one line under it, (Labor·Karte, [onUnterwegs] set) «Unterwegs
+ * aufnehmen» (outlined) with its Labor line, the status chip, «Mehr dazu» folded. Without reports
+ * (Offline, Labor): «Messung starten» primary. While measuring: the level card (level, bar,
+ * Grundrauschen, «Klingt nach»), «Stoppen», «Läuft seit …», the status chip, the last Lärmspitzen —
+ * and no «Laut! Melden» (the phone lies at the window; the shortcut and the widget still open it).
  */
 @Composable
 fun MeasureContent(
@@ -326,9 +267,8 @@ fun MeasureContent(
     eventMarker: @Composable (Long) -> Unit = {},
     shareStatus: ShareStatus? = null,
     onShareStatus: (ShareAction) -> Unit = {},
-    /** 0.8.3, editions with the map: the stored mode (the switch at the top); null: no switch (Offline, Labor). */
-    mode: MeasureMode? = null,
-    onMode: (MeasureMode) -> Unit = {},
+    /** 0.8.4, Labor·Karte only: «Unterwegs aufnehmen» (EXTRA_UNTERWEGS); null: no such button (every other edition). */
+    onUnterwegs: (() -> Unit)? = null,
     /** 0.6.5: the phone's noise floor; «Grundrauschen» shows «≤ …» at it. Null: no floor yet. */
     noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
     /** 0.7.5, Labor editions: the red storage line («Speicher fast voll …»); nothing in the public editions. */
@@ -336,12 +276,6 @@ fun MeasureContent(
     /** For the screenshots: «Mehr dazu» unfolded at first. */
     moreOpen: Boolean = false,
 ) {
-    val active = live.running || live.starting
-    val shown = mode?.let { shownMode(it, active, live.unterwegs, live.moving) }
-    val road = shown?.segment == MeasureMode.ROAD
-    // «Laut! Melden» is the obvious action on the road: a floating button (also while it measures,
-    // also while «Unterwegs erkannt»). At the window: an outlined button while idle, as before.
-    val fab = onReport != null && road && !live.starting
     var more by remember { mutableStateOf(moreOpen) }
     val cs = MaterialTheme.colorScheme
 
@@ -349,15 +283,6 @@ fun MeasureContent(
         modifier = modifier,
         containerColor = cs.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        floatingActionButton = {
-            onReport?.takeIf { fab }?.let { report ->
-                ExtendedFloatingActionButton(
-                    onClick = report,
-                    icon = { Icon(AppIcons.Campaign, contentDescription = null) },
-                    text = { Text(REPORT_BUTTON) },
-                )
-            }
-        },
     ) { inner ->
         LazyColumn(Modifier.padding(inner).fillMaxWidth()) {
             item {
@@ -365,14 +290,6 @@ fun MeasureContent(
                     "Messen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                 )
-            }
-            if (mode != null && shown != null) {
-                item {
-                    ModeSwitch(
-                        shown = shown, enabled = !active, onMode = onMode,
-                        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp),
-                    )
-                }
             }
 
             if (live.running && (live.micSilenced || live.invalidAudio)) {
@@ -426,25 +343,41 @@ fun MeasureContent(
                         // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
                         microphoneNote(live)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant) }
                     } else {
-                        Button(
-                            onClick = onStart,
-                            enabled = !live.starting && !calibrating,
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                        ) {
+                        // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
+                        // the FAB of 0.8.3 is gone, this button does its job.
+                        if (onReport != null) {
+                            Button(
+                                onClick = onReport,
+                                enabled = !live.starting,
+                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                            ) {
+                                Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                                Text(REPORT_BUTTON, fontSize = 18.sp)
+                            }
+                        }
+                        val startEnabled = !live.starting && !calibrating
+                        val startContent: @Composable RowScope.() -> Unit = {
                             if (!live.starting) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             }
-                            Text(if (live.starting) STARTING_BUTTON else START_BUTTON, fontSize = 18.sp)
+                            Text(if (live.starting) STARTING_BUTTON else START_BUTTON, fontSize = if (onReport != null) 16.sp else 18.sp)
                         }
-                        Text(idleHint(shown?.segment), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
-                        // «Laut! Melden» at the window (Karten editions only), while no measurement runs.
-                        if (onReport != null && !road && !live.starting) {
-                            OutlinedButton(onClick = onReport, modifier = Modifier.fillMaxWidth()) {
-                                Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        if (onReport != null) {
+                            FilledTonalButton(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(48.dp), content = startContent)
+                        } else {
+                            Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(56.dp), content = startContent)
+                        }
+                        Text(idleHint(reports = onReport != null), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
+                        if (onUnterwegs != null) {
+                            OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth()) {
+                                Icon(AppIcons.Walk, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                                Text(REPORT_BUTTON)
+                                Text(UNTERWEGS_BUTTON)
                             }
+                            Text(UNTERWEGS_LABOR_HINT, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                         }
                     }
                     if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
@@ -498,14 +431,10 @@ fun MeasureContent(
                 }
                 items(events, key = { it.id }) { e -> EventRow(e, categoryName, eventMarker) }
             }
-            // Room under the floating button, so the last row can be scrolled clear of it.
-            item { Spacer(Modifier.height(if (fab) 96.dp else 24.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
-
-/** The button «Laut! Melden» (floating in «Unterwegs», outlined at the window). */
-const val REPORT_BUTTON = "Laut! Melden"
 
 /** «Klingt nach»: the category as a chip with its colour dot. */
 @Composable

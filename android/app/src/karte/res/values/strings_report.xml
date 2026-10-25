@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4, editions with the map: the shortcut and the widget «Laut! Melden». German only, like the app. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="report_now_label">Laut! Melden</string>
+    <string name="report_widget_description">Ein Knopf: öffnet «Laut! Melden». Sendet nichts von selbst.</string>
+</resources>

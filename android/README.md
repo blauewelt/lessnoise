@@ -259,6 +259,8 @@ so a better model can be swapped in without touching the measurement code.
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
 | Tab «Karte» (0.6.3, WebView, `src/karte/`) | yes | no (`src/nomap/`) | no (`src/nomap/`) | yes |
+| «Unterwegs» measurement, «Sehr laut» notification (`alert/`) | no since 0.8.4 (`src/nounterwegs/` stand-in; 0.6.3–0.8.3 yes) | no (`src/nomap/`) | no (`src/nomap/`) | yes (`src/laborKarte/`, button «Unterwegs aufnehmen») |
+| Shortcut and widget «Laut! Melden» (0.8.4, `src/karte/…/report/`) | yes | no | no | yes |
 | `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
 | `BuildConfig.UPLOAD_AVAILABLE` | true | false | false | true |
 | Sources | `src/main` + `src/public` | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
@@ -339,8 +341,9 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Starten** (since 0.8.3, Labor·Karte first: **«Messung starten»**; in the editions with
-   the map a switch at the top chooses the mode first, **«Am Fenster» | «Unterwegs»**, below). In the
+3. **Messen → Starten** (since 0.8.3, Labor·Karte first: **«Messung starten»**; 0.8.3 had a mode switch
+   **«Am Fenster» | «Unterwegs»** at the top, removed in 0.8.4: a measurement is always the one at the
+   window, and in the editions with the map «Laut! Melden» is the first button while nothing runs, below). In the
    «Online-Version» the first «Starten» asks once «Auf die
    Lärmkarte?» («Ja, auf die Karte» / «Nur auf dem Telefon»). The measurement starts at once; with
    sharing on the phone takes one location fix for the measurement's place in parallel, moved at
@@ -354,12 +357,13 @@ Instead:
    screen shows «Jetzt» (LAF), «Grundrauschen» (the 5-min L90), «Klingt nach» (the current
    category), «Läuft seit …» and the «Letzte Lärmspitzen». Before the start it shows one placement
    hint and one microphone line («Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder
-   gesendet.») instead. Since 0.8.3 (Labor·Karte first): one line under the button («Am Fenster:
-   Telefon ans offene Fenster, am Ladegerät.» / «Unterwegs: Mitteilung bei sehr lautem Verkehr.
-   Nichts kommt auf die Karte.»; while measuring «Läuft seit 18:30 · Bildschirm darf aus sein.»), the
+   gesendet.») instead. Since 0.8.3 (Labor·Karte first): one line under the button (0.8.4: «Zum Messen:
+   Telefon ans offene Fenster, am Ladegerät.», without «Zum Messen:» in the Offline and Labor builds;
+   while measuring «Läuft seit 18:30 · Bildschirm darf aus sein.»), the
    placement and microphone lines folded under «Mehr dazu ⌄»; the level card holds the bar (Material
    `LinearProgressIndicator`, primary < 60 dB, tertiary 60–75, error ≥ 75), «Grundrauschen» and
-   «Klingt nach» as a chip; the Lärmspitzen are list items (`ui/MeasureScreen.kt`, `ui/MeasureMode.kt`).
+   «Klingt nach» as a chip; the Lärmspitzen are list items (`ui/MeasureScreen.kt`, `ui/MeasureTexts.kt`,
+   until 0.8.3 `ui/MeasureMode.kt`).
 4. When you are done — after an hour, a night or several days: **Stoppen** (or «Stopp» in
    the notification), then look at **Messungen**.
 
@@ -573,11 +577,61 @@ aggregation (v0.6.0 changed no CSV column). Since v0.6.5 the minutes file ends w
 there is no estimate). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
-## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4)
+## «Messen» without a mode switch; «Laut! Melden» from the home screen (0.8.4, Labor·Karte first)
 
-Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/alert/`, the facade
-`ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`
-and keep the one button «Starten»).
+The owner's decision for 0.8.4: two clean situations and **no mode switch**. A running measurement
+means the phone lies at a window; no running measurement means the person holds the phone and is on
+the road. 0.8.3's segmented switch «Am Fenster» | «Unterwegs», its stored choice (preference file
+`measure`, key `mode`; no longer read, left on a phone that had it) and the floating «Laut! Melden»
+are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureTextsTest`).
+
+- **Idle, editions with the map:** a primary `Button` **«Laut! Melden»** (56 dp, megaphone) on top,
+  then a `FilledTonalButton` **«Messung starten»**, one line «Zum Messen: Telefon ans offene Fenster,
+  am Ladegerät.», the status chip, «Mehr dazu». **Offline and Labor builds** (no reports): «Messung
+  starten» stays the primary button, with «Telefon ans offene Fenster, am Ladegerät.».
+- **Running:** the level card, «Stoppen», «Läuft seit …», the status chip, «Letzte Lärmspitzen» — as
+  0.8.3, and **no «Laut! Melden»** on the screen (the phone lies at the window). The report dialog
+  still opens over it from the shortcut, the widget and (Labor·Karte) the notification's «Melden».
+- **Online-Version: no measurement on the road.** «Messung starten» is the window measurement
+  (shared if sharing is on). There is no `EXTRA_UNTERWEGS` start from the UI, no `LoudAlertWatcher`,
+  no `loud_alert` channel, no «Antippen zum Melden» / «Melden» on the measurement notification: the
+  real `ui/LoudAlerts.kt` and `alert/` moved to `src/laborKarte/kotlin` (compiled into `laborKarte`
+  only), and `public` compiles the stand-in `src/nounterwegs/…/ui/LoudAlerts.kt` (`AVAILABLE = false`;
+  its `presetFrom` only knows the shortcut's and the widget's intent). The release dex check now
+  forbids `ch/lessnoise/app/alert/*` and the string `loud_alert` in the public APK as in the offline
+  one (`tools/check_release_apk.py`). The motion detector stays (`src/karte/…/motion/`): a window run
+  that is carried pauses sharing and the chip says «Unterwegs erkannt · nichts auf die Karte» — its
+  only visible sign. The measurement's own `POST_NOTIFICATIONS` (Android 13+) is still asked together
+  with the microphone at the first «Messung starten» (`rememberMicPermissionLauncher`, `ui/Common.kt`).
+- **Labor·Karte keeps the road recording:** a third, outlined button **«Unterwegs aufnehmen»** under
+  «Messung starten» (line «Labor: nimmt Audio auf, teilt nichts.») starts the «Unterwegs» measurement
+  exactly as before (`ShareController.start(unterwegs = true)`, the Labor recorder, the «Sehr laut»
+  notification, the «Melden» button on the measurement notification, the notification-permission
+  ask), so the prompt can be compared with manual reports. Tests: `LoudAlertTest`, `ReportTapTest`,
+  `MotionAlertTest` in `src/testLaborKarte` (they moved there with the code).
+- **App shortcut** (`res/xml/shortcuts.xml` of `src/public` and `src/laborKarte` — one each, because
+  `targetPackage` must be the literal app id; `<meta-data android:name="android.app.shortcuts">` on
+  `MainActivity` in those two manifests): «Laut! Melden» with the megaphone of `icons/AppIcons.kt` as
+  an adaptive drawable (`src/karte/res/drawable/ic_shortcut_report.xml`), intent action
+  `ch.lessnoise.app.action.REPORT_NOW` (`report/ReportNow.kt`).
+- **Widget** (`report/ReportWidget.kt`, an `AppWidgetProvider` with plain `RemoteViews`, no Glance;
+  `src/karte/res/layout/report_widget.xml`, `xml/report_widget_info.xml`: 2×1 cells minimum,
+  `home_screen`, `updatePeriodMillis` 0): one button «Laut! Melden» in the app's primary colour
+  (dark mode: the dark scheme's), whose `PendingIntent` (request code 4, immutable) opens the same
+  intent. Registered (`android:exported="false"`) in the manifests of `public` and `laborKarte` only.
+- Both open `MainActivity`, which takes the action in `onCreate` (cold start; a static shortcut's launch
+  clears the task) and `onNewIntent` (app open, single-top) through `LoudAlerts.presetFrom`: the report
+  dialog on «Messen» with the time of the tap and nothing preselected. Neither sends anything by
+  itself. Tests: `ShortcutAndWidgetTest` (src/testKarte). Not verified on a phone yet (launcher,
+  widget picker, cold start).
+
+## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only since 0.8.4)
+
+Since 0.8.4 **laborKarte only** (`app/src/laborKarte/kotlin/ch/lessnoise/app/alert/`, the facade
+`ui/LoudAlerts.kt` next to it; started with the Labor button «Unterwegs aufnehmen», above). The
+Online-Version gets the stand-in `src/nounterwegs/…/ui/LoudAlerts.kt`, the Offline and Labor builds
+`src/nomap/…/ui/LoudAlerts.kt`. 0.6.3–0.8.3 the Online-Version had it too (in `src/karte`); the
+history below is kept as it was.
 
 Since 0.6.4 «Unterwegs» is a **start mode**, not a switch: «Messen» showed two buttons, **«Messen»**
 and **«Unterwegs»**, and one line under them («Unterwegs: Mitteilung bei sehr lautem Verkehr (ab
@@ -628,10 +682,11 @@ report's time and the fitting categories first, each marked with a small «erkan
 it; nothing is picked). Then as always: consent if sharing is off, one
 fix with the app open, the rule-10 line, and only a tap (on «Senden» until 0.7.8, on the category
 since 0.8.1) sends. Swiping it away does
-nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
+nothing. Tests: `src/testLaborKarte/…/LoudAlertTest.kt` (until 0.8.3 `src/testKarte`, public and laborKarte), `LoudAlertIsolationTest`
 (every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
 (`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
-7 → 8); renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
+7 → 8); renders (until 0.8.3) `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`; since
+0.8.4 `messen-idle-labor-karte.png` (the button «Unterwegs aufnehmen»).
 
 ## «Unterwegs erkannt»: the motion detector (0.6.7)
 
@@ -649,9 +704,10 @@ seconds were active (the span starts at the first active second of that window);
 the last 180 seconds hold at most 10 active ones. A second with fewer than 5 samples is not active;
 a periodic tick moves time on, so a silent sensor ends MOVING.
 
-While MOVING: `LiveState.moving` = true (never in an «Unterwegs» measurement); `LoudAlertWatcher`
-treats the measurement as «Unterwegs» (`LoudAlertRule.unterwegsNow`); «Laut! Melden» shows under
-«Stoppen»; the status line and the map banner say `STATUS_MOVING`. The span goes to the table
+While MOVING: `LiveState.moving` = true (never in an «Unterwegs» measurement); in Labor·Karte (since
+0.8.4 only there) `LoudAlertWatcher` treats the measurement as «Unterwegs» (`LoudAlertRule.unterwegsNow`,
+`MotionAlertTest` in `src/testLaborKarte`); until 0.8.3 «Laut! Melden» showed under «Stoppen» (0.8.3: the
+floating button), since 0.8.4 not; the status line and the map banner say `STATUS_MOVING`. The span goes to the table
 `moving_spans` (database v8 → v9, start/end only; `beginMovingSpan`, `endMovingSpans`, closed at
 «Stop» and, after a kill, at the next start). The upload never sends a minute or event that overlaps a
 span (`PlaceIndex.pointAt(t, duration)`; the SQL count of minutes to send uses
@@ -663,8 +719,10 @@ Tests: `MovingSpanUploadTest` (every flavour). Labor·Karte: each transition is 
 
 ## «Antippen zum Melden» on the measurement notification (0.6.8)
 
-Online-Version and laborKarte only (`src/karte/…/alert/ReportTap.kt`, built by `ui/LoudAlerts.reportTap`;
-the stand-in in `src/nomap` returns null). While the run is «unterwegs» (`LiveState.unterwegs`, or
+Since 0.8.4 laborKarte only (`src/laborKarte/…/alert/ReportTap.kt`, built by `ui/LoudAlerts.reportTap`;
+the stand-ins in `src/nounterwegs` and `src/nomap` return null; 0.6.8–0.8.3 also the Online-Version).
+The action `ch.lessnoise.app.action.REPORT_NOW` itself is now `report/ReportNow.ACTION` (src/karte),
+shared with the shortcut and the widget. While the run is «unterwegs» (`LiveState.unterwegs`, or
 `LiveState.moving` in a «Messen» run), `MeasurementService` re-posts its notification once with the text
 «Antippen zum Melden» and a `PendingIntent` (request code 3, action `ch.lessnoise.app.action.REPORT_NOW`,
 no extras) that opens `MainActivity` (single-top). `NotificationCadence` (`service/ServicePolicy.kt`)
@@ -672,7 +730,7 @@ suppresses the 2-s level text meanwhile and re-posts the level text and the usua
 state ends; nothing is posted per second in report mode. `MainActivity` takes the intent in
 `onCreate`/`onNewIntent` with `System.currentTimeMillis()` as the report's time (`ReportTap.preset`: no
 category suggested), then «Laut! Melden» runs as always. The «Sehr laut» notification (request code 2,
-`REPORT_LOUD`) is unchanged. Tests: `ReportTapTest` (src/testKarte), `ServicePolicyTest`,
+`REPORT_LOUD`) is unchanged. Tests: `ReportTapTest` (src/testLaborKarte since 0.8.4), `ServicePolicyTest`,
 `LoudAlertIsolationTest`.
 
 ## The tab «Karte» (0.6.3)
@@ -1408,9 +1466,14 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `ch/lessnoise/` that refers to `Landroid/webkit/WebView;` (`dexdump -d`; the only reference in it
    is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
-   and no string `loud_alert`; the public one has them.
+   and no string `loud_alert`; **since 0.8.4 the public one has none either** (only `laborKarte` has them);
+   (0.8.4) the public dex has the shortcut and widget classes `ch/lessnoise/app/report/*` and its manifest
+   the widget receiver and `android.app.shortcuts`; the offline one has neither.
    (0.6.7) the offline dex contains no class `ch/lessnoise/app/motion/MotionDetector*` and no class
    of `ch/lessnoise/` that refers to `Landroid/hardware/SensorManager;`; the public one has them.
+   All of step 2's permission and dex rules in one command (0.8.4):
+   `python3 tools/check_release_apk.py offline=app/build/outputs/apk/offline/release/app-offline-release.apk public=app/build/outputs/apk/public/release/app-public-release.apk`
+   (needs `aapt2` and `dexdump` from the build-tools; exit code 1 if a rule fails).
 3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
    `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
@@ -1464,15 +1527,20 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
   src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
                 ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading in `laborKarte` only), compiled
-                into `public` and `laborKarte` only
+                into `public` and `laborKarte` only; also the motion detector, the compass, and (0.8.4)
+                report/: the shortcut's intent and the widget «Laut! Melden», res/: the widget and the icons
+  src/nounterwegs/ (0.8.4) LoudAlerts.kt stand-in for `public`: no «Unterwegs», no «Sehr laut»
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
                 (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
-  src/laborKarte/ AndroidManifest.xml only: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»
+  src/laborKarte/ AndroidManifest.xml: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»;
+                kotlin/: the position signal (0.6.9) and (0.8.4) alert/ + ui/LoudAlerts.kt («Unterwegs», «Sehr laut»);
+                res/xml/shortcuts.xml
   src/testLabor/ JVM tests of the Labor recorder and clip-player parts (run for `labor` and `laborKarte`)
 tools/verify_yamnet.py    model I/O + Kotlin-vs-Python preprocessing check
 tools/csp_hash.py         CSP script hashes for the website's inline script (docs/update.html)
+tools/check_release_apk.py (0.8.4) permission, manifest and dex rules of an APK per edition
 ```
 
 ## Roadmap

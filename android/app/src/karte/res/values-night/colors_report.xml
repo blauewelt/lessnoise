@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4: the widget in dark mode: the dark scheme's primary / onPrimary (chart/…/Theme.kt). -->
+<resources>
+    <color name="report_widget_background">#FF9CC6E4</color>
+    <color name="report_widget_content">#FF0B1E2A</color>
+</resources>

@@ -20,8 +20,9 @@ import kotlinx.coroutines.runBlocking
  * «Unterwegs erkannt» (0.6.7, editions with the map only; the Offline and Labor builds get the
  * stand-in src/nomap/.../motion/MotionWatch.kt): while a measurement started with «Messen» runs, the
  * measuring foreground service reads the accelerometer and feeds [MotionDetector]. While it says
- * MOVING, LiveState.moving is true: the «Sehr laut» notification works as in «Unterwegs»
- * (LoudAlertRule.shouldAlert) and the time span is stored as a moving span (MovingSpanEntity, only
+ * MOVING, LiveState.moving is true: the status chip says «Unterwegs erkannt · nichts auf die Karte»,
+ * in Labor·Karte (0.8.4; until 0.8.3 also the Online-Version) the «Sehr laut» notification works as in
+ * «Unterwegs» (the alert rule, src/laborKarte/…/alert/), and the time span is stored as a moving span (MovingSpanEntity, only
  * start and end), whose minutes and events are never sent (upload/PlaceIndex). No permission is
  * needed; no location is read; no sensor value is stored or sent (the Labor·Karte build writes the
  * transitions with their feature values to its local manifest.jsonl, EditionDiagnostics).

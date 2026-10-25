@@ -137,7 +137,7 @@ class ShareStatusTest {
             for (p in listOf(true, false)) assertEquals(ShareStatus(STATUS_MOVING, ShareAction.NONE, StatusIcon.UNTERWEGS), status(st, hasPoint = p, moving = true))
         }
         assertEquals("Unterwegs erkannt · nichts auf die Karte", STATUS_MOVING)
-        // 0.8.3: the same ending as the «Unterwegs» chip; the mode switch says «Unterwegs erkannt» at the same time (MeasureModeTest).
+        // 0.8.3: the same ending as the «Unterwegs» chip; 0.8.4: no mode switch any more, this chip is the one honest line while a window run is carried.
         assertTrue(STATUS_MOVING.startsWith("Unterwegs erkannt") && STATUS_MOVING.endsWith(STATUS_UNTERWEGS.removePrefix("Unterwegs")))
         // Back to STILL: the usual line again; an «Unterwegs» measurement keeps its own line.
         assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE, StatusIcon.SHARING), status(on, moving = false))

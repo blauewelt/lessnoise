@@ -37,6 +37,22 @@
 
     <application>
         <meta-data android:name="android.webkit.WebView.MetricsOptOut" android:value="true" />
+        <!-- 0.8.4: «Laut! Melden» from the home screen (src/karte/…/report/): the static app shortcut
+             (res/xml/shortcuts.xml of this flavour) and the widget (one button). Both only open the
+             report dialog (action ch.lessnoise.app.action.REPORT_NOW); neither sends anything, reads
+             anything or runs in the background. No new permission. -->
+        <activity android:name=".ui.MainActivity">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+        </activity>
+        <receiver
+            android:name=".report.ReportWidget"
+            android:exported="false"
+            android:label="@string/report_now_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/report_widget_info" />
+        </receiver>
         <service
             android:name=".service.MeasurementService"
             android:foregroundServiceType="microphone|shortService|location"

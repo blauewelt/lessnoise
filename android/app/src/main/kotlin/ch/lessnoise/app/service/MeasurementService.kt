@@ -107,13 +107,14 @@ data class LiveState(
     val error: String? = null,
     /**
      * The newest event of the running measurement (0.6.3): it starts the live upload of loud
-     * events (UploadModule, LiveUploadPlan) and, in the editions with the map, the «Sehr laut»
-     * alert while «Unterwegs» is on. Null until the first event.
+     * events (UploadModule, LiveUploadPlan) and, in Labor·Karte (0.8.4; until 0.8.3 also the
+     * Online-Version), the «Sehr laut» alert while «Unterwegs» is on. Null until the first event.
      */
     val lastEvent: LiveEvent? = null,
     /**
-     * 0.6.4: the running measurement was started as «Unterwegs»: it measures, may show the «Sehr
-     * laut» notification (editions with the map) and allows «Laut! Melden», but shares nothing —
+     * 0.6.4: the running measurement was started as «Unterwegs» (since 0.8.4 only Labor·Karte's
+     * «Unterwegs aufnehmen» starts one): it measures, may show the «Sehr laut» notification and
+     * allows «Laut! Melden», but shares nothing —
      * no point, no minutes, no events (MeasurementEntity.unterwegs).
      */
     val unterwegs: Boolean = false,
@@ -169,7 +170,7 @@ class MeasurementService : Service() {
         const val ACTION_START = "ch.lessnoise.app.START"
         const val ACTION_STOP = "ch.lessnoise.app.STOP"
         /**
-         * 0.7.6 (editions with the map): the «Sehr laut» alert (src/karte/…/alert/) replaces the
+         * 0.7.6 (since 0.8.4 Labor·Karte only): the «Sehr laut» alert (src/laborKarte/…/alert/) replaces the
          * content of this service's notification for [LOUD_ALERT_WINDOW_MS] instead of posting a second
          * notification. Sent with startService while a measurement runs; ignored otherwise. Extras:
          * [EXTRA_ALERT_TITLE], [EXTRA_ALERT_CHANNEL] (the alert's own channel, importance HIGH, created
@@ -837,7 +838,7 @@ class MeasurementService : Service() {
     }
 
     /**
-     * 0.6.8 (editions with the map; LoudAlerts.reportTap is null elsewhere): while the run is
+     * 0.6.8 (since 0.8.4 Labor·Karte only; LoudAlerts.reportTap is null in every other edition): while the run is
      * «unterwegs» — started with «Unterwegs», or LiveState.moving in a «Messen» run — the notification's
      * tap opens «Laut! Melden» and its text is «Antippen zum Melden». Re-posted only when that state
      * changes; back to the level text and the usual tap when it ends.
@@ -870,7 +871,7 @@ class MeasurementService : Service() {
     }
 
     /**
-     * 0.7.6 (editions with the map): ACTION_LOUD_ALERT. While a measurement runs, the notification
+     * 0.7.6 (since 0.8.4 Labor·Karte only, the only sender): ACTION_LOUD_ALERT. While a measurement runs, the notification
      * (id [NOTIFICATION_ID], the foreground service's own) is posted ONCE with the alert: on the
      * alert's channel (importance HIGH, so this one post makes the heads-up with sound and
      * vibration), its title, «Antippen zum Melden», the tap as content intent and as a «Melden»

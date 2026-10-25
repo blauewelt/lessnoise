@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4: the widget «Laut! Melden»: 2×1 cells at least (110 × 40 dp, Android's cell formula 70·n − 30),
+     home screen only, never updated by a timer (updatePeriodMillis 0: it shows no data). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/report_widget_description"
+    android:initialLayout="@layout/report_widget"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
+    android:previewImage="@drawable/ic_shortcut_report"
+    android:previewLayout="@layout/report_widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

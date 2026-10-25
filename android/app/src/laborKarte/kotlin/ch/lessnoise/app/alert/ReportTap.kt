@@ -1,9 +1,10 @@
 package ch.lessnoise.app.alert
 
+import ch.lessnoise.app.report.ReportNow
 import ch.lessnoise.app.ui.ReportPreset
 
 /**
- * «Melden aus der Mitteilung» (0.6.8, editions with the map only; src/karte): while the running
+ * «Melden aus der Mitteilung» (0.6.8; since 0.8.4 Labor·Karte only, src/laborKarte): while the running
  * measurement is «unterwegs» — started with «Unterwegs», or a «Messen» run while the motion detector
  * says MOVING — a tap on the ongoing «Messung läuft» notification opens «Laut! Melden» directly, so
  * that a poser seen in the street can be reported without waiting for the «Sehr laut» detection.
@@ -14,7 +15,8 @@ import ch.lessnoise.app.ui.ReportPreset
  * ([preset]), not the notification's creation; no category is suggested.
  */
 object ReportTap {
-    const val ACTION = "ch.lessnoise.app.action.REPORT_NOW"
+    /** 0.8.4: the action of the shortcut and the widget (ReportNow, src/karte), the same report. */
+    const val ACTION = ReportNow.ACTION
 
     /**
      * PendingIntent request code. MeasurementService uses 0 (open the app) and 1 (Stopp),
@@ -47,7 +49,9 @@ object ReportTap {
      * «unterwegs» by the motion sensor (or, 0.6.9 Labor·Karte, by the position) (LiveState.moving,
      * «Messen» runs only). [labor] = BuildConfig.LABOR_UNTERWEGS (0.6.9): the «Melden» button in every
      * state of a run, the level text kept, the content tap opening the report only while «unterwegs».
-     * Without [labor] (the Online-Version) exactly as 0.6.8.
+     * Without [labor] exactly as 0.6.8 (the Online-Version until 0.8.3; since 0.8.4 no edition calls it
+     * so — the facade always passes BuildConfig.LABOR_UNTERWEGS, true in Labor·Karte — kept so that the
+     * rule stays complete and ReportTapTest keeps pinning it).
      */
     fun forState(running: Boolean, unterwegs: Boolean, moving: Boolean, labor: Boolean = false): Tap? {
         if (!running) return null
@@ -57,6 +61,5 @@ object ReportTap {
     }
 
     /** The report to start when MainActivity receives [action] at [tapMs]: the tap's time, nothing preselected; null for any other intent. */
-    fun preset(action: String?, tapMs: Long): ReportPreset? =
-        if (action != ACTION || tapMs <= 0) null else ReportPreset(tapMs, emptyList())
+    fun preset(action: String?, tapMs: Long): ReportPreset? = ReportNow.preset(action, tapMs)
 }

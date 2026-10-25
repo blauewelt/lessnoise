@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.4 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 36)
+
+In short (the owner's decision): no mode switch — a running measurement means the phone lies at a
+window, no running measurement means the person holds the phone and is on the road, so «Laut!
+Melden» is the first button while nothing runs and also opens from an app shortcut and a home-screen
+widget. The «Unterwegs» measurement and the «Sehr laut» notification leave the Online-Version and
+stay in Labor·Karte only, for comparing the prompt with manual reports.
+
+- **«Messen», idle** (editions with the map): «Laut! Melden» (primary, 56 dp, megaphone) on top, then
+  «Messung starten» (tonal), the line «Zum Messen: Telefon ans offene Fenster, am Ladegerät.», the
+  status chip, «Mehr dazu». No floating button any more. Offline and Labor builds: «Messung starten»
+  primary as before. **Running**: as 0.8.3 (level card, «Stoppen», «Läuft seit …», chip,
+  Lärmspitzen), no «Laut! Melden» on the screen. The mode switch, its stored choice and
+  `MeasureMode.kt` are gone (`MeasureTexts.kt` keeps the texts).
+- **Online-Version: no measurement on the road.** No «Unterwegs» start, no «Sehr laut» notification
+  or channel, no «Antippen zum Melden» / «Melden» on the measurement notification: the alert code
+  moved from `src/karte` to `src/laborKarte` (the public APK has no `ch/lessnoise/app/alert/*` class
+  and no `loud_alert` string any more; new `tools/check_release_apk.py`). The motion detector stays:
+  a carried window run pauses sharing and the chip says «Unterwegs erkannt · nichts auf die Karte».
+- **Labor·Karte**: a third, outlined button «Unterwegs aufnehmen» («Labor: nimmt Audio auf, teilt
+  nichts.») starts the «Unterwegs» measurement exactly as before, with the «Sehr laut» notification and
+  the notification's «Melden», to compare the prompt with manual reports.
+- **App shortcut «Laut! Melden»** (long press on the icon) and **widget «Laut! Melden»** (one button,
+  2×1 cells, plain RemoteViews), Online-Version and Labor·Karte: both open the report dialog with the
+  time of the tap and nothing preselected, also on a cold start; they send nothing by themselves. No new
+  permission, no new dependency.
+- PRIVACY.md and README updated; the website (docs/) changes when this reaches a release.
+
 ## 0.8.3 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 35)
 
 In short: «Messen» is redesigned (owner's verdict: the «Laut! Melden» dialog is good, the rest is

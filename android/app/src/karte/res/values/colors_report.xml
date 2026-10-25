@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4: the widget «Laut! Melden» in the app's colours (chart/…/Theme.kt): primary / onPrimary. -->
+<resources>
+    <color name="report_widget_background">#FF1F3A4D</color>
+    <color name="report_widget_content">#FFFFFFFF</color>
+</resources>
