@@ -271,7 +271,10 @@ class ReportMapTilesTest {
         assertTrue(ui.contains("DirectionArrow(frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
         // 0.8.1: the disc of the one «Laut! Melden» dialog is 200 dp (still 300 m across, canvasScale).
         assertEquals(200, ReportDirectionUi.DISC_DP)
-        assertTrue(ui.contains("Canvas(Modifier.widthIn(max = DISC_DP.dp)"))
+        // 0.8.6: the 200 dp square is a Box holding the canvas (filling it) and the credit in its corner.
+        assertTrue(ui.contains("Box(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f))") && ui.contains("Canvas(Modifier.fillMaxSize().then(drag))"))
+        // The preview tiles (JVM renders) replace the download only when passed; the app never passes them.
+        assertTrue(ui.contains("val tiles = previewTiles ?: rememberStreetTiles("))
         assertEquals("Telefon in die Fahrtrichtung halten", ReportDirectionUi.POINT_HINT)
         // Nothing is written: no file, preference or log in either file.
         val bad = Regex("""\bLog\.|println|SharedPreferences|putString|\bFile\b|FileOutputStream|cacheDir|filesDir|HttpResponseCache|CookieHandler""")

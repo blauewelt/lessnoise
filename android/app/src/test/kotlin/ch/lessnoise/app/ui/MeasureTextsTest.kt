@@ -45,18 +45,24 @@ class MeasureTextsTest {
     @Test
     fun idleReportFirstThenStartTonal() {
         // Order in the idle branch: the primary «Laut! Melden» (56 dp), then the tonal «Messung starten», the line,
-        // Labor·Karte's outlined «Unterwegs aufnehmen» with its line.
+        // Labor·Karte's outlined «Unterwegs aufnehmen» with its line. 0.8.6: all three 56 dp (STACK_BUTTON_HEIGHT)
+        // with one label style (stackButtonLabel), the helper lines in HelperText.
         val idle = screen.substring(screen.indexOf("// Editions with the map: «Laut! Melden» is the first action"))
-        val report = idle.indexOf("Text(REPORT_BUTTON, fontSize = 18.sp)")
+        val report = idle.indexOf("Text(REPORT_BUTTON, style = stackButtonLabel())")
         val tonal = idle.indexOf("FilledTonalButton(onClick = onStart")
-        val hint = idle.indexOf("Text(idleHint(reports = onReport != null)")
-        val road = idle.indexOf("Text(UNTERWEGS_BUTTON)")
-        val roadHint = idle.indexOf("Text(UNTERWEGS_LABOR_HINT")
+        val hint = idle.indexOf("HelperText(idleHint(reports = onReport != null))")
+        val road = idle.indexOf("Text(UNTERWEGS_BUTTON, style = stackButtonLabel())")
+        val roadHint = idle.indexOf("HelperText(UNTERWEGS_LABOR_HINT)")
         assertTrue(report in 0 until tonal && tonal < hint && hint < road && road < roadHint, "$report $tonal $hint $road $roadHint")
-        assertTrue(idle.substring(0, report).contains("onClick = onReport,") && idle.substring(0, report).contains("Modifier.fillMaxWidth().height(56.dp)"))
+        assertTrue(idle.substring(0, report).contains("onClick = onReport,") && idle.substring(0, report).contains("Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)"))
+        assertEquals(56, STACK_BUTTON_HEIGHT.value.toInt())
+        // One height for every stacked button: no other height literal in the idle and running branches.
+        val stack = screen.substring(screen.indexOf("// 0.8.6: one button height"), screen.indexOf("if (calibrating) HelperText("))
+        assertFalse(Regex("""fillMaxWidth\(\)\.height\(\d+\.dp\)""").containsMatchIn(stack) || stack.contains("fontSize ="), "one height, one label style")
+        assertEquals(5, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Stoppen, Laut! Melden, Messung starten (two variants), Unterwegs aufnehmen")
         // Without reports «Messung starten» stays the primary button.
-        assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(56.dp), content = startContent)"))
-        assertTrue(idle.contains("if (onUnterwegs != null) {\n                            OutlinedButton(onClick = onUnterwegs"))
+        assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)"))
+        assertTrue(idle.contains("if (onUnterwegs != null) {\n                            Spacer(Modifier.height(16.dp))\n                            OutlinedButton(onClick = onUnterwegs"))
     }
 
     @Test

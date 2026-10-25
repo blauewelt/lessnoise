@@ -4,9 +4,19 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,7 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ch.lessnoise.app.icons.AppIcons
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -245,21 +257,37 @@ fun ReportLevelEffect(meter: ReportLevelMeter, micAllowed: Boolean) {
     }
 }
 
-/** The dialog's line under the disc: «58,2 dB(A) jetzt · Spitze 81,4 dB(A)». */
+/**
+ * 0.8.6: the level in the dialog as two stat blocks side by side (until 0.8.5 one centred line «58,2
+ * dB(A) jetzt · Spitze 81,4 dB(A)»): left the graphic_eq icon, the value now big and «dB(A) jetzt»
+ * under it; right the peak since the dialog opened and «dB(A) Spitze». TalkBack reads one sentence.
+ */
 @Composable
-fun ReportLevelLine(meter: ReportLevelMeter) {
+fun ReportLevelStats(meter: ReportLevelMeter, modifier: Modifier = Modifier) {
     val now by meter.now.collectAsState()
     val nowText = ReportLevelUi.nowText(now.lafDb)
     val peakText = ReportLevelUi.peakText(now.peakDb)
+    val cs = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "$nowText ${ReportLevelUi.NOW}, $peakText" },
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.Bottom,
+        modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics(mergeDescendants = true) { contentDescription = "$nowText ${ReportLevelUi.NOW}, $peakText" },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(nowText, style = MaterialTheme.typography.titleMedium)
-        Text(ReportLevelUi.NOW, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("·", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(peakText, style = MaterialTheme.typography.bodyMedium)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Icon(AppIcons.GraphicEq, contentDescription = null, tint = cs.primary, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(12.dp))
+            ReportStat(Fmt.db(now.lafDb), "dB(A) ${ReportLevelUi.NOW}")
+        }
+        Box(Modifier.fillMaxHeight().padding(vertical = 4.dp).width(1.dp).background(cs.outlineVariant))
+        Spacer(Modifier.width(16.dp))
+        ReportStat(Fmt.db(now.peakDb), "dB(A) ${ReportLevelUi.PEAK}", Modifier.weight(1f))
     }
 }
 
+/** One stat block: the number (headlineSmall, tabular figures) over its unit (bodySmall, onSurfaceVariant). */
+@Composable
+private fun ReportStat(value: String, unit: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(value, style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold)
+        Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}

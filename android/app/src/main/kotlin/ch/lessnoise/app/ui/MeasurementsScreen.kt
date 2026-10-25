@@ -1,6 +1,15 @@
 package ch.lessnoise.app.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import ch.lessnoise.app.icons.AppIcons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,44 +66,57 @@ fun MeasurementsScreen(modifier: Modifier = Modifier, vm: HistoryViewModel = vie
         }
     }
 
-    LazyColumn(modifier.fillMaxWidth(), state = listState) {
-        item {
-            Text(
-                "Messungen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+    val w: TimeWindow? = window
+    MeasurementsContent(
+        items = items, selectedId = selected?.measurement?.id, modifier = modifier, listState = listState,
+        chart = if (items.isNullOrEmpty() || w == null) null else ({
+            HistorySection(
+                window = w, data = data, zone = vm.zone, highlight = settings.chartHighlightCategory,
+                eventFloorDb = settings.eventMinLevelDb,
+                canGoNext = vm.canShift(1), canGoPrevious = vm.canShift(-1),
+                selection = selectionState.value, actions = actions,
+                // Labor build only: play an event's clip; «‹»/«›» step through the window's clips.
+                onPlayClip = EditionClips.player?.let { play ->
+                    { ref: String -> play(ref, data?.clipRefsInTimeOrder(settings.eventMinLevelDb) ?: listOf(ref)) }
+                },
+                showWindEvents = settings.showWindEvents,
+                noiseFloor = noiseFloor,
             )
-        }
+        }),
+        onSelect = { id ->
+            vm.show(id)
+            scope.launch { listState.animateScrollToItem(0) }
+        },
+    )
+}
+
+/**
+ * «Messungen» without the view model (0.8.6; also rendered on the JVM): the title, the chart of the
+ * selected measurement ([chart], null while loading or without measurements), «Alle Messungen» as
+ * cards (the selected one in primaryContainer, «geteilt» as a small chip), and the empty and loading
+ * states with a centred icon.
+ */
+@Composable
+fun MeasurementsContent(
+    items: List<MeasurementItem>?,
+    selectedId: Long?,
+    chart: (@Composable () -> Unit)?,
+    onSelect: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+) {
+    LazyColumn(modifier.fillMaxWidth(), state = listState) {
+        item { ScreenTitle("Messungen") }
         val list = items
-        val w: TimeWindow? = window
         when {
-            list == null -> item { Text("Lade …", Modifier.padding(16.dp)) }
-            list.isEmpty() || w == null -> item { Text("Noch keine Messung. Starte eine unter «Messen».", Modifier.padding(16.dp)) }
+            list == null -> item { EmptyState(AppIcons.History, "Lade …") }
+            list.isEmpty() || chart == null -> item { EmptyState(AppIcons.GraphicEq, "Noch keine Messung. Starte eine unter «Messen».") }
             else -> {
-                item {
-                    HistorySection(
-                        window = w, data = data, zone = vm.zone, highlight = settings.chartHighlightCategory,
-                        eventFloorDb = settings.eventMinLevelDb,
-                        canGoNext = vm.canShift(1), canGoPrevious = vm.canShift(-1),
-                        selection = selectionState.value, actions = actions,
-                        // Labor build only: play an event's clip; «‹»/«›» step through the window's clips.
-                        onPlayClip = EditionClips.player?.let { play ->
-                            { ref: String -> play(ref, data?.clipRefsInTimeOrder(settings.eventMinLevelDb) ?: listOf(ref)) }
-                        },
-                        showWindEvents = settings.showWindEvents,
-                        noiseFloor = noiseFloor,
-                    )
-                }
-                item {
-                    Text(
-                        "Alle Messungen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
-                    )
-                }
+                item { chart() }
+                item { SectionHeading("Alle Messungen", Modifier.padding(top = 12.dp)) }
                 items(list, key = { it.measurement.id }) { m ->
-                    MeasurementCard(m, selected = m.measurement.id == selected?.measurement?.id) {
-                        vm.show(m.measurement.id)
-                        scope.launch { listState.animateScrollToItem(0) }
-                    }
+                    MeasurementCard(m, selected = m.measurement.id == selectedId, zone = zone) { onSelect(m.measurement.id) }
                 }
             }
         }
@@ -115,27 +137,22 @@ fun measurementTitle(m: ch.lessnoise.app.data.Measurement, zone: java.time.ZoneI
     else ch.lessnoise.chart.Windows(zone).label(TimeWindow.span(m.span.startMs, m.span.endMs))
 
 @Composable
-private fun MeasurementCard(item: MeasurementItem, selected: Boolean, onClick: () -> Unit) {
+private fun MeasurementCard(item: MeasurementItem, selected: Boolean, zone: java.time.ZoneId, onClick: () -> Unit) {
     val m = item.measurement
     val s = item.summary
-    SectionCard(modifier = Modifier.clickable(onClick = onClick)) {
+    val cs = MaterialTheme.colorScheme
+    SectionCard(
+        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).semantics { this.selected = selected },
+        containerColor = if (selected) cs.primaryContainer else cs.surfaceContainer,
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                measurementTitle(m, java.time.ZoneId.systemDefault()),
+                measurementTitle(m, zone),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
-            if (m.cell != null) {
-                Text(
-                    "geteilt",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
+            if (m.cell != null) SharedChip()
         }
         StatRow("Dauer", Fmt.hoursMinutes(m.span.durationMs))
         StatRow("Mittel", "${Fmt.db(s.laeqDb)} dB(A)")
@@ -144,5 +161,18 @@ private fun MeasurementCard(item: MeasurementItem, selected: Boolean, onClick: (
             "Lärmspitzen pro Stunde",
             if (s.eventsPerHour.isNaN()) "–" else ChartFmt.comma(s.eventsPerHour, if (s.eventsPerHour < 10) 1 else 0),
         )
+    }
+}
+
+/** 0.8.6: «geteilt» as a small outlined chip with the cloud icon (until 0.8.5 a filled rounded label). */
+@Composable
+private fun SharedChip() {
+    val cs = MaterialTheme.colorScheme
+    Surface(shape = RoundedCornerShape(8.dp), color = Color.Transparent, border = BorderStroke(1.dp, cs.outline)) {
+        Row(Modifier.padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(AppIcons.CloudDone, contentDescription = null, tint = cs.tertiary, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("geteilt", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+        }
     }
 }

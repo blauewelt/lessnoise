@@ -23,8 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -153,7 +152,7 @@ fun rememberShareStatus(): ShareStatus? {
     val online = rememberOnline()
     return shareStatus(
         s = s, running = live.running, measurementStartMs = live.measurementStartMs,
-        hasPoint = live.sharedPoint != null, locate = locate, online = online, unterwegs = live.unterwegs, hm = Fmt::hm,
+        hasPoint = live.sharedPoint != null, locate = locate, online = online, unterwegs = live.unterwegs, hm = { Fmt.sentAt(it) },
         moving = live.moving,
     )
 }
@@ -200,7 +199,7 @@ fun InfoChip(
         ) {
             leading()
             Spacer(Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f, fill = false))
+            Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f, fill = false))
             if (trailing != null) {
                 Spacer(Modifier.width(6.dp))
                 trailing()
@@ -285,12 +284,7 @@ fun MeasureContent(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { inner ->
         LazyColumn(Modifier.padding(inner).fillMaxWidth()) {
-            item {
-                Text(
-                    "Messen", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                )
-            }
+            item { ScreenTitle("Messen") }
 
             if (live.running && (live.micSilenced || live.invalidAudio)) {
                 item {
@@ -325,23 +319,24 @@ fun MeasureContent(
             }
 
             item {
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                // 0.8.6: one button height (STACK_BUTTON_HEIGHT) and one label style for every stacked
+                // button, the hierarchy only by style (filled → tonal → outlined); each helper line 4 dp
+                // under its button, 16 dp between the groups, 24 dp before the status chip.
+                Column(Modifier.fillMaxWidth().padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) {
                     if (live.running) {
                         Button(
                             onClick = onStop,
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
                             colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
                         ) {
                             Icon(AppIcons.Stop, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            Text(STOP_BUTTON, fontSize = 18.sp)
+                            Text(STOP_BUTTON, style = stackButtonLabel())
                         }
-                        Text(runningLine(Fmt.hm(live.startedAtMs)), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        HelperText(runningLine(Fmt.hm(live.startedAtMs)))
                         // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
-                        microphoneNote(live)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant) }
+                        microphoneNote(live)?.let { HelperText(it) }
                     } else {
                         // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
                         // the FAB of 0.8.3 is gone, this button does its job.
@@ -349,12 +344,13 @@ fun MeasureContent(
                             Button(
                                 onClick = onReport,
                                 enabled = !live.starting,
-                                modifier = Modifier.fillMaxWidth().height(56.dp),
+                                modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
                             ) {
                                 Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                                Text(REPORT_BUTTON, fontSize = 18.sp)
+                                Text(REPORT_BUTTON, style = stackButtonLabel())
                             }
+                            Spacer(Modifier.height(16.dp))
                         }
                         val startEnabled = !live.starting && !calibrating
                         val startContent: @Composable RowScope.() -> Unit = {
@@ -362,48 +358,57 @@ fun MeasureContent(
                                 Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             }
-                            Text(if (live.starting) STARTING_BUTTON else START_BUTTON, fontSize = if (onReport != null) 16.sp else 18.sp)
+                            Text(if (live.starting) STARTING_BUTTON else START_BUTTON, style = stackButtonLabel())
                         }
                         if (onReport != null) {
-                            FilledTonalButton(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(48.dp), content = startContent)
+                            FilledTonalButton(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
                         } else {
-                            Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(56.dp), content = startContent)
+                            Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
                         }
-                        Text(idleHint(reports = onReport != null), style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        HelperText(idleHint(reports = onReport != null))
                         // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
                         if (onUnterwegs != null) {
-                            OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth()) {
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)) {
                                 Icon(AppIcons.Walk, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                                 Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                                Text(UNTERWEGS_BUTTON)
+                                Text(UNTERWEGS_BUTTON, style = stackButtonLabel())
                             }
-                            Text(UNTERWEGS_LABOR_HINT, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                            Spacer(Modifier.height(4.dp))
+                            HelperText(UNTERWEGS_LABOR_HINT)
                         }
                     }
-                    if (calibrating) Text("Erst nach dem Kalibrieren möglich.", style = MaterialTheme.typography.bodySmall)
+                    if (calibrating) HelperText("Erst nach dem Kalibrieren möglich.", Modifier.padding(top = 4.dp))
                     storageNotice()
                     // Running: always; idle: the short form (e.g. «Auf der Karte · 14:05»), not while it starts.
-                    if (live.running || !live.starting) shareStatus?.let { StatusChip(it, onShareStatus) }
+                    if (live.running || !live.starting) shareStatus?.let {
+                        Spacer(Modifier.height(if (live.running) 16.dp else 24.dp))
+                        StatusChip(it, onShareStatus)
+                    }
                     // 0.6.9, Labor·Karte only (null elsewhere): motion value, distance from the start, state.
-                    if (live.running) live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    if (live.running) live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
                     if (!live.running) updateLine()
-                    live.error?.let { Text(it, color = cs.error, style = MaterialTheme.typography.bodyMedium) }
+                    live.error?.let { Text(it, color = cs.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
                     if (!live.running) {
+                        Spacer(Modifier.height(16.dp))
                         TextButton(
                             onClick = { more = !more },
                             contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
-                            // The label in line with the text above (the button's own 12 dp start padding).
+                            // The icon in line with the text above (the button's own 12 dp start padding).
                             modifier = Modifier.offset(x = (-12).dp),
                         ) {
+                            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(MORE_LABEL)
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Icon(
-                                if (more) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                if (more) AppIcons.ExpandLess else AppIcons.ExpandMore,
                                 contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize),
                             )
                         }
                         AnimatedVisibility(more) {
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
                                 Text(EditionUi.MIC_LINE, style = MaterialTheme.typography.bodyMedium)
                                 MoreLink(Links.MEASURE, GUIDE_LINK)
@@ -414,20 +419,9 @@ fun MeasureContent(
             }
 
             if (live.running) {
-                item {
-                    Text(
-                        "Letzte Lärmspitzen",
-                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
-                    )
-                }
+                item { SectionHeading("Letzte Lärmspitzen") }
                 if (events.isEmpty()) {
-                    item {
-                        Text(
-                            "Noch keine.", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
+                    item { HelperText("Noch keine.", Modifier.padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) }
                 }
                 items(events, key = { it.id }) { e -> EventRow(e, categoryName, eventMarker) }
             }

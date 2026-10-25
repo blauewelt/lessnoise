@@ -12,6 +12,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Slider
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import kotlinx.coroutines.flow.flowOf
 import ch.lessnoise.app.data.AppSettings
 import ch.lessnoise.dsp.calibration.EventFloor
@@ -106,11 +112,13 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
 
     LazyColumn(modifier.fillMaxWidth()) {
         item {
-            TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) { Text("‹ Einstellungen") }
-            Text(
-                "Erweitert", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
-            )
+            // 0.8.6: the back arrow instead of «‹», the shared screen title.
+            TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp), contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Text("Einstellungen")
+            }
+            ScreenTitle("Erweitert", Modifier.offset(y = (-12).dp))
             if (live.running) {
                 Text(
                     "Gilt ab der nächsten Messung.",

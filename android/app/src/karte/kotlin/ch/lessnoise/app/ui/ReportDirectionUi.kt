@@ -6,7 +6,6 @@ import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.hardware.GeomagneticField
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +40,11 @@ import kotlin.math.sin
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
@@ -160,13 +164,15 @@ object ReportDirectionUi {
         reading: State<CompassReading?>,
         fix: Pair<Double, Double>?,
         moved: Pair<Double, Double>?,
+        /** 0.8.6, for the JVM renders only (ReportDialogScreenshots): tiles drawn instead of downloading any; null in the app. */
+        previewTiles: Map<ReportMapTiles.Tile, ImageBitmap>? = null,
         onMove: (Pair<Double, Double>) -> Boolean,
     ) {
         // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
         var frozenDeg by remember(fix) { mutableStateOf<Double?>(null) }
         var dragging by remember(fix) { mutableStateOf(false) }
         val centre = moved ?: fix
-        val tiles = rememberStreetTiles(fix, centre.takeUnless { dragging })
+        val tiles = previewTiles ?: rememberStreetTiles(fix, centre.takeUnless { dragging })
         // Map north is true north; the compass reads magnetic north. The tiles are turned by the
         // true heading (declination at the fix, Android's built-in model, no network).
         val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
@@ -215,15 +221,24 @@ object ReportDirectionUi {
                     if (onMoveNow(ReportMapTiles.offsetToLatLon(fix, next, ReportMapTiles.ZOOM, scale))) off = next
                 }
             }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
-            if (tiles.isNotEmpty() && r != null) {
-                Text(TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // 0.8.6: the disc with the credit tucked into its bottom-right corner (outside the circle), the
+        // heading in titleMedium 8 dp under it, the hint in bodySmall right under the heading.
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f)) {
+                DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
+                if (tiles.isNotEmpty() && r != null) {
+                    Text(
+                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.BottomEnd),
+                    )
+                }
             }
+            Spacer(Modifier.height(8.dp))
             Text(
                 if (r == null) "…" else liveLabel(r.magneticDeg),
                 style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.height(2.dp))
             if (r != null && showCalibrationHint(r.sensorStatus)) {
                 Text(CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
             } else {
@@ -316,7 +331,7 @@ object ReportDirectionUi {
         // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
         // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
         val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
-        Canvas(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f).then(drag)) {
+        Canvas(Modifier.fillMaxSize().then(drag)) {
             val c = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null

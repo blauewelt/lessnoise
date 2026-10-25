@@ -138,9 +138,9 @@ class ReportPhotoTest {
         assertTrue(ui.contains("ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() })"))
         assertTrue(ui.contains("val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)"))
         assertFalse(ui.contains("OutlinedTextField") || ui.contains("ReportQueue.add("), "no plate field; queued only together with its photo")
-        assertEquals("Foto", reportPhotoButton(false))
+        assertEquals("Foto vom Fahrzeug (optional)", reportPhotoButton(false))
         assertEquals("Neues Foto", reportPhotoButton(true))
-        assertEquals(64, REPORT_THUMB_DP)
+        assertEquals(56, REPORT_THUMB_DP)
         // The app sweeps on every change of the queue and clears the camera's leftovers at start.
         val start = File(app, "src/main/kotlin/ch/lessnoise/app/LessNoiseApp.kt").readText()
         assertTrue(start.contains("ReportPhotos.clearLeftovers(this@LessNoiseApp)"))

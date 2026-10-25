@@ -15,6 +15,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.ui.graphics.Color
+import ch.lessnoise.app.icons.AppIcons
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -119,7 +126,7 @@ fun ShareScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) {
             onDismissRequest = { confirmDelete = false },
             title = { Text("Daten auf dem Server löschen?") },
             text = { Text("Alles, was dieses Telefon gesendet hat, wird sofort gelöscht. Teilen wird ausgeschaltet. Auf dem Telefon bleibt alles.") },
-            confirmButton = { TextButton(onClick = { confirmDelete = false; runDelete(newIdentity = false) }) { Text("Löschen") } },
+            confirmButton = { DestructiveTextButton("Löschen") { confirmDelete = false; runDelete(newIdentity = false) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } },
         )
     }
@@ -128,7 +135,7 @@ fun ShareScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) {
             onDismissRequest = { confirmNewId = false },
             title = { Text("Neu starten?") },
             text = { Text("Deine alten Daten auf dem Server werden gelöscht; danach sendest du neu.") },
-            confirmButton = { TextButton(onClick = { confirmNewId = false; runDelete(newIdentity = true) }) { Text("Neu starten") } },
+            confirmButton = { DestructiveTextButton("Neu starten") { confirmNewId = false; runDelete(newIdentity = true) } },
             dismissButton = { TextButton(onClick = { confirmNewId = false }) { Text("Abbrechen") } },
         )
     }
@@ -136,7 +143,7 @@ fun ShareScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) {
 
 /**
  * «Teilen» without the app container (also rendered on the JVM, ShareScreenshots): status line and
- * switch; «Weitere Angaben ▸»; «Was gesendet wird ▸»; «Wo liegt das Telefon? (freiwillig) ▸»; the
+ * switch (list rows since 0.8.6); «Weitere Angaben», «Was gesendet wird», «Wo liegt das Telefon? (freiwillig)» as fold-outs with a chevron; the
  * reports; deleting the server data.
  */
 @Composable
@@ -161,63 +168,55 @@ fun ShareContent(
     var showPlacement by rememberSaveable { mutableStateOf(false) }
 
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        Text(
-            "Auf die Lärmkarte", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
-        )
-        Text(SHARE_INTRO, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp))
+        ScreenTitle("Auf die Lärmkarte")
+        Text(SHARE_INTRO, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = SCREEN_GUTTER))
+        Spacer(Modifier.height(8.dp))
 
         // 1. The switch and the status (server/DESIGN.md §2 rule 3: no gate since 0.6.3; the first
         // switch-on asks «Auf die Lärmkarte?», which says what is sent, never, where and how to delete).
-        SectionCard {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Auf die Karte senden", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                Switch(checked = s.enabled, onCheckedChange = onSwitch)
-            }
-            status?.let { StatusChip(it, onStatus) }
-            if (s.refusedTotal > 0) {
-                Text("${s.refusedTotal} Werte waren zu alt und wurden nicht übernommen.", style = MaterialTheme.typography.bodySmall)
-            }
-            // While the token is refused, the current explanation of «Neu starten».
-            if (s.enabled && s.authFailed) {
-                Text(Uploader.AUTH_FAILED_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-            TextButton(onClick = { showMore = !showMore }) { Text(if (showMore) "Weitere Angaben ▾" else "Weitere Angaben ▸") }
-            if (showMore) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Nur über WLAN", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = s.wifiOnly, onCheckedChange = onWifiOnly)
+        // 0.8.6: the switches as list rows, the fold-out with a chevron.
+        SectionCard(rows = true) {
+            SwitchRow("Auf die Karte senden", s.enabled, onSwitch, icon = AppIcons.Map)
+            CardBlock {
+                status?.let { StatusChip(it, onStatus) }
+                if (s.refusedTotal > 0) {
+                    Text("${s.refusedTotal} Werte waren zu alt und wurden nicht übernommen.", style = MaterialTheme.typography.bodySmall)
                 }
-                if (!s.wifiOnly) Text("Höchstens etwa 3 MB pro Tag.", style = MaterialTheme.typography.bodySmall)
-                StatRow("Noch zu senden", "$pending Minuten")
-                SigmaSetting(s.sigmaM, onSigma)
+                // While the token is refused, the current explanation of «Neu starten».
+                if (s.enabled && s.authFailed) {
+                    Text(Uploader.AUTH_FAILED_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+            FoldRow("Weitere Angaben", showMore, { showMore = !showMore }, leading = AppIcons.Tune)
+            if (showMore) {
+                SwitchRow(
+                    "Nur über WLAN", s.wifiOnly, onWifiOnly, icon = AppIcons.Wifi,
+                    supporting = if (!s.wifiOnly) "Höchstens etwa 3 MB pro Tag." else null,
+                )
+                CardBlock {
+                    StatRow("Noch zu senden", "$pending Minuten")
+                    SigmaSetting(s.sigmaM, onSigma)
+                }
             }
         }
 
         // 2. What is sent, what never, where, when, how to delete: folded away, unchanged in substance.
-        TextButton(onClick = { showExplanation = !showExplanation }, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(if (showExplanation) "Was gesendet wird ▾" else "Was gesendet wird ▸")
+        // 3. How the phone lies (optional). 0.8.6: both fold-outs in one card.
+        SectionCard(rows = true) {
+            FoldRow("Was gesendet wird", showExplanation, { showExplanation = !showExplanation }, leading = Icons.Outlined.Info)
+            if (showExplanation) CardBlock { ShareExplanation(s.sigmaM) }
+            FoldRow("Wo liegt das Telefon? (freiwillig)", showPlacement, { showPlacement = !showPlacement }, leading = AppIcons.Window)
+            if (showPlacement) PlacementCard(s.site, onSaveSite)
         }
-        if (showExplanation) SectionCard { ShareExplanation(s.sigmaM) }
-
-        // 3. How the phone lies (optional).
-        TextButton(onClick = { showPlacement = !showPlacement }, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(if (showPlacement) "Wo liegt das Telefon? (freiwillig) ▾" else "Wo liegt das Telefon? (freiwillig) ▸")
-        }
-        if (showPlacement) PlacementCard(s.site, onSaveSite)
 
         ReportsCard(reports)
 
-        // 4. Server data.
+        // 4. Server data. 0.8.6: the destructive action outlined in the error colour (the dialog is the guard).
         SectionCard("Deine Daten auf dem Server") {
             if (!s.registered) {
-                Text("Von diesem Telefon liegen keine Daten auf dem Server.", style = MaterialTheme.typography.bodySmall)
+                Text("Von diesem Telefon liegen keine Daten auf dem Server.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Button(
-                onClick = onDelete,
-                enabled = s.registered && busy == null,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-            ) { Text("Vom Server löschen") }
+            DestructiveButton("Vom Server löschen", onDelete, enabled = s.registered && busy == null)
             // «Neu starten» (a new random id): only when the server no longer knows this phone.
             if (s.authFailed) {
                 OutlinedButton(onClick = onNewId, enabled = busy == null) { Text("Neu starten") }
@@ -252,7 +251,7 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
     val floor = floorText.trim().toIntOrNull()
     val floorOk = floorText.isBlank() || (floor != null && floor in -3..100)
 
-    SectionCard {
+    CardBlock {
         Text("Das Telefon liegt", style = MaterialTheme.typography.bodyMedium)
         val places = SiteSettings.PLACEMENTS
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -273,7 +272,7 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
                 ) { Text(label, style = MaterialTheme.typography.labelSmall) }
             }
         }
-        TextButton(onClick = { more = !more }) { Text(if (more) "Weitere Angaben ▾" else "Weitere Angaben ▸") }
+        FoldButton("Weitere Angaben", more, { more = !more })
         if (more) {
             OutlinedTextField(
                 value = floorText, onValueChange = { floorText = it.filter { ch -> ch.isDigit() || ch == '-' }.take(3); saved = false },
@@ -346,15 +345,21 @@ private fun ReportsCard(r: ReportSnapshot) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var viewing by remember { mutableStateOf<SentReport?>(null) }
-    SectionCard("Meldungen") {
-        if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
-        StatRow("Gesendet", r.sent.size.toString())
+    // 0.8.6: the sent reports as list rows (category icon, the line, the photo at the end).
+    SectionCard("Meldungen", rows = true) {
+        CardBlock {
+            if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
+            StatRow("Gesendet", r.sent.size.toString())
+        }
         r.sent.takeLast(5).reversed().forEach { s ->
             val photo = ReportPhotos.file(context, s.photo)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (photo != null) ReportPhotoThumbnail(photo, SENT_THUMB_DP.dp, onClick = { viewing = s })
-                Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodySmall)
-            }
+            val cat = ReportCategory.fromId(s.category)
+            ListItem(
+                headlineContent = { Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodyMedium) },
+                leadingContent = cat?.let { c -> { Icon(reportCategoryIcon(c), contentDescription = null) } },
+                trailingContent = photo?.let { f -> { ReportPhotoThumbnail(f, SENT_THUMB_DP.dp, onClick = { viewing = s }) } },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
         }
     }
     val v = viewing

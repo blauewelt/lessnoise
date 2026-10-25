@@ -14,9 +14,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
@@ -40,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import ch.lessnoise.app.icons.AppIcons
 import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.edition.EditionUi
 import ch.lessnoise.chart.LessNoiseTheme
@@ -76,9 +74,10 @@ class MainActivity : ComponentActivity() {
 
 /** Tab icon. «Karte»: the pin (Icons.Filled.Map is only in the large extended icon set). */
 fun screenIcon(s: Screen): ImageVector = when (s) {
-    Screen.MEASURE -> Icons.Filled.Home
-    Screen.MEASUREMENTS -> Icons.Filled.DateRange
-    Screen.MAP -> Icons.Filled.Place
+    // 0.8.6: icons that say what the tab is (until 0.8.5 Home / DateRange / Place from the core set).
+    Screen.MEASURE -> AppIcons.GraphicEq
+    Screen.MEASUREMENTS -> AppIcons.History
+    Screen.MAP -> AppIcons.Map
     Screen.SHARE -> Icons.Filled.Share
     Screen.SETTINGS -> Icons.Filled.Settings
 }

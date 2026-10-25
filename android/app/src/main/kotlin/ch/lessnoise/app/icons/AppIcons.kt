@@ -82,4 +82,128 @@ object AppIcons {
 
     /** «stop»: «Stoppen». */
     val Stop: ImageVector by lazy { icon("Stop", "M6 6h12v12H6z") }
+    // ---- 0.8.6 (visual polish): the report dialog, the lists and the bottom bar. Written from memory of
+    // the Material Symbols/Icons path data (filled, 24 × 24), not byte-compared with the official SVGs
+    // (no web access in this session); checked only by eye in the Paparazzi renders. ----
+
+    /** «two_wheeler»: Töff. */
+    val TwoWheeler: ImageVector by lazy {
+        icon(
+            "TwoWheeler",
+            "M20 11c-.18 0-.36.03-.53.05L17.41 9H20V6l-3.72 1.86L13.41 5H9v2h3.59l2 2H11l-4 2-2-2H0v2h4c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4l2 2h3l3.49-6.1 1.01 1.01c-.91.73-1.5 1.84-1.5 3.09 0 2.21 1.79 4 4 4s4-1.79 4-4-1.79-4-4-4zM4 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm16 0c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z",
+        )
+    }
+
+    /** «directions_car»: Auto. */
+    val Car: ImageVector by lazy {
+        icon(
+            "DirectionsCar",
+            "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
+        )
+    }
+
+    /** «local_shipping»: Lastwagen. */
+    val Truck: ImageVector by lazy {
+        icon(
+            "LocalShipping",
+            "M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+        )
+    }
+
+    /** «flight»: Flugzeug. */
+    val Flight: ImageVector by lazy {
+        icon("Flight", "M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z")
+    }
+
+    /** «speed» (a rev counter): Poser. */
+    val Speed: ImageVector by lazy {
+        icon(
+            "Speed",
+            "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z",
+        )
+    }
+
+    /** «more_horiz»: anderes Fahrzeug. */
+    val MoreHoriz: ImageVector by lazy {
+        icon(
+            "MoreHoriz",
+            "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+        )
+    }
+
+    /** «graphic_eq»: the level now; the tab «Messen». */
+    val GraphicEq: ImageVector by lazy {
+        icon("GraphicEq", "M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
+    }
+
+    /** «location_searching»: the fix is being searched. */
+    val LocationSearching: ImageVector by lazy {
+        icon(
+            "LocationSearching",
+            "M20.94 11c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z",
+        )
+    }
+
+    /** «edit_location»: the place set by hand. */
+    val EditLocation: ImageVector by lazy {
+        icon(
+            "EditLocation",
+            "M12 2C8.14 2 5 5.14 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.86-3.14-7-7-7zm-1.56 10H9v-1.44l3.35-3.34 1.43 1.43L10.44 12zm4.45-4.45l-.7.7-1.44-1.44.7-.7c.15-.15.39-.15.54 0l.9.9c.15.15.15.39 0 .54z",
+        )
+    }
+
+    /** «photo_camera». */
+    val PhotoCamera: ImageVector by lazy {
+        icon(
+            "PhotoCamera",
+            "M12 15.2c1.77 0 3.2-1.43 3.2-3.2S13.77 8.8 12 8.8 8.8 10.23 8.8 12s1.43 3.2 3.2 3.2zM9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z",
+        )
+    }
+
+    /** «map»: the tab «Karte». */
+    val Map: ImageVector by lazy {
+        icon(
+            "Map",
+            "M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z",
+        )
+    }
+
+    /** «history»: the tab «Messungen». */
+    val History: ImageVector by lazy {
+        icon(
+            "History",
+            "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
+        )
+    }
+
+    /** «chevron_right»: a row that opens something. */
+    val ChevronRight: ImageVector by lazy { icon("ChevronRight", "M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z") }
+
+    /** «expand_more» / «expand_less»: a fold-out. */
+    val ExpandMore: ImageVector by lazy { icon("ExpandMore", "M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z") }
+    val ExpandLess: ImageVector by lazy { icon("ExpandLess", "M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z") }
+
+    /** «tune»: «Erweitert». */
+    val Tune: ImageVector by lazy {
+        icon(
+            "Tune",
+            "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+        )
+    }
+
+    /** «download»: «Exportieren». */
+    val Download: ImageVector by lazy { icon("Download", "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z") }
+
+    /** «battery_full»: «Akku-Optimierung». */
+    val Battery: ImageVector by lazy {
+        icon("BatteryFull", "M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z")
+    }
+
+    /** «wifi»: «Nur über WLAN». */
+    val Wifi: ImageVector by lazy {
+        icon(
+            "Wifi",
+            "M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z",
+        )
+    }
 }

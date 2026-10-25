@@ -238,9 +238,18 @@ class ReportsTest {
         assertEquals("Senden", REPORT_SEND)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        val line = dialog.lines().single { it.contains("Text(REPORT_SPOT_WARNING") }
-        assertTrue(line.trimStart().startsWith("Text(REPORT_SPOT_WARNING"), "shown on every report, not behind a condition: $line")
-        assertTrue(dialog.contains("Text(REPORT_SEND)"), "0.8.2: the explicit «Senden»")
+        // 0.8.6: the dialog's content is ReportDialogBody (always passed as the dialog's text); the line is
+        // its last element, in a Row with an info icon, behind no condition.
+        assertTrue(dialog.contains("text = {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
+        val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
+        val lines = body.lines()
+        val at = lines.indexOfFirst { it.contains("Text(REPORT_SPOT_WARNING") }
+        assertEquals(1, lines.count { it.contains("Text(REPORT_SPOT_WARNING") })
+        assertTrue(lines[at].trimStart().startsWith("Text(REPORT_SPOT_WARNING"), lines[at])
+        val row = lines.subList(0, at).last { it.contains("Row(") }
+        assertTrue(row.trimStart().startsWith("Row(") && row.indexOf("Row(") == 8, "the warning's Row is at the body column's top level, not behind a condition: $row")
+        assertTrue(ui.substringAfter("fun ReportSendButton(").substringBefore("\n}").contains("Text(REPORT_SEND)"), "0.8.2: the explicit «Senden»")
+        assertTrue(dialog.contains("ReportSendButton(onClick = { sendTap() }"))
         assertFalse(ui.contains("Antippen sendet die Meldung."), "0.8.2: a tap no longer sends")
         assertFalse(ui.contains("reportConfirm"), "0.8.1: no separate confirmation dialog (owner's decision)")
     }

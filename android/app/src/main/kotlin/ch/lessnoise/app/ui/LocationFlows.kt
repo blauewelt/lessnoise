@@ -8,6 +8,18 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.graphics.vector.ImageVector
+import ch.lessnoise.app.icons.AppIcons
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -46,13 +59,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
-import ch.lessnoise.app.R
 import ch.lessnoise.app.container
 import ch.lessnoise.app.edition.EditionDiagnostics
 import ch.lessnoise.app.location.LocationFetcher
@@ -271,58 +282,40 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 // wide (0.7.8) so that the disc and two columns of buttons fit on a narrow phone.
                 properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
                 modifier = Modifier.fillMaxWidth(0.94f),
+                // 0.8.6: the megaphone of the «Laut! Melden» button above the title.
+                icon = { Icon(AppIcons.Campaign, contentDescription = null) },
                 title = { Text(REPORT_TITLE) },
                 text = {
-                    Column(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (suggested.isNotEmpty()) {
-                            Text("Erkannt um ${Fmt.hm(tapMs)}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
-                        }
-                        if (reading != null) {
+                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?
+                    ReportDialogBody(
+                        erkanntAt = if (suggested.isNotEmpty()) Fmt.hm(tapMs) else null,
+                        disc = if (reading == null) null else ({
                             ReportDirectionUi.Panel(reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon }) { p ->
                                 // Taken only within 2 km of the fix and in Switzerland; else the map stops.
                                 val next = fix?.let { reportMovedPlace(it, p.first, p.second) }
                                 if (next != null && !waiting) moved = next
                                 next != null && !waiting
                             }
-                        }
-                        // 0.8.5: the level line under the disc (none without the microphone and no measurement).
-                        if (micAllowed || measuring) ReportLevelLine(meter)
-                        // While a tapped report waits for the fix, the line under the grid says so instead.
-                        if (!waiting) Text(
-                            reportFixLine(fix?.accuracyText, moved != null),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                        if (!waiting && moved != null) {
-                            TextButton(onClick = { moved = null }) { Text(REPORT_MOVE_BACK) }
-                        }
+                        }),
+                        // 0.8.5: the level (none without the microphone and no measurement).
+                        level = if (micAllowed || measuring) meter else null,
+                        fixLine = reportFixLine(fix?.accuracyText, moved != null),
+                        fixState = reportFixState(fix != null, moved != null),
+                        waiting = waiting,
+                        onMoveBack = { moved = null },
                         // 0.8.5: «Foto» (the phone's camera app, no camera permission) instead of «Kontrollschild».
-                        ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() })
-                        photoNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
-                        for (row in reportCategoryRows(reportCategoryOrder(suggested))) {
-                            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                for (cat in row) {
-                                    CategoryButton(cat, cat in suggested, selected = cat == chosen, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { select(cat) }
-                                }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
-                            }
-                        }
-                        if (waiting) {
-                            // «Senden» was tapped before the fix: it goes out as soon as the fix is there.
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text(REPORT_LOCATING, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth())
-                        }
-                        // DESIGN.md §2 rule 10: the report screen states the risk, on every report.
-                        Text(REPORT_SPOT_WARNING, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
-                    }
+                        photo = { ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() }) },
+                        photoNote = photoNote,
+                        categories = reportCategoryOrder(suggested),
+                        suggested = suggested,
+                        chosen = chosen,
+                        onSelect = { cat -> select(cat) },
+                    )
                 },
                 // 0.8.2: the explicit send (owner's decision), enabled with a category and a fix (or one being searched).
+                // 0.8.6: a filled button with the send icon.
                 confirmButton = {
-                    TextButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending)) { Text(REPORT_SEND) }
+                    ReportSendButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending))
                 },
                 dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
             )
@@ -363,69 +356,235 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     return { begin(System.currentTimeMillis(), emptyList()) }
 }
 
+/** 0.8.6: which icon the location row of the dialog shows. */
+enum class ReportFixState { SEARCHING, FIX, MOVED }
+
+/** 0.8.6: the location row's state: no fix yet, the fix, or the place set by hand on the map. */
+fun reportFixState(hasFix: Boolean, moved: Boolean): ReportFixState = when {
+    !hasFix -> ReportFixState.SEARCHING
+    moved -> ReportFixState.MOVED
+    else -> ReportFixState.FIX
+}
+
+/** 0.8.6: the space between the dialog's three groups, and inside a group. */
+val REPORT_GROUP_GAP = 20.dp
+val REPORT_INNER_GAP = 8.dp
+
 /**
- * 0.8.5: the photo row of the dialog: without a photo one full-width «Foto» button; with one its
- * 64 dp thumbnail with an «×» (removes it) and the button «Neues Foto».
+ * The content of the «Laut! Melden» dialog (0.8.6; until 0.8.5 a column of centred lines inside
+ * rememberReportAction). Pure: no sensor, microphone, tile or container is touched here, so it is also
+ * rendered on the JVM (ReportDialogScreenshots). Three groups, [REPORT_GROUP_GAP] apart:
+ *
+ * 1. «Wohin?» — [disc] (the compass Panel, null without a compass) with its heading and hint;
+ * 2. «Was hörst du?» — a tonal card (surfaceContainerHigh, 12 dp corners) with the level as two stat
+ *    blocks ([level], null without microphone and measurement) and the location row: icon + [fixLine]
+ *    (and «Zurück zum Standort» once the map was moved; a progress bar while «Senden» waits for the fix);
+ * 3. «Was war es?» — the category grid (two columns of 72 dp buttons, icon over label), then [photo] and
+ *    [photoNote].
+ *
+ * Then the line of server/DESIGN.md §2 rule 10 with an info icon, directly above the actions, on every
+ * report. [waiting]: «Senden» was tapped before the fix (everything disabled).
  */
 @Composable
-private fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (draft != null) {
-            Box(Modifier.size(REPORT_THUMB_DP.dp)) {
-                ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp)
-                Surface(
-                    onClick = onRemove, enabled = enabled, shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(24.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(16.dp))
+fun ReportDialogBody(
+    erkanntAt: String?,
+    disc: (@Composable () -> Unit)?,
+    level: ReportLevelMeter?,
+    fixLine: String,
+    fixState: ReportFixState,
+    waiting: Boolean,
+    onMoveBack: () -> Unit,
+    photo: @Composable () -> Unit,
+    photoNote: String?,
+    categories: List<ReportCategory>,
+    suggested: List<ReportCategory>,
+    chosen: ReportCategory?,
+    onSelect: (ReportCategory) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val cs = MaterialTheme.colorScheme
+    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        if (erkanntAt != null) {
+            Text(
+                "Erkannt um $erkanntAt", style = MaterialTheme.typography.labelLarge, color = cs.primary,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(REPORT_INNER_GAP))
+        }
+        // 1. Wohin?
+        if (disc != null) {
+            disc()
+            Spacer(Modifier.height(REPORT_GROUP_GAP))
+        }
+        // 2. Was hörst du? — the level and the place, in one tonal card.
+        // surfaceContainerLowest: the AlertDialog itself is surfaceContainerHigh, so a card in that colour would vanish
+        // (and Highest was barely visible on it in the light theme); Lowest is white / near-black, clear in both.
+        Surface(color = cs.surfaceContainerLowest, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (level != null) {
+                    ReportLevelStats(level)
+                    HorizontalDivider(color = cs.outlineVariant)
+                }
+                Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        when (fixState) {
+                            ReportFixState.SEARCHING -> AppIcons.LocationSearching
+                            ReportFixState.FIX -> AppIcons.MyLocation
+                            ReportFixState.MOVED -> AppIcons.EditLocation
+                        },
+                        contentDescription = null, tint = cs.primary, modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(fixLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    if (!waiting && fixState == ReportFixState.MOVED) {
+                        TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }
                     }
+                }
+                // «Senden» was tapped before the fix: it goes out as soon as the fix is there.
+                if (waiting) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        }
+        Spacer(Modifier.height(REPORT_GROUP_GAP))
+        // 3. Was war es? — the category (required), then the photo (optional).
+        Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)
+        Spacer(Modifier.height(REPORT_INNER_GAP))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            for (row in reportCategoryRows(categories)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    for (cat in row) {
+                        CategoryButton(cat, cat in suggested, selected = cat == chosen, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { onSelect(cat) }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
-        OutlinedButton(onClick = onTake, enabled = enabled, modifier = Modifier.weight(1f)) {
-            Icon(painterResource(R.drawable.ic_photo_camera), contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.height(16.dp))
+        photo()
+        photoNote?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(REPORT_GROUP_GAP))
+        // DESIGN.md §2 rule 10: the report screen states the risk, on every report (directly above the actions).
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(Icons.Outlined.Info, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.padding(top = 1.dp).size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text(reportPhotoButton(draft != null))
+            Text(REPORT_SPOT_WARNING, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
     }
 }
 
-/** 0.8.5: the photo thumbnail in the dialog, dp. */
-const val REPORT_THUMB_DP = 64
+/** 0.8.6: the heading of the category grid. */
+const val REPORT_WHAT = "Was war es?"
 
-/** 0.8.5: «Foto», or «Neues Foto» once one is taken. */
-fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON
+/** 0.8.6: «Senden» as a filled button with the send icon (until 0.8.5 a text button). */
+@Composable
+fun ReportSendButton(onClick: () -> Unit, enabled: Boolean) {
+    Button(onClick = onClick, enabled = enabled, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(REPORT_SEND)
+    }
+}
 
 /**
- * One category button of the grid (0.8.1): the label centred, a suggested one with the small
- * «erkannt» under its label (two columns leave no room beside it). 0.8.2: the [selected] one is
- * drawn filled, the others outlined (0.7.7); the selection is also told to TalkBack.
+ * 0.8.5: the photo row of the dialog. 0.8.6: without a photo one full-width outlined button «Foto vom
+ * Fahrzeug (optional)» with the camera icon; with one its 56 dp rounded thumbnail with an «×» (removes
+ * it) and «Neues Foto» as a text button.
+ */
+@Composable
+fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove: () -> Unit) {
+    if (draft == null) {
+        OutlinedButton(onClick = onTake, enabled = enabled, modifier = Modifier.fillMaxWidth(), contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+            Icon(AppIcons.PhotoCamera, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            Text(reportPhotoButton(false))
+        }
+        return
+    }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(REPORT_THUMB_DP.dp)) {
+            ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp)
+            Surface(
+                onClick = onRemove, enabled = enabled, shape = CircleShape,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(22.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(14.dp))
+                }
+            }
+        }
+        TextButton(onClick = onTake, enabled = enabled, contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) {
+            Icon(AppIcons.PhotoCamera, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            Text(reportPhotoButton(true))
+        }
+    }
+}
+
+/** 0.8.5: the photo thumbnail in the dialog, dp (0.8.6: 56, was 64). */
+const val REPORT_THUMB_DP = 56
+
+/** 0.8.5: «Foto», or «Neues Foto» once one is taken (0.8.6: «Foto vom Fahrzeug (optional)»). */
+fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON
+
+/** 0.8.6: the icon of each category (Material: two_wheeler, directions_car, local_shipping, flight, speed, more_horiz). */
+fun reportCategoryIcon(cat: ReportCategory): ImageVector = when (cat) {
+    ReportCategory.MOTORRAD -> AppIcons.TwoWheeler
+    ReportCategory.AUTO -> AppIcons.Car
+    ReportCategory.LASTWAGEN -> AppIcons.Truck
+    ReportCategory.FLUGZEUG -> AppIcons.Flight
+    ReportCategory.POSER -> AppIcons.Speed
+    ReportCategory.ANDERE -> AppIcons.MoreHoriz
+}
+
+/**
+ * One category button of the grid (0.8.1): a suggested one with the small «erkannt» under its label.
+ * 0.8.2: the [selected] one is drawn filled, the others outlined (0.7.7); the selection is also told
+ * to TalkBack. 0.8.6: at least 72 dp high, the icon (24 dp) over the label; selected: tonal
+ * (secondaryContainer) with a primary outline, the icon in primary and a check in the corner.
  */
 @Composable
 private fun CategoryButton(cat: ReportCategory, suggested: Boolean, selected: Boolean, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val padding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-    val m = modifier.semantics { this.selected = selected }
+    val cs = MaterialTheme.colorScheme
+    val padding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+    val m = Modifier.fillMaxSize().heightIn(min = 72.dp).semantics { this.selected = selected }
     val content: @Composable () -> Unit = {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(cat.label, textAlign = TextAlign.Center)
-            if (suggested) {
-                Text(
-                    REPORT_SUGGESTED_MARK,
-                    style = MaterialTheme.typography.labelSmall,
-                    // On the filled button the primary colour would vanish: the button's own text colour.
-                    color = if (selected) LocalContentColor.current else MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
+            Icon(
+                reportCategoryIcon(cat), contentDescription = null, modifier = Modifier.size(24.dp),
+                tint = if (selected && enabled) cs.primary else LocalContentColor.current,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(cat.label, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
         }
     }
-    if (selected) {
-        Button(onClick = onClick, enabled = enabled, modifier = m, contentPadding = padding) { content() }
-    } else {
-        OutlinedButton(onClick = onClick, enabled = enabled, modifier = m, contentPadding = padding) { content() }
+    // 0.8.6: «erkannt» in the button's top-left corner (the check is top-right), so every button keeps one height.
+    val mark: @Composable BoxScope.() -> Unit = {
+        if (suggested) {
+            Text(
+                REPORT_SUGGESTED_MARK,
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.primary,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 6.dp),
+            )
+        }
+    }
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier) {
+        if (selected) {
+            FilledTonalButton(onClick = onClick, enabled = enabled, modifier = m, shape = shape, contentPadding = padding, border = BorderStroke(2.dp, cs.primary)) { content() }
+            Icon(
+                Icons.Filled.CheckCircle, contentDescription = null, tint = cs.primary,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp),
+            )
+        } else {
+            OutlinedButton(onClick = onClick, enabled = enabled, modifier = m, shape = shape, contentPadding = padding) { content() }
+        }
+        mark()
     }
 }
 

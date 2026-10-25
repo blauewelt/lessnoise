@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.8.6 — Labor·Karte only, not published (branch labor-one-tap): visual polish, no functional change (versionCode 38)
+
+In short (the owner: «more space, add some icons, so the look becomes more balanced»): layout,
+spacing, type scale, icons and scheme colours; one display fix (the status chip's day).
+
+- **«Laut! Melden» dialog** in three groups, 20 dp apart: the disc (the «© swisstopo» credit in its
+  bottom-right corner, «Nord · 358°» in titleMedium, the hint under it); a tonal card with the level as
+  two stat blocks («57,5 dB(A) jetzt» with the graphic_eq icon, «68,4 dB(A) Spitze») and a location row
+  with an icon (my_location / location_searching / edit_location with «Zurück zum Standort»); «Was war
+  es?» with the six categories as 72 dp buttons, icon over label (Töff two_wheeler, Auto directions_car,
+  Lastwagen local_shipping, Flugzeug flight, Poser speed, anderes Fahrzeug more_horiz), 12 dp apart,
+  the selected one tonal with a primary outline and a check, «erkannt» in the corner; then «Foto vom
+  Fahrzeug (optional)» (56 dp thumbnail with «×» and «Neues Foto» once taken). The rule-10 line with an
+  info icon directly above the actions; «Senden» a filled button with the send icon; the megaphone
+  above the title. Same behaviour, same texts otherwise.
+- **«Messen»:** one height (56 dp) and one label style for «Laut! Melden» (filled), «Messung starten»
+  (tonal) and «Unterwegs aufnehmen» (outlined); helper lines in bodyMedium 4 dp under their button,
+  16 dp between groups, 24 dp before the status chip (now in body size); «Mehr dazu» with an info icon.
+- **Status chip «Auf der Karte · …»** now says the day when the last send was not today («gestern
+  18:42», «23.10. 18:42»); until now only the time, so a send just after midnight read «00:00» the
+  next morning.
+- **Every screen:** one screen title style and 16 dp margins; cards are plain surfaceContainer cards
+  (12 dp corners, 16 dp inside); fold-outs with chevron icons instead of «▸/▾»; switches as list rows;
+  «Vom Server löschen» / «Alle löschen» outlined in the error colour, delete confirmations in the error
+  colour; «Einstellungen» rows with icons and chevrons («Akku-Optimierung ausschalten», «Erweitert»);
+  «Messungen»: the selected measurement highlighted, «geteilt» a small chip, empty and loading states
+  with an icon; «Teilen» › «Meldungen» as list rows with the category icon; bottom bar icons graphic_eq,
+  history, map (AppIcons).
+- New Paparazzi renders (PolishScreenshots, ReportDialogScreenshots) of the dialog and the screens,
+  light and dark.
+
 ## 0.8.5 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 37)
 
 In short (the owner's requests): «Laut! Melden» measures while it is open and sends the level with

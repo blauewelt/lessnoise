@@ -152,8 +152,17 @@ class ReportFlowTest {
         val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
         val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        assertTrue(dialog.contains("TextButton(onClick = { moved = null }) { Text(REPORT_MOVE_BACK) }"))
-        assertTrue(dialog.contains("reportFixLine(fix?.accuracyText, moved != null)"))
+        // 0.8.6: the content is ReportDialogBody; the dialog passes the reset and the line.
+        val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
+        assertTrue(dialog.contains("onMoveBack = { moved = null },"))
+        assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) {\n                        TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
+        assertTrue(dialog.contains("fixLine = reportFixLine(fix?.accuracyText, moved != null),"))
+        assertTrue(dialog.contains("fixState = reportFixState(fix != null, moved != null),"))
+        assertEquals(ReportFixState.SEARCHING, reportFixState(false, true))
+        assertEquals(ReportFixState.MOVED, reportFixState(true, true))
+        assertEquals(ReportFixState.FIX, reportFixState(true, false))
+        // The preview tiles of the JVM renders are never passed by the app.
+        assertFalse(ui.contains("previewTiles"))
         // A new dialog (or «Nochmals», or Abbrechen) starts from the fix again.
         assertTrue(ui.substringAfter("fun open() {").substringBefore("\n    }").contains("moved = null"))
         assertTrue(ui.substringAfter("fun cancel() {").substringBefore("\n    }").contains("moved = null"))
@@ -168,15 +177,21 @@ class ReportFlowTest {
             assertFalse(ui.contains(gone), gone)
         }
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        // 0.8.6: «Senden» a filled button with the send icon (ReportSendButton), still the confirm button.
         assertTrue(
-            dialog.contains("TextButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending)) { Text(REPORT_SEND) }"),
+            dialog.contains("confirmButton = {\n                    ReportSendButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending))\n                },"),
             "«Senden» is the confirm button",
         )
+        val sendButton = ui.substringAfter("fun ReportSendButton(").substringBefore("\n}")
+        assertTrue(sendButton.contains("Button(onClick = onClick, enabled = enabled") && sendButton.contains("Text(REPORT_SEND)"), sendButton)
         assertTrue(dialog.contains("dismissButton = { TextButton(onClick = { cancel() }) { Text(\"Abbrechen\") } },"))
         assertTrue(dialog.contains("dismissOnClickOutside = false"))
-        assertTrue(dialog.contains(".verticalScroll("), "scrollable on small screens")
+        val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
+        assertTrue(dialog.contains("text = {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
+        assertTrue(body.contains(".verticalScroll("), "scrollable on small screens")
         // A category tap only selects; the selected one is drawn filled.
-        assertTrue(dialog.contains("selected = cat == chosen") && dialog.contains("{ select(cat) }"))
+        assertTrue(body.contains("selected = cat == chosen") && body.contains("{ onSelect(cat) }") && dialog.contains("onSelect = { cat -> select(cat) },"))
+        assertTrue(dialog.contains("chosen = chosen,"))
         val select = dialog.substringAfter("fun select(").substringBefore("fun sendTap(")
         assertFalse(select.contains("advance()") || select.contains("send("), select)
         val buttons = ui.substringAfter("private fun CategoryButton(").substringBefore("\n}")

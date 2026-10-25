@@ -109,10 +109,11 @@ fun AboutAppCard() {
             style = MaterialTheme.typography.bodyMedium,
         )
         // Which edition is installed, and how to switch (install the other APK over this one).
-        Text(EditionInfo.summary(BuildConfig.EDITION), style = MaterialTheme.typography.bodySmall)
-        EditionInfo.switchHint(BuildConfig.EDITION)?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        // 0.8.6: body text in bodyMedium, the small print in bodySmall (onSurfaceVariant).
+        Text(EditionInfo.summary(BuildConfig.EDITION), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        EditionInfo.switchHint(BuildConfig.EDITION)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         OutlinedButton(onClick = open) { Text("Update prüfen") }
-        Text("Öffnet wenigerlaerm.ch im Browser.", style = MaterialTheme.typography.bodySmall)
-        Text("Offene Software (Apache-2.0) vom Verein Weniger Lärm.", style = MaterialTheme.typography.bodySmall)
+        Text("Öffnet wenigerlaerm.ch im Browser.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Offene Software (Apache-2.0) vom Verein Weniger Lärm.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

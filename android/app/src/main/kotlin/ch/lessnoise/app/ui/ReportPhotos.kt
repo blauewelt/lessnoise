@@ -99,7 +99,8 @@ object ReportPhotos {
     const val MAX_SIDE = 1600
     const val JPEG_QUALITY = 85
 
-    const val BUTTON = "Foto"
+    /** 0.8.6: «Foto vom Fahrzeug (optional)» (0.8.5: «Foto»), so that it reads as optional next to the required category. */
+    const val BUTTON = "Foto vom Fahrzeug (optional)"
     const val BUTTON_AGAIN = "Neues Foto"
     const val REMOVE = "Foto entfernen"
     const val DESCRIPTION = "Foto der Meldung"
