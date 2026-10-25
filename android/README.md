@@ -339,18 +339,27 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Starten.** In the «Online-Version» the first «Starten» asks once «Auf die
+3. **Messen → Starten** (since 0.8.3, Labor·Karte first: **«Messung starten»**; in the editions with
+   the map a switch at the top chooses the mode first, **«Am Fenster» | «Unterwegs»**, below). In the
+   «Online-Version» the first «Starten» asks once «Auf die
    Lärmkarte?» («Ja, auf die Karte» / «Nur auf dem Telefon»). The measurement starts at once; with
    sharing on the phone takes one location fix for the measurement's place in parallel, moved at
    random on the phone, and a status line below «Läuft seit …» says how sharing stands («Standort
    wird bestimmt …», «Wird geteilt – erste Werte in etwa einer Minute», «Auf der Karte · zuletzt
-   gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»). While measuring, a persistent notification
+   gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»; since 0.8.3 a
+   status chip with an icon and shorter words: «Standort wird gesucht …», «Wird geteilt · erste Werte
+   in etwa 1 Minute», «Auf der Karte · 18:42», «Kein Standort» ›). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
    «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
    screen shows «Jetzt» (LAF), «Grundrauschen» (the 5-min L90), «Klingt nach» (the current
    category), «Läuft seit …» and the «Letzte Lärmspitzen». Before the start it shows one placement
    hint and one microphone line («Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder
-   gesendet.») instead.
+   gesendet.») instead. Since 0.8.3 (Labor·Karte first): one line under the button («Am Fenster:
+   Telefon ans offene Fenster, am Ladegerät.» / «Unterwegs: Mitteilung bei sehr lautem Verkehr.
+   Nichts kommt auf die Karte.»; while measuring «Läuft seit 18:30 · Bildschirm darf aus sein.»), the
+   placement and microphone lines folded under «Mehr dazu ⌄»; the level card holds the bar (Material
+   `LinearProgressIndicator`, primary < 60 dB, tertiary 60–75, error ≥ 75), «Grundrauschen» and
+   «Klingt nach» as a chip; the Lärmspitzen are list items (`ui/MeasureScreen.kt`, `ui/MeasureMode.kt`).
 4. When you are done — after an hour, a night or several days: **Stoppen** (or «Stopp» in
    the notification), then look at **Messungen**.
 
@@ -570,17 +579,28 @@ Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/alert
 `ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`
 and keep the one button «Starten»).
 
-Since 0.6.4 «Unterwegs» is a **start mode**, not a switch: «Messen» shows two buttons, **«Messen»**
+Since 0.6.4 «Unterwegs» is a **start mode**, not a switch: «Messen» showed two buttons, **«Messen»**
 and **«Unterwegs»**, and one line under them («Unterwegs: Mitteilung bei sehr lautem Verkehr (ab
-75 dB), nichts auf die Karte.»; `START_MEASURE`, `START_UNTERWEGS`, `UNTERWEGS_HINT` in
-`ui/MeasureScreen.kt`). «Messen» starts a measurement that is shared as before if sharing is on.
+75 dB), nichts auf die Karte.»). **Since 0.8.3** (Labor·Karte first) the mode is chosen with a
+Material segmented switch at the top of «Messen», **«Am Fenster» | «Unterwegs»** (remembered in the
+private preference file `measure`, key `mode`, default «Am Fenster»; disabled while a measurement
+runs — a tap on it then says «Zum Wechseln zuerst stoppen»), and the one button **«Messung
+starten»** starts in that mode: «Am Fenster» exactly as the old «Messen», «Unterwegs» exactly as the
+old «Unterwegs» button (same `ShareController.start(unterwegs = true)` path, same notification-permission
+ask). One line under the button per mode (`WINDOW_HINT`, `UNTERWEGS_HINT` in `ui/MeasureMode.kt`).
+While a measurement runs the switch shows the run's mode (`shownMode`), and «Unterwegs erkannt» while
+the motion detector says the phone is carried in an «Am Fenster» run (below; the stored choice is not
+changed). «Am Fenster» (the old «Messen») starts a measurement that is shared as before if sharing is on.
 «Unterwegs» starts one that **shares nothing**: no question «Auf die Lärmkarte?», no location fix, no
 point (`ShareController.start(unterwegs = true)` → `MeasurementService.start(…, unterwegs = true)`;
 the row gets `MeasurementEntity.unterwegs = true`, database v7 → v8; `MeasurementDao.attachPoint`
 refuses such a row and `sharedPoint()` is null for it, so `PlaceIndex` makes no field from it and
 none of its minutes and events is sent; the live uploads do not run for it). The status line and the
-map banner say «Unterwegs – diese Messung kommt nicht auf die Karte». While it runs, «Laut! Melden»
-is shown under «Stoppen» too. Tapping «Unterwegs» asks for `POST_NOTIFICATIONS` on Android 13+ if
+map banner say «Unterwegs – diese Messung kommt nicht auf die Karte» (0.8.3: the chip «Unterwegs ·
+nichts auf die Karte»). While it runs, «Laut! Melden»
+is shown under «Stoppen» too (0.8.3: in the «Unterwegs» mode, idle or running, and during «Unterwegs
+erkannt» it is a floating button above the bottom bar; at the window an outlined button under
+«Messung starten» while idle). Tapping «Unterwegs» (0.8.3: «Messung starten» in the «Unterwegs» mode) asks for `POST_NOTIFICATIONS` on Android 13+ if
 missing (already declared for the measurement's notification); the measurement starts either way.
 The 0.6.3 preference `loud_alert` is no longer read.
 
@@ -684,7 +704,8 @@ fragment: no reload, no history entry; after `onPageFinished` if the page is sti
 not visible yet (`mapBanner`: «Noch kein Standort – Werte erscheinen danach», «Erste Werte werden
 gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte aktualisiert sich
 laufend» for 2 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
-on «Messen» does). The WebView's history is never used: the system back gesture is an undo stack of the
+on «Messen» does; since 0.8.3 the same status chip as on «Messen», «·» instead of «–», and «Du teilst
+nicht» opens «Teilen» instead of asking «Auf die Lärmkarte?» there). The WebView's history is never used: the system back gesture is an undo stack of the
 tabs opened (`TabHistory`: every switch, tapped or opened from a status line or banner, pushes the
 tab left; back pops; with nothing left back leaves the app; at most 30 entries). Since 0.8.2
 (Labor·Karte first) the page is dark when the app is (`isSystemInDarkTheme()`, the same signal as
@@ -732,7 +753,10 @@ the others on arrival. A measurement started as «Unterwegs» shares nothing (ab
    wird bestimmt …», «Kein Standort – tippen», «Wird geteilt – erste Werte in etwa einer Minute»,
    «Auf der Karte · zuletzt gesendet HH:MM» (tap: the tab «Karte»), «Kein Internet – wird
    nachgeholt», «Nicht gesendet: … – wird nachgeholt», «Unterbrochen – tippen für «Neu starten»»;
-   `ui/ShareStatus.kt`, pure and JVM-tested), the count of records the server refused for good;
+   `ui/ShareStatus.kt`, pure and JVM-tested; since 0.8.3 a chip with an icon — `StatusIcon`: cloud_done,
+   cloud_upload, cloud_off, my_location with a spinner, location_off, directions_walk — and shorter
+   words, e.g. «Nicht auf der Karte ›» (tap: «Teilen»), «Kein Standort ›», «Auf der Karte · HH:MM ›»),
+   the count of records the server refused for good;
    under «Weitere Angaben ▸» «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
    most about 3 MB a day measuring round the clock), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
@@ -784,7 +808,7 @@ rule 2). The secret is 32 random bytes made at the first shared «Starten» (`up
 stored encrypted next to the upload token, never sent) and dropped by «Neu starten» and «Vom
 Server löschen». The point is accepted only with «Genauer Standort» and accuracy ≤ 75 m
 (`location/LocationPolicy.kt`, pure Kotlin). If it fails there is no dialog: the status line says
-«Kein Standort – tippen», and the tap says why in one sentence and offers «Nochmals», the app or
+«Kein Standort – tippen» (0.8.3: the chip «Kein Standort ›»), and the tap says why in one sentence and offers «Nochmals», the app or
 location settings where they help, and «Koordinaten einfügen» (WGS84 decimal degrees `47.3769, 8.5417`,
 LV95 `2'683'304, 1'247'925`, LV03 or a cell id — its centre —, `upload/CellInput.kt`; moved the same
 way). The shifted point, its σ and its display cell are then **attached to the running

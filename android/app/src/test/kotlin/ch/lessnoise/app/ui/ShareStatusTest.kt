@@ -10,7 +10,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 0.6.3: the status line on «Messen» and «Teilen», every state (ShareStatus.kt). */
+/** 0.6.3: the status line on «Messen» and «Teilen», every state (ShareStatus.kt); since 0.8.3 a chip with an icon. */
 class ShareStatusTest {
     private val start = 1_000_000L
     private val on = UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t")
@@ -27,22 +27,23 @@ class ShareStatusTest {
     ) = shareStatus(s, running, if (running) start else 0, hasPoint, locate, online, unterwegs, moving, hm)
 
     @Test
-    fun offOrNoShowsTheInvitationWhichAsksTheQuestion() {
+    fun offOrNoShowsTheChipThatOpensTeilen() {
+        // 0.8.3: a tap opens «Teilen» (its switch asks the question if it was never answered); until 0.8.2 TURN_ON.
         for (s in listOf(UploadSnapshot(shareDecision = ShareDecision.NO), UploadSnapshot(shareDecision = ShareDecision.UNDECIDED))) {
-            assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(s, hasPoint = false))
+            assertEquals(ShareStatus(STATUS_OFF, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), status(s, hasPoint = false))
         }
         // Idle: the short form only after a «no»; before the first «Starten» nothing (the question comes with it).
-        assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false))
+        assertEquals(ShareStatus(STATUS_OFF, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false))
         assertNull(status(UploadSnapshot(), running = false))
     }
 
     @Test
     fun withoutPointLocatingOrProblem() {
-        assertEquals(ShareStatus(STATUS_LOCATING, ShareAction.NONE), status(on, hasPoint = false, locate = LocateState.Locating))
-        assertEquals(ShareStatus(STATUS_LOCATING, ShareAction.NONE), status(on, hasPoint = false, locate = LocateState.Pending))
+        assertEquals(ShareStatus(STATUS_LOCATING, ShareAction.NONE, StatusIcon.LOCATING), status(on, hasPoint = false, locate = LocateState.Locating))
+        assertEquals(ShareStatus(STATUS_LOCATING, ShareAction.NONE, StatusIcon.LOCATING), status(on, hasPoint = false, locate = LocateState.Pending))
         for (o in listOf(LocationPolicy.Outcome.PermissionDenied, LocationPolicy.Outcome.LocationOff, LocationPolicy.Outcome.NoFix, LocationPolicy.Outcome.ApproximateOnly)) {
             assertEquals(
-                ShareStatus(STATUS_NO_POINT, ShareAction.LOCATION_OPTIONS, problem = true),
+                ShareStatus(STATUS_NO_POINT, ShareAction.LOCATION_OPTIONS, StatusIcon.NO_LOCATION, problem = true),
                 status(on, hasPoint = false, locate = LocateState.Failed(o)),
             )
         }
@@ -52,24 +53,24 @@ class ShareStatusTest {
 
     @Test
     fun sharedFirstValuesThenSentWithTime() {
-        assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE), status(on))
+        assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE, StatusIcon.SHARING), status(on))
         // Something was sent before, but nothing of this measurement yet (marker before its start).
         assertEquals(STATUS_FIRST_VALUES, status(on.copy(lastSuccessAtMs = start - 5, minutesSentUpToMs = start - 60_000))!!.text)
         // Acknowledged: the marker moved into this measurement.
         assertEquals(
-            ShareStatus("Auf der Karte · zuletzt gesendet 14:05", ShareAction.OPEN_MAP),
+            ShareStatus("Auf der Karte · 14:05", ShareAction.OPEN_MAP, StatusIcon.ON_MAP),
             status(on.copy(lastSuccessAtMs = start + 180_000, minutesSentUpToMs = start + 60_000)),
         )
     }
 
     @Test
     fun failuresSayWhatAndThatItIsRetried() {
-        assertEquals(ShareStatus(STATUS_NO_INTERNET, ShareAction.NONE, problem = true), status(on, online = false))
+        assertEquals(ShareStatus(STATUS_NO_INTERNET, ShareAction.NONE, StatusIcon.OFF_MAP, problem = true), status(on, online = false))
         assertEquals(STATUS_NO_INTERNET, status(on.copy(lastError = Uploader.NO_CONNECTION_TEXT))!!.text)
         assertEquals(STATUS_SERVER_BUSY, status(on.copy(lastError = Uploader.RETRY_TEXT))!!.text)
         assertEquals(STATUS_REJECTED, status(on.copy(lastError = "Vom Server abgelehnt (422)."))!!.text)
         // 401: the existing «Neu starten» path in «Teilen».
-        assertEquals(ShareStatus(STATUS_AUTH, ShareAction.OPEN_SHARE, problem = true), status(on.copy(authFailed = true)))
+        assertEquals(ShareStatus(STATUS_AUTH, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP, problem = true), status(on.copy(authFailed = true)))
         assertEquals(ShareAction.OPEN_SHARE, status(on.copy(authFailed = true), running = false)!!.action)
         // Offline while idle: nothing waits, no alarm.
         assertFalse(status(on, running = false, online = false)!!.problem)
@@ -77,22 +78,30 @@ class ShareStatusTest {
 
     @Test
     fun idleShortForm() {
-        assertEquals(ShareStatus(STATUS_ON_IDLE, ShareAction.NONE), status(on, running = false))
-        assertEquals(ShareStatus("Auf der Karte · zuletzt gesendet 14:05", ShareAction.OPEN_MAP), status(on.copy(lastSuccessAtMs = 5), running = false))
+        assertEquals(ShareStatus(STATUS_ON_IDLE, ShareAction.NONE, StatusIcon.SHARING), status(on, running = false))
+        assertEquals(ShareStatus("Auf der Karte · 14:05", ShareAction.OPEN_MAP, StatusIcon.ON_MAP), status(on.copy(lastSuccessAtMs = 5), running = false))
     }
 
     @Test
     fun textsAreShortSwissGermanWithDu() {
         val all = listOf(
             STATUS_OFF, STATUS_LOCATING, STATUS_NO_POINT, STATUS_FIRST_VALUES, STATUS_ON_IDLE, STATUS_NO_INTERNET,
-            STATUS_SERVER_BUSY, STATUS_REJECTED, STATUS_AUTH, statusSent("14:05"),
+            STATUS_SERVER_BUSY, STATUS_REJECTED, STATUS_AUTH, statusSent("14:05"), STATUS_UNTERWEGS, STATUS_MOVING,
         )
         for (t in all) {
-            assertTrue(t.length <= 60, "too long for one line: $t")
+            // 0.8.3: a chip, one line at phone width (was 60 for the card).
+            assertTrue(t.length <= 50, "too long for one chip: $t")
             assertFalse(t.contains('ß') || t.contains('"') || Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
             assertFalse(t.endsWith("."), t)
         }
-        assertEquals(LocationPolicy.PROGRESS_TEXT, STATUS_LOCATING)
+        // 0.8.3: the same words as the fix line of «Laut! Melden».
+        assertEquals("Standort wird gesucht …", STATUS_LOCATING)
+        assertEquals(REPORT_LOCATING, STATUS_LOCATING)
+        // The chip texts of 0.8.3 (shorter; «·» instead of «–»; the «›» and the icon say the rest).
+        assertEquals("Nicht auf der Karte", STATUS_OFF)
+        assertEquals("Kein Standort", STATUS_NO_POINT)
+        assertEquals("Auf der Karte · 18:42", statusSent("18:42"))
+        assertEquals("Unterwegs · nichts auf die Karte", STATUS_UNTERWEGS)
     }
 
     @Test
@@ -100,7 +109,7 @@ class ShareStatusTest {
         // 0.6.4: whatever the switch, the fix or the upload say, an «Unterwegs» measurement is not on the map.
         for (st in listOf(on, UploadSnapshot(shareDecision = ShareDecision.NO), UploadSnapshot(), on.copy(lastSuccessAtMs = start + 1, minutesSentUpToMs = start + 1))) {
             for (loc in listOf(LocateState.Idle, LocateState.Pending, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff))) {
-                assertEquals(ShareStatus(STATUS_UNTERWEGS, ShareAction.NONE), status(st, hasPoint = false, locate = loc, unterwegs = true))
+                assertEquals(ShareStatus(STATUS_UNTERWEGS, ShareAction.NONE, StatusIcon.UNTERWEGS), status(st, hasPoint = false, locate = loc, unterwegs = true))
             }
         }
         // The flow: «Unterwegs» starts at once, without the question and without a fix; switching
@@ -118,22 +127,22 @@ class ShareStatusTest {
         // Stopping it causes no upload request either.
         assertTrue(worker.contains("if (wasRunning && !st.running && !wasUnterwegs) uploadSoon("))
         // Not running: the usual idle line.
-        assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, unterwegs = true))
+        assertEquals(ShareStatus(STATUS_OFF, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, unterwegs = true))
     }
 
     @Test
     fun aMessenMeasurementWhileMovingSaysSoInOneSentence() {
         // 0.6.7 «Unterwegs erkannt»: while the detector says MOVING, one sentence, no tap; whatever else holds.
         for (st in listOf(on, UploadSnapshot(shareDecision = ShareDecision.NO), on.copy(lastSuccessAtMs = start + 1, minutesSentUpToMs = start + 1))) {
-            for (p in listOf(true, false)) assertEquals(ShareStatus(STATUS_MOVING, ShareAction.NONE), status(st, hasPoint = p, moving = true))
+            for (p in listOf(true, false)) assertEquals(ShareStatus(STATUS_MOVING, ShareAction.NONE, StatusIcon.UNTERWEGS), status(st, hasPoint = p, moving = true))
         }
-        assertEquals("Unterwegs erkannt: Mitteilung bei sehr lautem Verkehr, nichts auf die Karte.", STATUS_MOVING)
-        // The same wording as the «Unterwegs» hint under the start buttons.
-        assertTrue(UNTERWEGS_HINT.startsWith("Unterwegs: Mitteilung bei sehr lautem Verkehr") && STATUS_MOVING.endsWith("nichts auf die Karte."))
+        assertEquals("Unterwegs erkannt · nichts auf die Karte", STATUS_MOVING)
+        // 0.8.3: the same ending as the «Unterwegs» chip; the mode switch says «Unterwegs erkannt» at the same time (MeasureModeTest).
+        assertTrue(STATUS_MOVING.startsWith("Unterwegs erkannt") && STATUS_MOVING.endsWith(STATUS_UNTERWEGS.removePrefix("Unterwegs")))
         // Back to STILL: the usual line again; an «Unterwegs» measurement keeps its own line.
-        assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE), status(on, moving = false))
+        assertEquals(ShareStatus(STATUS_FIRST_VALUES, ShareAction.NONE, StatusIcon.SHARING), status(on, moving = false))
         assertEquals(STATUS_UNTERWEGS, status(on, unterwegs = true, moving = true)!!.text)
         // Not running: never.
-        assertEquals(ShareStatus(STATUS_OFF, ShareAction.TURN_ON), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, moving = true))
+        assertEquals(ShareStatus(STATUS_OFF, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, moving = true))
     }
 }

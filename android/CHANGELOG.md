@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.8.3 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 35)
+
+In short: «Messen» is redesigned (owner's verdict: the «Laut! Melden» dialog is good, the rest is
+still the first version). A mode switch at the top, one primary button, the status as a chip instead
+of the beige card, a Material level card, and a colour scheme without the Material purple and beige
+defaults (dark as good as light). Same data, same hosts, same two ways to start, no new permission,
+no new dependency. The «Laut! Melden» dialog, the service and the upload are unchanged.
+
+- **Mode switch «Am Fenster» | «Unterwegs»** (Material segmented buttons, editions with the map):
+  replaces the two start buttons «Messen» | «Unterwegs» and the line under them. Remembered on the
+  phone (default «Am Fenster»). Disabled while a measurement runs («Zum Wechseln zuerst stoppen» on a
+  tap); it then shows the run's mode, and **«Unterwegs erkannt»** while the motion detector says the
+  phone is carried in an «Am Fenster» run (the stored choice stays). Offline and Labor builds: no
+  switch, as before no «Unterwegs».
+- **One primary action**: «Messung starten» (56 dp, play icon) / «Stoppen» (error colour, stop icon),
+  ONE line under it («Am Fenster: Telefon ans offene Fenster, am Ladegerät.» / «Unterwegs: Mitteilung
+  bei sehr lautem Verkehr. Nichts kommt auf die Karte.» / «Läuft seit 18:30 · Bildschirm darf aus
+  sein.»). The placement and microphone paragraphs and the guide link are folded under «Mehr dazu ⌄».
+- **«Laut! Melden»**: in «Unterwegs» (idle, running, and during «Unterwegs erkannt») a floating
+  button with a megaphone above the bottom bar; at the window an outlined button under «Messung
+  starten» while idle, as before. Same report action and notification preset.
+- **Status chip** instead of the beige/pink card, on «Messen», «Teilen» and above the map: icon +
+  short text + «›» when tappable — «Auf der Karte · 18:42» (cloud_done → tab «Karte»), «Standort wird
+  gesucht …» (spinner), «Kein Standort» (location_off, error colour; the location options as before),
+  «Nicht auf der Karte» (cloud_off → tab «Teilen»; until 0.8.2 the tap asked «Auf die Lärmkarte?»
+  directly), «Unterwegs · nichts auf die Karte», «Unterwegs erkannt · nichts auf die Karte».
+- **Level card**: the bar is a rounded 8 dp Material progress bar coloured by level (primary below
+  60 dB, tertiary 60–75, error from 75), «Klingt nach» is a chip inside the same card, the
+  Lärmspitzen are Material list items.
+- **Colours**: the scheme now sets every role (surface containers, outlines, tertiary container,
+  inverse); the lavender bottom bar and the beige secondary container (tab indicator, «geteilt»
+  badge) are calm neutral / blue-grey tones of the brand navy. Icons not in the core set (window,
+  walk, megaphone, clouds, location) are drawn as vectors in the app (`AppIcons`), no extended icon
+  library.
+
 ## 0.8.2 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 34)
 
 In short: the tab «Karte» is dark when the app is; «Laut! Melden» has its «Senden» back; the

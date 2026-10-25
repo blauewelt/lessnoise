@@ -293,14 +293,15 @@ private fun MapBannerSlot(hasAnyPoint: Boolean, onOpen: (Screen) -> Unit) {
     MapBannerContent(banner, onTap = { a -> handleShareAction(a, share, onOpen) })
 }
 
-/** One banner row (also rendered on the JVM, ShareScreenshots): the status line's look and tap. */
+/**
+ * One banner row (also rendered on the JVM, ShareScreenshots): since 0.8.3 the same status chip as on
+ * «Messen» (icon, short text, «›» when tappable) on a strip of the app's background above the map.
+ */
 @Composable
 fun MapBannerContent(banner: MapBanner, onTap: (ShareAction) -> Unit, modifier: Modifier = Modifier) {
-    ShareStatusLine(
-        ShareStatus(banner.text, banner.action),
-        onTap,
-        modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-    )
+    Box(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp, vertical = 8.dp)) {
+        StatusChip(ShareStatus(banner.text, banner.action, banner.icon), onTap)
+    }
 }
 
 /**

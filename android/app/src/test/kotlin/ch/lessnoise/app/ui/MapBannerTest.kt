@@ -36,29 +36,30 @@ class MapBannerTest {
         for (s in listOf(UploadSnapshot(shareDecision = ShareDecision.NO), UploadSnapshot(shareDecision = ShareDecision.UNDECIDED))) {
             for (running in listOf(true, false)) {
                 for (any in listOf(true, false)) {
-                    assertEquals(MapBanner(BANNER_NOT_SHARING, ShareAction.TURN_ON), banner(s, running = running, hasPoint = false, hasAnyPoint = any))
+                    assertEquals(MapBanner(BANNER_NOT_SHARING, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), banner(s, running = running, hasPoint = false, hasAnyPoint = any))
                 }
             }
         }
-        // Before the question (not running, undecided) the status line is empty, the banner still asks.
+        // Before the question (not running, undecided) the status line is empty, the banner still offers
+        // «Teilen» (0.8.3; until 0.8.2 it asked the question itself, TURN_ON).
         assertNull(lineAction(UploadSnapshot(), running = false))
-        assertEquals(ShareAction.TURN_ON, banner(UploadSnapshot(), running = false, hasPoint = false)!!.action)
+        assertEquals(ShareAction.OPEN_SHARE, banner(UploadSnapshot(), running = false, hasPoint = false)!!.action)
     }
 
     @Test
     fun noPointYet() {
-        assertEquals(MapBanner(BANNER_NO_POINT, ShareAction.NONE), banner(on, hasPoint = false, locate = LocateState.Locating))
+        assertEquals(MapBanner(BANNER_NO_POINT, ShareAction.NONE, StatusIcon.LOCATING), banner(on, hasPoint = false, locate = LocateState.Locating))
         assertEquals(
-            MapBanner(BANNER_NO_POINT, ShareAction.LOCATION_OPTIONS),
+            MapBanner(BANNER_NO_POINT, ShareAction.LOCATION_OPTIONS, StatusIcon.NO_LOCATION),
             banner(on, hasPoint = false, locate = LocateState.Failed(LocationPolicy.Outcome.LocationOff)),
         )
         // Not measuring, sharing on, never had a point.
-        assertEquals(MapBanner(BANNER_NO_POINT, ShareAction.NONE), banner(on, running = false, hasPoint = false))
+        assertEquals(MapBanner(BANNER_NO_POINT, ShareAction.NONE, StatusIcon.NO_LOCATION), banner(on, running = false, hasPoint = false))
     }
 
     @Test
     fun pointButNothingAcknowledged() {
-        assertEquals(MapBanner(BANNER_FIRST_VALUES, ShareAction.NONE), banner(on))
+        assertEquals(MapBanner(BANNER_FIRST_VALUES, ShareAction.NONE, StatusIcon.SHARING), banner(on))
         // An upload of an EARLIER measurement does not count for the running one (as the status line).
         val earlier = on.copy(lastSuccessAtMs = start - 5 * min, minutesSentUpToMs = start - 6 * min)
         assertEquals(BANNER_FIRST_VALUES, banner(earlier, now = start + 2 * min)!!.text)
@@ -71,7 +72,8 @@ class MapBannerTest {
         val acked = on.copy(lastSuccessAtMs = start + 20 * min, minutesSentUpToMs = start + 19 * min)
         val shown = banner(acked, now = start + 20 * min)!!
         assertEquals(bannerSent("14:05"), shown.text)
-        assertEquals("Gesendet 14:05 – die Karte aktualisiert sich laufend", shown.text)
+        assertEquals("Gesendet 14:05 · die Karte aktualisiert sich laufend", shown.text)
+        assertEquals(StatusIcon.ON_MAP, shown.icon)
         // The status line opens the map; on the map that is nothing to do (no «›»).
         assertEquals(ShareAction.OPEN_MAP, lineAction(acked))
         assertEquals(ShareAction.NONE, shown.action)
@@ -104,10 +106,10 @@ class MapBannerTest {
         val texts = listOf(BANNER_NOT_SHARING, BANNER_NO_POINT, BANNER_FIRST_VALUES, bannerSent("14:05"))
         assertEquals(
             listOf(
-                "Du teilst nicht – tippen zum Teilen",
-                "Noch kein Standort – Werte erscheinen danach",
-                "Erste Werte werden gesendet – auf der Karte in etwa einer Minute",
-                "Gesendet 14:05 – die Karte aktualisiert sich laufend",
+                "Du teilst nicht · tippen zum Teilen",
+                "Noch kein Standort · Werte erscheinen danach",
+                "Erste Werte werden gesendet · in etwa 1 Minute auf der Karte",
+                "Gesendet 14:05 · die Karte aktualisiert sich laufend",
             ),
             texts,
         )
@@ -118,7 +120,7 @@ class MapBannerTest {
     fun anUnterwegsMeasurementShowsThatItIsNotOnTheMap() {
         // 0.6.4: also with sharing on and an older shared point the map is centred on.
         for (st in listOf(on, UploadSnapshot())) {
-            assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE), banner(st, hasPoint = false, hasAnyPoint = true, unterwegs = true))
+            assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE, StatusIcon.UNTERWEGS), banner(st, hasPoint = false, hasAnyPoint = true, unterwegs = true))
         }
     }
 
@@ -126,8 +128,8 @@ class MapBannerTest {
     fun aMessenMeasurementWhileMovingShowsItIsNotOnTheMap() {
         // 0.6.7 «Unterwegs erkannt»: the banner says the same sentence as the status line.
         for (st in listOf(on, UploadSnapshot())) {
-            assertEquals(MapBanner(STATUS_MOVING, ShareAction.NONE), banner(st, hasPoint = true, hasAnyPoint = true, moving = true))
+            assertEquals(MapBanner(STATUS_MOVING, ShareAction.NONE, StatusIcon.UNTERWEGS), banner(st, hasPoint = true, hasAnyPoint = true, moving = true))
         }
-        assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE), banner(on, hasPoint = false, hasAnyPoint = true, unterwegs = true, moving = true))
+        assertEquals(MapBanner(BANNER_UNTERWEGS, ShareAction.NONE, StatusIcon.UNTERWEGS), banner(on, hasPoint = false, hasAnyPoint = true, unterwegs = true, moving = true))
     }
 }

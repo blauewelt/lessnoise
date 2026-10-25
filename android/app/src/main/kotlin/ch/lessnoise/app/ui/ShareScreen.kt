@@ -174,7 +174,7 @@ fun ShareContent(
                 Text("Auf die Karte senden", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 Switch(checked = s.enabled, onCheckedChange = onSwitch)
             }
-            status?.let { ShareStatusLine(it, onStatus) }
+            status?.let { StatusChip(it, onStatus) }
             if (s.refusedTotal > 0) {
                 Text("${s.refusedTotal} Werte waren zu alt und wurden nicht übernommen.", style = MaterialTheme.typography.bodySmall)
             }

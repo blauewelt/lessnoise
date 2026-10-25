@@ -3,8 +3,8 @@ package ch.lessnoise.app.alert
 import ch.lessnoise.app.service.LiveEvent
 import ch.lessnoise.app.service.MeasurementNotification
 import ch.lessnoise.app.service.MeasurementService
-import ch.lessnoise.app.ui.START_MEASURE
-import ch.lessnoise.app.ui.START_UNTERWEGS
+import ch.lessnoise.app.ui.MODE_ROAD
+import ch.lessnoise.app.ui.MODE_WINDOW
 import ch.lessnoise.app.ui.UNTERWEGS_HINT
 import ch.lessnoise.app.ui.REPORT_SUGGESTED_MARK
 import ch.lessnoise.app.ui.ReportPreset
@@ -81,10 +81,11 @@ class LoudAlertTest {
         // The category names are the app's (categories.json name_de).
         val names = File(repo(), "android/app/src/main/assets/categories.json").readText()
         assertTrue(names.contains("\"name_de\": \"Töff & Poser\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
-        // 0.6.4: «Unterwegs» is the second start button, with one line.
-        assertEquals("Unterwegs", START_UNTERWEGS)
-        assertEquals("Messen", START_MEASURE)
-        assertTrue(UNTERWEGS_HINT.length <= 90 && UNTERWEGS_HINT.contains("75 dB") && UNTERWEGS_HINT.contains("nichts auf die Karte"), UNTERWEGS_HINT)
+        // 0.6.4: «Unterwegs» is a start mode; since 0.8.3 a segment of the mode switch («Am Fenster» |
+        // «Unterwegs»), with one line under «Messung starten» (MeasureModeTest).
+        assertEquals("Unterwegs", MODE_ROAD)
+        assertEquals("Am Fenster", MODE_WINDOW)
+        assertTrue(UNTERWEGS_HINT.length <= 90 && UNTERWEGS_HINT.contains("sehr lautem Verkehr") && UNTERWEGS_HINT.contains("Nichts kommt auf die Karte"), UNTERWEGS_HINT)
     }
 
     @Test

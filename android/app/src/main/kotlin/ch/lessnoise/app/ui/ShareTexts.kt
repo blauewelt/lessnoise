@@ -70,39 +70,45 @@ const val CONSENT_YES = "Ja, auf die Karte"
 const val CONSENT_NO = "Nur auf dem Telefon"
 const val CONSENT_MORE = "Mehr dazu"
 
-// ---- The status line on «Messen» and «Teilen» (0.6.3, ShareStatus.kt) -----------------------------
+// ---- The status chip on «Messen» and «Teilen» (0.6.3 status line, ShareStatus.kt) ----------------
+// 0.8.3: shorter, «·» instead of «–», no «tippen …» where the chip's «›» says it is tappable; the
+// icon (StatusIcon) carries the rest (cloud_done / cloud_off / location_off …).
 
-const val STATUS_OFF = "Nicht auf der Karte – tippen zum Teilen"
-const val STATUS_LOCATING = "Standort wird bestimmt …"
-const val STATUS_NO_POINT = "Kein Standort – tippen"
-const val STATUS_FIRST_VALUES = "Wird geteilt – erste Werte in etwa einer Minute"
-const val STATUS_ON_IDLE = "Teilen ist an – deine nächste Messung kommt auf die Karte"
-const val STATUS_NO_INTERNET = "Kein Internet – wird nachgeholt"
-const val STATUS_SERVER_BUSY = "Nicht gesendet: Server nicht erreichbar – wird nachgeholt"
-const val STATUS_REJECTED = "Nicht gesendet: vom Server abgelehnt"
-const val STATUS_AUTH = "Unterbrochen – tippen für «Neu starten»"
+/** Sharing off (a tap opens «Teilen»). */
+const val STATUS_OFF = "Nicht auf der Karte"
+
+/** The one fix is running; the same words as in «Laut! Melden» ([REPORT_LOCATING]). */
+const val STATUS_LOCATING = REPORT_LOCATING
+const val STATUS_NO_POINT = "Kein Standort"
+const val STATUS_FIRST_VALUES = "Wird geteilt · erste Werte in etwa 1 Minute"
+const val STATUS_ON_IDLE = "Teilen an · nächste Messung kommt auf die Karte"
+const val STATUS_NO_INTERNET = "Kein Internet · wird nachgeholt"
+const val STATUS_SERVER_BUSY = "Server nicht erreichbar · wird nachgeholt"
+const val STATUS_REJECTED = "Vom Server abgelehnt"
+const val STATUS_AUTH = "Unterbrochen · tippen für «Neu starten»"
 /** 0.6.4: the running measurement was started as «Unterwegs». */
-const val STATUS_UNTERWEGS = "Unterwegs – diese Messung kommt nicht auf die Karte"
+const val STATUS_UNTERWEGS = "Unterwegs · nichts auf die Karte"
 
 /**
- * 0.6.7 («Unterwegs erkannt», editions with the map): a measurement started with «Messen» while the
- * phone is being carried. The wording of [UNTERWEGS_HINT], which says the same of «Unterwegs».
+ * 0.6.7 («Unterwegs erkannt», editions with the map): a measurement started «Am Fenster» while the
+ * phone is being carried. The mode switch shows «Unterwegs erkannt» at the same time (0.8.3).
  */
-const val STATUS_MOVING = "Unterwegs erkannt: Mitteilung bei sehr lautem Verkehr, nichts auf die Karte."
+const val STATUS_MOVING = "Unterwegs erkannt · nichts auf die Karte"
 
-/** «Auf der Karte · zuletzt gesendet 14:05». */
-fun statusSent(hm: String): String = "Auf der Karte · zuletzt gesendet $hm"
+/** «Auf der Karte · 14:05» (the last acknowledged upload). */
+fun statusSent(hm: String): String = "Auf der Karte · $hm"
 
 // ---- The banner above the map in the tab «Karte» (0.6.3 map tab fix, ShareStatus.kt mapBanner) ----
+// Since 0.8.3 drawn as the same chip as on «Messen».
 
-const val BANNER_NOT_SHARING = "Du teilst nicht – tippen zum Teilen"
-const val BANNER_NO_POINT = "Noch kein Standort – Werte erscheinen danach"
-const val BANNER_FIRST_VALUES = "Erste Werte werden gesendet – auf der Karte in etwa einer Minute"
+const val BANNER_NOT_SHARING = "Du teilst nicht · tippen zum Teilen"
+const val BANNER_NO_POINT = "Noch kein Standort · Werte erscheinen danach"
+const val BANNER_FIRST_VALUES = "Erste Werte werden gesendet · in etwa 1 Minute auf der Karte"
 /** 0.6.4: the running measurement was started as «Unterwegs». */
-const val BANNER_UNTERWEGS = "Unterwegs – diese Messung kommt nicht auf die Karte"
+const val BANNER_UNTERWEGS = STATUS_UNTERWEGS
 
-/** «Gesendet 14:05 – die Karte aktualisiert sich laufend». */
-fun bannerSent(hm: String): String = "Gesendet $hm – die Karte aktualisiert sich laufend"
+/** «Gesendet 14:05 · die Karte aktualisiert sich laufend». */
+fun bannerSent(hm: String): String = "Gesendet $hm · die Karte aktualisiert sich laufend"
 
 /** The setting under «Teilen → Weitere Angaben». */
 const val SIGMA_LABEL = "Standort verschieben"

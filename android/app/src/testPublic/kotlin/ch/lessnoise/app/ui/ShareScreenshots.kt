@@ -33,11 +33,13 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
- * 0.6.3 screens of the Online-Version, rendered on the JVM (Paparazzi) at phone width (1080 px at
- * 420 dpi ≈ 411 dp), light theme, synthetic values: the consent dialog, the status line on «Messen»
- * in three states, the simplified «Teilen», and the bottom bar with «Karte» over the map tab's
- * error state (the WebView itself does not render on the JVM). Written to
- * $stadtlaerm.screenshotDir/0.6.3 (default app/build/screenshots/0.6.3), for review only.
+ * Screens of the Online-Version, rendered on the JVM (Paparazzi) at phone width (1080 px at 420 dpi ≈
+ * 411 dp), synthetic values: since 0.8.3 «Messen» with the mode switch in its states (idle «Am Fenster»
+ * and «Unterwegs» with the floating «Laut! Melden», running on the map, «Unterwegs erkannt», no
+ * location, light and dark), the consent dialog, the simplified «Teilen», and the bottom bar with
+ * «Karte» over the map tab's error state and its banner (the WebView itself does not render on the
+ * JVM). Written to $stadtlaerm.screenshotDir/0.8.3 (default app/build/screenshots/0.8.3), for review
+ * only; the website's PNGs in docs/ are not made here.
  */
 class ShareScreenshots {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -58,7 +60,7 @@ class ShareScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.7.2")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.3")),
         useDeviceResolution = true,
     )
 
@@ -75,60 +77,79 @@ class ShareScreenshots {
     private val point = LocationNoise.Point(2683351, 1247988, 50)
     private val on = UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t")
 
-    private fun messen(name: String, status: ShareStatus) {
-        val live = LiveState(
-            running = true, startedAtMs = ms(18, 30), measurementStartMs = ms(18, 30), lafDb = 58.2, backgroundDb = 46.2,
-            dominantCategory = "road_traffic", dominantScore = 0.5f, classifierEnabled = true,
-            sharedPoint = if (status.text == STATUS_LOCATING || status.text == STATUS_NO_POINT) null else point,
-        )
-        val events = listOf(event(2, ms(18, 41, 5), 74.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
+    private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
+
+    /** «Messen» as the app shows it: inside the bottom bar (so the floating «Laut! Melden» sits above it). */
+    private fun messenScreen(
+        name: String,
+        live: LiveState,
+        status: ShareStatus?,
+        mode: MeasureMode = MeasureMode.WINDOW,
+        dark: Boolean = false,
+        events: List<EventEntity> = emptyList(),
+        moreOpen: Boolean = false,
+    ) {
         paparazzi.snapshot(name) {
-            LessNoiseTheme(dark = false) {
-                MeasureContent(
-                    live = live, events = events, calibrating = false,
-                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {},
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    shareStatus = status,
-                )
+            LessNoiseTheme(dark = dark) {
+                Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
+                    MeasureContent(
+                        live = live, events = events, calibrating = false,
+                        categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
+                        modifier = Modifier.padding(padding).fillMaxSize(),
+                        shareStatus = status, mode = mode, moreOpen = moreOpen,
+                    )
+                }
             }
         }
     }
 
-    // 0.6.4 «Unterwegs»: the two start buttons «Messen» | «Unterwegs» with one line (idle), and a
-    // running «Unterwegs» measurement (status line: not on the map; «Laut! Melden» available).
+    private fun runningLive(status: ShareStatus, unterwegs: Boolean = false, moving: Boolean = false, laf: Double = 58.2) = LiveState(
+        running = true, startedAtMs = ms(18, 30), measurementStartMs = ms(18, 30), lafDb = laf, backgroundDb = 46.2,
+        dominantCategory = "road_traffic", dominantScore = 0.5f, classifierEnabled = true, unterwegs = unterwegs, moving = moving,
+        sharedPoint = if (unterwegs || status.icon == StatusIcon.LOCATING || status.icon == StatusIcon.NO_LOCATION) null else point,
+    )
+
+    private val runningEvents = listOf(event(2, ms(18, 41, 5), 74.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
+
+    private fun messen(name: String, status: ShareStatus, dark: Boolean = false) =
+        messenScreen(name, runningLive(status), status, dark = dark, events = runningEvents)
+
+    private val idleSent = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42)), false, 0, false, LocateState.Idle, true) { "18:42" }
+    private val runningSent =
+        shareStatus(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, ms(18, 30), true, LocateState.Idle, true) { "18:42" }!!
+
+    // 0.8.3: the mode switch «Am Fenster» | «Unterwegs», one primary button, one line, the status chip.
     @Test
-    fun messenUnterwegsIdle() {
-        paparazzi.snapshot("messen-unterwegs-idle") {
-            LessNoiseTheme(dark = false) {
-                MeasureContent(
-                    live = LiveState(), events = emptyList(), calibrating = false,
-                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    shareStatus = shareStatus(on.copy(lastSuccessAtMs = ms(18, 42)), false, 0, false, LocateState.Idle, true) { "18:42" },
-                    onStartUnterwegs = {},
-                )
-            }
-        }
-    }
+    fun messenIdleFenster() = messenScreen("messen-idle-fenster", LiveState(), idleSent)
+
+    @Test
+    fun messenIdleFensterDark() = messenScreen("messen-idle-fenster-dark", LiveState(), idleSent, dark = true)
+
+    @Test
+    fun messenIdleMehrDazu() = messenScreen("messen-idle-mehr-dazu", LiveState(), idleSent, moreOpen = true)
+
+    // «Unterwegs» idle: «Laut! Melden» is the floating button above the bottom bar.
+    @Test
+    fun messenIdleUnterwegs() = messenScreen("messen-idle-unterwegs", LiveState(), idleSent, mode = MeasureMode.ROAD)
+
+    @Test
+    fun messenIdleUnterwegsDark() = messenScreen("messen-idle-unterwegs-dark", LiveState(), idleSent, mode = MeasureMode.ROAD, dark = true)
 
     @Test
     fun messenUnterwegsRunning() {
-        val live = LiveState(
-            running = true, startedAtMs = ms(18, 30), measurementStartMs = ms(18, 30), lafDb = 81.4, backgroundDb = 52.0,
-            dominantCategory = "loud_vehicle", dominantScore = 0.6f, classifierEnabled = true, unterwegs = true,
-        )
+        val status = shareStatus(on, true, ms(18, 30), false, LocateState.Idle, true, unterwegs = true) { "18:42" }!!
         val events = listOf(event(2, ms(18, 41, 5), 84.0, "loud_vehicle"), event(1, ms(18, 36, 40), 66.5, "rail_tram"))
-        paparazzi.snapshot("messen-unterwegs-running") {
-            LessNoiseTheme(dark = false) {
-                MeasureContent(
-                    live = live, events = events, calibrating = false,
-                    categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    shareStatus = shareStatus(on, true, ms(18, 30), false, LocateState.Idle, true, unterwegs = true) { "18:42" },
-                    onStartUnterwegs = {},
-                )
-            }
-        }
+        messenScreen(
+            "messen-unterwegs-running", runningLive(status, unterwegs = true, laf = 81.4).copy(dominantCategory = "loud_vehicle"),
+            status, mode = MeasureMode.ROAD, events = events,
+        )
+    }
+
+    // An «Am Fenster» run while the phone is carried: the switch shows «Unterwegs erkannt», the stored choice stays.
+    @Test
+    fun messenRunningErkannt() {
+        val status = shareStatus(on, true, ms(18, 30), true, LocateState.Idle, true, moving = true) { "18:42" }!!
+        messenScreen("messen-running-erkannt", runningLive(status, moving = true, laf = 66.0), status, events = runningEvents)
     }
 
     @Test
@@ -141,9 +162,16 @@ class ShareScreenshots {
     )
 
     @Test
-    fun messenOnTheMap() = messen(
-        "messen-status-on-the-map",
-        shareStatus(on.copy(lastSuccessAtMs = ms(18, 42), minutesSentUpToMs = ms(18, 41)), true, ms(18, 30), true, LocateState.Idle, true) { "18:42" }!!,
+    fun messenOnTheMap() = messen("messen-running-on-the-map", runningSent)
+
+    @Test
+    fun messenDark() = messen("messen-dark", runningSent, dark = true)
+
+    @Test
+    fun messenNotSharingDark() = messen(
+        "messen-status-not-sharing-dark",
+        shareStatus(UploadSnapshot(shareDecision = ShareDecision.NO), true, ms(18, 30), false, LocateState.Idle, true) { "18:42" }!!,
+        dark = true,
     )
 
     @Test
@@ -191,10 +219,10 @@ class ShareScreenshots {
 
     // 0.6.3 map tab fix: the banner above the map in its four states. The WebView does not render
     // on the JVM; a grey area stands for the map below the banner.
-    private fun karteBanner(name: String, banner: MapBanner?) {
+    private fun karteBanner(name: String, banner: MapBanner?, dark: Boolean = false) {
         val screens = appScreens(uploadAvailable = true, mapAvailable = true)
         paparazzi.snapshot(name) {
-            LessNoiseTheme(dark = false) {
+            LessNoiseTheme(dark = dark) {
                 Scaffold(bottomBar = { AppBottomBar(screens, screens.indexOf(Screen.MAP)) {} }) { padding ->
                     Column(Modifier.padding(padding).fillMaxSize()) {
                         banner?.let { MapBannerContent(it, onTap = {}) }
@@ -213,6 +241,10 @@ class ShareScreenshots {
 
     @Test
     fun karteBannerNoPoint() = karteBanner("karte-banner-no-point", banner(on, true, false, LocateState.Locating))
+
+    @Test
+    fun karteBannerNotSharingDark() =
+        karteBanner("karte-banner-not-sharing-dark", banner(UploadSnapshot(shareDecision = ShareDecision.NO), true, false), dark = true)
 
     @Test
     fun karteBannerFirstValues() = karteBanner("karte-banner-first-values", banner(on, true, true))
