@@ -1,26 +1,30 @@
 package ch.lessnoise.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Info
@@ -28,17 +32,20 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,12 +59,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.lessnoise.app.BuildConfig
+import ch.lessnoise.app.R
 import ch.lessnoise.app.container
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.edition.EditionUi
@@ -245,12 +257,14 @@ fun StatusChip(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modi
 /**
  * «Messen» without the app container (also rendered on the JVM for the screenshots). Since 0.8.4 no
  * mode switch: idle means the person holds the phone (on the road), running means it lies at a
- * window. Idle, editions with the map ([onReport] set): «Laut! Melden» (primary, 56 dp) on top, then
- * «Messung starten» (tonal) with one line under it, (Labor·Karte, [onUnterwegs] set) «Unterwegs
- * aufnehmen» (outlined) with its Labor line, the status chip, «Mehr dazu» folded. Without reports
- * (Offline, Labor): «Messung starten» primary. While measuring: the level card (level, bar,
- * Grundrauschen, «Klingt nach»), «Stoppen», «Läuft seit …», the status chip, the last Lärmspitzen —
- * and no «Laut! Melden» (the phone lies at the window; the shortcut and the widget still open it).
+ * window. Idle ([IdleMeasure], 0.8.7): the title, the app's logo with its name, one line and the
+ * status chip in the middle of the free space, the actions at the bottom within thumb reach — editions
+ * with the map ([onReport] set): «Laut! Melden» (filled), «Messung starten» (tonal) with one line,
+ * (Labor·Karte, [onUnterwegs] set) «Unterwegs aufnehmen» (outlined) with its Labor line, «Mehr dazu»
+ * (a bottom sheet). Without reports (Offline, Labor): «Messung starten» filled. While measuring: the
+ * level card (level, bar, Grundrauschen, «Klingt nach»), «Stoppen», «Läuft seit …», the status chip,
+ * the last Lärmspitzen — and no «Laut! Melden» (the phone lies at the window; the shortcut and the
+ * widget still open it).
  */
 @Composable
 fun MeasureContent(
@@ -272,10 +286,7 @@ fun MeasureContent(
     noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
     /** 0.7.5, Labor editions: the red storage line («Speicher fast voll …»); nothing in the public editions. */
     storageNotice: @Composable () -> Unit = {},
-    /** For the screenshots: «Mehr dazu» unfolded at first. */
-    moreOpen: Boolean = false,
 ) {
-    var more by remember { mutableStateOf(moreOpen) }
     val cs = MaterialTheme.colorScheme
 
     Scaffold(
@@ -283,10 +294,18 @@ fun MeasureContent(
         containerColor = cs.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { inner ->
+        if (!live.running) {
+            IdleMeasure(
+                live = live, calibrating = calibrating, onStart = onStart, onReport = onReport, onUnterwegs = onUnterwegs,
+                shareStatus = shareStatus, onShareStatus = onShareStatus, updateLine = updateLine, storageNotice = storageNotice,
+                modifier = Modifier.padding(inner),
+            )
+            return@Scaffold
+        }
         LazyColumn(Modifier.padding(inner).fillMaxWidth()) {
             item { ScreenTitle("Messen") }
 
-            if (live.running && (live.micSilenced || live.invalidAudio)) {
+            if (live.micSilenced || live.invalidAudio) {
                 item {
                     SectionCard {
                         Text(
@@ -298,135 +317,218 @@ fun MeasureContent(
                 }
             }
 
-            if (live.running) {
-                item {
-                    SectionCard {
-                        Text("Jetzt", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
-                        }
-                        LevelBar(live.lafDb)
-                        Spacer(Modifier.height(2.dp))
-                        StatRow("Grundrauschen", humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                            CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
-                        }
+            item {
+                SectionCard {
+                    Text("Jetzt", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
+                    }
+                    LevelBar(live.lafDb)
+                    Spacer(Modifier.height(2.dp))
+                    StatRow("Grundrauschen", humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
                     }
                 }
             }
 
             item {
-                // 0.8.6: one button height (STACK_BUTTON_HEIGHT) and one label style for every stacked
-                // button, the hierarchy only by style (filled → tonal → outlined); each helper line 4 dp
-                // under its button, 16 dp between the groups, 24 dp before the status chip.
+                // Running: «Stoppen» (STACK_BUTTON_HEIGHT, stackButtonLabel as the idle buttons), the line
+                // 4 dp under it, 16 dp before the status chip.
                 Column(Modifier.fillMaxWidth().padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) {
-                    if (live.running) {
-                        Button(
-                            onClick = onStop,
-                            modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
-                            colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
-                        ) {
-                            Icon(AppIcons.Stop, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            Text(STOP_BUTTON, style = stackButtonLabel())
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        HelperText(runningLine(Fmt.hm(live.startedAtMs)))
-                        // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
-                        microphoneNote(live)?.let { HelperText(it) }
-                    } else {
-                        // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
-                        // the FAB of 0.8.3 is gone, this button does its job.
-                        if (onReport != null) {
-                            Button(
-                                onClick = onReport,
-                                enabled = !live.starting,
-                                modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
-                            ) {
-                                Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                                Text(REPORT_BUTTON, style = stackButtonLabel())
-                            }
-                            Spacer(Modifier.height(16.dp))
-                        }
-                        val startEnabled = !live.starting && !calibrating
-                        val startContent: @Composable RowScope.() -> Unit = {
-                            if (!live.starting) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            }
-                            Text(if (live.starting) STARTING_BUTTON else START_BUTTON, style = stackButtonLabel())
-                        }
-                        if (onReport != null) {
-                            FilledTonalButton(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
-                        } else {
-                            Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        HelperText(idleHint(reports = onReport != null))
-                        // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
-                        if (onUnterwegs != null) {
-                            Spacer(Modifier.height(16.dp))
-                            OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)) {
-                                Icon(AppIcons.Walk, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                                Text(UNTERWEGS_BUTTON, style = stackButtonLabel())
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            HelperText(UNTERWEGS_LABOR_HINT)
-                        }
+                    Button(
+                        onClick = onStop,
+                        modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
+                        colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
+                    ) {
+                        Icon(AppIcons.Stop, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(STOP_BUTTON, style = stackButtonLabel())
                     }
-                    if (calibrating) HelperText("Erst nach dem Kalibrieren möglich.", Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.height(4.dp))
+                    HelperText(runningLine(Fmt.hm(live.startedAtMs)))
+                    // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
+                    microphoneNote(live)?.let { HelperText(it) }
                     storageNotice()
-                    // Running: always; idle: the short form (e.g. «Auf der Karte · 14:05»), not while it starts.
-                    if (live.running || !live.starting) shareStatus?.let {
-                        Spacer(Modifier.height(if (live.running) 16.dp else 24.dp))
+                    shareStatus?.let {
+                        Spacer(Modifier.height(16.dp))
                         StatusChip(it, onShareStatus)
                     }
                     // 0.6.9, Labor·Karte only (null elsewhere): motion value, distance from the start, state.
-                    if (live.running) live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
-                    if (!live.running) updateLine()
+                    live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
                     live.error?.let { Text(it, color = cs.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
-                    if (!live.running) {
-                        Spacer(Modifier.height(16.dp))
-                        TextButton(
-                            onClick = { more = !more },
-                            contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
-                            // The icon in line with the text above (the button's own 12 dp start padding).
-                            modifier = Modifier.offset(x = (-12).dp),
-                        ) {
-                            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            Text(MORE_LABEL)
-                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            Icon(
-                                if (more) AppIcons.ExpandLess else AppIcons.ExpandMore,
-                                contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize),
-                            )
-                        }
-                        AnimatedVisibility(more) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
-                                Text(EditionUi.MIC_LINE, style = MaterialTheme.typography.bodyMedium)
-                                MoreLink(Links.MEASURE, GUIDE_LINK)
-                            }
-                        }
-                    }
                 }
             }
 
-            if (live.running) {
-                item { SectionHeading("Letzte Lärmspitzen") }
-                if (events.isEmpty()) {
-                    item { HelperText("Noch keine.", Modifier.padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) }
-                }
-                items(events, key = { it.id }) { e -> EventRow(e, categoryName, eventMarker) }
+            item { SectionHeading("Letzte Lärmspitzen") }
+            if (events.isEmpty()) {
+                item { HelperText("Noch keine.", Modifier.padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) }
             }
+            items(events, key = { it.id }) { e -> EventRow(e, categoryName, eventMarker) }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+}
+
+/** 0.8.7: the logo's circle on the idle «Messen» screen. */
+val IDLE_LOGO_SIZE = 120.dp
+
+/**
+ * 0.8.7: the app's logo as on the home screen: the launcher foreground (the edition's own artwork,
+ * R.drawable.ic_launcher_foreground: the level bars; Labor with the record dot) on a circle of the
+ * launcher background (R.color.logo_background: dark blue, Labor red). An adaptive icon shows the
+ * middle 72 of its 108 dp, so the foreground is drawn at 1.5 × the circle and clipped to it.
+ */
+@Composable
+fun AppLogo(modifier: Modifier = Modifier, size: Dp = IDLE_LOGO_SIZE) {
+    Box(
+        modifier.size(size).clip(CircleShape).background(colorResource(R.color.logo_background)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painterResource(R.drawable.ic_launcher_foreground), contentDescription = null,
+            modifier = Modifier.requiredSize(size * 1.5f),
+        )
+    }
+}
+
+/**
+ * 0.8.7, the idle «Messen» screen in three zones: the title on top (as on every tab); in the middle of
+ * the free space the logo, «Weniger Lärm», one line and the status chip; at the bottom (16 dp
+ * margins, within thumb reach) the actions. The column is at least as tall as the screen, so the
+ * weighted spacers share the free space; when the content is taller (small phone, large font) it
+ * scrolls instead of clipping and the spacers shrink to their fixed minimum.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IdleMeasure(
+    live: LiveState,
+    calibrating: Boolean,
+    onStart: () -> Unit,
+    modifier: Modifier = Modifier,
+    onReport: (() -> Unit)? = null,
+    onUnterwegs: (() -> Unit)? = null,
+    shareStatus: ShareStatus? = null,
+    onShareStatus: (ShareAction) -> Unit = {},
+    updateLine: @Composable () -> Unit = {},
+    storageNotice: @Composable () -> Unit = {},
+) {
+    var more by remember { mutableStateOf(false) }
+    val cs = MaterialTheme.colorScheme
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val viewport = maxHeight
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ScreenTitle("Messen", Modifier.align(Alignment.Start))
+            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))
+            // Middle: logo, name, line, chip.
+            AppLogo()
+            Spacer(Modifier.height(16.dp))
+            Text(APP_NAME, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                idleTagline(reports = onReport != null), style = MaterialTheme.typography.bodyMedium,
+                color = cs.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = SCREEN_GUTTER),
+            )
+            // The short form (e.g. «Auf der Karte · gestern 18:42»), not while it starts.
+            if (!live.starting) shareStatus?.let {
+                Spacer(Modifier.height(20.dp))
+                StatusChip(it, onShareStatus, Modifier.padding(horizontal = SCREEN_GUTTER))
+            }
+            Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))
+            Spacer(Modifier.height(24.dp))
+            // Bottom: the actions.
+            // 0.8.6: one button height (STACK_BUTTON_HEIGHT) and one label style for every stacked
+            // button, the hierarchy only by style (filled → tonal → outlined); each helper line 4 dp
+            // under its button, 16 dp between the groups.
+            Column(Modifier.fillMaxWidth().padding(start = SCREEN_GUTTER, end = SCREEN_GUTTER, bottom = 8.dp)) {
+                // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
+                // the FAB of 0.8.3 is gone, this button does its job.
+                if (onReport != null) {
+                    Button(
+                        onClick = onReport,
+                        enabled = !live.starting,
+                        modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
+                    ) {
+                        Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(REPORT_BUTTON, style = stackButtonLabel())
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+                val startEnabled = !live.starting && !calibrating
+                val startContent: @Composable RowScope.() -> Unit = {
+                    if (!live.starting) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    }
+                    Text(if (live.starting) STARTING_BUTTON else START_BUTTON, style = stackButtonLabel())
+                }
+                if (onReport != null) {
+                    FilledTonalButton(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
+                } else {
+                    Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
+                }
+                Spacer(Modifier.height(4.dp))
+                HelperText(idleHint(reports = onReport != null))
+                // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
+                if (onUnterwegs != null) {
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)) {
+                        Icon(AppIcons.Walk, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(UNTERWEGS_BUTTON, style = stackButtonLabel())
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    HelperText(UNTERWEGS_LABOR_HINT)
+                }
+                if (calibrating) HelperText("Erst nach dem Kalibrieren möglich.", Modifier.padding(top = 4.dp))
+                storageNotice()
+                live.error?.let { Text(it, color = cs.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
+                updateLine()
+                Spacer(Modifier.height(8.dp))
+                // «Mehr dazu» opens a bottom sheet (0.8.7; it folded out under the buttons until 0.8.6):
+                // the layout above stays where it is.
+                TextButton(
+                    onClick = { more = true },
+                    contentPadding = ButtonDefaults.TextButtonWithIconContentPadding,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(MORE_LABEL)
+                }
+            }
+        }
+    }
+    if (more) {
+        ModalBottomSheet(onDismissRequest = { more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            MoreSheetContent()
+        }
+    }
+}
+
+/** 0.8.7: the free space above and below the logo block; a little more below, so the block sits optically centred. */
+const val IDLE_WEIGHT_ABOVE = 1f
+const val IDLE_WEIGHT_BELOW = 1.2f
+
+/** 0.8.7: the content of the «Mehr dazu» bottom sheet (the texts that folded out under the buttons until 0.8.6). */
+@Composable
+fun MoreSheetContent() {
+    Column(
+        Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(MORE_LABEL, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
+        Text(EditionUi.MIC_LINE, style = MaterialTheme.typography.bodyMedium)
+        MoreLink(Links.MEASURE, GUIDE_LINK)
     }
 }
 

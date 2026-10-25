@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.7 — Labor·Karte only, not published (branch labor-one-tap): idle Messen screen with logo, actions at the bottom (versionCode 39)
+
+The owner: on the idle «Messen» the buttons were crammed at the top and the bottom two thirds were empty.
+
+- **Idle «Messen» in three zones:** the title on top; in the middle of the free space the app's logo
+  (the launcher artwork of the edition on its launcher background: dark blue, Labor red with the record
+  dot; 120 dp circle), «Weniger Lärm», one line («Kurz laut? Melden. Oft laut? Messen.»; Offline and
+  Labor: «Miss den Lärm vor deinem Fenster.») and the status chip; at the bottom, within thumb reach,
+  the 0.8.6 buttons unchanged («Laut! Melden» filled, «Messung starten» tonal with its line, Labor·Karte
+  «Unterwegs aufnehmen» outlined with its Labor line; without reports «Messung starten» filled).
+- **«Mehr dazu»** is a centred text button that opens a bottom sheet with the same texts and the guide
+  link (it folded out under the buttons until 0.8.6), so the layout does not move.
+- Small phones and large fonts: the screen scrolls instead of clipping; with room the buttons stay at
+  the bottom. The running state is unchanged.
+- New colour resource `logo_background` (main: the launcher background; src/labor: the Labor red, which
+  the Labor launcher background now references instead of a literal).
+
 ## 0.8.6 — Labor·Karte only, not published (branch labor-one-tap): visual polish, no functional change (versionCode 38)
 
 In short (the owner: «more space, add some icons, so the look becomes more balanced»): layout,

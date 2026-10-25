@@ -70,7 +70,7 @@ import kotlin.math.sin
  * microphone, no tiles from the network): the «Laut! Melden» dialog (its content, ReportDialogBody, in
  * a frame drawn like Material's AlertDialog — Paparazzi does not draw Dialog windows), and «Messen»
  * idle/running, «Teilen», «Messungen», «Einstellungen», each light and dark. Written to
- * $stadtlaerm.screenshotDir/0.8.6-polish (default app/build/screenshots/0.8.6-polish), for review only.
+ * $stadtlaerm.screenshotDir/0.8.7-polish (default app/build/screenshots/0.8.7-polish), for review only.
  */
 private class PolishPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
@@ -89,7 +89,7 @@ private class PolishPngWriter(private val dir: File) : SnapshotHandler {
 private fun polishPaparazzi(heightPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = heightPx, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.6-polish")),
+    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-polish")),
     useDeviceResolution = true,
 )
 
@@ -250,10 +250,28 @@ class PolishScreenshots {
         )
     }
 
+    // 0.8.7: the logo in the middle, the actions at the bottom. The Labor·Karte variant here has the Online-Version's
+    // logo (testPublic resources); MessenIdleLaborKarteScreenshots (testLaborKarte) renders it with the red one.
     @Test fun messenIdle() = messenIdle("messen-idle", dark = false, labor = false)
     @Test fun messenIdleDark() = messenIdle("messen-idle-dark", dark = true, labor = false)
     @Test fun messenIdleLaborKarte() = messenIdle("messen-idle-labor-karte", dark = false, labor = true)
     @Test fun messenIdleLaborKarteDark() = messenIdle("messen-idle-labor-karte-dark", dark = true, labor = true)
+
+    // The Offline-Version: no «Laut! Melden», no chip; «Messung starten» filled (the bar without «Teilen» and «Karte»).
+    private fun messenIdleOffline(name: String, dark: Boolean) = paparazzi.snapshot(name) {
+        val offlineBar = appScreens(uploadAvailable = false, mapAvailable = false)
+        LessNoiseTheme(dark = dark) {
+            Scaffold(bottomBar = { AppBottomBar(offlineBar, offlineBar.indexOf(Screen.MEASURE)) {} }) { padding ->
+                MeasureContent(
+                    live = LiveState(), events = emptyList(), calibrating = false, categoryName = { names[it] ?: "Sonstiges" },
+                    onStart = {}, onStop = {}, modifier = Modifier.padding(padding).fillMaxSize(),
+                )
+            }
+        }
+    }
+
+    @Test fun messenIdleOffline() = messenIdleOffline("messen-idle-offline", dark = false)
+    @Test fun messenIdleOfflineDark() = messenIdleOffline("messen-idle-offline-dark", dark = true)
 
     private fun messenRunning(name: String, dark: Boolean) {
         val runningSent = shareStatus(
@@ -356,4 +374,66 @@ class PolishScreenshots {
 
     @Test fun einstellungen() = einstellungen("einstellungen", dark = false)
     @Test fun einstellungenDark() = einstellungen("einstellungen-dark", dark = true)
+}
+
+/**
+ * 0.8.7: the idle «Messen» on small screens with a large font: a 360 × 640 dp phone and a Pixel 5
+ * (393 × 851 dp), font scale 1.3, the tallest variant (Labor·Karte's three buttons). The column must
+ * scroll rather than clip; with room the actions stay at the bottom.
+ */
+class MessenIdleSmallScreenshots {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_6.copy(
+            screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
+        ),
+        theme = "android:Theme.Material.Light.NoActionBar",
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-idle")),
+        useDeviceResolution = true,
+    )
+
+    private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
+    private val status = shareStatus(
+        UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t", lastSuccessAtMs = ms(24, 18, 42)),
+        false, 0, false, LocateState.Idle, true,
+    ) { Fmt.sentAt(it, ms(25, 8, 23), zone) }
+
+    internal fun render(name: String, labor: Boolean) = paparazzi.snapshot(name) {
+        LessNoiseTheme(dark = false) {
+            Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
+                MeasureContent(
+                    live = LiveState(), events = emptyList(), calibrating = false, categoryName = { "Sonstiges" },
+                    onStart = {}, onStop = {}, onReport = {}, modifier = Modifier.padding(padding).fillMaxSize(),
+                    shareStatus = status, onUnterwegs = if (labor) ({}) else null,
+                )
+            }
+        }
+    }
+
+    @Test fun small360x640LaborKarte() = render("messen-idle-360x640-font130-labor-karte", labor = true)
+    @Test fun small360x640() = render("messen-idle-360x640-font130", labor = false)
+}
+
+class MessenIdlePixel5Screenshots {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_5.copy(fontScale = 1.3f),
+        theme = "android:Theme.Material.Light.NoActionBar",
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-idle")),
+        useDeviceResolution = true,
+    )
+
+    private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
+
+    @Test fun pixel5LaborKarte() = paparazzi.snapshot("messen-idle-pixel5-font130-labor-karte") {
+        LessNoiseTheme(dark = false) {
+            Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
+                MeasureContent(
+                    live = LiveState(), events = emptyList(), calibrating = false, categoryName = { "Sonstiges" },
+                    onStart = {}, onStop = {}, onReport = {}, modifier = Modifier.padding(padding).fillMaxSize(),
+                    shareStatus = null, onUnterwegs = {},
+                )
+            }
+        }
+    }
 }

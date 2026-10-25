@@ -6,9 +6,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,7 +64,7 @@ class ShareScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.6")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7")),
         useDeviceResolution = true,
     )
 
@@ -91,14 +95,19 @@ class ShareScreenshots {
     ) {
         paparazzi.snapshot(name) {
             LessNoiseTheme(dark = dark) {
-                Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
-                    MeasureContent(
-                        live = live, events = events, calibrating = false,
-                        categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
-                        modifier = Modifier.padding(padding).fillMaxSize(),
-                        shareStatus = status, moreOpen = moreOpen,
-                        onUnterwegs = if (unterwegsButton) ({}) else null,
-                    )
+                Box {
+                    Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
+                        MeasureContent(
+                            live = live, events = events, calibrating = false,
+                            categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {}, onReport = {},
+                            modifier = Modifier.padding(padding).fillMaxSize(),
+                            shareStatus = status,
+                            onUnterwegs = if (unterwegsButton) ({}) else null,
+                        )
+                    }
+                    // 0.8.7: «Mehr dazu» is a ModalBottomSheet, a window Paparazzi does not draw: its content in a
+                    // frame drawn like the sheet (scrim, 28 dp top corners, surfaceContainerLow, drag handle), over the bar.
+                    if (moreOpen) SheetFrame { MoreSheetContent() }
                 }
             }
         }
@@ -255,6 +264,23 @@ class ShareScreenshots {
                         MapStatusContent(load = MapLoad.LOADING, progress = 40, onRetry = {})
                     }
                 }
+            }
+        }
+    }
+}
+
+/** A ModalBottomSheet as Material 3 draws it, for the JVM renders (Paparazzi does not draw its window). */
+@Composable
+internal fun SheetFrame(content: @Composable () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxSize().background(cs.scrim.copy(alpha = 0.32f)), contentAlignment = Alignment.BottomCenter) {
+        Surface(
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), color = cs.surfaceContainerLow,
+            tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.padding(vertical = 22.dp).size(width = 32.dp, height = 4.dp).background(cs.onSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(2.dp)))
+                content()
             }
         }
     }

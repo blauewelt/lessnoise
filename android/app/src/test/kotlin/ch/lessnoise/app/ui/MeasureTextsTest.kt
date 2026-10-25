@@ -59,18 +59,26 @@ class MeasureTextsTest {
         // One height for every stacked button: no other height literal in the idle and running branches.
         val stack = screen.substring(screen.indexOf("// 0.8.6: one button height"), screen.indexOf("if (calibrating) HelperText("))
         assertFalse(Regex("""fillMaxWidth\(\)\.height\(\d+\.dp\)""").containsMatchIn(stack) || stack.contains("fontSize ="), "one height, one label style")
-        assertEquals(5, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Stoppen, Laut! Melden, Messung starten (two variants), Unterwegs aufnehmen")
+        assertEquals(4, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Laut! Melden, Messung starten (two variants), Unterwegs aufnehmen")
+        // 0.8.7: «Stoppen» is in the running branch (MeasureContent), the idle stack in IdleMeasure; the same height.
+        val running = screen.substring(screen.indexOf("// Running: «Stoppen»"), screen.indexOf("item { SectionHeading(\"Letzte Lärmspitzen\") }"))
+        assertEquals(1, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(running).count(), "Stoppen")
+        assertTrue(running.contains("Text(STOP_BUTTON, style = stackButtonLabel())"))
         // Without reports «Messung starten» stays the primary button.
         assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)"))
-        assertTrue(idle.contains("if (onUnterwegs != null) {\n                            Spacer(Modifier.height(16.dp))\n                            OutlinedButton(onClick = onUnterwegs"))
+        assertTrue(idle.contains("if (onUnterwegs != null) {\n                    Spacer(Modifier.height(16.dp))\n                    OutlinedButton(onClick = onUnterwegs"))
     }
 
     @Test
     fun noLautMeldenWhileRunning() {
         // The running branch («Stoppen» …) has no report button; the report dialog still opens from a preset
         // (shortcut, widget, Labor·Karte's notification «Melden»).
-        val running = screen.substring(screen.indexOf("if (live.running) {\n                        Button(\n                            onClick = onStop,"), screen.indexOf("} else {\n                        // Editions with the map"))
+        // 0.8.7: the running branch is everything of MeasureContent after the idle branch returns.
+        val content = screen.substring(screen.indexOf("fun MeasureContent("), screen.indexOf("/** 0.8.7: the logo's circle"))
+        val running = content.substring(content.indexOf("return@Scaffold"))
+        assertTrue(running.contains("onClick = onStop,"))
         assertFalse(running.contains("onReport"), running)
+        assertTrue(content.contains("if (!live.running) {\n            IdleMeasure("))
         assertTrue(screen.contains("preset = reportPreset, onPresetUsed = onReportPresetUsed,"))
     }
 
@@ -90,5 +98,34 @@ class MeasureTextsTest {
         // Colours only from the scheme (category dots aside, Common.kt).
         assertFalse(screen.contains("Color(0x"))
         assertFalse(screen.contains("secondaryContainer"))
+    }
+
+    @Test
+    fun idleLogoInTheMiddleActionsAtTheBottom() {
+        // 0.8.7 (the owner: «buttons crammed at the top, two thirds empty»): title, then the logo block between
+        // two weighted spacers, then the actions; the column at least the viewport's height and scrollable.
+        assertEquals("Weniger Lärm", APP_NAME)
+        assertEquals(TAGLINE_REPORTS, idleTagline(reports = true))
+        assertEquals(TAGLINE_PLAIN, idleTagline(reports = false))
+        for (t in listOf(TAGLINE_REPORTS, TAGLINE_PLAIN)) {
+            assertTrue(t.length < 40, t)
+            assertFalse(t.contains('ß') || Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
+        }
+        val idle = screen.substring(screen.indexOf("fun IdleMeasure("), screen.indexOf("fun MoreSheetContent("))
+        assertTrue(idle.contains("Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport)"))
+        val order = listOf(
+            "ScreenTitle(\"Messen\"", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo()", "Text(APP_NAME",
+            "idleTagline(reports = onReport != null)", "StatusChip(it, onShareStatus", "Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))",
+            "Text(REPORT_BUTTON", "Text(MORE_LABEL)", "ModalBottomSheet(",
+        ).map { idle.indexOf(it) }
+        assertTrue(order.all { it >= 0 } && order == order.sorted(), order.toString())
+        // No nested lazy list and no fold-out in the idle screen; «Mehr dazu» is a sheet.
+        assertFalse(idle.contains("LazyColumn") || idle.contains("AnimatedVisibility"))
+        // The logo is the launcher artwork of the edition on its own background colour (resources, no literal colour).
+        assertTrue(screen.contains("painterResource(R.drawable.ic_launcher_foreground)"))
+        assertTrue(screen.contains("colorResource(R.color.logo_background)"))
+        val labor = File(app, "src/labor/res/values/colors.xml").readText()
+        assertTrue(labor.contains("<color name=\"logo_background\">#FFB3261E</color>"))
+        assertTrue(File(app, "src/labor/res/drawable/ic_launcher_background.xml").readText().contains("@color/logo_background"))
     }
 }

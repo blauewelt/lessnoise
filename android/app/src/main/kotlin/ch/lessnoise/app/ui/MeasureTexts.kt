@@ -40,3 +40,15 @@ fun runningLine(hm: String): String = "Läuft seit $hm · Bildschirm darf aus se
 
 /** The line under «Messung starten» while idle; [reports]: «Laut! Melden» is the first button (editions with the map). */
 fun idleHint(reports: Boolean): String = if (reports) WINDOW_HINT else PLAIN_HINT
+
+/** 0.8.7: the app's name under the logo on the idle «Messen» screen (every edition; the Labor banner says «Labor»). */
+const val APP_NAME = "Weniger Lärm"
+
+/** 0.8.7: the line under the name, editions with «Laut! Melden»: what each of the two buttons is for. */
+const val TAGLINE_REPORTS = "Kurz laut? Melden. Oft laut? Messen."
+
+/** 0.8.7: the same line where «Messung starten» is the only button (Offline, Labor). */
+const val TAGLINE_PLAIN = "Miss den Lärm vor deinem Fenster."
+
+/** The line under the logo; [reports]: «Laut! Melden» is a button (editions with the map). */
+fun idleTagline(reports: Boolean): String = if (reports) TAGLINE_REPORTS else TAGLINE_PLAIN
