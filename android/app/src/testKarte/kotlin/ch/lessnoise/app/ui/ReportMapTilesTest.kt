@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * 0.7.8: the tile arithmetic of the streets under the arrow in «Wohin fuhr es?» (Labor·Karte). No
+ * 0.7.8: the tile arithmetic of the streets under the arrow in «Wohin fuhr es?» (since 0.8.0 in every edition with the map). No
  * tile is fetched here: the maths only.
  *
  * Fixture, computed in Python 3 with the same standard Web Mercator formula
@@ -161,7 +161,7 @@ class ReportMapTilesTest {
         assertEquals(5_000, ReportMapTiles.TIMEOUT_MS)
     }
 
-    // ---- 0.8.1 (same build): the map moved under the dot ---------------------------------------
+    // ---- 0.8.1 (Labor·Karte; published in 0.9.0): the map moved under the dot ---------------------------------------
 
     private fun closePair(e: Pair<Double, Double>, a: Pair<Double, Double>, tol: Double, what: String) {
         close(e.first, a.first, tol, "$what x"); close(e.second, a.second, tol, "$what y")
@@ -253,19 +253,24 @@ class ReportMapTilesTest {
         assertTrue(moved.none { it in ReportMapTiles.tilesAround(lat, lon) })
     }
 
-    /** Tiles only in Labor·Karte; the Online-Version (flavour public) shows the rose alone. */
+    /**
+     * 0.8.0: the tiles are on in both editions with the map (this test runs for public and
+     * laborKarte); no edition flag is left. The step still requests nothing without a fix or
+     * outside Switzerland, and a closed fetcher requests nothing.
+     */
     @Test
-    fun onlyInLaborKarte() {
-        assertEquals(BuildConfig.FLAVOR == "laborKarte", ReportMapTiles.ENABLED, BuildConfig.FLAVOR)
+    fun inEveryEditionWithTheMap() {
+        assertTrue(BuildConfig.FLAVOR == "public" || BuildConfig.FLAVOR == "laborKarte", BuildConfig.FLAVOR)
         val app = listOf(File("."), File("app")).first { File(it, "src/karte").isDirectory }
         val code = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt").readText()
-        assertTrue(code.contains("val ENABLED: Boolean = BuildConfig.LABOR_UNTERWEGS"))
-        assertTrue(code.contains("if (!ReportMapTiles.ENABLED || closed) return null"), "the fetcher checks the flag itself")
+        assertFalse(code.contains("LABOR_UNTERWEGS"), "no Labor-only flag in ReportMapTiles.kt")
+        assertTrue(code.contains("if (closed) return null"), "a closed fetcher requests nothing")
         val ui = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()
-        assertTrue(ui.contains("if (!ReportMapTiles.ENABLED || f == null"), "the step starts no download without the flag")
-        // 0.8.1 (same build): the drag exists only with the flag and the streets shown; tiles for a
-        // moved centre only after the finger lifts, debounced.
-        assertTrue(ui.contains("val canDrag = ReportMapTiles.ENABLED && fix != null && tiles.isNotEmpty() && r != null"))
+        // 0.8.1 (Labor·Karte; in the Online-Version since 0.9.0): the drag exists with the streets shown,
+        // in every edition with the map (no flag); tiles for a moved centre only after the finger lifts, debounced.
+        assertFalse(ui.contains("ENABLED"), "no edition flag in ReportDirectionUi.kt")
+        assertTrue(ui.contains("if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect"), "no download without a fix, or for a centre outside Switzerland")
+        assertTrue(ui.contains("val canDrag = fix != null && tiles.isNotEmpty() && r != null"))
         assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"))
         assertTrue(ui.contains("if (c != f) delay(TILE_DEBOUNCE_MS)"))
         assertTrue(ui.contains("DirectionArrow(frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
@@ -276,6 +281,8 @@ class ReportMapTilesTest {
         // The preview tiles (JVM renders) replace the download only when passed; the app never passes them.
         assertTrue(ui.contains("val tiles = previewTiles ?: rememberStreetTiles("))
         assertEquals("Telefon in die Fahrtrichtung halten", ReportDirectionUi.POINT_HINT)
+        // «Standort wird gesucht …» while the fix is searched: the dialog's fix line (src/main, every edition).
+        assertEquals("Standort wird gesucht …", reportFixLine(null))
         // Nothing is written: no file, preference or log in either file.
         val bad = Regex("""\bLog\.|println|SharedPreferences|putString|\bFile\b|FileOutputStream|cacheDir|filesDir|HttpResponseCache|CookieHandler""")
         for (src in listOf(code, ui)) {

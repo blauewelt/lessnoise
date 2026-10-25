@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.9.0 — 2026-10-25 (versionCode 41; published: Offline-Version and Online-Version on the website)
+
+In short: the first published version since 0.8.0. It brings the unpublished Labor·Karte builds
+0.8.1–0.8.8 to the two published editions. **Online-Version:** «Laut! Melden» is one dialog with
+«Senden»; you can move the map under the dot to correct the place; the dialog measures the level
+while it is open and sends peak and average with the report; an optional photo of the vehicle stays
+on the phone instead of the typed plate; an app shortcut and a home-screen widget open the dialog;
+there is no «Unterwegs» measurement and no «Sehr laut» notification any more; the «Karte» tab is
+dark when the phone is. **Offline-Version:** a new look («Messen», «Messungen», «Einstellungen»),
+the start button «Langzeitmessung starten»; nothing it does with data changes. No new permission in
+either edition (no camera permission). The privacy page (datenschutz.html), PRIVACY.md and
+server/DESIGN.md §2 and §4.7 say what changed.
+
+**Online-Version**
+
+- **«Laut! Melden» in one dialog** (0.8.1/0.8.2): the compass with swisstopo's streets on top, the
+  level, «Standort ± n m», «Was war es?» with six buttons (one selected), «Foto vom Fahrzeug
+  (optional)», the line «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.», then
+  «Abbrechen» / «Senden». No confirmation step any more; «Senden» before the location is found sends
+  the report when it arrives. **Privacy:** the one location fix is now taken when the dialog opens
+  (it was after the category), so it — and swisstopo's tiles around it — happen also if you then
+  cancel; the location is sent only with «Senden».
+- **Move the map under the dot** (0.8.1): drag the map with one finger when the vehicle drove on or
+  the location is off; the dot in the middle is then the reported place, sent with a fixed accuracy
+  of 15 m, at most 2 km from your location and only in Switzerland; «Zurück zum Standort» undoes it.
+  **Privacy:** after the finger lifts the app loads swisstopo's tiles around the new place too, so
+  swisstopo also sees that area (with your IP address), as for the tiles around you since 0.8.0.
+- **Level with the report** (0.8.5): while the dialog is open the microphone runs through the same
+  level meter as a measurement («jetzt» and «Spitze»; while a measurement runs, its values are used).
+  Nothing is recorded. The report carries the peak and the average of those seconds, their number and
+  whether the phone is calibrated; the map shows the peak in whole dB on the report's tooltip
+  («84 dB»). Needs the server's schema v8 (deployed with this release); an older server gets the
+  report without the level. Without the microphone permission the report has no level.
+- **Photo instead of «Kontrollschild»** (0.8.5): «Foto vom Fahrzeug (optional)» opens the phone's
+  camera app (no camera permission in this app); the photo is shrunk, stored without EXIF in the app's
+  private storage, shown only in «Teilen» › «Meldungen», **never sent**, and deleted with its report
+  (or alone with «Löschen»). A plate typed in 0.8.0 stays listed on the phone and is never sent.
+- **App shortcut and widget «Laut! Melden»** (0.8.4): a long press on the icon, or the widget's one
+  button, opens the dialog. They send nothing and read no location by themselves.
+- **No measurement on the road** (0.8.4): «Messen» shows «Laut! Melden» first and «Langzeitmessung
+  starten» (for hours at an open window, on the charger). The «Unterwegs» start, the «Sehr laut»
+  notification and the «Melden» button on the measurement's notification are gone from this edition
+  (they stay in the Labor·Karte test build). A carried window measurement still pauses sharing
+  («Unterwegs erkannt · nichts auf die Karte»).
+- **Dark «Karte» tab** (0.8.2): the map page in its dark style when the phone is dark; same page, same
+  tiles, same hosts (new library `androidx.webkit`, no network of its own).
+- **«Teilen»** (0.8.8) in sections: «Messungen am Fenster» (the switch «Auf die Karte senden», «Nur über
+  WLAN», «Standort verschieben», «Noch zu senden», placement) and «Meldungen unterwegs» (sent reports
+  with thumbnails and level), «Was gesendet wird», «Deine Daten auf dem Server». One switch for both,
+  and the page now says so.
+
+**Both editions**
+
+- **New look** (0.8.3, 0.8.6, 0.8.7): «Messen» without the old beige card — a status chip, a Material
+  level card, while idle the logo in the middle and the actions at the bottom; «Mehr dazu» as a bottom
+  sheet; Material cards, rows and icons on every screen; colours without the Material purple/beige.
+  The status chip says the day of the last send when it was not today (0.8.6 fix).
+- **«Langzeitmessung starten»** (0.8.8, was «Starten»/«Messung starten») with «Für Stunden am offenen
+  Fenster, am Ladegerät.».
+
+**Labor·Karte only** (not in the published editions): the «Unterwegs aufnehmen» button with the
+«Sehr laut» notification and the notification's «Melden» (0.8.4), the preselected category from that
+notification (0.8.2), the Labor manifest's `report` line with `photo: true/false` (0.8.5).
+
+**Release tooling and code**
+
+- The swisstopo tiles of the report dialog stay on in the Online-Version as in 0.8.0: the Labor·Karte
+  branch still had the 0.7.8 edition flag (`ReportMapTiles.ENABLED`), which this release removes
+  from the dialog too, so dragging the map exists wherever the streets are drawn (public, laborKarte).
+  `UploadSourceIsolationTest` and `ReportMapTilesTest` pin it, including the drag tiles (no request
+  while the finger is down, none for a centre outside Switzerland, the 2 km clamp).
+- `android/tools/check_release_apk.py` is one script (0.8.0's release checks merged with 0.8.4's
+  edition rules): signer, version, exact permissions per PRIVACY.md (no `CAMERA`), widget/shortcut
+  only with the map, no `alert/*` / `loud_alert` in either published APK, no Labor, ML Kit, Play
+  services or Firebase classes.
+
 ## 0.8.8 — Labor·Karte only, not published (branch labor-one-tap): Teilen split into window measurements and reports (versionCode 40)
 
 The owner: the page should make clear that most choices are about the long measurement at the window.
@@ -227,6 +303,56 @@ another branch; this build carries the next number so it installs over it on the
   200 dp disc and (moving the map) the drag rotation at 0°/±90°/180°, 100 px = 150 m on a 200 px disc,
   the 2 km stop and the tile eviction; `ReportFlowTest` the moved place (15 m, its own cell, 2 km);
   `EditionTextTest` 33 / 0.8.1.
+
+## 0.8.0 — 2026-10-24 (versionCode 32; published: Offline-Version and Online-Version on the website)
+
+In short: the first published version since 0.7.2. It brings the changes of the unpublished
+Labor·Karte builds 0.7.3–0.7.8 that concern «Laut! Melden» and the «Sehr laut» notification to the
+**Online-Version**: one notification instead of two, a compass with the real streets under the
+arrow, an optional licence-plate field that stays on the phone, the new category «Flugzeug», and an
+«erkannt» marker instead of pre-filled buttons. **One privacy change:** while «Wohin fuhr es?» is
+open, the Online-Version now loads swisstopo's map tiles around your true position (below). The
+**Offline-Version** has none of these features (no reports, no notification, no map); for it 0.8.0
+changes nothing you can see. No new permission in either edition.
+
+- **One notification for «Sehr laut»** (Online-Version). A very loud vehicle while «Unterwegs» no
+  longer adds a second notification: the measurement's own notification turns into the alert for
+  30 s («Sehr laut: Töff & Poser, 84 dB – Antippen zum Melden», with sound and vibration on the
+  channel «Sehr laut»), with «Melden» and «Stopp»; then it shows the level again (0.7.6).
+- **Compass with real streets in «Wohin fuhr es?»** (Online-Version). The arrow stands in a compass
+  rose that turns with the phone (0.7.6), and once the report's location is found, swisstopo's grey
+  map of the ≈ 300 m around you lies under it, turned like the ground in front of you (0.7.8; until
+  then «Standort wird gesucht …»). The dialog is wider (94 % of the screen) for the larger disc.
+  **Privacy:** for this the app requests from swisstopo (the Federal Office of Topography,
+  `wmts.geo.admin.ch`, the same host the tab «Karte» already uses) the tiles touching the 150 m
+  circle around your **true** position — GET only, no redirects, no cache, no cookies, only inside
+  Switzerland, only while that step is open, kept in memory only. swisstopo sees those requests
+  with your IP address, like a visitor looking at that area on the map; nothing of it is stored or
+  sent to the project's server. docs/datenschutz.html, PRIVACY.md and server/DESIGN.md §2 rule 7
+  say so.
+- **«Kontrollschild (optional)»** in the confirmation of «Laut! Melden» (Online-Version): one text
+  field, at most 12 characters. The plate is stored **on the phone only** (report queue and the list
+  of sent reports under «Teilen»), never sent; the report body is unchanged (0.7.6).
+- **New category «Flugzeug»** (Online-Version, server, map): Töff, Auto, Lastwagen, Flugzeug, Poser,
+  anderes Fahrzeug; on the map marker «F». The server accepts `flugzeug` from this release on (it
+  deploys from `main` with this version); a «Flugzeug» report sent to a server without it would be
+  refused and dropped (0.7.7).
+- **«erkannt» instead of filled buttons** in «Was war laut?» (Online-Version): every category button
+  looks alike; one that fits the «Sehr laut» event has a small «erkannt» after its label, so nothing
+  looks preselected (0.7.7).
+- **Not in the published editions** (Labor builds only, unchanged by this release): the event head
+  v2 scores in the Labor manifest (0.7.3, logging only; the public editions do not run the head),
+  «In Ordner exportieren» (0.7.4), the Labor storage cap as an audio budget with warning and start
+  block, the 5 GB default (0.7.5), the position rule of Labor·Karte (0.7.5; the published editions
+  have no position signal), the Labor·Karte `report` manifest line (0.7.6), and signed Labor builds
+  from GitHub Actions (0.7.4).
+- **Release builds from GitHub Actions** (`.github/workflows/release-build.yml`): both published
+  APKs are built and signed by a workflow with the repository's keystore secrets and checked there
+  (signer certificate, package and version, permissions per PRIVACY.md, no Labor classes, no map,
+  WebView, alert or motion classes in the Offline-Version), so no session needs the key.
+- Tests: `UploadSourceIsolationTest` and `ReportMapTilesTest` pin that the tile download has no
+  edition flag any more, is started only by the direction step with a fix inside Switzerland, and
+  is compiled only into the editions with the map (public, laborKarte).
 
 ## 0.7.8 — Labor·Karte only, not published (branch labor-report-ui) (versionCode 31)
 

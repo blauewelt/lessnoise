@@ -84,7 +84,7 @@ test("the home page: two buttons, which to choose, the version line and the link
   // Online-Version first (the default), the Offline-Version as the more private alternative.
   await expect(page.locator("#version")).toContainText(/^Die Online-Version .* Die Offline-Version ist für alle, die noch mehr Privatsphäre möchten:/);
   await expect(page.locator("#download a.button").first()).toHaveText("Online-Version herunterladen");
-  await expect(page.locator("#download .release")).toHaveText("Version 0.7.2, Android 8 oder neuer.");
+  await expect(page.locator("#download .release")).toHaveText("Version 0.9.0, Android 8 oder neuer.");
   await expect(page.locator('#download a[href="anleitung.html"]')).toHaveText("Anleitung");
   await expect(page.locator('footer a[href="anleitung.html"]')).toHaveText("Anleitung");
   // «Source Code ist hier» links the repository (owner's text, 2026-10-15).
@@ -115,7 +115,7 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
   // The «Stadtlärm» 0.5.x note left the Anleitung (owner, 2026-10-15); update.html#new-app still explains it.
   await expect(page.locator("#stadtlaerm, #installation .note")).toHaveCount(0);
   await expect(page.locator("#installation")).toContainText("«Dateien»");
-  await expect(page.locator("#pruefsummen .facts")).toContainText("0.7.2");
+  await expect(page.locator("#pruefsummen .facts")).toContainText("0.9.0");
   await expect(page.locator("#pruefsummen .hash")).toHaveCount(3);   // two files + the signing certificate
   await expect(page.locator("#teilen")).toContainText("Laut! Melden");
   await expect(page.locator("#daten")).toContainText("CSV");
@@ -390,27 +390,28 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 20. Oktober 2026",
+    "Stand: 25. Oktober 2026",
     "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
-    "Art, Zeit und den ungefähren Ort", // what the phone keeps of a sent report
+    "Art, Zeit, den ungefähren Ort",   // what the phone keeps of a sent report
   ]) {
     expect(text, fact).toContain(fact);
   }
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
 });
 
-test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shares nothing; «anderes Fahrzeug»", async ({ page }) => {
+test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shared nothing (gone in 0.9.0); «anderes Fahrzeug»", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
   for (const fact of [
     "Ab Version 0.6.4 sendet die App nur laute Ereignisse von Maschinen- und Motorenlärm",
     "Stimmen, Musik, Sonstiges und Wind verlassen das Telefon nie",
     "mindestens 0,5", "6,5",
-    "wird nie geteilt",
+    "gestartete Messung nie geteilt",
   ]) expect(text, fact).toContain(fact);
   await page.goto("/anleitung.html");
   const guide = await allText(page);
-  for (const fact of ["anderes Fahrzeug", "zwei Knöpfe zum Starten", "Die Messung kommt nicht auf die Karte", "Stimmen und Musik nie"]) expect(guide, fact).toContain(fact);
+  for (const fact of ["anderes Fahrzeug", "keine Messung «Unterwegs»", "Stimmen und Musik nie"]) expect(guide, fact).toContain(fact);
+  expect(guide).not.toContain("zwei Knöpfe zum Starten");   // 0.9.0: no «Unterwegs» start any more
 });
 
 test("0.6.7: the motion sensor is read on the phone only, and «Unterwegs erkannt» is explained", async ({ page }) => {
@@ -420,8 +421,8 @@ test("0.6.7: the motion sensor is read on the phone only, and «Unterwegs erkann
   await page.goto("/anleitung.html");
   const guide = await allText(page);
   for (const fact of ["Unterwegs erkannt", "etwa 3 Minuten ruhig"]) expect(guide, fact).toContain(fact);
-  // 0.6.8: the measurement notification opens «Laut! Melden» while «unterwegs».
-  expect(guide).toContain("mit der Zeit des Antippens");
+  // 0.6.8–0.8.0: the measurement notification opened «Laut! Melden» while «unterwegs»; gone in 0.9.0.
+  expect(guide).not.toContain("mit der Zeit des Antippens");
 });
 
 test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» are described", async ({ page }) => {
@@ -431,7 +432,7 @@ test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» 
     "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
     "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "mobile Daten",  // cadence, network
     "etwa alle 30 Sekunden neu berechnet", "auf etwa eine Minute genau", // DESIGN §2 rule 8, the live map
-    "mit «Unterwegs» statt mit «Messen»", "wird nie geteilt", "sie bleibt auf dem Telefon und sendet nichts",   // 0.6.4: «Unterwegs» shares nothing; the notification
+    "keine Messung «Unterwegs» und keine Mitteilung «Sehr laut»",   // 0.9.0: no measurement on the road
     "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
   ]) expect(text, fact).toContain(fact);
   expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone
@@ -442,6 +443,28 @@ test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» 
   expect(text).not.toContain("0,1");
   expect(guide).not.toContain("alle 10 Minuten");
   expect(guide).not.toContain("«Weiter»");
+});
+
+test("0.9.0: the privacy page describes the one report dialog, the moved place, the level, the photo, shortcut and widget", async ({ page }) => {
+  await page.goto("/datenschutz.html");
+  const text = await allText(page);
+  for (const fact of [
+    "sobald sich das Fenster öffnet",              // the one fix when the dialog opens, also if cancelled
+    "auch wenn Sie danach «Abbrechen» tippen",
+    "Verknüpfung und Widget senden selbst nichts",
+    "feste", "15",                                  // the moved place, fixed accuracy
+    "höchstens 2", "rund um den Ort, an den Sie sie schieben",
+    "Aufgenommen wird nichts",                      // the level meter records nothing
+    "die Spitze und der Mittelwert dieser Sekunden",
+    "auf ganze dB gerundet",
+    "keine Kamera-Berechtigung",                    // the photo
+    "nur in ihrem privaten Speicher auf dem Telefon",
+    "nie gesendet",
+    "Personendaten",
+    "In 0.8.0 konnten Sie ein Kontrollschild",      // old typed plates stay on the phone
+    "Das ändert nur das Aussehen",                  // dark map tab
+  ]) expect(text, fact).toContain(fact);
+  await expect(page.locator("#foto")).toHaveCount(1);
 });
 
 test("the location of a measurement is described as moved, not as «only a hectare»", async ({ page }) => {

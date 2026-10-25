@@ -3,7 +3,6 @@ package ch.lessnoise.app.ui
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import ch.lessnoise.app.BuildConfig
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -20,7 +19,8 @@ import kotlin.math.sinh
 import kotlin.math.tan
 
 /**
- * 0.7.8, Labor·Karte only ([ENABLED] = BuildConfig.LABOR_UNTERWEGS): the real streets under the
+ * 0.7.8 (Labor·Karte), since 0.8.0 in every edition with the map (Online-Version and Labor·Karte;
+ * src/karte is not compiled into the Offline and Labor builds): the real streets under the
  * arrow of «Wohin fuhr es?». swisstopo's grey map (swisstopo = the Federal Office of Topography),
  * the same tiles the website's map uses (docs/map/karte.js `TILES`), in Web Mercator (the tiling
  * scheme of web maps: the world as 2^z × 2^z square tiles of 256 pixels at zoom z).
@@ -29,9 +29,6 @@ import kotlin.math.tan
  * [ReportTileFetcher] below, the drawing ReportDirectionUi.
  */
 object ReportMapTiles {
-    /** Tiles only in Labor·Karte; the Online-Version shows the rose without a map (PRIVACY.md). */
-    val ENABLED: Boolean = BuildConfig.LABOR_UNTERWEGS
-
     /** THE tile address, as in docs/map/karte.js (`ReportMapTilesTest` compares the two). */
     const val URL_TEMPLATE = "https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"
 
@@ -213,7 +210,7 @@ object ReportMapTiles {
 }
 
 /**
- * Downloads tiles for one direction step (0.7.8, Labor·Karte only). The tiles are kept only in
+ * Downloads tiles for one direction step (0.7.8; since 0.8.0 also in the Online-Version). The tiles are kept only in
  * memory by the caller and only while the step is on screen; nothing is written anywhere (no disk
  * cache: `useCaches = false`, no HttpResponseCache is installed in the app). One host,
  * wmts.geo.admin.ch (from [ReportMapTiles.URL_TEMPLATE] only), GET, HTTPS, no redirects, no cookies
@@ -229,7 +226,7 @@ class ReportTileFetcher {
 
     /** Blocks; call on Dispatchers.IO. */
     fun fetch(tile: ReportMapTiles.Tile): ImageBitmap? {
-        if (!ReportMapTiles.ENABLED || closed) return null
+        if (closed) return null
         val conn = try {
             URI(ReportMapTiles.url(tile)).toURL().openConnection() as HttpURLConnection
         } catch (_: Exception) {

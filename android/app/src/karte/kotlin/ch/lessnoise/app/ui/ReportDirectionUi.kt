@@ -147,10 +147,10 @@ object ReportDirectionUi {
      * under it: [POINT_HINT], or [CALIBRATE_HINT] while the compass is unreliable. [reading] is the
      * caller's [rememberReading] (read here, so that only this panel follows the sensor). [fix]
      * (latitude, longitude) is the report's location fix once it is there, null while it is
-     * searched: in Labor·Karte ([ReportMapTiles.ENABLED]) the real streets around it are drawn
-     * under the arrow; the Online-Version ignores it and shows the rose alone.
+     * searched: the real streets around it are drawn under the arrow (0.7.8 Labor·Karte; since
+     * 0.8.0 also the Online-Version — every edition with the map, no edition flag).
      *
-     * 0.8.1 (same build), Labor·Karte only: once the streets are shown, a one-finger drag on the
+     * 0.8.1 (Labor·Karte; published in 0.9.0): once the streets are shown, a one-finger drag on the
      * disc moves the map under the dot, which stays at the centre (the place to report when the
      * car drove on or the fix is off). [moved] is the place under the dot (null: the fix, not
      * moved); every move calls [onMove] with the new place, which the caller takes (true) or
@@ -180,7 +180,7 @@ object ReportDirectionUi {
         val heading by rememberUpdatedState(r?.magneticDeg)
         val movedNow by rememberUpdatedState(moved)
         val onMoveNow by rememberUpdatedState(onMove)
-        val canDrag = ReportMapTiles.ENABLED && fix != null && tiles.isNotEmpty() && r != null
+        val canDrag = fix != null && tiles.isNotEmpty() && r != null
         val drag = if (!canDrag) Modifier else Modifier
             // Touch-down to lift: the disc keeps the heading of the touch-down (else the map would
             // slide under the finger as the compass turns it) and no tiles are requested. Consumes nothing.
@@ -248,9 +248,9 @@ object ReportDirectionUi {
     }
 
     /**
-     * 0.7.8, Labor·Karte only: swisstopo's tiles around [fix], downloaded while the dialog is on
-     * screen and kept only in this map (memory), which is dropped with the dialog. Nothing is
-     * requested without the flag, without a fix, or outside Switzerland (the grey map has no data
+     * 0.7.8 (Labor·Karte; since 0.8.0 also the Online-Version): swisstopo's tiles around [fix],
+     * downloaded while the dialog is on screen and kept only in this map (memory), which is dropped
+     * with the dialog. Nothing is requested without a fix, or outside Switzerland (the grey map has no data
      * there). Leaving the dialog closes the open connections at once.
      *
      * 0.8.1 (same build): the tiles touching the 150 m circle around [centre] — the fix, or the
@@ -272,7 +272,7 @@ object ReportDirectionUi {
         LaunchedEffect(fetcher, centre) {
             val f = fix
             val c = centre
-            if (!ReportMapTiles.ENABLED || f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect
+            if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect
             if (c != f) delay(TILE_DEBOUNCE_MS)
             val at = ReportMapTiles.tilePoint(c.first, c.second)
             for (t in ReportMapTiles.tilesAround(c.first, c.second)) {
@@ -299,7 +299,7 @@ object ReportDirectionUi {
      * (German: Ost) on north, east, south and west — N larger and in the accent colour. The letters
      * move with the rose but stay upright so they can be read.
      *
-     * Under it (0.7.8, Labor·Karte, once [fix] and the first tiles are there): the real streets,
+     * Under it (0.7.8; since 0.8.0 in the Online-Version too; once [fix] and the first tiles are there): the real streets,
      * swisstopo's grey map, turned by the true heading (magnetic + [declination]) so that the map
      * lies like the ground in front of the reporter, the fix at the centre (a small dot), 300 m
      * across, faint (60 %) and fading in, clipped to the disc; dark theme: inverted like the

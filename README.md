@@ -7,17 +7,21 @@ mehrere Tage –, hält laute Einzelereignisse (z. B. Töffs, Poser) mit Zeit, S
 wahrscheinlicher Quelle fest, zeigt jede Messung als Grafik (ihr Zeitraum und der Tagesverlauf)
 und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
 Es gibt die App in zwei Versionen. Die Online-Version (Standard) sendet nur dann Messwerte ins
-Internet, wenn man beim ersten «Starten» die Frage «Auf die Lärmkarte?» mit «Ja, auf die Karte»
+Internet, wenn man beim ersten Start einer Messung die Frage «Auf die Lärmkarte?» mit «Ja, auf die Karte»
 beantwortet oder unter «Teilen» «Auf die Karte senden» einschaltet: dann Pegel und Lärmspitzen
 jeder geteilten Messung mit dem Ort, an dem sie gestartet wurde – zufällig verschoben,
 standardmässig um etwa 50 m (in der App einstellbar); das Telefon bestimmt den Standort gleich nach
 dem Start einmal, solange die App offen ist, und behält und sendet nur den verschobenen Punkt –, und
 Meldungen mit «Laut! Melden» (Zeit, Standort dieser Meldung, so genau, wie das Telefon ihn gerade
-hat, samt Genauigkeit, Kategorie, ab 0.7.0 wahlweise die Fahrtrichtung als Kompassrichtung, ab 0.8.5 (vorerst nur im internen Labor·Karte-Build) der Spitzen- und der Mittelpegel der Sekunden, in denen der Melde-Dialog offen war – nur Zahlen; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht) – nie Audio, an den
+hat, samt Genauigkeit, Kategorie, ab 0.7.0 wahlweise die Fahrtrichtung als Kompassrichtung, ab 0.9.0 der Spitzen- und der Mittelpegel der Sekunden, in denen das Melde-Fenster offen war – nur Zahlen, nichts aufgenommen; die Koordinaten werden nach dem Senden auf dem Telefon gelöscht; ein freiwilliges Foto vom Fahrzeug bleibt nur auf dem Telefon und wird nie gesendet) – nie Audio, an den
 Server des Projekts in der Schweiz, für eine gemeinsame Lärmkarte. Der Standort wird nie im
 Hintergrund gelesen. Seit 0.6.3 zeigt der Tab «Karte» die Lärmkarte der Website in der App; er lädt
 sie nur, solange er offen ist, wie ein Browser (Seite, Kartenbilder von swisstopo, Kartendaten) und
-sendet dabei keine Messwerte und keinen Standort. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
+sendet dabei keine Messwerte und keinen Standort. Ab 0.8.0 lädt «Laut! Melden», solange es offen ist, die
+Kartenbilder der Umgebung des genauen Standorts von swisstopo (ab 0.9.0 auch die des Orts, an den
+man die Karte verschiebt, bis 2 km), damit man die Strassen unter dem Pfeil sieht; swisstopo erfährt
+dabei die IP-Adresse und die Gegend, wie bei der Karte. Ab 0.9.0 misst die Online-Version unterwegs
+nicht mehr (keine Messung «Unterwegs», keine Mitteilung «Sehr laut»); unterwegs meldet man nur. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
 keine Internet- und keine Standort-Berechtigung, dafür keine Karte und keine Meldungen. Ein fest
 montierter Fenstersensor ist in Entwicklung. Download und Anleitung:
 [wenigerlaerm.ch](https://wenigerlaerm.ch).
@@ -29,7 +33,7 @@ possibly over several days), records loud single events (motorbikes, revving car
 peak level and likely source, shows each measurement as a chart (its own time span and a 24-hour
 profile) and exports CSV. The data stays on the phone of the person who measured it, unless they use
 the «Online-Version» (the edition with the map) and say yes to the opt-in («Auf die Lärmkarte?» at the
-first «Starten» since 0.6.3, or the switch in the tab «Teilen») to contribute
+first start of a measurement since 0.6.3, or the switch in the tab «Teilen») to contribute
 the levels and events of their measurements, each at the place where it was started, moved at
 random on the phone by about 50 m by default (adjustable), and
 reports made with «Laut! Melden», to a shared noise map, which the «Online-Version» also shows in its
@@ -44,9 +48,9 @@ levels and statistics are kept. Up to v0.4.0 the app had no internet permission 
 has the **«Offline-Version»** (`lessnoise.apk`; app id `ch.lessnoise.app` since 0.6.0), the edition
 for even more privacy. The **«Online-Version»** (`lessnoise-karte.apk`, the default download since
 0.6.2, same app id, installs over the other
-and keeps the data) uses the internet for two things only. (1) The opt-in upload «Messwerte teilen» described in
+and keeps the data) uses the internet for three things only. (1) The opt-in upload «Messwerte teilen» described in
 [server/DESIGN.md](server/DESIGN.md) §2 and §4: off until you say yes («Auf die Lärmkarte?» at the
-first «Starten», one dialog that names what is sent, what never, where and how to delete; or the
+first start of a measurement, one dialog that names what is sent, what never, where and how to delete; or the
 switch in «Teilen»); while a shared measurement runs each loud moment about 30 s after it ended and the minutes every 2 minutes (the live map), over mobile data too
 unless «Nur über WLAN» is on; minute and event numbers of
 shared measurements, each with the point of its measurement moved at random on the phone by a
@@ -54,7 +58,7 @@ Gaussian offset, σ = 50 m by default (25/50/100/200 m adjustable; the same offs
 the same place, so averaging does not remove it; never the coordinates of the fix, never the raw
 classifier labels; since 0.7.2 a minute measured with a microphone the user chose instead of the
 built-in one names only that microphone's kind, e.g. USB or Bluetooth), and «Laut! Melden» reports with the exact place of the
-report (deleted from the phone once sent) and, since 0.7.0 and only if the reporter takes it, the direction of travel as one compass bearing, and since 0.8.5 (internal Labor·Karte build first) the peak and average level of the seconds the report dialog was open, numbers only; to one host (`api.lessnoise.ch`, in Switzerland),
+report (deleted from the phone once sent) and, since 0.7.0 and only if the reporter takes it, the direction of travel as one compass bearing, and since 0.9.0 (0.8.5 in the internal Labor·Karte build) the peak and average level of the seconds the report dialog was open, numbers only (the microphone runs through the measurement's level meter only while the dialog is open; nothing is recorded); never the optional photo of the vehicle, which the phone's camera app takes (the app has no camera permission) and which stays in the app's private storage on the phone; to one host (`api.lessnoise.ch`, in Switzerland),
 through one network class (`android/app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt`),
 with no third-party SDK; deletable on the server from the app at any time («Daten auf dem Server
 löschen», reports included), and deleted by the server automatically after 60 days without
@@ -63,10 +67,18 @@ uploads. (2) Since 0.6.3 the tab «Karte», a locked-down WebView
 that shows `https://wenigerlaerm.ch/karte.html` once the tab is opened (kept paused while another tab is shown), like a browser: the page, the
 swisstopo tiles and the published map files, no other host, no cookies, no measurement and no
 location sent (the view is in the part after `#`, which never leaves the phone; swisstopo sees which
-map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». Its
+map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». (3) Since 0.8.0, in «Laut! Melden»,
+while the report dialog is open (0.8.0: the step «Wohin fuhr es?») and the report's fix is there, swisstopo's grey map tiles
+(`wmts.geo.admin.ch`, the Federal Office of Topography; the host the map tab already uses) for the
+≈ 150 m around the reporter's **true** position and, since 0.9.0, around the place the reporter
+moves the map to (at most 2 km away; that place is then sent with a fixed accuracy of 15 m), to draw the streets under the direction arrow
+(`android/app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt`): GET only, no redirects, no
+cache, no cookies, only inside Switzerland, kept in memory for that dialog only; swisstopo sees those
+tile requests with the phone's IP address, like a visitor of the map, and nothing of it is stored or
+sent to the project's server. The Online-Version's
 location permission (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) is used only
-while the app is open: one fix right after «Starten» of a shared measurement (moved by the location
-noise on the phone; since 0.6.3 the measurement does not wait for it) and one per report; location is never read in the background (no
+while the app is open: one fix right after the start of a shared measurement (moved by the location
+noise on the phone; since 0.6.3 the measurement does not wait for it) and one per report (since 0.9.0 read when the report dialog opens, also if it is then cancelled); location is never read in the background (no
 `ACCESS_BACKGROUND_LOCATION`). On the server (schema v4) a minute or event carries the shifted point it was sent with and is
 shown in the 100 m field that contains it (the field is a display grid, not the protection);
 and manual reports of a loud vehicle are stored with their point and published on the
@@ -163,11 +175,25 @@ What the project counts, and who counts it — totals over the whole project, al
 - **Phone app v0.7.1 (published 2026-10-20):** 0.7.0 in both public editions;
   with headphones or a headset connected the app said «Das Telefon misst nur mit dem eingebauten
   Mikrofon. Bitte Kopfhörer oder externes Mikrofon trennen.» instead of measuring.
-- **Phone app v0.7.2 (published 2026-10-20, the current version):** the built-in microphone stays
+- **Phone app v0.7.2 (published 2026-10-20):** the built-in microphone stays
   the default and the app never switches to a headset by itself, but another microphone (USB, wired,
   LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
   whenever it is connected. Calibration is per microphone; a minute measured with another
   microphone sends that microphone's kind with its audio source.
+- **Phone app v0.9.0 (published 2026-10-25, the current version):** in the Online-Version
+  «Laut! Melden» is one dialog with «Senden» (compass and streets, the map can be moved under the dot
+  to correct the place, the level measured while the dialog is open and sent with the report, an
+  optional photo of the vehicle that stays on the phone instead of the typed plate), also opened by an
+  app shortcut and a home-screen widget; no «Unterwegs» measurement and no «Sehr laut» notification
+  any more (a measurement is the long one at the window); a dark «Karte» tab and a redesigned «Messen»
+  and «Teilen». The Offline-Version gets the new look and texts. Both APKs are built and signed by
+  GitHub Actions.
+- **Phone app v0.8.0 (published 2026-10-24):** in the Online-Version one
+  notification for «Sehr laut» instead of two; in «Laut! Melden» a compass rose with the real
+  streets around you under the direction arrow (map tiles from swisstopo, which sees those requests
+  with your IP address), an optional «Kontrollschild» field that stays on the phone, the category
+  «Flugzeug» and an «erkannt» marker instead of pre-filled buttons. The Offline-Version is
+  unchanged for its users.
 - **Noise map and server:** the contribution server ([server/](server/)) runs in Switzerland at
   `api.lessnoise.ch` (apps up to 0.5.1: `api.stadtlaerm.ch`, the same server); the
   map page `docs/karte.html` is on the website, covers all of Switzerland, shows the last 7 or 30

@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.7.2 published)
+# Weniger Lärm — citizen noise measurement (Android; v0.9.0 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -577,7 +577,7 @@ aggregation (v0.6.0 changed no CSV column). Since v0.6.5 the minutes file ends w
 there is no estimate). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
-## «Messen» without a mode switch; «Laut! Melden» from the home screen (0.8.4, Labor·Karte first)
+## «Messen» without a mode switch; «Laut! Melden» from the home screen (0.8.4, Labor·Karte first; published in 0.9.0)
 
 The owner's decision for 0.8.4: two clean situations and **no mode switch**. A running measurement
 means the phone lies at a window; no running measurement means the person holds the phone and is on
@@ -628,7 +628,7 @@ are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureText
   itself. Tests: `ShortcutAndWidgetTest` (src/testKarte). Not verified on a phone yet (launcher,
   widget picker, cold start).
 
-## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only since 0.8.4)
+## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only since 0.8.4, so not in the published Online-Version since 0.9.0)
 
 Since 0.8.4 **laborKarte only** (`app/src/laborKarte/kotlin/ch/lessnoise/app/alert/`, the facade
 `ui/LoudAlerts.kt` next to it; started with the Labor button «Unterwegs aufnehmen», above). The
@@ -915,7 +915,7 @@ progress bar and «Standort wird gesucht …», and the report goes out the mome
 the category, photo, reading and level of the «Senden» tap (`reportNext`: CHOOSE / READY / WAIT / SEND /
 FAILED). From the «Sehr laut» notification a single suggested category is preselected
 (`reportPreselected`), so «Senden» is the one tap; with two suggestions nothing is. **Moving the
-map under the dot** (0.8.1, Labor·Karte, where the streets are drawn): a one-finger drag on the disc
+map under the dot** (0.8.1 in Labor·Karte, since 0.9.0 also in the Online-Version — wherever the streets are drawn): a one-finger drag on the disc
 moves the map, the dot stays at the centre and marks the place to report (when the car drove on or
 the fix is off). The drag is turned back by the disc's rotation, so up the screen moves along the
 direction the phone points (`ReportMapTiles.screenDragToMapOffset`, `offsetToLatLon`); while the
@@ -1004,8 +1004,9 @@ Offline and Labor builds have the stand-in in `src/nomap` with the same API and 
 disc (240 dp in 0.7.8's own dialog): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
 16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
 below and one line «Telefon in die Fahrtrichtung halten», replaced by the figure-eight hint while the
-compass is unreliable. **0.7.8, Labor·Karte
-only** (`ReportMapTiles.ENABLED` = `BuildConfig.LABOR_UNTERWEGS`): once the fix is there
+compass is unreliable. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
+Online-Version**, i.e. in both editions with the map — `src/karte` is not compiled into Offline or Labor;
+no edition flag): once the fix is there
 (`LocationFlows` passes it as `fix`; null while locating), the real streets around it are drawn under the arrow — swisstopo's grey
 map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
 zoom 18, every tile that touches the 150 m disc around the fix (9–16 tiles; a zoom-18 tile is only
@@ -1018,8 +1019,8 @@ timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile,
 `BitmapFactory`, kept in a `remember`ed map only for the life of the dialog, open connections closed
 when the dialog goes away; a tile that fails is simply not drawn. Nothing for a fix outside
 Switzerland's bounding box. Privacy: swisstopo sees tile requests for the area around the
-reporter's **true** position (PRIVACY.md, «Internal variant `laborKarte`»); that is why the
-Online-Version keeps the rose without tiles until its privacy page says so. The 0.7.6 decorative
+reporter's **true** position, with the phone's IP address (PRIVACY.md, «Laut! Melden» and «What it
+loads»; docs/datenschutz.html says so since 0.8.0, when the Online-Version got the tiles). The 0.7.6 decorative
 street lines are gone in every edition. Pure maths and its tests: `ReportMapTiles`,
 `src/testKarte/.../ui/ReportMapTilesTest.kt` (Zürich main station fixture computed in Python).
 
@@ -1054,7 +1055,7 @@ nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
 `UploadClient.kt` (the only class of the upload that opens connections — the others in the app are the
-map tab's WebView and, Labor·Karte only, the tiles under the compass of «Laut! Melden», `ui/ReportMapTiles.kt`: `HttpURLConnection`, one host from
+map tab's WebView and, since 0.8.0 in the Online-Version too, the tiles under the compass of «Laut! Melden», `ui/ReportMapTiles.kt` (wmts.geo.admin.ch only): `HttpURLConnection`, one host from
 `BuildConfig.API_BASE`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, cells per record, reports, `rejected`, delete; pure JVM),
 `Reports.kt` (the report queue), `UploadState.kt` (settings, id, markers, the share decision and the
@@ -1132,7 +1133,25 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.7.2 (versionCode 25, published 2026-10-20) is the current public version, signed APKs in
+v0.9.0 (versionCode 41, published 2026-10-25) is the current public version, signed APKs in
+`../docs/download/`, built and signed by `.github/workflows/release-build.yml`: the Labor·Karte builds
+0.8.1–0.8.8 for the published editions (CHANGELOG 0.9.0) — in the Online-Version «Laut! Melden» as one
+dialog with «Senden», the map moved under the dot (15 m, ≤ 2 km), the level of the open dialog sent
+with the report (server schema v8), the photo of the vehicle on the phone only instead of the typed
+plate, app shortcut and widget, the dark «Karte» tab, no «Unterwegs» measurement and no «Sehr laut»
+notification; in both editions the new «Messen», «Teilen» and Material look. The tiles of the
+report dialog stay on in the Online-Version as in 0.8.0 (no edition flag). Verified on the JVM and on
+the signed APKs (`apksigner`, `aapt2`, `dexdump`, in the workflow and again locally); not run on a
+device.
+
+v0.8.0 (versionCode 32, published 2026-10-24) was the public version before 0.9.0: in the Online-Version
+one notification for «Sehr laut», the compass rose with swisstopo's streets under the arrow of
+«Wohin fuhr es?» (tile requests for the area around the true position, see PRIVACY.md), the
+«Kontrollschild» field (on the phone only), the category «Flugzeug» and the «erkannt» marker
+(CHANGELOG 0.8.0). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`, `dexdump`, in
+the workflow and again locally); not run on a device.
+
+v0.7.2 (versionCode 25, published 2026-10-20) was the public version before 0.8.0, signed APKs then in
 `../docs/download/`: the manual microphone choice (see «Measuring» → «Microphone»): built-in by
 default, another microphone only if chosen and connected, calibration per microphone, the
 microphone's kind in a minute's `audio_source` (server change: needs a redeploy before such minutes
@@ -1493,6 +1512,27 @@ it is never copied into `docs/` or a release. To get a build onto the owner's ph
 `versionCode`/`versionName`, push the `labor-*` branch, wait for the green run, download the
 artifact, and hand over the APK (its SHA-256 is in `SHA256SUMS`).
 
+### Signed published builds on GitHub Actions (0.8.0)
+
+The two published APKs are built the same way by `.github/workflows/release-build.yml` (same
+secrets, same key; a separate file so that it can never build a Labor flavour): `gh workflow run
+release-build.yml --ref <branch>` (also on every push to a `release-*` branch, except changes
+only under `docs/` or to `WORKLOG.md`). It runs `:dsp:test`, `:app:testOfflineDebugUnitTest`,
+`:app:testPublicDebugUnitTest`, builds `assembleOfflineRelease assemblePublicRelease` signed, runs
+`tools/check_release_apk.py` on each APK (signer certificate `a3d5d10e…3142be`; `aapt2` package
+`ch.lessnoise.app` and the version of `app/build.gradle.kts`; `aapt2 dump permissions` exactly
+the PRIVACY.md set per edition — so no `CAMERA`, no `FOREGROUND_SERVICE_LOCATION`; the manifest's
+widget receiver and app shortcut in the public one only; `dexdump`: no Labor classes or strings and
+no ML Kit / Play services / Firebase classes in either, no `alert/*` and no `loud_alert` in either
+(since 0.9.0), and in the offline one no `MapScreen*`, `ReportMapTiles*`/`ReportTileFetcher*`,
+`report/*`, `MotionDetector*` and no `ch/lessnoise` class referring to `WebView` or `SensorManager`,
+all present in the public one — checklist step 2; 0.9.0 merged the 0.8.0 script with the 0.8.4
+Labor·Karte one, which also checks `labor`/`laborKarte` APKs), and uploads `lessnoise.apk`, `lessnoise-karte.apk`, `SHA256SUMS` and `SIZES`
+as the artifact `lessnoise-release-<version>-<code>` (14 days). It has read-only access and never
+touches `docs/`: copying the APKs into `docs/download/` and filling in the website (checklist
+steps 4–7) is a separate commit. The same script runs locally on any release APK
+(`python3 tools/check_release_apk.py offline <apk> --version … --code … --build-tools …`).
+
 To publish, follow the release checklist below. The release key cannot be replaced without
 forcing every user to uninstall and reinstall, so keep the keystore and its password backed up.
 
@@ -1513,14 +1553,15 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `ch/lessnoise/` that refers to `Landroid/webkit/WebView;` (`dexdump -d`; the only reference in it
    is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
-   and no string `loud_alert`; **since 0.8.4 the public one has none either** (only `laborKarte` has them);
+   and no string `loud_alert`; **since 0.9.0 (0.8.4 in `laborKarte`) the public one has none either** (only `laborKarte` has them);
    (0.8.4) the public dex has the shortcut and widget classes `ch/lessnoise/app/report/*` and its manifest
    the widget receiver and `android.app.shortcuts`; the offline one has neither.
    (0.6.7) the offline dex contains no class `ch/lessnoise/app/motion/MotionDetector*` and no class
    of `ch/lessnoise/` that refers to `Landroid/hardware/SensorManager;`; the public one has them.
-   All of step 2's permission and dex rules in one command (0.8.4):
-   `python3 tools/check_release_apk.py offline=app/build/outputs/apk/offline/release/app-offline-release.apk public=app/build/outputs/apk/public/release/app-public-release.apk`
-   (needs `aapt2` and `dexdump` from the build-tools; exit code 1 if a rule fails).
+   All of step 2's permission and dex rules in one command (0.8.4; one script since 0.9.0):
+   `python3 tools/check_release_apk.py --version X.Y.Z --code N --cert-sha256 a3d5… offline=app/build/outputs/apk/offline/release/app-offline-release.apk public=app/build/outputs/apk/public/release/app-public-release.apk`
+   (needs `apksigner`, `aapt2` and `dexdump` from the build-tools; exit code 1 if a rule fails; the
+   workflow calls it as `check_release_apk.py offline <apk> --version … --code …`).
 3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
    `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
@@ -1573,7 +1614,7 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
   src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
-                ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading in `laborKarte` only), compiled
+                ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading since 0.8.0 in `public` too), compiled
                 into `public` and `laborKarte` only; also the motion detector, the compass, and (0.8.4)
                 report/: the shortcut's intent and the widget «Laut! Melden», res/: the widget and the icons
   src/nounterwegs/ (0.8.4) LoudAlerts.kt stand-in for `public`: no «Unterwegs», no «Sehr laut»

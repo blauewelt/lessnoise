@@ -4,7 +4,8 @@ Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per rec
 reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14;
 only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16; schema v5 (stored
 events of other categories deleted, `counted_since`, §5, §6) 2026-10-16; schema v8 (the optional
-`level` of a report, app 0.8.5, §4.7, §5, §6.4) 2026-10-25, not deployed yet. This document is the contract between the three parts that make the
+`level` of a report, app 0.8.5 in Labor·Karte, published with app 0.9.0, §4.7, §5, §6.4) 2026-10-25,
+deployed with release 0.9.0. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
@@ -117,6 +118,25 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    measurement and no location; the centre of the view (the shifted point of the newest shared
    measurement) is in the URL fragment, which never leaves the phone — but the tiles requested for
    the area on screen tell swisstopo which area is being looked at, as for any visitor of the map.
+   Since app 0.8.0 (first in the internal Labor·Karte build, 0.7.8) the Online-Version also talks
+   to swisstopo in «Laut! Melden»: while the report dialog is open (0.8.0: the step «Wohin fuhr
+   es?») and the report's location fix is there, it requests the grey map's tiles
+   (`wmts.geo.admin.ch`, the same host and tile set as the map page) for the ≈ 150 m around the
+   reporter's **true** position, to draw the streets under the direction arrow, and since app 0.9.0
+   (Labor·Karte 0.8.1) also for the ≈ 150 m around a place the reporter drags the map to (at most
+   2 km from the fix, requested 300 ms after the finger lifts) — GET only, no redirects, no cache,
+   no cookies, only tiles touching the 150 m circle, only inside Switzerland, kept in memory for
+   that dialog only. Since app 0.9.0 the fix is taken as soon as the dialog opens, so these tiles
+   are requested also when the reporter then cancels. The dark mode of the map tab (app 0.9.0)
+   changes only how the page is drawn, not what is loaded or from where. swisstopo
+   sees those requests with the phone's IP address, like a visitor looking at that area on the map;
+   nothing of it is stored by the app or sent to our server. So the hosts the Online-Version talks
+   to are exactly: our API host `api.lessnoise.ch` (upload and reports; the map page in the tab
+   falls back to `api.stadtlaerm.ch`, the same machine, if it cannot reach it), wenigerlaerm.ch
+   (map tab) and wmts.geo.admin.ch (map tab and the report dialog). The app shortcut and widget
+   «Laut! Melden» (app 0.9.0) only open the report dialog and talk to no host by themselves. The
+   optional photo of a vehicle (app 0.9.0) never leaves the phone: no host receives it, and no field
+   of §4 can carry it. The Offline-Version talks to none.
 8. **Minimisation on publish.** Event times are published only as counts per day and per
    clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
    (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,
@@ -146,7 +166,7 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     was reported — not snapped to a hectare. What is published per report is exactly: the
     point, the category, and the time **rounded down to the full hour**; since app 0.7.0 also the
     direction of travel in whole degrees, if the reporter took one with the phone's compass (north
-    reference and compass accuracy are stored, not published); since app 0.8.5 also the peak level
+    reference and compass accuracy are stored, not published); since app 0.9.0 (Labor·Karte 0.8.5) also the peak level
     (LAFmax) of the seconds the report dialog was open, **rounded to whole dB**, if the phone measured
     one (the LAeq of those seconds, their number and the calibration flag are stored, not published;
     the level is numbers from the phone's level meter, never audio). Never published: the
@@ -159,9 +179,9 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     someone who reports often from the same spot (their balcony, their front door) makes that
     spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
     confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
-    sichtbar.», because the first-report consent is skipped once sharing is on; since app 0.8.1,
-    which has no separate confirmation, the one report dialog says it under the category buttons,
-    since 0.8.2 just above its «Senden».)
+    sichtbar.», because the first-report consent is skipped once sharing is on; since app 0.9.0
+    (Labor·Karte 0.8.1), which has no separate confirmation, the one report dialog says it just
+    above its «Senden».)
 
 ## 3. Cell ids
 
@@ -390,14 +410,14 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
-  "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.8.1), ≤ 10 000 m
+  "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.9.0 / Labor·Karte 0.8.1), ≤ 10 000 m
   "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere
   "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
     "accuracy": "high"                   //   high | medium | low | unreliable (Android's compass status)
   },
-  "level": {                             // optional (app 0.8.5); absent or null = none measured
+  "level": {                             // optional (app 0.9.0 / Labor·Karte 0.8.5); absent or null = none measured
     "lafmax_db": 81.4,                   //   peak LAFmax while the report dialog was open, dB(A), 0.1
     "laeq_db": 66.2,                     //   LAeq over those seconds, dB(A), 0.1
     "seconds": 9,                        //   how long the dialog was open, whole seconds 1–600
@@ -419,7 +439,7 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
 - `direction` (app 0.7.0) optional; if present exactly these three fields: `bearing_deg` an
   integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
   the part, e.g. field `direction.bearing_deg`;
-- `level` (app 0.8.5) optional; if present exactly these four fields: `lafmax_db` and `laeq_db`
+- `level` (app 0.9.0; Labor·Karte 0.8.5) optional; if present exactly these four fields: `lafmax_db` and `laeq_db`
   numbers 0–140 (finite), `seconds` an integer 1–600 (no fraction, no string), `calibrated` a JSON
   boolean (no string). Reasons name the part, e.g. field `level.seconds`.
 
@@ -428,9 +448,9 @@ field (HTTP 200, the report in `rejected` with field `direction`, «Extra inputs
 App 0.7.0 therefore re-queues a report that was rejected *only* for `direction` without it and sends
 it again in the same run, so a report is never lost while the server is older than the app. Apps up
 to 0.6.6 never send the field and are unaffected by v6. The same holds for `level` and a server
-before schema v8 (field `level`; both fields listed for a server before v6): app 0.8.5 re-queues a
+before schema v8 (field `level`; both fields listed for a server before v6): app 0.9.0 (Labor·Karte 0.8.5) re-queues a
 report rejected only for `direction` and/or `level` without the refused fields and sends it again in
-the same run (`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Apps up to 0.8.4 never send `level`.
+the same run (`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Published apps up to 0.8.0 (Labor·Karte up to 0.8.4) never send `level`.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
 `accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds, the direction
@@ -459,27 +479,29 @@ of up to 50 reports, bearer auth as above:
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
-`accuracy_m` ≤ 50). Since app 0.8.1 (Labor·Karte first) the reporter can drag the map under the dot
+`accuracy_m` ≤ 50). Since app 0.9.0 (Labor·Karte 0.8.1) the reporter can drag the map under the dot
 to correct the place (the car drove on, or the fix is off): then `lat`/`lon` are the place set by
-hand, at most 2 km from the fix, and `accuracy_m` is a fixed 15 — not a measured accuracy, but the
+hand, at most 2 km from the fix and inside Switzerland, and `accuracy_m` is a fixed 15 — not a measured accuracy, but the
 precision of a dot placed by a finger on a 300 m map. Nothing in the body says which it was; the
 server treats both alike.
 This is the only request with exact coordinates. The app keeps them only until the server has
 answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.7.0,
 editions with the map, phones with a compass) is present only when the reporter pointed the phone
-and tapped «Richtung übernehmen» (app 0.7.0–0.7.8; since 0.8.1 the compass reading at the moment the
-category is tapped, when the phone has a compass with a reading): the bearing the phone pointed at, corrected from magnetic to true
+and tapped «Richtung übernehmen» (app 0.7.0–0.8.0; Labor·Karte 0.8.1 the compass reading at the moment the
+category is tapped; since app 0.9.0 / Labor·Karte 0.8.2 the reading at the moment «Senden» is tapped, when the phone has a compass with a reading): the bearing the phone pointed at, corrected from magnetic to true
 north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
 or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
 It is not snapped to a street: no road data exists in the app or on the server (a server-side
-follow-up, WORKLOG 0.6.7 / 0.7.0). `level` (0.8.5, Labor·Karte first): while the report dialog is
+follow-up, WORKLOG 0.6.7 / 0.7.0). `level` (app 0.9.0; Labor·Karte 0.8.5): while the report dialog is
 open and no measurement runs, the phone's microphone runs through the same level meter as a
 measurement (A-weighting, Fast time weighting, 125 ms steps, the phone's calibration offset), in the
 app's own process, without classifier and without any audio being stored; while a measurement runs,
 the dialog takes that measurement's own values instead of opening the microphone a second time. Sent
 are the highest LAFmax of a 125 ms step and the LAeq over the time the dialog was open (until
 «Senden»), one decimal, that time in whole seconds (at most 600), and whether the phone is
-calibrated; absent when the microphone permission was refused or no valid step was measured. Reports are not
+calibrated; absent when the microphone permission was refused or no valid step was measured. The
+optional photo of the vehicle (app 0.9.0) and a licence plate typed in app 0.8.0 stay on the phone:
+no field of the body carries them, and the server would refuse any extra field. Reports are not
 shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.

@@ -222,7 +222,8 @@ class EventIn(_Timed):
 
 class DirectionIn(Strict):
     """Where the reported vehicle drove (§4.7, app 0.6.7, optional): the compass bearing the phone
-    pointed at when the reporter tapped «Richtung übernehmen», in whole degrees clockwise from north.
+    pointed at when the reporter tapped «Senden» in the report dialog (app 0.8.2+; 0.8.1 the category,
+    until 0.7.8 «Richtung übernehmen»), in whole degrees clockwise from north.
     Never a sensor stream, only this one value and how far to trust it."""
 
     bearing_deg: Annotated[StrictInt, Field(ge=0, le=359)]
