@@ -327,9 +327,14 @@ private fun SigmaSetting(current: Int, onChange: (Int) -> Unit) {
 }
 
 /** «Meldungen»: waiting and sent reports (sent ones without coordinates: category and time). */
-/** «12.10. 16:05 · Töff», with a licence plate (0.7.6, on the phone only) «… · Töff · ZH 123». */
+/**
+ * «12.10. 16:05 · Töff»; 0.8.5: with the report's peak level in whole dB «… · Töff · 81 dB»; with a
+ * licence plate (0.7.6–0.8.4, on the phone only) «… · Töff · ZH 123».
+ */
 internal fun sentReportLine(time: String, s: SentReport): String =
-    "$time · ${ReportCategory.fromId(s.category)?.label ?: s.category}" + (s.plate?.let { " · $it" } ?: "")
+    "$time · ${ReportCategory.fromId(s.category)?.label ?: s.category}" +
+        (s.lafMaxDb?.takeIf { it.isFinite() }?.let { " · ${Math.round(it)} dB" } ?: "") +
+        (s.plate?.let { " · $it" } ?: "")
 
 @Composable
 private fun ReportsCard(r: ReportSnapshot) {

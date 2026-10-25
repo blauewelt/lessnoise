@@ -9,7 +9,9 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -112,6 +114,32 @@ data class CompassReading(val magneticDeg: Double, val sensorStatus: Int) {
 }
 
 /**
+ * App 0.8.5 (Labor·Karte first): the sound level while the «Laut! Melden» dialog was open, from the
+ * same level meter as a measurement (dsp MeasurementEngine, the phone's calibration applied; or the
+ * running measurement's own values). Numbers only, one decimal; no audio exists. Sent as `level`
+ * (server/DESIGN.md §4.7): [lafMaxDb] the highest LAFmax of a 125 ms step while the dialog was open,
+ * [laeqDb] the energetic average (LAeq) over that time, [seconds] how long it was open (whole
+ * seconds, 1–[MAX_SECONDS]), [calibrated] whether the phone's microphone is calibrated.
+ */
+data class ReportLevel(val lafMaxDb: Double, val laeqDb: Double, val seconds: Int, val calibrated: Boolean) {
+    init {
+        require(seconds in 1..MAX_SECONDS) { "seconds $seconds" }
+        require(!lafMaxDb.isNaN() && !laeqDb.isNaN()) { "level NaN" }
+    }
+
+    companion object {
+        /** The server's bound (`LevelIn.seconds` ≤ 600); a dialog open longer reports 600. */
+        const val MAX_SECONDS = 600
+        /** The server's bounds for both levels (`LevelIn`, 0–140 dB). */
+        const val MIN_DB = 0.0
+        const val MAX_DB = 140.0
+
+        /** One decimal, within the server's bounds. */
+        fun round1(v: Double): Double = (Math.round(v.coerceIn(MIN_DB, MAX_DB) * 10.0) / 10.0)
+    }
+}
+
+/**
  * A report waiting to be sent. The ONLY place where the app keeps exact coordinates, and only
  * until the server acknowledged the report: then [toSent] drops them (PRIVACY.md).
  */
@@ -133,8 +161,10 @@ data class PendingReport(
      * PHONE ONLY, also after sending (in [SentReport]); never sent: Payloads.report does not read it.
      */
     val plate: String? = null,
+    /** App 0.8.5: the level while the dialog was open ([ReportLevel]); sent as `level`, kept in [SentReport]. */
+    val level: ReportLevel? = null,
 ) {
-    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate)
+    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb)
 
     companion object {
         private val ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx")
@@ -146,10 +176,18 @@ data class PendingReport(
 }
 
 /**
- * What remains on the phone of a sent report: category, time and cell, and (0.7.6) the licence plate
- * if one was typed in — it never left the phone. No coordinates.
+ * What remains on the phone of a sent report: category, time and cell, (0.7.6) the licence plate
+ * if one was typed in — it never left the phone — and (0.8.5) the report's level as sent
+ * ([laeqDb], [lafMaxDb]). No coordinates.
  */
-data class SentReport(val epochMs: Long, val category: String, val cell: String?, val plate: String? = null)
+data class SentReport(
+    val epochMs: Long,
+    val category: String,
+    val cell: String?,
+    val plate: String? = null,
+    val laeqDb: Double? = null,
+    val lafMaxDb: Double? = null,
+)
 
 /**
  * The «Kontrollschild (optional)» field of «Laut! Melden» (0.7.6). No validation of the format (Swiss,
@@ -227,6 +265,16 @@ object ReportQueue {
         store.update { s -> s.copy(pending = s.pending.map { if (it in strip) it.copy(direction = null) else it }) }
     }
 
+    /**
+     * App 0.8.5: a server from before schema v8 refuses the unknown field `level` (server/DESIGN.md
+     * §4.7): [reports] stay in the queue without their level and go out again, like [dropDirection].
+     */
+    fun dropLevel(store: ReportStore, reports: List<PendingReport>) {
+        if (reports.isEmpty()) return
+        val strip = reports.toSet()
+        store.update { s -> s.copy(pending = s.pending.map { if (it in strip) it.copy(level = null) else it }) }
+    }
+
     /** «Daten auf dem Server löschen» also drops reports that were not sent yet. */
     fun dropPending(store: ReportStore) {
         store.update { it.copy(pending = emptyList()) }
@@ -273,13 +321,19 @@ object ReportJson {
                     put("dir", buildJsonObject { put("deg", d.bearingDeg); put("n", d.north.id); put("a", d.accuracy.id) })
                 }
                 r.plate?.let { put("plate", it) }
+                r.level?.let { l ->
+                    put("lvl", buildJsonObject { put("max", l.lafMaxDb); put("eq", l.laeqDb); put("s", l.seconds); put("cal", l.calibrated) })
+                }
             })
         }
     }.toString()
 
     fun sent(list: List<SentReport>): String = buildJsonArray {
         list.forEach { r ->
-            add(buildJsonObject { put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) } })
+            add(buildJsonObject {
+                put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) }
+                r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }
+            })
         }
     }.toString()
 
@@ -292,6 +346,7 @@ object ReportJson {
                 o["cell"]?.jsonPrimitive?.content,
                 direction(o["dir"] as? JsonObject),
                 plate(o),
+                level(o["lvl"] as? JsonObject),
             )
         }
     } catch (_: Exception) {
@@ -311,13 +366,32 @@ object ReportJson {
         null
     }
 
+    /** A stored level (0.8.5); anything unreadable is dropped (the report itself is kept). */
+    private fun level(o: JsonObject?): ReportLevel? = try {
+        o?.let {
+            ReportLevel(
+                it["max"]!!.jsonPrimitive.double, it["eq"]!!.jsonPrimitive.double, it["s"]!!.jsonPrimitive.int,
+                it["cal"]!!.jsonPrimitive.boolean,
+            )
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     /** A stored plate (0.7.6); absent in files of older versions. */
-    private fun plate(o: JsonObject): String? = (o["plate"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    private fun plate(o: JsonObject): String? = string(o, "plate")
+
+    private fun string(o: JsonObject, key: String): String? = (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    private fun number(o: JsonObject, key: String): Double? = (o[key] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull
 
     fun parseSent(s: String?): List<SentReport> = try {
         if (s == null) emptyList() else Json.parseToJsonElement(s).jsonArray.map {
             val o = it.jsonObject
-            SentReport(o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o))
+            SentReport(
+                o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o),
+                number(o, "eq"), number(o, "max"),
+            )
         }
     } catch (_: Exception) {
         emptyList()

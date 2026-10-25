@@ -187,7 +187,10 @@ class ReportFlowTest {
         assertTrue(sendTap.contains("sending = true") && sendTap.contains("chosenReading = reading?.value") && sendTap.contains("advance()"), sendTap)
         // The fix starts when the dialog opens, not after the category.
         val open = ui.substringAfter("fun open() {").substringBefore("\n    }")
-        assertTrue(open.contains("locate()") && open.contains("permission.launch(LocationFetcher.PERMISSIONS)"), open)
+        // 0.8.5: the microphone permission (for the level) goes into the same request (reportPermissions).
+        assertTrue(open.contains("locate()") && open.contains("val ask = reportPermissions(needLocation, micAllowed)") && open.contains("permission.launch(ask)"), open)
+        assertTrue(open.contains("meter.reset()"), "the level starts from zero when the dialog opens")
+        assertTrue(sendTap.contains("chosenLevel = meter.level()"), "the level of the «Senden» tap")
         // «Nochmals» goes back to the dialog (the chosen category is not reset there).
         assertTrue(ui.contains("confirmButton = { TextButton(onClick = { open() }) { Text(\"Nochmals\") } },"))
         assertFalse(open.contains("chosen = null"))

@@ -319,7 +319,8 @@
       if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
       var cat = M.reportCategory(r.category);
       var dir = M.reportDirection(r);
-      var text = cat.name + " · " + M.hourLabel(r.time) + (dir === null ? "" : " · " + M.directionLabel(dir));
+      // App 0.8.5: the peak level while the report dialog was open, whole dB, after the direction.
+      var text = M.reportText(cat.name, M.hourLabel(r.time), dir, M.reportLevel(r));
       // App 0.6.7: a small arrowhead on the rim points where the vehicle drove. Rotated through
       // CSSOM (allowed by the page's CSP, unlike a style attribute).
       var arrow = null;

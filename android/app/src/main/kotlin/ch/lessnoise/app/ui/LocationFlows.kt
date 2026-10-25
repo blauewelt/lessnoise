@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +58,7 @@ import ch.lessnoise.app.upload.CellInput
 import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
+import ch.lessnoise.app.upload.ReportLevel
 import ch.lessnoise.app.upload.ReportPlate
 import ch.lessnoise.app.upload.ReportQueue
 import kotlinx.coroutines.Job
@@ -133,11 +135,19 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     }
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
+    // 0.8.5: the level while the dialog is open (ReportLevel.kt), reset when it opens; the microphone
+    // permission (asked when the dialog opens if missing; without it there is no level); the level of
+    // the «Senden» tap.
+    val meter = remember { ReportLevelMeter() }
+    var micAllowed by remember { mutableStateOf(ReportLevelUi.hasMic(context)) }
+    var chosenLevel by remember { mutableStateOf<ReportLevel?>(null) }
+    // Whether the pending permission request includes the location (it may ask for the microphone only).
+    var askedLocation by remember { mutableStateOf(false) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; plateNote = null; moved = null
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; plateNote = null; moved = null; chosenLevel = null
     }
 
-    fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?) {
+    fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?, level: ReportLevel?) {
         // The fix, or the place moved under the dot (with MANUAL_ACCURACY_M and its own cell).
         val place = reportPlace(fix, moved)
         // True north from the declination at the report's own place (magnetic if that fails).
@@ -147,7 +157,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         val report = PendingReport(
             epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
             lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,
-            category = category.id, cell = place.cell, direction = direction, plate = plate,
+            category = category.id, cell = place.cell, direction = direction, plate = plate, level = level,
         )
         ReportQueue.add(c.upload.reports, report)
         // Labor·Karte: one `report` line in the local manifest (no-op in every other edition).
@@ -164,7 +174,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     fun advance() {
         val o = fixOutcome
         when (reportNext(chosen, o, sending)) {
-            ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading)
+            ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)
             ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)
             ReportNext.CHOOSE, ReportNext.READY, ReportNext.WAIT -> Unit
         }
@@ -182,6 +192,9 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (step != ReportStep.Report) return@rememberLauncherForActivityResult
+        micAllowed = ReportLevelUi.hasMic(context)
+        if (!askedLocation) return@rememberLauncherForActivityResult
+        askedLocation = false
         when (LocationFetcher.permission(context)) {
             LocationPolicy.Permission.PRECISE -> locate()
             LocationPolicy.Permission.APPROXIMATE_ONLY -> { fixOutcome = LocationPolicy.ReportOutcome.Problem(LocationPolicy.Outcome.ApproximateOnly); advance() }
@@ -189,12 +202,23 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         }
     }
 
-    /** The one dialog, with the fix started at once (the permission asked first if needed). */
+    /**
+     * The one dialog, with the fix started at once (the permission asked first if needed). 0.8.5: the
+     * level starts from zero, and a missing microphone permission is asked in the same request.
+     */
     fun open() {
         step = ReportStep.Report
         fixOutcome = null
         moved = null
-        if (LocationFetcher.hasPreciseLocation(context)) locate() else permission.launch(LocationFetcher.PERMISSIONS)
+        meter.reset()
+        micAllowed = ReportLevelUi.hasMic(context)
+        val needLocation = !LocationFetcher.hasPreciseLocation(context)
+        val ask = reportPermissions(needLocation, micAllowed)
+        if (!needLocation) locate()
+        if (ask.isNotEmpty()) {
+            askedLocation = needLocation
+            permission.launch(ask)
+        }
     }
 
     when (val s = step) {
@@ -216,6 +240,9 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         ReportStep.Report -> {
             // The compass lives as long as this dialog (null: no compass on this phone / edition).
             val reading = ReportDirectionUi.rememberReading()
+            // 0.8.5: the level, as long as this dialog shows (its own engine, or the running measurement's values).
+            ReportLevelEffect(meter, micAllowed)
+            val measuring = c.live.collectAsState().value.running
             val fix = fixOutcome as? LocationPolicy.ReportOutcome.Fix
             // «Senden» tapped before the fix: everything waits for it.
             val waiting = sending
@@ -226,6 +253,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 if (!reportSendEnabled(chosen, fixOutcome, sending)) return
                 sending = true
                 chosenReading = reading?.value
+                chosenLevel = meter.level()
                 advance()
             }
             AlertDialog(
@@ -252,6 +280,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                                 next != null && !waiting
                             }
                         }
+                        // 0.8.5: the level line under the disc (none without the microphone and no measurement).
+                        if (micAllowed || measuring) ReportLevelLine(meter)
                         // While a tapped report waits for the fix, the line under the grid says so instead.
                         if (!waiting) Text(
                             reportFixLine(fix?.accuracyText, moved != null),
@@ -377,6 +407,16 @@ private fun CategoryButton(cat: ReportCategory, suggested: Boolean, selected: Bo
  * (the report's time), [suggested] the categories that fit the detected sound (highlighted).
  */
 data class ReportPreset(val epochMs: Long, val suggested: List<ReportCategory>)
+
+/**
+ * 0.8.5: what [rememberReportAction]'s one permission request asks for when the dialog opens: the
+ * location ([needLocation]: no «Genauer Standort» yet) and the microphone (not granted yet, for the
+ * level). Empty: nothing to ask.
+ */
+fun reportPermissions(needLocation: Boolean, micAllowed: Boolean): Array<String> =
+    (if (needLocation) LocationFetcher.PERMISSIONS.toList() else emptyList<String>()).plus(
+        if (micAllowed) emptyList() else listOf(android.Manifest.permission.RECORD_AUDIO),
+    ).toTypedArray()
 
 /** The small marker on a suggested category's button (0.7.7; before: a filled button; 0.8.1: under the label; 0.8.2: filled now means selected). */
 const val REPORT_SUGGESTED_MARK = "erkannt"

@@ -946,6 +946,28 @@ offline edition taking over also drops unsent reports. While a measurement runs 
 button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
 (grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
 
+**The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Under the
+disc one line: the level now in `titleMedium` with a small «jetzt», and the peak since the dialog
+opened, «Spitze 81,4 dB(A)» (reset at every opening; decimal comma, `Fmt.db`). While no measurement
+runs the dialog runs its own short-lived `MeasurementEngine` (the dsp engine of a measurement, no
+classifier, no category mapper, no event head, **no audio tap**) on an `AudioCapture` of the microphone
+and the calibration a measurement would use now (`AudioSourceSelector.select`,
+`Microphones.resolveNow`, `CalibrationRepository.active`), so the number means what «Messen» shows; it
+is opened off the main thread when the dialog shows and closed when it closes (`DisposableEffect`,
+`ReportLevelMic`). Not while the calibration screen holds the microphone. While a measurement runs
+the dialog opens no second microphone and takes the measurement's own 125 ms steps from
+`container.live` (`lafDb`, and since 0.8.5 `lafMaxTickDb`, `leqTickDb`, `tickEpochMs`). The
+microphone permission is asked together with the location when the dialog opens if it is missing
+(`reportPermissions`); without it the dialog works as before, without the line and without a level.
+At «Senden» `ReportLevelMeter.level()` gives the report's `level`: the highest LAFmax of a valid step
+and the LAeq over the valid steps, one decimal, the open time in whole seconds (1–600) and whether the
+microphone is calibrated; null without a valid step. Stored in the queue (`"lvl"`), sent as `level`
+(server/DESIGN.md §4.7), kept as LAeq/LAFmax in the list of sent reports, which shows «· 81 dB». A
+server before schema v8 refuses the field: the report goes out again without it in the same run
+(`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Tests: `ReportLevelTest` (meter, the engine on a
+1 kHz tone, payload, queue, old servers, and a source scan that the engine has no tap and no `ui/`
+class reaches the Labor recorder).
+
 **The compass of «Laut! Melden» (0.6.7 as the step «Wohin fuhr es?»; since 0.8.1 the top of the one
 dialog; editions with the map).** The reporter points the phone where the vehicle went; the reading
 at the moment «Senden» is tapped (0.8.1: a category) goes into the report (until 0.7.8 a separate step after «Was war

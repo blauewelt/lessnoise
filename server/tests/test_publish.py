@@ -46,8 +46,8 @@ def add_day(conn, dev, day: date, base: float, rate: float, seed: int, calibrate
     db.upsert_rows(conn, "events", db.EVENT_COLUMNS, ev_rows)
 
 
-def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad", direction=None):
-    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4, direction=direction))
+def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad", direction=None, level=None):
+    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4, direction=direction, level=level))
     db.upsert_rows(conn, "reports", db.REPORT_COLUMNS, [db.report_row(dev, r, RECEIVED)], key="time_utc")
 
 
@@ -265,12 +265,12 @@ def test_reports_json(conn, tmp_path):
     assert (r["from"], r["to"]) == ("2026-09-26", "2026-10-25")
     assert r["categories"] == ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"]
     assert r["reports"] == [
-        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None},
-        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None},
+        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None, "lafmax_db": None},
+        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None, "lafmax_db": None},
         # 09:01, 09:30 and 09:59:59 are all «09:00»; within the hour, sorted by place, not by time or device.
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None, "lafmax_db": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None, "lafmax_db": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None, "lafmax_db": None},
     ]
     text = (out / "reports.json").read_text()
     for forbidden in ("dev-", "accuracy", "123.4", "device"):
@@ -383,6 +383,7 @@ def test_example_fixture_has_the_published_format(conn, tmp_path):
     add_report(
         conn, a, datetime(2026, 10, 25, 9, 12), 47.3553, 8.5355,
         direction={"bearing_deg": 87, "north": "true", "accuracy": "high"},
+        level={"lafmax_db": 84.3, "laeq_db": 71.0, "seconds": 8, "calibrated": True},
     )  # fmt: skip
     conn.commit()
     cells = publish.publish(conn, tmp_path / "map", now=NOW)
@@ -412,4 +413,26 @@ def test_reports_json_publishes_the_direction_in_whole_degrees_only(conn, tmp_pa
     assert got == [(47.36, 87), (47.37, 4), (47.38, None), (47.39, None)]
     text = (out / "reports.json").read_text()
     for forbidden in ("magnetic", "medium", "unreliable", "north", "accuracy", "bearing"):
+        assert forbidden not in text
+
+
+def test_reports_json_publishes_the_peak_level_in_whole_db_only(conn, tmp_path):
+    """App 0.8.5 (§6.4): the peak level while the report dialog was open is published rounded to whole
+    dB; the LAeq, the seconds and the calibration flag are not; a report without one has null."""
+    a = add_device(conn, None)
+    t = datetime(2026, 10, 25, 9, 12)
+    lvl = {"lafmax_db": 81.5, "laeq_db": 66.27, "seconds": 13, "calibrated": True}
+    add_report(conn, a, t, 47.36, 8.54, level=lvl)
+    add_report(conn, a, t + timedelta(minutes=1), 47.37, 8.54, level={**lvl, "lafmax_db": 79.4, "calibrated": False})
+    add_report(conn, a, t + timedelta(minutes=2), 47.38, 8.54)
+    conn.commit()
+    assert tuple(conn.execute("SELECT level_lafmax_db, level_laeq_db, level_seconds, level_calibrated FROM reports ORDER BY lat").fetchone()) == (
+        81.5, 66.3, 13, 1,
+    )  # fmt: skip
+    out = tmp_path / "map"
+    publish.publish(conn, out, now=NOW)
+    got = [(r["lat"], r["lafmax_db"]) for r in load(out / "reports.json")["reports"]]
+    assert got == [(47.36, 82), (47.37, 79), (47.38, None)]
+    text = (out / "reports.json").read_text()
+    for forbidden in ("laeq", "66.3", "seconds", "calibrated", "81.5", "level"):
         assert forbidden not in text

@@ -86,6 +86,9 @@ class ShareTextsTest {
         val sent = ch.lessnoise.app.upload.SentReport(t, "motorrad", "h1_2", plate = "ZH 123")
         assertEquals("24.10. 16:05 · Töff · ZH 123", sentReportLine("24.10. 16:05", sent))
         assertEquals("24.10. 16:05 · Töff", sentReportLine("24.10. 16:05", sent.copy(plate = null)))
+        // 0.8.5: the report's peak level in whole dB.
+        assertEquals("24.10. 16:05 · Töff · 81 dB", sentReportLine("24.10. 16:05", sent.copy(plate = null, lafMaxDb = 81.4, laeqDb = 66.2)))
+        assertEquals("24.10. 16:05 · Töff · 82 dB · ZH 123", sentReportLine("24.10. 16:05", sent.copy(lafMaxDb = 81.5)))
         // The field: one label, normalised when the report is sent (on «Senden»; 0.8.1: at the category tap).
         assertEquals("Kontrollschild (optional)", ch.lessnoise.app.upload.ReportPlate.LABEL)
         // What the app says is sent with a report does not mention the plate (it is not sent).

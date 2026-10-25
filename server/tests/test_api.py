@@ -334,7 +334,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(7,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(8,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx
@@ -603,6 +603,66 @@ def test_a_duplicate_without_direction_clears_the_stored_one(client, settings):
     client.post(url, json=[{**report(t), "direction": direction(90)}], headers=auth)
     assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
     assert rows(settings, "SELECT direction_deg FROM reports") == [(None,)]
+
+
+def level(lafmax=81.4, laeq=66.2, seconds=9, calibrated=True) -> dict:
+    return {"lafmax_db": lafmax, "laeq_db": laeq, "seconds": seconds, "calibrated": calibrated}
+
+
+def test_report_level_is_optional_validated_and_stored(client, settings):
+    """App 0.8.5: a report may carry the level while the report dialog was open (DESIGN.md §4.7)."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    old_app = report(recent(30))  # apps up to 0.8.4: no field at all
+    calibrated = {**report(recent(29)), "level": level()}
+    rough = {**report(recent(28)), "level": level(140, 0, 600, False)}
+    explicit_null = {**report(recent(27)), "level": None}
+    both = {**report(recent(26)), "direction": direction(90), "level": level(79.95, 70.04, 1)}
+    body = client.post(url, json=[old_app, calibrated, rough, explicit_null, both], headers=auth).json()
+    assert body == {"accepted": 5, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(
+        settings, "SELECT level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, direction_deg FROM reports ORDER BY time_utc"
+    ) == [
+        (None, None, None, None, None),
+        (81.4, 66.2, 9, 1, None),
+        (140.0, 0.0, 600, 0, None),
+        (None, None, None, None, None),
+        (80.0, 70.0, 1, 1, 90),  # stored to 0.1 dB
+    ]  # fmt: skip
+
+    cases = {
+        "loud": level(lafmax=140.1),
+        "negative": level(laeq=-0.1),
+        "nan": level(lafmax="NaN"),
+        "zero_seconds": level(seconds=0),
+        "long": level(seconds=601),
+        "fraction": level(seconds=1.5),
+        "string_seconds": level(seconds="9"),
+        "calibrated": level(calibrated="yes"),
+        "missing": {k: v for k, v in level().items() if k != "laeq_db"},
+        "extra": {**level(), "samples": [0.1, 0.2]},  # never audio
+        "not_object": 81.4,
+    }
+    bad = [{**report(recent(20 - i)), "level": lv} for i, lv in enumerate(cases.values())]
+    body = client.post(url, json=bad, headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["loud"] == fields["nan"] == "level.lafmax_db"
+    assert fields["negative"] == fields["missing"] == "level.laeq_db"
+    assert fields["zero_seconds"] == fields["long"] == fields["fraction"] == fields["string_seconds"] == "level.seconds"
+    assert fields["calibrated"] == "level.calibrated"
+    assert fields["extra"] == "level.samples"
+    assert fields["not_object"] == "level"
+
+
+def test_a_duplicate_without_level_clears_the_stored_one(client, settings):
+    """The later report wins entirely (idempotent on time), level included."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    t = recent(10)
+    client.post(url, json=[{**report(t), "level": level()}], headers=auth)
+    assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
+    assert rows(settings, "SELECT level_lafmax_db, level_seconds FROM reports") == [(None, None)]
 
 
 def test_minute_audio_source_carries_the_microphone_kind(client, settings):

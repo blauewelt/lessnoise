@@ -276,10 +276,12 @@ class Uploader(
                 }
                 requests++
                 sentReports += res.accepted + res.duplicates
-                // 0.6.7: a server from before the direction refuses the unknown field `direction`. Such
-                // reports are not lost: they stay queued without it and go out again in this loop.
+                // 0.6.7: a server from before the direction refuses the unknown field `direction`; 0.8.5:
+                // one from before schema v8 refuses `level` the same way (both at once for a server
+                // older than v6). Such reports are not lost: they stay queued without the refused
+                // optional fields and go out again in this loop.
                 val retry = res.rejected.filter { rej ->
-                    batch.getOrNull(rej.index)?.direction != null && onlyDirection(rej.fields)
+                    batch.getOrNull(rej.index)?.let { onlyOptional(it, rej.fields) } == true
                 }.map { it.index }.toSet()
                 val refusedHere = res.rejected.map { it.index }.toSet() - retry
                 if (refusedHere.isNotEmpty()) store.update { it.copy(refusedTotal = it.refusedTotal + refusedHere.size) }
@@ -288,7 +290,13 @@ class Uploader(
                     reports, kept.map { batch[it] },
                     rejected = kept.withIndex().filter { (_, i) -> i in refusedHere }.map { it.index }.toSet(),
                 )
-                ReportQueue.dropDirection(reports, retry.map { batch[it] })
+                val again = retry.map { batch[it] to res.rejected.first { r -> r.index == it }.fields }
+                ReportQueue.dropDirection(reports, again.filter { (_, f) -> f.any(::isDirectionField) }.map { it.first })
+                ReportQueue.dropLevel(
+                    reports,
+                    // dropDirection replaced those reports in the queue: match them without the direction.
+                    again.filter { (_, f) -> f.any(::isLevelField) }.map { (r, f) -> if (f.any(::isDirectionField)) r.copy(direction = null) else r },
+                )
             }
 
             var more = false
@@ -516,6 +524,23 @@ class Uploader(
          * permitted» for field `direction`; such a report is sent again without it.
          */
         fun onlyDirection(fields: List<String>): Boolean =
-            fields.isNotEmpty() && fields.all { it == "direction" || it.startsWith("direction.") }
+            fields.isNotEmpty() && fields.all(::isDirectionField)
+
+        /** `direction` or one of its parts. */
+        fun isDirectionField(f: String): Boolean = f == "direction" || f.startsWith("direction.")
+
+        /** 0.8.5: `level` or one of its parts. */
+        fun isLevelField(f: String): Boolean = f == "level" || f.startsWith("level.")
+
+        /**
+         * 0.8.5: whether [r] was refused only for its optional fields — every refused field is
+         * `direction`/`level` (or a part of them) and [r] carries each field named. A server before
+         * 0.6.7 refuses `direction` («Extra inputs are not permitted»), one before schema v8 `level`;
+         * such a report is sent again without them ([ReportQueue.dropDirection], [ReportQueue.dropLevel]).
+         */
+        fun onlyOptional(r: PendingReport, fields: List<String>): Boolean =
+            fields.isNotEmpty() && fields.all { f ->
+                (isDirectionField(f) && r.direction != null) || (isLevelField(f) && r.level != null)
+            }
     }
 }

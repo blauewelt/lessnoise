@@ -59,6 +59,13 @@ class FakeServer : AutoCloseable {
      */
     @Volatile var rejectDirection = false
 
+    /**
+     * 0.8.5: True: behave like the server before schema v8 (`extra="forbid"` without `level`): a report
+     * with a `level` is listed in `rejected` with field "level", «Extra inputs are not permitted»;
+     * together with [rejectDirection] both fields are listed (one reason each), as pydantic does.
+     */
+    @Volatile var rejectLevel = false
+
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
 
@@ -192,10 +199,16 @@ class FakeServer : AutoCloseable {
             arr.forEachIndexed { i, el ->
                 val o = el.jsonObject
                 val start = key(o)
-                if (rejectDirection && "direction" in o) {
+                val unknown = listOfNotNull(
+                    "direction".takeIf { rejectDirection && it in o },
+                    "level".takeIf { rejectLevel && it in o },
+                )
+                if (unknown.isNotEmpty()) {
                     add(buildJsonObject {
                         put("index", i); put("time", o["time"]!!.jsonPrimitive.content)
-                        put("reasons", buildJsonArray { add(buildJsonObject { put("field", "direction"); put("reason", "Extra inputs are not permitted") }) })
+                        put("reasons", buildJsonArray {
+                            for (f in unknown) add(buildJsonObject { put("field", f); put("reason", "Extra inputs are not permitted") })
+                        })
                     })
                 } else if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
                     add(buildJsonObject {

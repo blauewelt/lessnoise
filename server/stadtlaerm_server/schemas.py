@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationInfo, field_validator, model_validator
 
 from .lv95 import cell_in_switzerland, lv95_cell, lv95_point_in_switzerland, point_in_switzerland
 
@@ -27,6 +27,8 @@ MAX_REPORT_ACCURACY_M = 10_000.0
 # reports it, and whether the bearing is referred to true or to magnetic north.
 DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
 DIRECTION_NORTHS = ("true", "magnetic")
+# Level of a report (§4.7, app 0.8.5): how long the report dialog was open, at most (seconds).
+MAX_REPORT_LEVEL_SECONDS = 600
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
 POINT_SIGMAS_M = (25, 50, 100, 200)
 # A minute's audio source (§4.3): the Android source, and since app 0.7.2 for a microphone other than
@@ -228,9 +230,20 @@ class DirectionIn(Strict):
     accuracy: Literal[DIRECTION_ACCURACIES]  # type: ignore[valid-type]
 
 
+class LevelIn(Strict):
+    """The sound level while the report dialog was open (§4.7, app 0.8.5, optional): the peak LAFmax
+    and the LAeq of those seconds, measured on the phone by the same level meter as a measurement,
+    how many seconds that was, and whether the phone is calibrated. Numbers only, never audio."""
+
+    lafmax_db: Level
+    laeq_db: Level
+    seconds: Annotated[StrictInt, Field(ge=1, le=MAX_REPORT_LEVEL_SECONDS)]
+    calibrated: StrictBool
+
+
 class ReportIn(Strict):
     """A manual report (§4.7): «here and now something loud passed», with its category and,
-    since app 0.6.7, optionally the direction it drove."""
+    since app 0.6.7, optionally the direction it drove; since app 0.8.5 optionally the level."""
 
     time: Annotated[str, Field(max_length=40)]
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
@@ -238,6 +251,7 @@ class ReportIn(Strict):
     accuracy_m: Annotated[float, Field(ge=0, le=MAX_REPORT_ACCURACY_M, allow_inf_nan=False)]
     category: Literal[REPORT_CATEGORIES]  # type: ignore[valid-type]
     direction: DirectionIn | None = None
+    level: LevelIn | None = None
 
     @field_validator("time")
     @classmethod

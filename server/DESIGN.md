@@ -3,7 +3,8 @@
 Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
 reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14;
 only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16; schema v5 (stored
-events of other categories deleted, `counted_since`, §5, §6) 2026-10-16. This document is the contract between the three parts that make the
+events of other categories deleted, `counted_since`, §5, §6) 2026-10-16; schema v8 (the optional
+`level` of a report, app 0.8.5, §4.7, §5, §6.4) 2026-10-25, not deployed yet. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
@@ -145,7 +146,10 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     was reported — not snapped to a hectare. What is published per report is exactly: the
     point, the category, and the time **rounded down to the full hour**; since app 0.7.0 also the
     direction of travel in whole degrees, if the reporter took one with the phone's compass (north
-    reference and compass accuracy are stored, not published). Never published: the
+    reference and compass accuracy are stored, not published); since app 0.8.5 also the peak level
+    (LAFmax) of the seconds the report dialog was open, **rounded to whole dB**, if the phone measured
+    one (the LAeq of those seconds, their number and the calibration flag are stored, not published;
+    the level is numbers from the phone's level meter, never audio). Never published: the
     device id, the exact time, the location accuracy, any link between two reports. Within an
     hour the reports are sorted by place, not by time or device, so the order reveals no
     sequence (§6.4). Only the last 30 days are published; reports of hidden devices are left
@@ -392,6 +396,12 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
     "accuracy": "high"                   //   high | medium | low | unreliable (Android's compass status)
+  },
+  "level": {                             // optional (app 0.8.5); absent or null = none measured
+    "lafmax_db": 81.4,                   //   peak LAFmax while the report dialog was open, dB(A), 0.1
+    "laeq_db": 66.2,                     //   LAeq over those seconds, dB(A), 0.1
+    "seconds": 9,                        //   how long the dialog was open, whole seconds 1–600
+    "calibrated": true                   //   the phone's microphone is calibrated (else: the default offset)
   }
 }
 ```
@@ -408,17 +418,25 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
   is sent at whatever accuracy the fix has; until then the bound was 200); `category` one of the five; no other fields;
 - `direction` (app 0.7.0) optional; if present exactly these three fields: `bearing_deg` an
   integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
-  the part, e.g. field `direction.bearing_deg`.
+  the part, e.g. field `direction.bearing_deg`;
+- `level` (app 0.8.5) optional; if present exactly these four fields: `lafmax_db` and `laeq_db`
+  numbers 0–140 (finite), `seconds` an integer 1–600 (no fraction, no string), `calibrated` a JSON
+  boolean (no string). Reasons name the part, e.g. field `level.seconds`.
 
 **Old servers and the new field.** A server before schema v6 rejects `direction` like any unknown
 field (HTTP 200, the report in `rejected` with field `direction`, «Extra inputs are not permitted»).
 App 0.7.0 therefore re-queues a report that was rejected *only* for `direction` without it and sends
 it again in the same run, so a report is never lost while the server is older than the app. Apps up
-to 0.6.6 never send the field and are unaffected by v6.
+to 0.6.6 never send the field and are unaffected by v6. The same holds for `level` and a server
+before schema v8 (field `level`; both fields listed for a server before v6): app 0.8.5 re-queues a
+report rejected only for `direction` and/or `level` without the refused fields and sends it again in
+the same run (`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Apps up to 0.8.4 never send `level`.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
 `accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds, the direction
-(v6) as `direction_deg`, `direction_north`, `direction_accuracy` (NULL when none was given).
+(v6) as `direction_deg`, `direction_north`, `direction_accuracy` (NULL when none was given), the
+level (v8) as `level_lafmax_db`, `level_laeq_db` (0.1 dB), `level_seconds`, `level_calibrated` (0/1;
+all NULL when none was measured).
 Idempotent on `(device_id, time)`: the same time again counts as a duplicate and replaces the
 stored report. Response like minutes: `{accepted, duplicates, rejected}`.
 
@@ -434,7 +452,8 @@ of up to 50 reports, bearer auth as above:
   "lon": 8.54169,
   "accuracy_m": 12.3,
   "category": "motorrad | auto | lastwagen | flugzeug | poser | andere",
-  "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" }
+  "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" },
+  "level": { "lafmax_db": 81.4, "laeq_db": 66.2, "seconds": 9, "calibrated": true }
 }
 ```
 
@@ -453,7 +472,14 @@ category is tapped, when the phone has a compass with a reading): the bearing th
 north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
 or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
 It is not snapped to a street: no road data exists in the app or on the server (a server-side
-follow-up, WORKLOG 0.6.7 / 0.7.0). Reports are not
+follow-up, WORKLOG 0.6.7 / 0.7.0). `level` (0.8.5, Labor·Karte first): while the report dialog is
+open and no measurement runs, the phone's microphone runs through the same level meter as a
+measurement (A-weighting, Fast time weighting, 125 ms steps, the phone's calibration offset), in the
+app's own process, without classifier and without any audio being stored; while a measurement runs,
+the dialog takes that measurement's own values instead of opening the microphone a second time. Sent
+are the highest LAFmax of a 125 ms step and the LAeq over the time the dialog was open (until
+«Senden»), one decimal, that time in whole seconds (at most 600), and whether the phone is
+calibrated; absent when the microphone permission was refused or no valid step was measured. Reports are not
 shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
@@ -510,7 +536,9 @@ hourly(device_id, hour_utc INT, cell TEXT DEFAULT '', valid_s, valid_minutes, la
        PRIMARY KEY(device_id, hour_utc, cell))   -- v3: cell in the key, '' = the site cell
 reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m REAL,
         category TEXT, received_at, PRIMARY KEY(device_id, time_utc),   -- v3
-        direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL)  -- v6
+        direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL,  -- v6
+        level_lafmax_db REAL NULL, level_laeq_db REAL NULL, level_seconds INT NULL,
+        level_calibrated INT NULL)  -- v8
 counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
 newsletter(email TEXT PK, created_at TEXT)  -- v7; website form (§4.8), linked to nothing else
 ```
@@ -553,6 +581,11 @@ leaves v4.
 **Migration v5 → v6** (app 0.7.0; runs at startup, one transaction): `ALTER TABLE reports ADD
 COLUMN direction_deg` (INTEGER), `direction_north`, `direction_accuracy` (TEXT). Existing reports
 get NULL, i.e. «no direction given». No row is lost or changed.
+
+**Migration v7 → v8** (app 0.8.5; runs at startup, one transaction): `ALTER TABLE reports ADD
+COLUMN level_lafmax_db`, `level_laeq_db` (REAL), `level_seconds`, `level_calibrated` (INTEGER).
+Existing reports get NULL, i.e. «no level measured». No row is lost or changed. (v6 → v7 added the
+`newsletter` table, §4.8.)
 
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
@@ -755,7 +788,7 @@ schema v2 is removed on the first publish after the update.
   "from": "2026-09-09", "to": "2026-10-08",
   "categories": ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"],
   "reports": [
-    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87 }
+    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87, "lafmax_db": 84 }
   ]
 }
 ```
@@ -767,7 +800,10 @@ the two «02:00» hours keep their offsets). `lat`/`lon` as stored (5 decimals).
 no accuracy, no exact time. `direction` (since v6): the direction of travel in whole degrees
 clockwise from north, or null (none given, a report of an older app, or a compass the phone marked
 «unreliable»); north reference and compass accuracy are not published. The map draws it as a small
-arrow on the report's marker. Sorted by (hour, lat, lon, category, direction): deterministic and testable,
+arrow on the report's marker. `lafmax_db` (since v8, app 0.8.5): the peak level while the report
+dialog was open, **rounded to whole dB** (half up), or null (none measured, a report of an older app);
+the LAeq, the seconds and the calibration flag are not published. The map shows it in the marker's
+tooltip after the direction («84 dB»). Sorted by (hour, lat, lon, category, direction, lafmax_db): deterministic and testable,
 and within an hour the order says nothing about the order of the reports or who made them —
 chosen over a random shuffle, which could not be tested and would change the file on every run.
 

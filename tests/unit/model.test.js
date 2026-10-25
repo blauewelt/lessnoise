@@ -117,11 +117,26 @@ test("reports: direction of travel (app 0.6.7), whole degrees or none", () => {
   assert.ok(dirs.some((d) => d === null) && dirs.some((d) => d !== null), "the fixture has both");
 });
 
+test("a report's peak level: whole dB or nothing, shown after the direction (app 0.8.5)", () => {
+  assert.equal(M.reportLevel({ lafmax_db: 84 }), 84);
+  assert.equal(M.reportLevel({ lafmax_db: 0 }), 0);
+  for (const bad of [null, undefined, -1, 141, "84", NaN]) assert.equal(M.reportLevel({ lafmax_db: bad }), null);
+  assert.equal(M.reportLevel({}), null, "reports of older apps have none");
+  assert.equal(M.reportText("Töff", "14 Uhr", 87, 84), "Töff · 14 Uhr · Richtung Ost · 84 dB");
+  assert.equal(M.reportText("Töff", "14 Uhr", null, 84), "Töff · 14 Uhr · 84 dB");
+  assert.equal(M.reportText("Töff", "14 Uhr", 87, null), "Töff · 14 Uhr · Richtung Ost");
+  assert.equal(M.reportText("Töff", "14 Uhr", null, null), "Töff · 14 Uhr");
+  const levels = reports.reports.map(M.reportLevel);
+  assert.ok(levels.some((v) => v === null) && levels.some((v) => v !== null), "the fixture has both");
+});
+
 test("reports fixture: hours only, no device ids, no accuracy", () => {
   for (const r of reports.reports) {
     // app 0.6.7: plus `direction`, whole degrees or null; never north, compass accuracy or samples
-    assert.deepEqual(Object.keys(r).sort(), ["category", "direction", "lat", "lon", "time"]);
+    // app 0.8.5: plus `lafmax_db`, whole dB or null; never the LAeq, the seconds or the calibration flag
+    assert.deepEqual(Object.keys(r).sort(), ["category", "direction", "lafmax_db", "lat", "lon", "time"]);
     assert.ok(r.direction === null || (Number.isInteger(r.direction) && r.direction >= 0 && r.direction <= 359));
+    assert.ok(r.lafmax_db === null || (Number.isInteger(r.lafmax_db) && r.lafmax_db >= 0 && r.lafmax_db <= 140));
     assert.match(r.time, /^\d{4}-\d{2}-\d{2}T\d{2}:00:00\+0[12]:00$/);
   }
 });

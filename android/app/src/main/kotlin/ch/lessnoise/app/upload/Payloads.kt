@@ -149,8 +149,10 @@ object Payloads {
     /**
      * One «Laut! Melden» report: time of the tap (ISO-8601 with offset, seconds), the exact place
      * (5 decimals ≈ 1 m), its accuracy and the category; since 0.6.7 the direction of travel when the
-     * reporter gave one (whole degrees, true or magnetic north, the compass's accuracy class). A report
-     * without a direction is exactly the request of 0.6.6.
+     * reporter gave one (whole degrees, true or magnetic north, the compass's accuracy class); since
+     * 0.8.5 the `level` while the dialog was open (peak LAFmax and LAeq of those seconds, one decimal,
+     * the seconds, calibrated or not) when the microphone gave one. A report without either is exactly
+     * the request of 0.6.6. The plate (0.7.6) is never read here.
      */
     fun report(r: PendingReport): JsonObject = buildJsonObject {
         put("time", r.timeIso)
@@ -163,6 +165,14 @@ object Payloads {
                 put("bearing_deg", d.bearingDeg)
                 put("north", d.north.id)
                 put("accuracy", d.accuracy.id)
+            })
+        }
+        r.level?.let { l ->
+            put("level", buildJsonObject {
+                put("lafmax_db", num(l.lafMaxDb, 1))
+                put("laeq_db", num(l.laeqDb, 1))
+                put("seconds", l.seconds)
+                put("calibrated", l.calibrated)
             })
         }
     }

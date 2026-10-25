@@ -223,6 +223,14 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
         created_at TEXT
     ) WITHOUT ROWID;
     """,
+    # 8: the optional level of a report (§4.7, app 0.8.5): peak LAFmax and LAeq (dB, 0.1) of the
+    # seconds the report dialog was open, those seconds, calibrated or not. Existing reports keep NULL.
+    """
+    ALTER TABLE reports ADD COLUMN level_lafmax_db REAL;
+    ALTER TABLE reports ADD COLUMN level_laeq_db REAL;
+    ALTER TABLE reports ADD COLUMN level_seconds INTEGER;
+    ALTER TABLE reports ADD COLUMN level_calibrated INTEGER;
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -240,6 +248,7 @@ EVENT_COLUMNS = (
 REPORT_COLUMNS = (
     "device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at",
     "direction_deg", "direction_north", "direction_accuracy",
+    "level_lafmax_db", "level_laeq_db", "level_seconds", "level_calibrated",
 )  # fmt: skip
 # Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
 REPORT_DECIMALS = 5
@@ -536,6 +545,10 @@ def report_row(device_id: str, r: ReportIn, received_at: str) -> dict:
         "direction_deg": r.direction.bearing_deg if r.direction else None,
         "direction_north": r.direction.north if r.direction else None,
         "direction_accuracy": r.direction.accuracy if r.direction else None,
+        "level_lafmax_db": round(r.level.lafmax_db, 1) if r.level else None,
+        "level_laeq_db": round(r.level.laeq_db, 1) if r.level else None,
+        "level_seconds": r.level.seconds if r.level else None,
+        "level_calibrated": int(r.level.calibrated) if r.level else None,
     }
 
 

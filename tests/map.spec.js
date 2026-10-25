@@ -376,7 +376,7 @@ test("reports layer: on by default, one lettered marker per report of the period
   // the marker carries category and hour, nothing else
   const labels = await markers.locator("span").evaluateAll((s) => s.map((x) => x.getAttribute("aria-label")));
   for (const l of labels) {
-    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Flugzeug|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?$/);
+    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Flugzeug|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?( · \d{1,3} dB)?$/);
   }
   const first = in7[0];
   const firstDir = M.reportDirection(first);

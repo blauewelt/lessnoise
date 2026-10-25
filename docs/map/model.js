@@ -343,6 +343,19 @@
     return typeof d === "number" && isFinite(d) && d >= 0 && d < 360 ? Math.round(d) % 360 : null;
   }
 
+  /** A report's peak level while the app's report dialog was open (reports.json `lafmax_db`, app
+   *  0.8.5): whole dB, or null when none was measured (older reports, older apps, no microphone). */
+  function reportLevel(r) {
+    var v = r ? r.lafmax_db : null;
+    return typeof v === "number" && isFinite(v) && v >= 0 && v <= 140 ? Math.round(v) : null;
+  }
+
+  /** The text of a report's tooltip: «Töff · 14–15 Uhr · Richtung Ost · 84 dB» (the parts it has). */
+  function reportText(categoryName, hour, deg, level) {
+    return categoryName + " · " + hour + (deg === null ? "" : " · " + directionLabel(deg)) +
+      (level === null ? "" : " · " + level + " dB");
+  }
+
   var COMPASS_8 = ["Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest"];
 
   /** 87 -> "Richtung Ost"; null -> "". Eight sectors of 45°, centred on the compass points. */
@@ -503,7 +516,7 @@
     sourceMetric: sourceMetric, metricFor: metricFor,
     parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
     REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
-    reportDirection: reportDirection, directionLabel: directionLabel,
+    reportDirection: reportDirection, directionLabel: directionLabel, reportLevel: reportLevel, reportText: reportText,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };
 });

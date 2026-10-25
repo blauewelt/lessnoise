@@ -83,6 +83,14 @@ data class LiveState(
     val calibrationId: Long? = null,
     val calibrationOffsetDb: Double? = null,
     val lafDb: Double? = null,
+    /**
+     * 0.8.5: the newest 125 ms step's LAFmax and LAeq (null while invalid) and its time, read by
+     * «Laut! Melden» while a measurement runs (ui/ReportLevel.kt) so its level means the same as
+     * the dialog's own engine. Numbers only.
+     */
+    val lafMaxTickDb: Double? = null,
+    val leqTickDb: Double? = null,
+    val tickEpochMs: Long = 0,
     val laeq60sDb: Double? = null,
     val backgroundDb: Double? = null,
     /** Local floor (L90 over the trailing local window), the event reference since v0.4.0. */
@@ -599,7 +607,11 @@ class MeasurementService : Service() {
     private inner class EngineListener(private val micKey: String) : MeasurementEngine.Listener {
         override fun onTick(tick: LafTick) {
             container.live.update {
-                it.copy(lafDb = if (tick.valid) tick.lafDb else null, invalidAudio = !tick.valid)
+                it.copy(
+                    lafDb = if (tick.valid) tick.lafDb else null, invalidAudio = !tick.valid,
+                    lafMaxTickDb = if (tick.valid) tick.lafMaxDb else null, leqTickDb = if (tick.valid) tick.leqDb else null,
+                    tickEpochMs = tick.epochMs,
+                )
             }
         }
 
