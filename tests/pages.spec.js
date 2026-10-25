@@ -414,6 +414,12 @@ test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shared
   expect(guide).not.toContain("zwei Knöpfe zum Starten");   // 0.9.0: no «Unterwegs» start any more
 });
 
+test("0.9.1: «Laut! Melden» offers Töff, Auto, Lastwagen, Flugzeug", async ({ page }) => {
+  await page.goto("/anleitung.html");
+  const guide = await allText(page);
+  expect(guide).toContain("Wählen Sie, was laut war (Töff, Auto, Lastwagen oder Flugzeug; bis 0.9.0 auch Poser oder anderes Fahrzeug)");
+});
+
 test("0.6.7: the motion sensor is read on the phone only, and «Unterwegs erkannt» is explained", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);

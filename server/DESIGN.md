@@ -411,7 +411,7 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
   "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.9.0 / Labor·Karte 0.8.1), ≤ 10 000 m
-  "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere
+  "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere (poser/andere: not offered since app 0.9.1, still accepted)
   "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
@@ -476,6 +476,14 @@ of up to 50 reports, bearer auth as above:
   "level": { "lafmax_db": 81.4, "laeq_db": 66.2, "seconds": 9, "calibrated": true }
 }
 ```
+
+`category` is one of the six ids of `REPORT_CATEGORIES` (server/stadtlaerm_server/schemas.py). Since
+app 0.9.1 (Labor·Karte first) the dialog offers only four — Töff, Auto, Lastwagen, Flugzeug
+(`motorrad`, `auto`, `lastwagen`, `flugzeug`) — so that «Senden» has room as the dialog's main button;
+`poser` and `andere` are **no longer offered but still accepted**: older apps in the field still send
+them, and a 0.9.0 phone updated to 0.9.1 may still have one queued. The list and its order stay as
+they are (the app's test compares its full category enum with it), and `reports.json` keeps all six
+in `categories`, so the map still shows the old reports with their markers.
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
@@ -927,7 +935,8 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   (Tag = 6–22 Uhr, Nacht = 22–6 Uhr.)
 - Layer **«Meldungen»** (on by default, checkbox «Meldungen zeigen»): the reports of the chosen
   period from `reports.json` as small round markers with a letter per category (M Motorrad,
-  P Poser, L Lastwagen, F Flugzeug (app 0.7.7), A Auto, + Andere; the colour only helps), tooltip «category · day,
+  P Poser, L Lastwagen, F Flugzeug (app 0.7.7), A Auto, + Andere — P and + only for reports of apps up to 0.9.0,
+  §4.7; the colour only helps), tooltip «category · day,
   hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
 - Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
   figures each with *when* they were measured (events: the total and, under «Alle», each of the

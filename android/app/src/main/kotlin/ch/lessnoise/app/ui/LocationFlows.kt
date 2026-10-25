@@ -28,13 +28,19 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -62,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import ch.lessnoise.app.container
@@ -98,8 +105,9 @@ private sealed interface ReportStep {
  * shows, top to bottom: the compass disc (ReportDirectionUi, editions with the map and a compass;
  * Labor·Karte draws the streets around the fix), 0.8.5 the level line (ReportLevel.kt), the fix
  * line («Standort wird gesucht …» / «Standort ± n m»), 0.8.5 «Foto» (ReportPhotos.kt; until 0.8.4
- * «Kontrollschild (optional)»), the category buttons in two columns and the
- * line [REPORT_SPOT_WARNING]; then «Abbrechen» and [REPORT_SEND]. Since 0.8.2 (owner's decision)
+ * «Kontrollschild (optional)»), the category buttons in two columns (0.9.1: four, [ReportCategory.OFFERED]) and the
+ * line [REPORT_SPOT_WARNING]; then [REPORT_SEND] (0.9.1: full width in the content) and «Abbrechen» (0.9.1: centred
+ * under it, [ReportDialogLayout]). Since 0.8.2 (owner's decision)
  * **tapping a category selects it** (exactly one, drawn filled, the others outlined) and
  * **«Senden» sends the report**: that category, the compass reading of the «Senden» tap (true
  * north with the declination at the report's place; none without a compass or before its first
@@ -120,6 +128,7 @@ private sealed interface ReportStep {
  *
  * Returns the action for the button.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onPresetUsed: () -> Unit = {}): () -> Unit {
     val context = LocalContext.current
@@ -276,16 +285,17 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                 chosenLevel = meter.level()
                 advance()
             }
-            AlertDialog(
+            // 0.9.1: BasicAlertDialog + ReportDialogLayout instead of AlertDialog: «Senden» is the main button in
+            // the content and «Abbrechen» sits centred under it (AlertDialog has only its action row for that).
+            BasicAlertDialog(
                 onDismissRequest = { cancel() },
                 // A tap outside does nothing, so waving the phone cannot cancel by accident; 94 %
                 // wide (0.7.8) so that the disc and two columns of buttons fit on a narrow phone.
                 properties = DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
                 modifier = Modifier.fillMaxWidth(0.94f),
-                // 0.8.6: the megaphone of the «Laut! Melden» button above the title.
-                icon = { Icon(AppIcons.Campaign, contentDescription = null) },
-                title = { Text(REPORT_TITLE) },
-                text = {
+            ) {
+                // 0.8.6: the megaphone of the «Laut! Melden» button above the title (in ReportDialogLayout).
+                ReportDialogLayout(onCancel = { cancel() }) {
                     // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?
                     ReportDialogBody(
                         erkanntAt = if (suggested.isNotEmpty()) Fmt.hm(tapMs) else null,
@@ -310,15 +320,13 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         suggested = suggested,
                         chosen = chosen,
                         onSelect = { cat -> select(cat) },
+                        // 0.8.2: the explicit send (owner's decision), enabled with a category and a fix (or one
+                        // being searched). 0.9.1: the dialog's main button, full width under the grid (ReportSendButton).
+                        sendEnabled = reportSendEnabled(chosen, fixOutcome, sending),
+                        onSend = { sendTap() },
                     )
-                },
-                // 0.8.2: the explicit send (owner's decision), enabled with a category and a fix (or one being searched).
-                // 0.8.6: a filled button with the send icon.
-                confirmButton = {
-                    ReportSendButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending))
-                },
-                dismissButton = { TextButton(onClick = { cancel() }) { Text("Abbrechen") } },
-            )
+                }
+            }
         }
         is ReportStep.Failed -> AlertDialog(
             onDismissRequest = { cancel() },
@@ -379,11 +387,13 @@ val REPORT_INNER_GAP = 8.dp
  * 2. «Was hörst du?» — a tonal card (surfaceContainerHigh, 12 dp corners) with the level as two stat
  *    blocks ([level], null without microphone and measurement) and the location row: icon + [fixLine]
  *    (and «Zurück zum Standort» once the map was moved; a progress bar while «Senden» waits for the fix);
- * 3. «Was war es?» — the category grid (two columns of 72 dp buttons, icon over label), then [photo] and
- *    [photoNote].
+ * 3. «Was war es?» — the category grid (two columns of 72 dp buttons, icon over label; 0.9.1: 2 × 2), then
+ *    [photo] and [photoNote].
  *
- * Then the line of server/DESIGN.md §2 rule 10 with an info icon, directly above the actions, on every
- * report. [waiting]: «Senden» was tapped before the fix (everything disabled).
+ * These three groups scroll on a short screen (0.9.1). Below them, never scrolled away: the line of
+ * server/DESIGN.md §2 rule 10 with an info icon, on every report, and directly under it «Senden»
+ * ([ReportSendButton], [sendEnabled], [onSend]). [waiting]: «Senden» was tapped before the fix
+ * (everything disabled, the progress on «Senden»).
  */
 @Composable
 fun ReportDialogBody(
@@ -400,90 +410,163 @@ fun ReportDialogBody(
     suggested: List<ReportCategory>,
     chosen: ReportCategory?,
     onSelect: (ReportCategory) -> Unit,
+    sendEnabled: Boolean,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier,
+    scroll: ScrollState = rememberScrollState(),
 ) {
     val cs = MaterialTheme.colorScheme
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        if (erkanntAt != null) {
-            Text(
-                "Erkannt um $erkanntAt", style = MaterialTheme.typography.labelLarge, color = cs.primary,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(REPORT_INNER_GAP))
-        }
-        // 1. Wohin?
-        if (disc != null) {
-            disc()
+    // 0.9.1: the groups scroll ([scroll]; the JVM renders pass one scrolled to the end); the line of rule 10 and
+    // «Senden» stay below them, always on screen.
+    Column(modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f, fill = false).verticalScroll(scroll)) {
+            if (erkanntAt != null) {
+                Text(
+                    "Erkannt um $erkanntAt", style = MaterialTheme.typography.labelLarge, color = cs.primary,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(REPORT_INNER_GAP))
+            }
+            // 1. Wohin?
+            if (disc != null) {
+                disc()
+                Spacer(Modifier.height(REPORT_GROUP_GAP))
+            }
+            // 2. Was hörst du? — the level and the place, in one tonal card.
+            // surfaceContainerLowest: the AlertDialog itself is surfaceContainerHigh, so a card in that colour would vanish
+            // (and Highest was barely visible on it in the light theme); Lowest is white / near-black, clear in both.
+            Surface(color = cs.surfaceContainerLowest, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (level != null) {
+                        ReportLevelStats(level)
+                        HorizontalDivider(color = cs.outlineVariant)
+                    }
+                    Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            when (fixState) {
+                                ReportFixState.SEARCHING -> AppIcons.LocationSearching
+                                ReportFixState.FIX -> AppIcons.MyLocation
+                                ReportFixState.MOVED -> AppIcons.EditLocation
+                            },
+                            contentDescription = null, tint = cs.primary, modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(fixLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        if (!waiting && fixState == ReportFixState.MOVED) {
+                            TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }
+                        }
+                    }
+                    // 0.9.1: «Senden» tapped before the fix: the progress is on «Senden» itself (ReportSendButton).
+                }
+            }
             Spacer(Modifier.height(REPORT_GROUP_GAP))
-        }
-        // 2. Was hörst du? — the level and the place, in one tonal card.
-        // surfaceContainerLowest: the AlertDialog itself is surfaceContainerHigh, so a card in that colour would vanish
-        // (and Highest was barely visible on it in the light theme); Lowest is white / near-black, clear in both.
-        Surface(color = cs.surfaceContainerLowest, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (level != null) {
-                    ReportLevelStats(level)
-                    HorizontalDivider(color = cs.outlineVariant)
-                }
-                Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        when (fixState) {
-                            ReportFixState.SEARCHING -> AppIcons.LocationSearching
-                            ReportFixState.FIX -> AppIcons.MyLocation
-                            ReportFixState.MOVED -> AppIcons.EditLocation
-                        },
-                        contentDescription = null, tint = cs.primary, modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(fixLine, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    if (!waiting && fixState == ReportFixState.MOVED) {
-                        TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }
+            // 3. Was war es? — the category (required), then the photo (optional).
+            Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)
+            Spacer(Modifier.height(REPORT_INNER_GAP))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (row in reportCategoryRows(categories)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        for (cat in row) {
+                            CategoryButton(cat, cat in suggested, selected = cat == chosen, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { onSelect(cat) }
+                        }
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                // «Senden» was tapped before the fix: it goes out as soon as the fix is there.
-                if (waiting) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
-        }
-        Spacer(Modifier.height(REPORT_GROUP_GAP))
-        // 3. Was war es? — the category (required), then the photo (optional).
-        Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)
-        Spacer(Modifier.height(REPORT_INNER_GAP))
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            for (row in reportCategoryRows(categories)) {
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    for (cat in row) {
-                        CategoryButton(cat, cat in suggested, selected = cat == chosen, enabled = !waiting, modifier = Modifier.weight(1f).fillMaxHeight()) { onSelect(cat) }
-                    }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
-                }
+            Spacer(Modifier.height(16.dp))
+            photo()
+            photoNote?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
             }
+            Spacer(Modifier.height(8.dp))
         }
-        Spacer(Modifier.height(16.dp))
-        photo()
-        photoNote?.let {
-            Spacer(Modifier.height(4.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
-        }
-        Spacer(Modifier.height(REPORT_GROUP_GAP))
-        // DESIGN.md §2 rule 10: the report screen states the risk, on every report (directly above the actions).
+        // 0.9.1: a line where the scrolling part ends, only when it does scroll (small screens, large font).
+        if (scroll.canScrollForward || scroll.canScrollBackward) HorizontalDivider(color = cs.outlineVariant)
+        Spacer(Modifier.height(12.dp))
+        // DESIGN.md §2 rule 10: the report screen states the risk, on every report (0.9.1: directly above «Senden», never scrolled away).
         Row(verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.Info, contentDescription = null, tint = cs.onSurfaceVariant, modifier = Modifier.padding(top = 1.dp).size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text(REPORT_SPOT_WARNING, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
         }
+        Spacer(Modifier.height(12.dp))
+        ReportSendButton(onClick = onSend, enabled = sendEnabled, waiting = waiting, modifier = Modifier.fillMaxWidth())
     }
 }
+
+/**
+ * 0.9.1: the frame of the «Laut! Melden» dialog, drawn as Material's AlertDialog draws its own
+ * (AlertDialogDefaults: shape, container colour, tonal elevation, icon/title/text colours; 24 dp inside;
+ * the megaphone and [REPORT_TITLE] centred, 16 dp apart), but without an action row: [content]
+ * (ReportDialogBody, which ends with «Senden») and «Abbrechen» as a text button centred under it. Pure, so
+ * the JVM renders (ReportDialogScreenshots) draw exactly this frame.
+ */
+@Composable
+fun ReportDialogLayout(onCancel: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(
+        shape = AlertDialogDefaults.shape, color = AlertDialogDefaults.containerColor,
+        tonalElevation = AlertDialogDefaults.TonalElevation, modifier = modifier,
+    ) {
+        Column(Modifier.padding(24.dp)) {
+            Icon(AppIcons.Campaign, contentDescription = null, tint = AlertDialogDefaults.iconContentColor, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Spacer(Modifier.height(16.dp))
+            Text(
+                REPORT_TITLE, style = MaterialTheme.typography.headlineSmall, color = AlertDialogDefaults.titleContentColor,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(16.dp))
+            Box(Modifier.weight(1f, fill = false)) {
+                CompositionLocalProvider(LocalContentColor provides AlertDialogDefaults.textContentColor) {
+                    ProvideTextStyle(MaterialTheme.typography.bodyMedium) { content() }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onCancel, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(REPORT_CANCEL) }
+        }
+    }
+}
+
+/** 0.9.1: the one text button of the dialog, centred under «Senden». */
+const val REPORT_CANCEL = "Abbrechen"
 
 /** 0.8.6: the heading of the category grid. */
 const val REPORT_WHAT = "Was war es?"
 
-/** 0.8.6: «Senden» as a filled button with the send icon (until 0.8.5 a text button). */
+/** 0.9.1: the height of «Senden» (Material's large button; the category buttons are 72 dp). */
+val REPORT_SEND_HEIGHT = 56.dp
+
+/**
+ * 0.8.6: «Senden» as a filled button with the send icon (until 0.8.5 a text button). 0.9.1: the dialog's
+ * main button, in the content under the grid, full width and [REPORT_SEND_HEIGHT] high (was the small
+ * confirm button of the action row). Disabled until a category is chosen; [waiting] («Senden» tapped
+ * before the fix): a small progress circle and [REPORT_LOCATING] instead of the icon and label.
+ */
 @Composable
-fun ReportSendButton(onClick: () -> Unit, enabled: Boolean) {
-    Button(onClick = onClick, enabled = enabled, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
-        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-        Text(REPORT_SEND)
+fun ReportSendButton(onClick: () -> Unit, enabled: Boolean, waiting: Boolean = false, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    // Waiting: not tappable again, but drawn in the button's own colours (not greyed out) — the report is on its way.
+    val colors = if (waiting) ButtonDefaults.buttonColors(disabledContainerColor = cs.primary, disabledContentColor = cs.onPrimary) else ButtonDefaults.buttonColors()
+    Button(
+        onClick = onClick, enabled = enabled, colors = colors, modifier = modifier.heightIn(min = REPORT_SEND_HEIGHT),
+        contentPadding = if (waiting) PaddingValues(horizontal = 16.dp) else ButtonDefaults.ButtonWithIconContentPadding,
+    ) {
+        if (waiting) {
+            CircularProgressIndicator(
+                Modifier.size(16.dp), color = LocalContentColor.current, strokeWidth = 2.dp,
+                trackColor = LocalContentColor.current.copy(alpha = 0.3f),
+            )
+            Spacer(Modifier.width(8.dp))
+            // labelLarge and one line: «Standort wird gesucht …» fits a 360 dp phone at font scale 1.3.
+            Text(
+                REPORT_LOCATING, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+            )
+        } else {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            Text(REPORT_SEND, style = MaterialTheme.typography.titleMedium)
+        }
     }
 }
 
@@ -529,7 +612,10 @@ const val REPORT_THUMB_DP = 56
 /** 0.8.5: «Foto», or «Neues Foto» once one is taken (0.8.6: «Foto vom Fahrzeug (optional)»). */
 fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON
 
-/** 0.8.6: the icon of each category (Material: two_wheeler, directions_car, local_shipping, flight, speed, more_horiz). */
+/**
+ * 0.8.6: the icon of each category (Material: two_wheeler, directions_car, local_shipping, flight, speed, more_horiz).
+ * 0.9.1: speed and more_horiz are no longer in the dialog; kept so the enum stays exhaustive.
+ */
 fun reportCategoryIcon(cat: ReportCategory): ImageVector = when (cat) {
     ReportCategory.MOTORRAD -> AppIcons.TwoWheeler
     ReportCategory.AUTO -> AppIcons.Car
@@ -607,9 +693,13 @@ fun reportPermissions(needLocation: Boolean, micAllowed: Boolean): Array<String>
 /** The small marker on a suggested category's button (0.7.7; before: a filled button; 0.8.1: under the label; 0.8.2: filled now means selected). */
 const val REPORT_SUGGESTED_MARK = "erkannt"
 
-/** The category buttons with [suggested] first, in their own order; the rest as always. */
+/**
+ * The category buttons with [suggested] first, in their own order; the rest as always. 0.9.1: only
+ * [ReportCategory.OFFERED] (Töff, Auto, Lastwagen, Flugzeug: a 2 × 2 grid); a suggestion that is not
+ * offered is left out.
+ */
 fun reportCategoryOrder(suggested: List<ReportCategory>): List<ReportCategory> =
-    suggested.filter { it in ReportCategory.entries } + ReportCategory.entries.filter { it !in suggested }
+    suggested.filter { it in ReportCategory.OFFERED } + ReportCategory.OFFERED.filter { it !in suggested }
 
 /** 0.8.1: the grid of two columns, row by row (the order of [reportCategoryOrder] read left to right). */
 fun reportCategoryRows(order: List<ReportCategory>): List<List<ReportCategory>> = order.chunked(2)
@@ -617,7 +707,7 @@ fun reportCategoryRows(order: List<ReportCategory>): List<List<ReportCategory>> 
 /** 0.8.1: the title of the one dialog. */
 const val REPORT_TITLE = "Laut! Melden"
 
-/** 0.8.2: the dialog's confirm button (0.8.1 had none: the category tap sent, and a line under the grid said so). */
+/** 0.8.2: the dialog's confirm button (0.8.1 had none: the category tap sent, and a line under the grid said so); 0.9.1: its main button in the content. */
 const val REPORT_SEND = "Senden"
 
 /**
@@ -732,7 +822,8 @@ const val REPORT_CONSENT_TEXT =
 /**
  * The risk server/DESIGN.md §2 rule 10 asks the report screen to state. Since 0.6.3 on the
  * confirmation of EVERY report (the consent, REPORT_CONSENT_TEXT, is skipped once sharing is on);
- * since 0.8.1 in the one «Laut! Melden» dialog under the buttons (0.8.2: above «Senden»).
+ * since 0.8.1 in the one «Laut! Melden» dialog under the buttons (0.8.2: above «Senden»; 0.9.1: directly
+ * above the full-width «Senden», outside the scrolling part).
  */
 const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
 

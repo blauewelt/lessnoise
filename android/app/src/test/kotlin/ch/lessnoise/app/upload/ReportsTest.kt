@@ -60,7 +60,11 @@ class ReportsTest {
         assertEquals(null, ReportCategory.fromId("velo"))
     }
 
-    /** The server rejects a report whose category it does not know (server/stadtlaerm_server/schemas.py REPORT_CATEGORIES). */
+    /**
+     * The server rejects a report whose category it does not know (server/stadtlaerm_server/schemas.py REPORT_CATEGORIES).
+     * 0.9.1: compared with ALL entries, offered or not: the queue may still hold «poser»/«andere» of 0.9.0, and
+     * older apps in the field still send them, so the server keeps all six.
+     */
     @Test
     fun serverAcceptsEveryCategoryInTheSameOrder() {
         var dir: java.io.File? = java.io.File("").absoluteFile
@@ -73,6 +77,8 @@ class ReportsTest {
         val list = Regex("""REPORT_CATEGORIES\s*=\s*\(([^)]*)\)""").find(text)!!.groupValues[1]
         val accepted = Regex(""""([^"]+)"""").findAll(list).map { it.groupValues[1] }.toList()
         assertEquals(ReportCategory.entries.map { it.id }, accepted)
+        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"), accepted)
+        assertTrue(accepted.containsAll(ReportCategory.OFFERED.map { it.id }))
     }
 
     @Test
@@ -238,9 +244,9 @@ class ReportsTest {
         assertEquals("Senden", REPORT_SEND)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        // 0.8.6: the dialog's content is ReportDialogBody (always passed as the dialog's text); the line is
-        // its last element, in a Row with an info icon, behind no condition.
-        assertTrue(dialog.contains("text = {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
+        // 0.8.6: the dialog's content is ReportDialogBody (0.9.1: always passed to ReportDialogLayout); the line is
+        // in a Row with an info icon, behind no condition, outside the scrolling part, directly above «Senden».
+        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
         val lines = body.lines()
         val at = lines.indexOfFirst { it.contains("Text(REPORT_SPOT_WARNING") }
@@ -248,8 +254,11 @@ class ReportsTest {
         assertTrue(lines[at].trimStart().startsWith("Text(REPORT_SPOT_WARNING"), lines[at])
         val row = lines.subList(0, at).last { it.contains("Row(") }
         assertTrue(row.trimStart().startsWith("Row(") && row.indexOf("Row(") == 8, "the warning's Row is at the body column's top level, not behind a condition: $row")
-        assertTrue(ui.substringAfter("fun ReportSendButton(").substringBefore("\n}").contains("Text(REPORT_SEND)"), "0.8.2: the explicit «Senden»")
-        assertTrue(dialog.contains("ReportSendButton(onClick = { sendTap() }"))
+        assertTrue(ui.substringAfter("fun ReportSendButton(").substringBefore("\n}").contains("Text(REPORT_SEND,"), "0.8.2: the explicit «Senden»")
+        // 0.9.1: «Senden» is in the body, directly under the line (both outside the scrolling part).
+        assertTrue(dialog.contains("onSend = { sendTap() },"))
+        val send = lines.indexOfFirst { it.contains("ReportSendButton(onClick = onSend") }
+        assertTrue(send > at && lines.subList(at + 1, send).none { it.contains("Text(") || it.contains("Button(") }, "the line directly above «Senden»")
         assertFalse(ui.contains("Antippen sendet die Meldung."), "0.8.2: a tap no longer sends")
         assertFalse(ui.contains("reportConfirm"), "0.8.1: no separate confirmation dialog (owner's decision)")
     }

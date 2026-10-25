@@ -680,7 +680,7 @@ running measurement, or with the «Sehr laut» channel switched off, the action 
 measurement started with «Messen» never alerts. The tap opens `MainActivity` with the event's start
 time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
 report's time and the fitting categories first, each marked with a small «erkannt» after its label
-(since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Poser;
+(since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Auto — until 0.9.0 Töff, Poser;
 `road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, but the alert does not fire for
 it; nothing is picked). Then as always: consent if sharing is off, one
 fix with the app open, the rule-10 line, and only a tap (on «Senden» until 0.7.8, on the category
@@ -901,12 +901,16 @@ content in a vertically scrollable column, a tap outside does nothing). It start
 any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom: «Erkannt um
 11:14» when it comes from the «Sehr laut» notification; the compass disc (editions with the map and a
 compass, below); «Standort wird gesucht …» until the fix is in, then «Standort ± 12 m»
-(`reportFixLine`); since 0.8.5 «Foto» (below; 0.7.6–0.8.4 «Kontrollschild (optional)»); the six categories as outlined buttons in two columns
-(Töff / Auto, Lastwagen / Flugzeug, Poser / anderes Fahrzeug — until 0.6.3 «anderes»; «Flugzeug»
-since 0.7.7 → ids `motorrad`, `auto`, `lastwagen`, `flugzeug`, `poser`, `andere`;
-`reportCategoryRows`) and, on every report since 0.6.3, «Wer oft vom
+(`reportFixLine`); since 0.8.5 «Foto» (below; 0.7.6–0.8.4 «Kontrollschild (optional)»); the categories as outlined buttons in two columns
+— since 0.9.1 four, a 2 × 2 grid (Töff / Auto, Lastwagen / Flugzeug → ids `motorrad`, `auto`, `lastwagen`,
+`flugzeug`; `ReportCategory.OFFERED`, `reportCategoryOrder`, `reportCategoryRows`); until 0.9.0 six, with Poser / anderes Fahrzeug
+(until 0.6.3 «anderes») → `poser`, `andere`, which stay in the enum so that queued and listed reports of older
+versions still parse and the server still accepts them (DESIGN.md §4.7); «Flugzeug» since 0.7.7 — and, on every report since 0.6.3, «Wer oft vom
 gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
-«Abbrechen» and «Senden». **Since 0.8.2 a tap on a category selects it** (exactly one, drawn filled,
+«Abbrechen» and «Senden». Since 0.9.1 the groups above the line scroll on a short screen while the line,
+«Senden» (full width, 56 dp, the send icon; while it waits for the fix a small progress circle and «Standort wird
+gesucht …») and «Abbrechen» (a text button centred under it) stay on screen (`BasicAlertDialog` + `ReportDialogLayout`;
+until 0.9.0 an `AlertDialog` with «Abbrechen» / «Senden» in its action row). **Since 0.8.2 a tap on a category selects it** (exactly one, drawn filled,
 the others outlined, «erkannt» kept) and **«Senden» sends the report**: that category, the compass
 reading and the level of the «Senden» tap, the photo, the time, the fix (in 0.8.1 the category tap itself sent, with
 «Antippen sendet die Meldung.» under the grid). «Senden» is enabled with a category and a fix present

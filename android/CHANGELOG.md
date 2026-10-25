@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.1 — Labor·Karte first (branch labor-0.9.1) (versionCode 42)
+
+In short: «Laut! Melden» is quicker to finish. The dialog offers four choices and «Senden» is its
+big main button. Nothing that is sent or kept changes.
+
+- **Four categories** (owner's request): «Was war es?» offers Töff, Auto, Lastwagen and Flugzeug in a
+  2 × 2 grid (the same 72 dp buttons, icon over label). «Poser» and «anderes Fahrzeug» are gone from
+  the dialog. Reports made with them by 0.9.0 and older are kept: still in the queue if not yet sent,
+  still shown in «Meldungen», still on the map. The server keeps accepting both (older apps in the
+  field still send them; server/DESIGN.md §4.7).
+- **«Senden» is the main button**: full width, 56 dp high, with the send icon, directly under the line
+  «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»; disabled until a category is
+  chosen. Tapped before the location is found it shows a small progress circle and «Standort wird
+  gesucht …» (the progress bar in the location card is gone). «Abbrechen» is a text button centred
+  under it.
+- **Short screens:** compass, level, location, categories and photo scroll; the line, «Senden» and
+  «Abbrechen» always stay on screen (a thin line marks where the scrolling part ends when it scrolls).
+- **«Sehr laut» notification (Labor·Karte only):** a loud vehicle now suggests Töff and Auto (was Töff
+  and Poser); road traffic Auto and Lastwagen; aircraft Flugzeug — unchanged.
+- No change to what a report sends, to permissions, or to privacy. Texts: docs/anleitung.html,
+  PRIVACY.md, android/README.md and server/DESIGN.md name the four choices.
+
 ## 0.9.0 — 2026-10-25 (versionCode 41; published: Offline-Version and Online-Version on the website)
 
 In short: the first published version since 0.8.0. It brings the unpublished Labor·Karte builds

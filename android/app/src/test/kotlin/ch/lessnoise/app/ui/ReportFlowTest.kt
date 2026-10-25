@@ -25,25 +25,45 @@ class ReportFlowTest {
 
     @Test
     fun theGridIsTwoColumnsInTheOrderOfTheButtons() {
+        // 0.9.1: four categories, a 2 × 2 grid.
         assertEquals(
-            listOf(listOf(MOTORRAD, AUTO), listOf(LASTWAGEN, FLUGZEUG), listOf(POSER, ANDERE)),
+            listOf(listOf(MOTORRAD, AUTO), listOf(LASTWAGEN, FLUGZEUG)),
             reportCategoryRows(reportCategoryOrder(emptyList())),
         )
         // From the «Sehr laut» notification: the suggested ones first (top row), the rest as always.
         assertEquals(
-            listOf(listOf(MOTORRAD, POSER), listOf(AUTO, LASTWAGEN), listOf(FLUGZEUG, ANDERE)),
-            reportCategoryRows(reportCategoryOrder(listOf(MOTORRAD, POSER))),
+            listOf(listOf(AUTO, LASTWAGEN), listOf(MOTORRAD, FLUGZEUG)),
+            reportCategoryRows(reportCategoryOrder(listOf(AUTO, LASTWAGEN))),
         )
         assertEquals(
-            listOf(listOf(FLUGZEUG, MOTORRAD), listOf(AUTO, LASTWAGEN), listOf(POSER, ANDERE)),
+            listOf(listOf(FLUGZEUG, MOTORRAD), listOf(AUTO, LASTWAGEN)),
             reportCategoryRows(reportCategoryOrder(listOf(FLUGZEUG))),
         )
-        // Every category exactly once, whatever is suggested; an odd count leaves one alone in the last row.
-        for (s in listOf(emptyList(), listOf(AUTO, LASTWAGEN), ReportCategory.entries.toList())) {
-            assertEquals(ReportCategory.entries.toSet(), reportCategoryRows(reportCategoryOrder(s)).flatten().toSet())
-            assertEquals(6, reportCategoryRows(reportCategoryOrder(s)).flatten().size)
+        // Every offered category exactly once, whatever is suggested; a suggestion not offered is left out.
+        for (s in listOf(emptyList(), listOf(AUTO, LASTWAGEN), ReportCategory.entries.toList(), listOf(POSER), listOf(MOTORRAD, POSER))) {
+            assertEquals(ReportCategory.OFFERED.toSet(), reportCategoryRows(reportCategoryOrder(s)).flatten().toSet())
+            assertEquals(4, reportCategoryRows(reportCategoryOrder(s)).flatten().size)
         }
-        assertEquals(listOf(listOf(MOTORRAD, AUTO), listOf(POSER)), reportCategoryRows(listOf(MOTORRAD, AUTO, POSER)))
+        // An odd count leaves one alone in the last row.
+        assertEquals(listOf(listOf(MOTORRAD, AUTO), listOf(LASTWAGEN)), reportCategoryRows(listOf(MOTORRAD, AUTO, LASTWAGEN)))
+    }
+
+    /** 0.9.1 (owner): the dialog offers exactly Töff, Auto, Lastwagen, Flugzeug; «Poser» and «anderes Fahrzeug» are kept only for old reports. */
+    @Test
+    fun theDialogOffersExactlyTheFour() {
+        assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG), ReportCategory.OFFERED)
+        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug"), ReportCategory.OFFERED.map { it.label })
+        assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG), reportCategoryOrder(emptyList()))
+        assertEquals(listOf(POSER, ANDERE), ReportCategory.entries.filter { !it.offered })
+        // Still parsed (queued and sent reports of 0.9.0 and older).
+        assertEquals(POSER, ReportCategory.fromId("poser"))
+        assertEquals(ANDERE, ReportCategory.fromId("andere"))
+        // The dialog builds its grid from reportCategoryOrder, never from all entries.
+        val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
+        val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        assertTrue(dialog.contains("categories = reportCategoryOrder(suggested),"))
+        assertFalse(ui.substringAfter("fun reportCategoryOrder(").substringBefore("\n\n").contains("entries"))
     }
 
     @Test
@@ -155,7 +175,7 @@ class ReportFlowTest {
         // 0.8.6: the content is ReportDialogBody; the dialog passes the reset and the line.
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
         assertTrue(dialog.contains("onMoveBack = { moved = null },"))
-        assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) {\n                        TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
+        assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) {\n                            TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
         assertTrue(dialog.contains("fixLine = reportFixLine(fix?.accuracyText, moved != null),"))
         assertTrue(dialog.contains("fixState = reportFixState(fix != null, moved != null),"))
         assertEquals(ReportFixState.SEARCHING, reportFixState(false, true))
@@ -177,18 +197,32 @@ class ReportFlowTest {
             assertFalse(ui.contains(gone), gone)
         }
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        // 0.8.6: «Senden» a filled button with the send icon (ReportSendButton), still the confirm button.
-        assertTrue(
-            dialog.contains("confirmButton = {\n                    ReportSendButton(onClick = { sendTap() }, enabled = reportSendEnabled(chosen, fixOutcome, sending))\n                },"),
-            "«Senden» is the confirm button",
-        )
+        // 0.8.6: «Senden» a filled button with the send icon (ReportSendButton). 0.9.1: no longer the confirm
+        // button but the dialog's main button in the content (ReportDialogBody), full width, 56 dp, under the grid;
+        // the dialog is a BasicAlertDialog in ReportDialogLayout, «Abbrechen» its one text button, centred under «Senden».
+        assertTrue(dialog.contains("sendEnabled = reportSendEnabled(chosen, fixOutcome, sending),\n                        onSend = { sendTap() },"), dialog)
+        assertFalse(dialog.contains("ReportSendButton("), "only inside ReportDialogBody")
+        assertTrue(dialog.contains("BasicAlertDialog(") && dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {"), dialog)
+        assertFalse(dialog.contains("confirmButton") || dialog.contains("dismissButton"), "no action row")
+        val layout = ui.substringAfter("fun ReportDialogLayout(").substringBefore("\n}")
+        assertTrue(layout.contains("Box(Modifier.weight(1f, fill = false)) {") && layout.contains("content()"), layout)
+        assertTrue(layout.trimEnd().lines().takeLast(3).first().contains("TextButton(onClick = onCancel, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text(REPORT_CANCEL) }"), layout)
+        assertTrue(layout.indexOf("content()") < layout.indexOf("TextButton(onClick = onCancel"), "«Abbrechen» under the content")
+        assertEquals("Abbrechen", REPORT_CANCEL)
         val sendButton = ui.substringAfter("fun ReportSendButton(").substringBefore("\n}")
-        assertTrue(sendButton.contains("Button(onClick = onClick, enabled = enabled") && sendButton.contains("Text(REPORT_SEND)"), sendButton)
-        assertTrue(dialog.contains("dismissButton = { TextButton(onClick = { cancel() }) { Text(\"Abbrechen\") } },"))
+        assertTrue(sendButton.contains("Button(\n        onClick = onClick, enabled = enabled") && sendButton.contains("Text(REPORT_SEND"), sendButton)
+        assertTrue(sendButton.contains("modifier.heightIn(min = REPORT_SEND_HEIGHT)") && sendButton.contains("Icons.AutoMirrored.Filled.Send"), sendButton)
+        assertEquals(56f, REPORT_SEND_HEIGHT.value)
+        // Waiting for the fix after the tap: a small progress circle and «Standort wird gesucht …» on the button.
+        assertTrue(sendButton.contains("if (waiting) {\n            CircularProgressIndicator(") && sendButton.contains("REPORT_LOCATING, style = MaterialTheme.typography.labelLarge, maxLines = 1,"), sendButton)
         assertTrue(dialog.contains("dismissOnClickOutside = false"))
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
-        assertTrue(dialog.contains("text = {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
-        assertTrue(body.contains(".verticalScroll("), "scrollable on small screens")
+        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
+        assertTrue(ui.contains("    scroll: ScrollState = rememberScrollState(),\n) {") && body.contains("Column(Modifier.weight(1f, fill = false).verticalScroll(scroll)) {"), "the groups scroll on small screens")
+        // 0.9.1: «Senden» is the body's last element, full width, outside the scrolling part (never scrolled away).
+        val bodyLines = body.trimEnd().lines()
+        assertEquals("        ReportSendButton(onClick = onSend, enabled = sendEnabled, waiting = waiting, modifier = Modifier.fillMaxWidth())", bodyLines[bodyLines.size - 2])
+        assertTrue(body.indexOf("ReportSendButton(") > body.indexOf("for (row in reportCategoryRows(categories))"), "under the grid")
         // A category tap only selects; the selected one is drawn filled.
         assertTrue(body.contains("selected = cat == chosen") && body.contains("{ onSelect(cat) }") && dialog.contains("onSelect = { cat -> select(cat) },"))
         assertTrue(dialog.contains("chosen = chosen,"))

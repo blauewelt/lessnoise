@@ -89,6 +89,9 @@ class ShareTextsTest {
         // 0.8.5: the report's peak level in whole dB.
         assertEquals("24.10. 16:05 · Töff · 81 dB", sentReportLine("24.10. 16:05", sent.copy(plate = null, lafMaxDb = 81.4, laeqDb = 66.2)))
         assertEquals("24.10. 16:05 · Töff · 82 dB · ZH 123", sentReportLine("24.10. 16:05", sent.copy(lafMaxDb = 81.5)))
+        // 0.9.1: «Poser» and «anderes Fahrzeug» are no longer offered, but reports made with them are still listed by name.
+        assertEquals("24.10. 16:05 · Poser · 84 dB", sentReportLine("24.10. 16:05", sent.copy(category = "poser", plate = null, lafMaxDb = 84.4)))
+        assertEquals("24.10. 16:05 · anderes Fahrzeug", sentReportLine("24.10. 16:05", sent.copy(category = "andere", plate = null)))
         // 0.8.5: the field is gone (a photo instead); plates of 0.7.6–0.8.4 reports are still listed.
         // What the app says is sent with a report does not mention the plate (it is not sent).
         for (line in SHARE_SENT_BULLETS + shareLocationBullets(50) + consentLines(50)) {

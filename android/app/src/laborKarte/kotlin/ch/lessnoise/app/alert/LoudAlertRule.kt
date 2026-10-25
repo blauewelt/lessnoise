@@ -58,9 +58,12 @@ object LoudAlertRule {
     /** «Sehr laut: Töff & Poser, 84 dB». */
     fun title(e: LiveEvent): String = "Sehr laut: ${categoryLabel(e.category)}, ${e.lafMaxDb.roundToInt()} dB"
 
-    /** The report categories that fit the detected sound (highlighted in «Was war laut?»). */
+    /**
+     * The report categories that fit the detected sound (first in the grid, marked «erkannt»). 0.9.1:
+     * only offered ones (ReportCategory.OFFERED); a loud vehicle suggests Töff and Auto (was Töff and Poser).
+     */
     fun suggested(category: String?): List<ReportCategory> = when (category) {
-        "loud_vehicle" -> listOf(ReportCategory.MOTORRAD, ReportCategory.POSER)
+        "loud_vehicle" -> listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO)
         "road_traffic" -> listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN)
         // 0.7.7: only reached if the alert ever fires for aircraft; CATEGORIES does not include it.
         "aircraft" -> listOf(ReportCategory.FLUGZEUG)

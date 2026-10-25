@@ -1,6 +1,7 @@
 package ch.lessnoise.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,7 +71,7 @@ import kotlin.math.sin
  * microphone, no tiles from the network): the «Laut! Melden» dialog (its content, ReportDialogBody, in
  * a frame drawn like Material's AlertDialog — Paparazzi does not draw Dialog windows), and «Messen»
  * idle/running, «Teilen», «Messungen», «Einstellungen», each light and dark. Written to
- * $stadtlaerm.screenshotDir/0.8.8-polish (default app/build/screenshots/0.8.8-polish), for review only.
+ * $stadtlaerm.screenshotDir/0.9.1-polish (default app/build/screenshots/0.9.1-polish), for review only.
  */
 private class PolishPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
@@ -89,7 +90,7 @@ private class PolishPngWriter(private val dir: File) : SnapshotHandler {
 private fun polishPaparazzi(heightPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = heightPx, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-polish")),
+    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.1-polish")),
     useDeviceResolution = true,
 )
 
@@ -113,37 +114,58 @@ private fun fakeTiles(lat: Double, lon: Double): Map<ReportMapTiles.Tile, ImageB
         img
     }
 
-/** The «Laut! Melden» dialog as AlertDialog draws it (28 dp corners, surfaceContainerHigh, 24 dp inside, icon, title, actions). */
+/**
+ * The «Laut! Melden» dialog over the dimmed screen. 0.9.1: the frame is the app's own ReportDialogLayout
+ * (until 0.9.0 a copy of AlertDialog's look drawn here); Paparazzi does not draw Dialog windows. The 24 dp
+ * vertical margin stands for the dialog window's insets, so a short screen constrains the height.
+ */
 @Composable
-private fun ReportDialogFrame(sendEnabled: Boolean, body: @Composable () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    Box(Modifier.fillMaxSize().background(Color(0x99000000)), contentAlignment = Alignment.Center) {
-        Surface(shape = RoundedCornerShape(28.dp), color = cs.surfaceContainerHigh, tonalElevation = 6.dp, modifier = Modifier.fillMaxWidth(0.94f)) {
-            Column(Modifier.padding(24.dp)) {
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Icon(AppIcons.Campaign, contentDescription = null, tint = cs.secondary)
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(REPORT_TITLE, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(16.dp))
-                Box(Modifier.weight(1f, fill = false)) { body() }
-                Spacer(Modifier.height(24.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = {}) { Text("Abbrechen") }
-                    Spacer(Modifier.width(8.dp))
-                    ReportSendButton(onClick = {}, enabled = sendEnabled)
-                }
-            }
-        }
+internal fun ReportDialogFrame(body: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0x99000000)).padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+        ReportDialogLayout(onCancel = {}, modifier = Modifier.fillMaxWidth(0.94f)) { body() }
+    }
+}
+
+/** 0.9.1: one «Laut! Melden» dialog with synthetic values (the renders of ReportDialogScreenshots and ReportDialogSmallScreenshots). */
+@Composable
+internal fun ReportDialogSample(
+    chosen: ReportCategory?,
+    fixState: ReportFixState = ReportFixState.FIX,
+    fixLine: String = "Standort ± 100 m",
+    suggested: List<ReportCategory> = emptyList(),
+    level: Boolean = true,
+    waiting: Boolean = false,
+    scrolledToEnd: Boolean = false,
+) {
+    val lat = 47.3769
+    val lon = 8.5417
+    val meter = ReportLevelMeter()
+    if (level) {
+        meter.step(61.0, 68.4, 60.0, valid = true)
+        meter.step(57.5, 58.0, 57.0, valid = true)
+    }
+    val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, 3))
+    val fix = if (fixState == ReportFixState.SEARCHING) null else lat to lon
+    val tiles = if (fix != null) fakeTiles(lat, lon) else null
+    ReportDialogFrame {
+        ReportDialogBody(
+            erkanntAt = if (suggested.isNotEmpty()) "22:36" else null,
+            disc = { ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles) { false } },
+            level = if (level) meter else null,
+            fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
+            photo = { ReportPhotoRow(null, enabled = !waiting, onTake = {}, onRemove = {}) },
+            photoNote = null,
+            categories = reportCategoryOrder(suggested), suggested = suggested, chosen = chosen, onSelect = {},
+            sendEnabled = chosen != null && !waiting, onSend = {},
+            // ScrollState clamps the value to the end once the layout knows the height.
+            scroll = rememberScrollState(if (scrolledToEnd) Int.MAX_VALUE else 0),
+        )
     }
 }
 
 class ReportDialogScreenshots {
     @get:Rule
     val paparazzi = polishPaparazzi(3000)
-
-    private val lat = 47.3769
-    private val lon = 8.5417
 
     private fun dialog(
         name: String,
@@ -154,29 +176,9 @@ class ReportDialogScreenshots {
         suggested: List<ReportCategory> = emptyList(),
         level: Boolean = true,
         waiting: Boolean = false,
-    ) {
-        val meter = ReportLevelMeter()
-        if (level) {
-            meter.step(61.0, 68.4, 60.0, valid = true)
-            meter.step(57.5, 58.0, 57.0, valid = true)
-        }
-        val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, 3))
-        val fix = if (fixState == ReportFixState.SEARCHING) null else lat to lon
-        val tiles = if (fix != null) fakeTiles(lat, lon) else null
-        paparazzi.snapshot(name) {
-            LessNoiseTheme(dark = dark) {
-                ReportDialogFrame(sendEnabled = chosen != null && !waiting) {
-                    ReportDialogBody(
-                        erkanntAt = if (suggested.isNotEmpty()) "22:36" else null,
-                        disc = { ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles) { false } },
-                        level = if (level) meter else null,
-                        fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
-                        photo = { ReportPhotoRow(null, enabled = !waiting, onTake = {}, onRemove = {}) },
-                        photoNote = null,
-                        categories = reportCategoryOrder(suggested), suggested = suggested, chosen = chosen, onSelect = {},
-                    )
-                }
-            }
+    ) = paparazzi.snapshot(name) {
+        LessNoiseTheme(dark = dark) {
+            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting)
         }
     }
 
@@ -198,18 +200,55 @@ class ReportDialogScreenshots {
         "report-dialog-erkannt", dark = false, chosen = ReportCategory.MOTORRAD, suggested = listOf(ReportCategory.MOTORRAD),
     )
 
+    // 0.9.1: a loud vehicle suggests Töff and Auto (two suggestions: none preselected).
+    @Test
+    fun reportDialogErkanntTwo() = dialog(
+        "report-dialog-erkannt-two", dark = false, chosen = null, suggested = listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO),
+    )
+
     @Test
     fun reportDialogMovedDark() = dialog(
-        "report-dialog-moved-dark", dark = true, chosen = ReportCategory.POSER,
+        "report-dialog-moved-dark", dark = true, chosen = ReportCategory.FLUGZEUG,
         fixState = ReportFixState.MOVED, fixLine = REPORT_MOVED_LINE,
     )
 
-    // «Senden» tapped before the fix, no microphone: the location row searches with a progress bar.
+    // «Senden» tapped before the fix, no microphone: 0.9.1: «Senden» shows the progress and «Standort wird gesucht …».
     @Test
     fun reportDialogWaiting() = dialog(
         "report-dialog-waiting", dark = false, chosen = ReportCategory.LASTWAGEN,
         fixState = ReportFixState.SEARCHING, fixLine = REPORT_LOCATING, level = false, waiting = true,
     )
+}
+
+/**
+ * 0.9.1: the «Laut! Melden» dialog on a 360 × 640 dp phone (1080 × 1920 px at 480 dpi) with font scale 1.3:
+ * the groups scroll, the rule-10 line and «Senden» stay on screen.
+ */
+class ReportDialogSmallScreenshots {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_6.copy(
+            screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
+        ),
+        theme = "android:Theme.Material.Light.NoActionBar",
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.1-polish")),
+        useDeviceResolution = true,
+    )
+
+    @Test fun small360x640() = paparazzi.snapshot("report-dialog-360x640-font130") {
+        LessNoiseTheme(dark = false) { ReportDialogSample(chosen = ReportCategory.AUTO) }
+    }
+
+    // The same, scrolled to the end: the grid and the photo button above the fixed line and «Senden».
+    @Test fun small360x640Scrolled() = paparazzi.snapshot("report-dialog-360x640-font130-scrolled") {
+        LessNoiseTheme(dark = false) { ReportDialogSample(chosen = ReportCategory.AUTO, scrolledToEnd = true) }
+    }
+
+    @Test fun small360x640Waiting() = paparazzi.snapshot("report-dialog-360x640-font130-waiting") {
+        LessNoiseTheme(dark = false) {
+            ReportDialogSample(chosen = ReportCategory.LASTWAGEN, fixState = ReportFixState.SEARCHING, fixLine = REPORT_LOCATING, level = false, waiting = true)
+        }
+    }
 }
 
 class PolishScreenshots {

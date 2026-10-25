@@ -23,21 +23,30 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * «Laut! Melden» (app 0.6.0, Karten editions): what was loud, as one of five categories. The ids
+ * «Laut! Melden» (app 0.6.0, Karten editions): what was loud, as one of these categories. The ids
  * are the server's (`POST /v1/devices/{id}/reports`, server/DESIGN.md §4); the labels are the
- * buttons («Töff», «Auto», …).
+ * buttons («Töff», «Auto», …). Since 0.9.1 the dialog offers only [OFFERED] (four); the other two
+ * stay for reports made with older versions.
  */
-enum class ReportCategory(val id: String, val label: String) {
+enum class ReportCategory(val id: String, val label: String, val offered: Boolean = true) {
     MOTORRAD("motorrad", "Töff"),
     AUTO("auto", "Auto"),
     LASTWAGEN("lastwagen", "Lastwagen"),
     /** 0.7.7: aircraft; the server accepts the id once its schema change is deployed (server/DESIGN.md §4.7). */
     FLUGZEUG("flugzeug", "Flugzeug"),
-    POSER("poser", "Poser"),
-    /** 0.6.4: label «anderes Fahrzeug» (was «anderes»); the id stays «andere» (server, reports.json). */
-    ANDERE("andere", "anderes Fahrzeug");
+    /**
+     * 0.9.1: no longer offered in «Laut! Melden» (owner: room for a prominent «Senden»). Kept so that
+     * reports queued or sent with it by 0.9.0 and older still parse and show in «Meldungen»; the
+     * server keeps accepting the id from older apps (REPORT_CATEGORIES unchanged).
+     */
+    POSER("poser", "Poser", offered = false),
+    /** 0.6.4: label «anderes Fahrzeug» (was «anderes»); the id stays «andere» (server, reports.json). 0.9.1: not offered (as POSER). */
+    ANDERE("andere", "anderes Fahrzeug", offered = false);
 
     companion object {
+        /** 0.9.1: the categories the «Laut! Melden» dialog offers, in this order: Töff, Auto, Lastwagen, Flugzeug. */
+        val OFFERED: List<ReportCategory> = entries.filter { it.offered }
+
         fun fromId(id: String): ReportCategory? = entries.firstOrNull { it.id == id }
     }
 }

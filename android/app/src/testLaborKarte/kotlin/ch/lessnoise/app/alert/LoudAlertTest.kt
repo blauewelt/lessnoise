@@ -93,19 +93,28 @@ class LoudAlertTest {
     @Test
     fun theTapBecomesAPrefilledReportAtTheEventsTime() {
         val p = LoudAlertIntent.preset(LoudAlertIntent.ACTION, t0, "loud_vehicle")
-        assertEquals(ReportPreset(t0, listOf(ReportCategory.MOTORRAD, ReportCategory.POSER)), p)
+        // 0.9.1: Töff and Auto (was Töff and Poser; «Poser» is no longer offered).
+        assertEquals(ReportPreset(t0, listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO)), p)
         assertEquals(listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN), LoudAlertIntent.preset(LoudAlertIntent.ACTION, t0, "road_traffic")!!.suggested)
         // 0.7.7: aircraft would suggest «Flugzeug» (the alert itself still never fires for it, above).
         assertEquals(listOf(ReportCategory.FLUGZEUG), LoudAlertRule.suggested("aircraft"))
         assertEquals("Flugzeug", LoudAlertRule.categoryLabel("aircraft"))
         assertEquals(emptyList<ReportCategory>(), LoudAlertRule.suggested("rail_tram"))
-        // Suggested first and marked «erkannt», all six still there: nothing is picked silently.
+        // Suggested first and marked «erkannt», all four offered still there: nothing is picked silently.
         assertEquals("erkannt", REPORT_SUGGESTED_MARK)
         assertEquals(
-            listOf(ReportCategory.MOTORRAD, ReportCategory.POSER, ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG, ReportCategory.ANDERE),
+            listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG),
             reportCategoryOrder(p!!.suggested),
         )
-        assertEquals(ReportCategory.entries.toList(), reportCategoryOrder(emptyList()))
+        assertEquals(
+            listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.MOTORRAD, ReportCategory.FLUGZEUG),
+            reportCategoryOrder(LoudAlertRule.suggested("road_traffic")),
+        )
+        assertEquals(ReportCategory.OFFERED, reportCategoryOrder(emptyList()))
+        // 0.9.1: every suggestion is one the dialog offers (never «Poser» or «anderes Fahrzeug»).
+        for (c in listOf("loud_vehicle", "road_traffic", "aircraft", "rail_tram", null)) {
+            assertTrue(LoudAlertRule.suggested(c).all { it.offered }, "$c")
+        }
         // Any other intent (the launcher, the measurement's notification): no report.
         assertNull(LoudAlertIntent.preset(null, t0, "loud_vehicle"))
         assertNull(LoudAlertIntent.preset("android.intent.action.MAIN", t0, "loud_vehicle"))
