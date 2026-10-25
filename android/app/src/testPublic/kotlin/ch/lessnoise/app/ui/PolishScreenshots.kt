@@ -70,7 +70,7 @@ import kotlin.math.sin
  * microphone, no tiles from the network): the «Laut! Melden» dialog (its content, ReportDialogBody, in
  * a frame drawn like Material's AlertDialog — Paparazzi does not draw Dialog windows), and «Messen»
  * idle/running, «Teilen», «Messungen», «Einstellungen», each light and dark. Written to
- * $stadtlaerm.screenshotDir/0.8.7-polish (default app/build/screenshots/0.8.7-polish), for review only.
+ * $stadtlaerm.screenshotDir/0.8.8-polish (default app/build/screenshots/0.8.8-polish), for review only.
  */
 private class PolishPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
@@ -89,7 +89,7 @@ private class PolishPngWriter(private val dir: File) : SnapshotHandler {
 private fun polishPaparazzi(heightPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = heightPx, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-polish")),
+    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-polish")),
     useDeviceResolution = true,
 )
 
@@ -293,27 +293,24 @@ class PolishScreenshots {
     @Test fun messenRunning() = messenRunning("messen-running", dark = false)
     @Test fun messenRunningDark() = messenRunning("messen-running-dark", dark = true)
 
-    private fun teilen(name: String, dark: Boolean) {
-        val s = on.copy(lastSuccessAtMs = ms(15, 18, 42), minutesSentUpToMs = ms(15, 18, 41))
-        val reports = ReportSnapshot(
-            sent = listOf(
-                SentReport(ms(14, 22, 10), "poser", "c1", lafMaxDb = 84.6),
-                SentReport(ms(15, 7, 55), "lastwagen", "c1", lafMaxDb = 78.2),
-                SentReport(ms(15, 16, 5), "motorrad", "c1", lafMaxDb = 81.4),
-            ),
-        )
-        tab(name, dark, Screen.SHARE) { m ->
-            ShareContent(
-                s = s, status = shareStatus(s, false, 0, false, LocateState.Idle, true) { "18:42" },
-                pending = 0, reports = reports, busy = null, result = null,
-                onSwitch = {}, onStatus = {}, onWifiOnly = {}, onSigma = {}, onSaveSite = {}, onDelete = {}, onNewId = {},
-                modifier = m,
-            )
-        }
-    }
+    private fun teilen(name: String, dark: Boolean, sharing: Boolean = true, withReports: Boolean = true) =
+        tab(name, dark, Screen.SHARE) { m -> TeilenSample(sharing, withReports, m) }
 
+    // 0.8.8: «Messungen am Fenster» (switch, chip, settings always visible) and «Meldungen unterwegs».
     @Test fun teilen() = teilen("teilen", dark = false)
     @Test fun teilenDark() = teilen("teilen-dark", dark = true)
+    // Sharing off: the window settings drawn disabled; no report sent yet.
+    @Test fun teilenOff() = teilen("teilen-off", dark = false, sharing = false, withReports = false)
+    @Test fun teilenOffDark() = teilen("teilen-off-dark", dark = true, sharing = false, withReports = false)
+
+    // 0.8.8: the idle «Messen» shows the chip only when there is something to do (showOnIdle): interrupted.
+    @Test fun messenIdleProblem() = tab("messen-idle-problem", false, Screen.MEASURE) { m ->
+        MeasureContent(
+            live = LiveState(), events = emptyList(), calibrating = false, categoryName = { names[it] ?: "Sonstiges" },
+            onStart = {}, onStop = {}, onReport = {}, modifier = m,
+            shareStatus = shareStatus(on.copy(authFailed = true), false, 0, false, LocateState.Idle, true) { "18:42" },
+        )
+    }
 
     private fun minutes(from: Long, to: Long): List<MinuteRecord> = (from until to step 60_000L).mapIndexed { i, t ->
         val bg = 46.0 + 4 * sin(i / 40.0) + (i % 7) * 0.3
@@ -388,7 +385,7 @@ class MessenIdleSmallScreenshots {
             screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-idle")),
         useDeviceResolution = true,
     )
 
@@ -419,7 +416,7 @@ class MessenIdlePixel5Screenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_5.copy(fontScale = 1.3f),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-idle")),
         useDeviceResolution = true,
     )
 
@@ -436,4 +433,44 @@ class MessenIdlePixel5Screenshots {
             }
         }
     }
+}
+
+/** 0.8.8: «Teilen» with synthetic values: sharing on (sent 18:42) or off (answered «no»); three sent reports or none. */
+@Composable
+internal fun TeilenSample(sharing: Boolean, withReports: Boolean, modifier: Modifier) {
+    val base = if (sharing) {
+        UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t", lastSuccessAtMs = ms(15, 18, 42), minutesSentUpToMs = ms(15, 18, 41))
+    } else {
+        UploadSnapshot(enabled = false, shareDecision = ShareDecision.NO)
+    }
+    val reports = if (!withReports) ReportSnapshot() else ReportSnapshot(
+        sent = listOf(
+            SentReport(ms(14, 22, 10), "poser", "c1", lafMaxDb = 84.6),
+            SentReport(ms(15, 7, 55), "lastwagen", "c1", lafMaxDb = 78.2),
+            SentReport(ms(15, 16, 5), "motorrad", "c1", lafMaxDb = 81.4),
+        ),
+    )
+    ShareContent(
+        s = base, status = shareStatus(base, false, 0, false, LocateState.Idle, true) { "18:42" },
+        pending = 0, reports = reports, busy = null, result = null,
+        onSwitch = {}, onStatus = {}, onWifiOnly = {}, onSigma = {}, onSaveSite = {}, onDelete = {}, onNewId = {},
+        modifier = modifier,
+    )
+}
+
+/** 0.8.8: the whole «Teilen» page in one tall render (a phone shows it by scrolling), light and dark, on and off. */
+class TeilenTallScreenshots {
+    @get:Rule
+    val paparazzi = polishPaparazzi(4200)
+
+    private fun render(name: String, dark: Boolean, sharing: Boolean, withReports: Boolean) = paparazzi.snapshot(name) {
+        LessNoiseTheme(dark = dark) {
+            TeilenSample(sharing, withReports, Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+        }
+    }
+
+    @Test fun onWithReports() = render("teilen-full-on", dark = false, sharing = true, withReports = true)
+    @Test fun onWithReportsDark() = render("teilen-full-on-dark", dark = true, sharing = true, withReports = true)
+    @Test fun offWithReports() = render("teilen-full-off-reports", dark = false, sharing = false, withReports = true)
+    @Test fun offNoReportsDark() = render("teilen-full-off-dark", dark = true, sharing = false, withReports = false)
 }

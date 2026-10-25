@@ -145,4 +145,28 @@ class ShareStatusTest {
         // Not running: never.
         assertEquals(ShareStatus(STATUS_OFF, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP), status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false, moving = true))
     }
+
+    @Test
+    fun idleMessenShowsTheChipOnlyWhenThereIsSomethingToDo() {
+        // 0.8.8: the idle «Messen» hides the fine and the chosen states; «Teilen» shows them all.
+        assertFalse(showOnIdle(null))
+        assertFalse(showOnIdle(status(on.copy(lastSuccessAtMs = 5L), running = false)), "on the map")
+        assertFalse(showOnIdle(status(on, running = false)), "on, nothing sent yet")
+        assertFalse(showOnIdle(status(UploadSnapshot(shareDecision = ShareDecision.NO), running = false)), "off by choice")
+        assertNull(status(UploadSnapshot(), running = false))
+        // Something to act on: interrupted (tap → «Neu starten»).
+        assertTrue(showOnIdle(status(on.copy(authFailed = true), running = false)))
+        // The rule is the problem flag, for every state the chip can take.
+        val all = listOfNotNull(
+            status(on, hasPoint = false, locate = LocateState.Failed(LocationPolicy.Outcome.LocationOff)),
+            status(on, online = false), status(on.copy(lastError = Uploader.RETRY_TEXT)), status(on.copy(lastError = "x")),
+            status(on), status(on, unterwegs = true), status(on, moving = true), status(UploadSnapshot(shareDecision = ShareDecision.NO)),
+        )
+        for (st in all) assertEquals(st.problem, showOnIdle(st), st.text)
+        // IdleMeasure applies it; the running branch still shows the chip as it is.
+        val screen = java.io.File(listOf(java.io.File("."), java.io.File("app")).first { java.io.File(it, "src/main").isDirectory }, "src/main/kotlin/ch/lessnoise/app/ui/MeasureScreen.kt").readText()
+        val idle = screen.substring(screen.indexOf("fun IdleMeasure("), screen.indexOf("fun MoreSheetContent("))
+        assertTrue(idle.contains("shareStatus?.takeIf(::showOnIdle)?.let {"))
+        assertEquals(1, Regex("::showOnIdle").findAll(screen).count(), "only the idle branch")
+    }
 }

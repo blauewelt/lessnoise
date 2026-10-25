@@ -230,13 +230,13 @@ fun HelperText(text: String, modifier: Modifier = Modifier, color: Color = Mater
  * a text button.
  */
 @Composable
-fun FoldRow(label: String, open: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, leading: ImageVector? = null) {
+fun FoldRow(label: String, open: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier, leading: ImageVector? = null, enabled: Boolean = true) {
     ListItem(
         headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
         leadingContent = leading?.let { { Icon(it, contentDescription = null) } },
         trailingContent = { Icon(if (open) AppIcons.ExpandLess else AppIcons.ExpandMore, contentDescription = null) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onToggle),
+        modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = enabled, onClick = onToggle),
     )
 }
 
@@ -255,15 +255,38 @@ fun NavRow(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modi
 
 /** 0.8.6: a switch as a list row (label, supporting text under it, trailing Switch); the whole row toggles. */
 @Composable
-fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, supporting: String? = null, icon: ImageVector? = null) {
+fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, supporting: String? = null, icon: ImageVector? = null, enabled: Boolean = true) {
     ListItem(
         headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge) },
         supportingContent = supporting?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
         leadingContent = icon?.let { { Icon(it, contentDescription = null) } },
+        // The row carries the semantics (also «disabled»); a caller that disables it fades the row itself (0.8.8).
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = modifier.clip(RoundedCornerShape(12.dp)).toggleable(value = checked, role = Role.Switch, onValueChange = onChange),
+        modifier = modifier.clip(RoundedCornerShape(12.dp)).toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
+}
+
+/**
+ * 0.8.8: the header of a card section with an icon: the icon (24 dp, primary), the title (titleMedium,
+ * SemiBold, as [SectionCard]'s title) and one line under it (bodySmall, onSurfaceVariant). For a
+ * `SectionCard(rows = true)`: 16 dp sides, 8 dp above and below, aligned with the list rows' text.
+ */
+@Composable
+fun CardHeader(icon: ImageVector, title: String, subtitle: String? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 /** 0.8.6: a destructive action: outlined, in the error colour (Material keeps destructive actions out of filled buttons). */

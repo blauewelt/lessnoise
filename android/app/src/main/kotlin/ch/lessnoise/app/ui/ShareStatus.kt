@@ -140,6 +140,17 @@ fun shareStatus(
 }
 
 /**
+ * 0.8.8 (the owner doubted the chip «Auf der Karte · 00:00» on the idle «Messen»): whether the idle
+ * «Messen» shows [status] at all. Only when there is something to act on — a problem (error colour:
+ * «Unterbrochen · tippen für «Neu starten»», and any other state marked [ShareStatus.problem]). Not
+ * for the states that are fine or chosen: «Auf der Karte · …», «Teilen an · nächste Messung …» and
+ * «Nicht auf der Karte» (sharing off is the person's answer; nothing is expected while no measurement
+ * runs — the consent comes with the first «Starten»). «Teilen» always shows the full status, and the
+ * running «Messen» keeps its chip as before.
+ */
+fun showOnIdle(status: ShareStatus?): Boolean = status != null && status.problem
+
+/**
  * The banner above the map (0.6.3 map tab fix): its text, what a tap does (the status line's action)
  * and, since 0.8.3 (drawn as the same status chip as on «Messen»), its icon.
  */

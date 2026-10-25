@@ -40,6 +40,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,8 +60,8 @@ import kotlinx.coroutines.withContext
 
 // «Teilen» (tab of the Karten editions since 0.6.1; server/DESIGN.md §2, §9). Since 0.6.3: the
 // status line and the switch on top, no gate (the one question «Auf die Lärmkarte?» comes from
-// ShareFlow.kt when the switch is turned on for the first time); the explanation, the placement and
-// the details folded away. The place comes from the location fix of each measurement, moved on the
+// ShareFlow.kt when the switch is turned on for the first time). Since 0.8.8 in two sections, the
+// window measurements and the reports on the road (ShareContent). The place comes from the location fix of each measurement, moved on the
 // phone by the location noise («Standort verschieben», ShareTexts.kt). Everything network of the
 // upload goes through upload/UploadClient.kt.
 
@@ -142,9 +143,15 @@ fun ShareScreen(modifier: Modifier = Modifier, onOpen: (Screen) -> Unit = {}) {
 }
 
 /**
- * «Teilen» without the app container (also rendered on the JVM, ShareScreenshots): status line and
- * switch (list rows since 0.8.6); «Weitere Angaben», «Was gesendet wird», «Wo liegt das Telefon? (freiwillig)» as fold-outs with a chevron; the
- * reports; deleting the server data.
+ * «Teilen» without the app container (also rendered on the JVM, ShareScreenshots, PolishScreenshots).
+ * 0.8.8 (the owner: most choices are about the long measurement at the window): four sections —
+ * 1. «Messungen am Fenster»: the switch, the status chip, then always visible «Nur über WLAN»,
+ *    «Standort verschieben», «Noch zu senden» and the fold-out «Wo liegt das Telefon? (freiwillig)»;
+ *    with sharing off those rows are drawn disabled ([WindowSettings]).
+ * 2. «Meldungen unterwegs»: what «Laut! Melden» sent, and that it uses the same switch.
+ * 3. «Was gesendet wird» (both kinds), a fold-out.
+ * 4. «Deine Daten auf dem Server».
+ * Until 0.8.7: title «Auf die Lärmkarte», one card with «Weitere Angaben» folded, «Meldungen» further down.
  */
 @Composable
 fun ShareContent(
@@ -164,18 +171,18 @@ fun ShareContent(
     modifier: Modifier = Modifier,
 ) {
     var showExplanation by rememberSaveable { mutableStateOf(false) }
-    var showMore by rememberSaveable { mutableStateOf(false) }
     var showPlacement by rememberSaveable { mutableStateOf(false) }
 
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-        ScreenTitle("Auf die Lärmkarte")
-        Text(SHARE_INTRO, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = SCREEN_GUTTER))
+        ScreenTitle(SHARE_TITLE)
+        HelperText(SHARE_INTRO, Modifier.padding(horizontal = SCREEN_GUTTER))
         Spacer(Modifier.height(8.dp))
 
-        // 1. The switch and the status (server/DESIGN.md §2 rule 3: no gate since 0.6.3; the first
-        // switch-on asks «Auf die Lärmkarte?», which says what is sent, never, where and how to delete).
-        // 0.8.6: the switches as list rows, the fold-out with a chevron.
+        // 1. The window measurements: the switch and the status (server/DESIGN.md §2 rule 3: no gate
+        // since 0.6.3; the first switch-on asks «Auf die Lärmkarte?», which says what is sent, never,
+        // where and how to delete), then its settings, always visible since 0.8.8.
         SectionCard(rows = true) {
+            CardHeader(AppIcons.Window, WINDOW_SECTION_TITLE, WINDOW_SECTION_SUBTITLE)
             SwitchRow("Auf die Karte senden", s.enabled, onSwitch, icon = AppIcons.Map)
             CardBlock {
                 status?.let { StatusChip(it, onStatus) }
@@ -187,29 +194,31 @@ fun ShareContent(
                     Text(Uploader.AUTH_FAILED_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
-            FoldRow("Weitere Angaben", showMore, { showMore = !showMore }, leading = AppIcons.Tune)
-            if (showMore) {
+            WindowSettings(enabled = s.enabled) {
                 SwitchRow(
-                    "Nur über WLAN", s.wifiOnly, onWifiOnly, icon = AppIcons.Wifi,
+                    "Nur über WLAN", s.wifiOnly, onWifiOnly, icon = AppIcons.Wifi, enabled = s.enabled,
                     supporting = if (!s.wifiOnly) "Höchstens etwa 3 MB pro Tag." else null,
                 )
                 CardBlock {
-                    StatRow("Noch zu senden", "$pending Minuten")
-                    SigmaSetting(s.sigmaM, onSigma)
+                    SigmaSetting(s.sigmaM, onSigma, enabled = s.enabled)
+                    StatRow("Noch zu senden", pendingMinutesText(pending))
                 }
+                FoldRow(
+                    "Wo liegt das Telefon? (freiwillig)", showPlacement && s.enabled, { showPlacement = !showPlacement },
+                    leading = AppIcons.Tune, enabled = s.enabled,
+                )
+                if (showPlacement && s.enabled) PlacementCard(s.site, onSaveSite)
             }
         }
 
-        // 2. What is sent, what never, where, when, how to delete: folded away, unchanged in substance.
-        // 3. How the phone lies (optional). 0.8.6: both fold-outs in one card.
+        // 2. The reports on the road («Laut! Melden»): exact place, sent only by the tap «Senden».
+        ReportsCard(reports)
+
+        // 3. What is sent, what never, where, when, how to delete — for both kinds; folded away, unchanged in substance.
         SectionCard(rows = true) {
             FoldRow("Was gesendet wird", showExplanation, { showExplanation = !showExplanation }, leading = Icons.Outlined.Info)
             if (showExplanation) CardBlock { ShareExplanation(s.sigmaM) }
-            FoldRow("Wo liegt das Telefon? (freiwillig)", showPlacement, { showPlacement = !showPlacement }, leading = AppIcons.Window)
-            if (showPlacement) PlacementCard(s.site, onSaveSite)
         }
-
-        ReportsCard(reports)
 
         // 4. Server data. 0.8.6: the destructive action outlined in the error colour (the dialog is the guard).
         SectionCard("Deine Daten auf dem Server") {
@@ -232,9 +241,22 @@ fun ShareContent(
 }
 
 /**
+ * 0.8.8: the rows under the switch of «Messungen am Fenster». With sharing off they stay visible but
+ * are drawn disabled (Material's 38 % for disabled content) and do not react, so it is plain that
+ * they only matter with sharing on, and what switching on involves can still be read.
+ */
+@Composable
+private fun WindowSettings(enabled: Boolean, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().alpha(if (enabled) 1f else DISABLED_ALPHA)) { content() }
+}
+
+/** Material's alpha of disabled content. */
+const val DISABLED_ALPHA = 0.38f
+
+/**
  * «Wo liegt das Telefon? (freiwillig)»: optional details about how the phone stands, remembered for the next
  * measurements. The place itself is the shifted point determined at the start of each measurement
- * (LocationFlows.kt). Stockwerk and Notiz are under «Weitere Angaben».
+ * (LocationFlows.kt). Stockwerk and Notiz are under its own «Weitere Angaben» (a FoldButton).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -306,26 +328,33 @@ private fun PlacementCard(current: SiteSettings, onSave: (SiteSettings) -> Unit)
 
 /**
  * «Standort verschieben»: σ of the location noise (server/DESIGN.md §2 rule 2), 25 / 50 (default) /
- * 100 / 200 m, under «Weitere Angaben» of the switch card. No «exact» choice: an exact place is sent
+ * 100 / 200 m, in «Messungen am Fenster» (0.6.2–0.8.7 under «Weitere Angaben»). No «exact» choice: an exact place is sent
  * only with «Laut! Melden». Applies from the next «Starten».
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SigmaSetting(current: Int, onChange: (Int) -> Unit) {
+private fun SigmaSetting(current: Int, onChange: (Int) -> Unit, enabled: Boolean = true) {
     Text(SIGMA_LABEL, style = MaterialTheme.typography.bodyMedium)
     val choices = LocationNoise.SIGMAS_M
+    // 0.8.8: disabled while sharing is off; the row is faded as a whole (WindowSettings), so the
+    // buttons keep their normal colours instead of fading twice.
+    val base = SegmentedButtonDefaults.colors()
+    val colors = SegmentedButtonDefaults.colors(
+        disabledActiveContainerColor = base.activeContainerColor, disabledActiveContentColor = base.activeContentColor,
+        disabledActiveBorderColor = base.activeBorderColor, disabledInactiveContainerColor = base.inactiveContainerColor,
+        disabledInactiveContentColor = base.inactiveContentColor, disabledInactiveBorderColor = base.inactiveBorderColor,
+    )
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         choices.forEachIndexed { i, v ->
             SegmentedButton(
-                selected = current == v, onClick = { onChange(v) },
+                selected = current == v, onClick = { onChange(v) }, enabled = enabled, colors = colors,
                 shape = SegmentedButtonDefaults.itemShape(i, choices.size),
             ) { Text(sigmaChoice(v), style = MaterialTheme.typography.labelSmall) }
         }
     }
-    Text(SIGMA_EXPLANATION, style = MaterialTheme.typography.bodySmall)
+    Text(SIGMA_EXPLANATION, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** «Meldungen»: waiting and sent reports (sent ones without coordinates: category and time). */
 /**
  * «12.10. 16:05 · Töff»; 0.8.5: with the report's peak level in whole dB «… · Töff · 81 dB»; with a
  * licence plate (0.7.6–0.8.4, on the phone only) «… · Töff · ZH 123».
@@ -341,15 +370,16 @@ internal fun sentReportLine(time: String, s: SentReport): String =
  */
 @Composable
 private fun ReportsCard(r: ReportSnapshot) {
-    if (r.pending.isEmpty() && r.sent.isEmpty()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var viewing by remember { mutableStateOf<SentReport?>(null) }
-    // 0.8.6: the sent reports as list rows (category icon, the line, the photo at the end).
-    SectionCard("Meldungen", rows = true) {
+    // 0.8.8: «Meldungen unterwegs», always shown (it explains the second kind of data); the sent reports
+    // as list rows as in 0.8.6 (category icon, the line, the photo at the end).
+    SectionCard(rows = true) {
+        CardHeader(AppIcons.Campaign, REPORTS_SECTION_TITLE, REPORTS_SECTION_SUBTITLE)
         CardBlock {
             if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
-            StatRow("Gesendet", r.sent.size.toString())
+            if (r.sent.isEmpty() && r.pending.isEmpty()) HelperText(REPORTS_NONE) else StatRow("Gesendet", r.sent.size.toString())
         }
         r.sent.takeLast(5).reversed().forEach { s ->
             val photo = ReportPhotos.file(context, s.photo)
@@ -361,6 +391,8 @@ private fun ReportsCard(r: ReportSnapshot) {
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
+        // One switch for both (Uploader.enable / UploadSnapshot.enabled).
+        CardBlock { Text(REPORTS_SAME_SWITCH, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
     val v = viewing
     val file = v?.let { ReportPhotos.file(context, it.photo) }

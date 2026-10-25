@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.8 — Labor·Karte only, not published (branch labor-one-tap): Teilen split into window measurements and reports (versionCode 40)
+
+The owner: the page should make clear that most choices are about the long measurement at the window.
+Layout and wording only; what is sent, when, and the one sharing switch are unchanged.
+
+- **«Teilen»** (title «Teilen», was «Auf die Lärmkarte»; intro «Was von dir auf die Lärmkarte kommt.»)
+  in four sections: **«Messungen am Fenster»** (window icon; «Für lange Messungen: Pegel pro
+  100-m-Quadrat, Ort leicht verschoben.») with the switch «Auf die Karte senden», the status chip and,
+  always visible (no «Weitere Angaben» fold any more), «Nur über WLAN», «Standort verschieben», «Noch
+  zu senden» and «Wo liegt das Telefon? (freiwillig)» — drawn disabled while sharing is off;
+  **«Meldungen unterwegs»** (megaphone; «Mit «Laut! Melden»: genauer Ort, nur wenn du sendest.») with
+  «Gesendet n», the last reports as in 0.8.6, and the line «Eine Meldung schaltet «Auf die Karte
+  senden» ein – das gilt dann auch für Messungen am Fenster.» (reports and window measurements use one
+  switch); **«Was gesendet wird»** (fold-out, for both); **«Deine Daten auf dem Server»**.
+- **Idle «Messen»:** the status chip only when there is something to do (a problem such as
+  «Unterbrochen · tippen für «Neu starten»»); «Auf der Karte · …», «Teilen an …» and «Nicht auf der
+  Karte» are no longer shown there («Teilen» shows them; the running screen keeps its chip).
+- **Idle «Messen» buttons:** «Langzeitmessung starten» (was «Messung starten») with «Für Stunden am
+  offenen Fenster, am Ladegerät.»; under «Laut! Melden» the line «Unterwegs: lauten Verkehr sofort
+  melden.» Offline and Labor: the start button with its line only.
+
 ## 0.8.7 — Labor·Karte only, not published (branch labor-one-tap): idle Messen screen with logo, actions at the bottom (versionCode 39)
 
 The owner: on the idle «Messen» the buttons were crammed at the top and the bottom two thirds were empty.

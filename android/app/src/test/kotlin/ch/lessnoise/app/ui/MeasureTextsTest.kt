@@ -18,15 +18,17 @@ class MeasureTextsTest {
     @Test
     fun texts() {
         assertEquals("Laut! Melden", REPORT_BUTTON)
-        assertEquals("Messung starten", START_BUTTON)
+        // 0.8.8: the button is about the long measurement at the window (until 0.8.7 «Messung starten»).
+        assertEquals("Langzeitmessung starten", START_BUTTON)
         assertEquals("Stoppen", STOP_BUTTON)
-        assertEquals("Zum Messen: Telefon ans offene Fenster, am Ladegerät.", idleHint(reports = true))
-        // Offline and Labor builds: «Messung starten» is the only button, the line without «Zum Messen:».
-        assertEquals("Telefon ans offene Fenster, am Ladegerät.", idleHint(reports = false))
+        // 0.8.8: one helper line under each button, the same in every edition.
+        assertEquals("Für Stunden am offenen Fenster, am Ladegerät.", START_HINT)
+        assertEquals("Unterwegs: lauten Verkehr sofort melden.", REPORT_HINT)
+        assertTrue(REPORT_HINT.length <= 45 && START_HINT.length <= 45)
         assertEquals("Unterwegs aufnehmen", UNTERWEGS_BUTTON)
         assertEquals("Labor: nimmt Audio auf, teilt nichts.", UNTERWEGS_LABOR_HINT)
         assertEquals("Läuft seit 18:30 · Bildschirm darf aus sein.", runningLine("18:30"))
-        for (t in listOf(WINDOW_HINT, PLAIN_HINT, UNTERWEGS_LABOR_HINT, runningLine("18:30"), PLACEMENT_HINT, GUIDE_LINK)) {
+        for (t in listOf(START_HINT, REPORT_HINT, UNTERWEGS_LABOR_HINT, runningLine("18:30"), PLACEMENT_HINT, GUIDE_LINK)) {
             assertTrue(t.length <= 80, "one line: $t")
             assertFalse(t.contains('ß') || Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
         }
@@ -49,11 +51,16 @@ class MeasureTextsTest {
         // with one label style (stackButtonLabel), the helper lines in HelperText.
         val idle = screen.substring(screen.indexOf("// Editions with the map: «Laut! Melden» is the first action"))
         val report = idle.indexOf("Text(REPORT_BUTTON, style = stackButtonLabel())")
+        val reportHint = idle.indexOf("HelperText(REPORT_HINT)")
         val tonal = idle.indexOf("FilledTonalButton(onClick = onStart")
-        val hint = idle.indexOf("HelperText(idleHint(reports = onReport != null))")
+        val hint = idle.indexOf("HelperText(START_HINT)")
         val road = idle.indexOf("Text(UNTERWEGS_BUTTON, style = stackButtonLabel())")
         val roadHint = idle.indexOf("HelperText(UNTERWEGS_LABOR_HINT)")
-        assertTrue(report in 0 until tonal && tonal < hint && hint < road && road < roadHint, "$report $tonal $hint $road $roadHint")
+        assertTrue(report in 0 until reportHint && reportHint < tonal && tonal < hint && hint < road && road < roadHint, "$report $reportHint $tonal $hint $road $roadHint")
+        // 0.8.8: the same helper style (HelperText, 4 dp under its button) for all three buttons, and the
+        // report line only where «Laut! Melden» exists (inside `if (onReport != null)`).
+        assertTrue(idle.contains("Text(REPORT_BUTTON, style = stackButtonLabel())\n                    }\n                    Spacer(Modifier.height(4.dp))\n                    HelperText(REPORT_HINT)"))
+        assertTrue(idle.substring(idle.indexOf("if (onReport != null) {"), reportHint).contains("onClick = onReport,"))
         assertTrue(idle.substring(0, report).contains("onClick = onReport,") && idle.substring(0, report).contains("Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)"))
         assertEquals(56, STACK_BUTTON_HEIGHT.value.toInt())
         // One height for every stacked button: no other height literal in the idle and running branches.
@@ -115,7 +122,7 @@ class MeasureTextsTest {
         assertTrue(idle.contains("Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport)"))
         val order = listOf(
             "ScreenTitle(\"Messen\"", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo()", "Text(APP_NAME",
-            "idleTagline(reports = onReport != null)", "StatusChip(it, onShareStatus", "Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))",
+            "idleTagline(reports = onReport != null)", "shareStatus?.takeIf(::showOnIdle)", "StatusChip(it, onShareStatus", "Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))",
             "Text(REPORT_BUTTON", "Text(MORE_LABEL)", "ModalBottomSheet(",
         ).map { idle.indexOf(it) }
         assertTrue(order.all { it >= 0 } && order == order.sorted(), order.toString())

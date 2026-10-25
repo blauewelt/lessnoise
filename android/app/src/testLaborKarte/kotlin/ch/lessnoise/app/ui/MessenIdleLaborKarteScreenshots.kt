@@ -33,8 +33,8 @@ import java.time.ZoneId
  * 0.8.7: the idle «Messen» of Labor·Karte with its own resources (the red logo with the record dot,
  * R.color.logo_background = the Labor red), under a stand-in of the red Labor banner (EditionUi.Banner
  * needs the app container, which the JVM render does not have; same colour, text and padding).
- * Synthetic values only. Written to $stadtlaerm.screenshotDir/0.8.7-idle (default
- * app/build/screenshots/0.8.7-idle), for review only.
+ * Synthetic values only. Written to $stadtlaerm.screenshotDir/0.8.8-idle (default
+ * app/build/screenshots/0.8.8-idle), for review only.
  */
 class MessenIdleLaborKarteScreenshots {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -55,7 +55,7 @@ class MessenIdleLaborKarteScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.7-idle")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-idle")),
         useDeviceResolution = true,
     )
 

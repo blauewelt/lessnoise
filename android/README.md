@@ -585,10 +585,13 @@ the road. 0.8.3's segmented switch «Am Fenster» | «Unterwegs», its stored ch
 `measure`, key `mode`; no longer read, left on a phone that had it) and the floating «Laut! Melden»
 are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureTextsTest`).
 
-- **Idle, editions with the map:** a primary `Button` **«Laut! Melden»** (56 dp, megaphone) on top,
-  then a `FilledTonalButton` **«Messung starten»**, one line «Zum Messen: Telefon ans offene Fenster,
-  am Ladegerät.», the status chip, «Mehr dazu». **Offline and Labor builds** (no reports): «Messung
-  starten» stays the primary button, with «Telefon ans offene Fenster, am Ladegerät.».
+- **Idle, editions with the map:** a primary `Button` **«Laut! Melden»** (56 dp, megaphone) on top
+  with the line «Unterwegs: lauten Verkehr sofort melden.», then a `FilledTonalButton`
+  **«Langzeitmessung starten»** (until 0.8.7 «Messung starten») with «Für Stunden am offenen Fenster,
+  am Ladegerät.», «Mehr dazu». Since 0.8.8 the status chip shows on the idle screen only when there is
+  something to do (`showOnIdle` in `ui/ShareStatus.kt`: a problem, e.g. «Unterbrochen»); «Teilen»
+  always shows it. **Offline and Labor builds** (no reports): «Langzeitmessung starten» stays the
+  primary button, with the same line.
 - **Running:** the level card, «Stoppen», «Läuft seit …», the status chip, «Letzte Lärmspitzen» — as
   0.8.3, and **no «Laut! Melden»** on the screen (the phone lies at the window). The report dialog
   still opens over it from the shortcut, the widget and (Labor·Karte) the notification's «Melden».
@@ -781,7 +784,12 @@ Phones whose owners opt in send the minute and event records of their **shared m
 the project's server for the shared noise map ([../server/DESIGN.md](../server/DESIGN.md): §2
 privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! Melden» reports. Only in
 the «Online-Version» (and the internal Labor build with the map). Since 0.6.1 the tab **«Teilen»**
-(screen title «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen):
+(screen title «Teilen», 0.6.1–0.8.7 «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen).
+Since 0.8.8 it has two sections, one per kind of data: **«Messungen am Fenster»** (the long
+measurement, shared as levels per 100 m square with a moved point) and **«Meldungen unterwegs»**
+(«Laut! Melden», exact place, only when sent). Both go through the one switch «Auf die Karte senden»
+(`UploadSnapshot.enabled`; the report consent switches it on, and an upload run sends nothing, reports
+included, while it is off):
 
 Since 0.6.3 the opt-in is **one question**, «Auf die Lärmkarte?», at the first «Starten» (or when
 the switch below is turned on before that; `ui/ShareFlow.kt`, texts in `ui/ShareTexts.kt`): three
@@ -806,7 +814,7 @@ was added to the bodies; the detector-v2 features stay on the phone. Not a setti
 definition of the map). Before 0.6.4 the app sent every category except wind and the server dropped
 the others on arrival. A measurement started as «Unterwegs» shares nothing (above). The tab:
 
-1. **The switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
+1. **«Messungen am Fenster»** (window icon): **the switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
    **status line** (the same as on «Messen»: «Nicht auf der Karte – tippen zum Teilen», «Standort
    wird bestimmt …», «Kein Standort – tippen», «Wird geteilt – erste Werte in etwa einer Minute»,
    «Auf der Karte · zuletzt gesendet HH:MM» (tap: the tab «Karte»), «Kein Internet – wird
@@ -815,11 +823,20 @@ the others on arrival. A measurement started as «Unterwegs» shares nothing (ab
    cloud_upload, cloud_off, my_location with a spinner, location_off, directions_walk — and shorter
    words, e.g. «Nicht auf der Karte ›» (tap: «Teilen»), «Kein Standort ›», «Auf der Karte · HH:MM ›»),
    the count of records the server refused for good;
-   under «Weitere Angaben ▸» «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
+   then, always visible since 0.8.8 (until 0.8.7 under «Weitere Angaben ▸») and drawn disabled while
+   sharing is off, «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
    most about 3 MB a day measuring round the clock), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
-   macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice.
-2. **«Was gesendet wird ▸»** (folded): what is sent
+   macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice; and
+   **«Wo liegt das Telefon? (freiwillig) ▾»** (folded): «Das Telefon liegt» am offenen Fenster / auf
+   dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
+   «Weitere Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all
+   optional, remembered for the next measurements.
+2. **«Meldungen unterwegs»** (megaphone): «Gesendet n» (and «Noch zu senden» while reports wait), the
+   last five sent reports (category icon, time, kind, dB, photo thumbnail; photos stay on the phone),
+   and the line «Eine Meldung schaltet «Auf die Karte senden» ein – das gilt dann auch für Messungen
+   am Fenster.»
+3. **«Was gesendet wird ▾»** (folded, for both kinds): what is sent
    (Lärmwerte pro Minute and, since 0.6.4, only Lärmspitzen of engines and machines, «Stimmen und
    Musik nie»; a randomly shifted point instead of
    the location, and the placement answers; reports with time, exact place and kind; phone model,
@@ -834,12 +851,7 @@ the others on arrival. A measurement started as «Unterwegs» shares nothing (ab
    30 s after it ended and the minutes every 2 minutes while measuring, at once after «Stoppen»,
    otherwise hourly; Wi-Fi or mobile data), how to delete
    (switching off, «Vom Server löschen», 60 days), and a link to wenigerlaerm.ch/datenschutz.html.
-3. **«Wo liegt das Telefon? (freiwillig) ▸»** (folded): «Das Telefon liegt» am offenen Fenster / auf
-   dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
-   «Weitere Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all
-   optional, remembered for the next measurements. A «Meldungen» card lists the reports waiting and
-   the last sent ones (category, time).
-4. **«Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
+4. **«Deine Daten auf dem Server»: «Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
    then switches sharing off and drops unsent reports) and, only when the server no longer knows
    the phone, **«Neu starten»** (until 0.6.0 «Neue Kennung», always shown: deletes the server data,
    then sends under a fresh id).

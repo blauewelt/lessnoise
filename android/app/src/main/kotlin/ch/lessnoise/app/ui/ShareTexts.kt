@@ -5,8 +5,37 @@ package ch.lessnoise.app.ui
 // Online-Version), which is the edition with the location permission. server/DESIGN.md §2 rule 2 is
 // the contract for the location texts, rule 3 for the consent.
 
-/** One line under the title of «Teilen». */
-const val SHARE_INTRO = "Deine Messwerte erscheinen auf der Lärmkarte – als Wert pro 100-m-Quadrat."
+/** 0.8.8: the title of «Teilen» (0.6.3–0.8.7 «Auf die Lärmkarte»; the tab was always «Teilen»). */
+const val SHARE_TITLE = "Teilen"
+
+/** One line under the title of «Teilen» (0.8.8; the two sections say what each kind of data is). */
+const val SHARE_INTRO = "Was von dir auf die Lärmkarte kommt."
+
+// ---- 0.8.8: the two sections of «Teilen» ----------------------------------------------------------
+// Since 0.8.4 a running measurement means the phone lies at the window (long, shared as levels per
+// 100-m square with the moved point); no measurement means on the road, where only «Laut! Melden»
+// sends (exact place, by an explicit tap). Both go through ONE switch (UploadSnapshot.enabled).
+
+/** Section 1: the long measurements at the window. */
+const val WINDOW_SECTION_TITLE = "Messungen am Fenster"
+const val WINDOW_SECTION_SUBTITLE = "Für lange Messungen: Pegel pro 100-m-Quadrat, Ort leicht verschoben."
+
+/** Section 2: the reports on the road. */
+const val REPORTS_SECTION_TITLE = "Meldungen unterwegs"
+const val REPORTS_SECTION_SUBTITLE = "Mit «Laut! Melden»: genauer Ort, nur wenn du sendest."
+
+/** Section 2, no report yet. */
+const val REPORTS_NONE = "Noch keine Meldung gesendet."
+
+/**
+ * Section 2: reports and window measurements share the one switch «Auf die Karte senden» — the report
+ * consent (REPORT_CONSENT_TEXT) calls Uploader.enable(), the same flag; Uploader.run sends nothing at
+ * all while it is off.
+ */
+const val REPORTS_SAME_SWITCH = "Eine Meldung schaltet «Auf die Karte senden» ein – das gilt dann auch für Messungen am Fenster."
+
+/** Section 1, «Noch zu senden»: «12 Minuten». */
+fun pendingMinutesText(n: Int): String = if (n == 1) "1 Minute" else "$n Minuten"
 
 /** The bullet about location in «Nie gesendet». */
 const val LOCATION_NEVER_SENT = "Dein genauer Standort (ausser bei einer Meldung); nie im Hintergrund gelesen."
@@ -110,7 +139,7 @@ const val BANNER_UNTERWEGS = STATUS_UNTERWEGS
 /** «Gesendet 14:05 · die Karte aktualisiert sich laufend». */
 fun bannerSent(hm: String): String = "Gesendet $hm · die Karte aktualisiert sich laufend"
 
-/** The setting under «Teilen → Weitere Angaben». */
+/** The setting in «Teilen», section «Messungen am Fenster» (0.6.2–0.8.7 under «Weitere Angaben»). */
 const val SIGMA_LABEL = "Standort verschieben"
 
 /** One choice of the setting: «50 m». */

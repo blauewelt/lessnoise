@@ -436,8 +436,9 @@ fun IdleMeasure(
                 idleTagline(reports = onReport != null), style = MaterialTheme.typography.bodyMedium,
                 color = cs.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = SCREEN_GUTTER),
             )
-            // The short form (e.g. «Auf der Karte · gestern 18:42»), not while it starts.
-            if (!live.starting) shareStatus?.let {
+            // 0.8.8: only when there is something to act on (showOnIdle); «Teilen» shows the full status.
+            // Not while it starts.
+            if (!live.starting) shareStatus?.takeIf(::showOnIdle)?.let {
                 Spacer(Modifier.height(20.dp))
                 StatusChip(it, onShareStatus, Modifier.padding(horizontal = SCREEN_GUTTER))
             }
@@ -460,6 +461,8 @@ fun IdleMeasure(
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(REPORT_BUTTON, style = stackButtonLabel())
                     }
+                    Spacer(Modifier.height(4.dp))
+                    HelperText(REPORT_HINT)
                     Spacer(Modifier.height(16.dp))
                 }
                 val startEnabled = !live.starting && !calibrating
@@ -476,7 +479,7 @@ fun IdleMeasure(
                     Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
                 }
                 Spacer(Modifier.height(4.dp))
-                HelperText(idleHint(reports = onReport != null))
+                HelperText(START_HINT)
                 // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
                 if (onUnterwegs != null) {
                     Spacer(Modifier.height(16.dp))
