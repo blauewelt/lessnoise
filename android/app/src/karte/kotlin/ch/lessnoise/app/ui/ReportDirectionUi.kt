@@ -81,8 +81,13 @@ import kotlin.math.roundToInt
 object ReportDirectionUi {
     const val AVAILABLE = true
 
-    /** 0.8.1: the one line under the live label (replaced by [CALIBRATE_HINT] while the compass is unreliable). */
+    /**
+     * 0.8.1: the line under the live label; 0.9.2: above the disc, under «Wohin fuhr es?». 0.9.2 (owner): always shown — until 0.9.1 [CALIBRATE_HINT]
+     * replaced it while the compass was unreliable, and then nothing said what the arrow is for.
+     */
     const val POINT_HINT = "Telefon in die Fahrtrichtung halten"
+
+    /** 0.9.2: an additional line under [POINT_HINT] (error colour) while the compass is unreliable, never instead of it. */
     const val CALIBRATE_HINT = "Kompass ungenau: Telefon in Form einer Acht bewegen."
 
     /** 0.8.1: the disc's size (0.7.8: 240 dp in its own dialog); it still shows 300 m across. */
@@ -143,8 +148,9 @@ object ReportDirectionUi {
     const val TILE_DEBOUNCE_MS = 300L
 
     /**
-     * The disc (0.8.1, 200 dp; the drawing of 0.7.8), the live label «Nordost · 47°» and one line
-     * under it: [POINT_HINT], or [CALIBRATE_HINT] while the compass is unreliable. [reading] is the
+     * The disc (0.8.1, 200 dp; the drawing of 0.7.8) with the live label «Nordost · 47°» under it; 0.9.2:
+     * above it [POINT_HINT], always, plus [CALIBRATE_HINT] while the compass is unreliable (until 0.9.1 one
+     * line under the label, the figure-eight hint instead of [POINT_HINT]). [reading] is the
      * caller's [rememberReading] (read here, so that only this panel follows the sensor). [fix]
      * (latitude, longitude) is the report's location fix once it is there, null while it is
      * searched: the real streets around it are drawn under the arrow (0.7.8 Labor·Karte; since
@@ -166,6 +172,8 @@ object ReportDirectionUi {
         moved: Pair<Double, Double>?,
         /** 0.8.6, for the JVM renders only (ReportDialogScreenshots): tiles drawn instead of downloading any; null in the app. */
         previewTiles: Map<ReportMapTiles.Tile, ImageBitmap>? = null,
+        /** 0.9.2: told whether the map can be dragged now (streets drawn, a fix and a reading), for the hint in the location row. */
+        onDraggable: (Boolean) -> Unit = {},
         onMove: (Pair<Double, Double>) -> Boolean,
     ) {
         // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
@@ -181,6 +189,8 @@ object ReportDirectionUi {
         val movedNow by rememberUpdatedState(moved)
         val onMoveNow by rememberUpdatedState(onMove)
         val canDrag = fix != null && tiles.isNotEmpty() && r != null
+        val onDraggableNow by rememberUpdatedState(onDraggable)
+        LaunchedEffect(canDrag) { onDraggableNow(canDrag) }
         val drag = if (!canDrag) Modifier else Modifier
             // Touch-down to lift: the disc keeps the heading of the touch-down (else the map would
             // slide under the finger as the compass turns it) and no tiles are requested. Consumes nothing.
@@ -222,8 +232,23 @@ object ReportDirectionUi {
                 }
             }
         // 0.8.6: the disc with the credit tucked into its bottom-right corner (outside the circle), the
-        // heading in titleMedium 8 dp under it, the hint in bodySmall right under the heading.
+        // heading in titleMedium 8 dp under it. 0.9.2: the hint lines ABOVE the disc, left-aligned under the
+        // dialog's heading «Wohin fuhr es?» (ReportDialogBody): on a short screen the disc fills the visible
+        // part, and the line saying what the arrow is for must not be the part that is scrolled away.
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // What the arrow is for, always; the figure-eight hint only in addition, under it (0.9.2; until
+            // 0.9.1 it replaced this line).
+            Text(
+                POINT_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (r != null && showCalibrationHint(r.sensorStatus)) {
+                Text(
+                    CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             Box(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f)) {
                 DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
                 if (tiles.isNotEmpty() && r != null) {
@@ -238,12 +263,6 @@ object ReportDirectionUi {
                 if (r == null) "…" else liveLabel(r.magneticDeg),
                 style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(2.dp))
-            if (r != null && showCalibrationHint(r.sensorStatus)) {
-                Text(CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-            } else {
-                Text(POINT_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            }
         }
     }
 

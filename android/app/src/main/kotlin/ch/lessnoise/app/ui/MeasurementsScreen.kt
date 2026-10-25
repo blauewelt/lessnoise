@@ -156,10 +156,10 @@ private fun MeasurementCard(item: MeasurementItem, selected: Boolean, zone: java
         }
         StatRow("Dauer", Fmt.hoursMinutes(m.span.durationMs))
         StatRow("Mittel", "${Fmt.db(s.laeqDb)} dB(A)")
-        StatRow("Grundrauschen", humText(s.humDb, s.humLimitDb))
+        StatRow(HUM_LABEL, humText(s.humDb, s.humLimitDb))
         StatRow(
             "Lärmspitzen pro Stunde",
-            if (s.eventsPerHour.isNaN()) "–" else ChartFmt.comma(s.eventsPerHour, if (s.eventsPerHour < 10) 1 else 0),
+            if (s.eventsPerHour.isNaN()) NONE_YET else ChartFmt.comma(s.eventsPerHour, if (s.eventsPerHour < 10) 1 else 0),
         )
     }
 }

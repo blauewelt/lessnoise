@@ -22,6 +22,24 @@ const val FLOOR_BAND_LABEL = "Messgrenze"
 /** Note for data re-evaluated with a calibration made after the measurement. */
 const val RECALIBRATED = "nachträglich kalibriert"
 
+/** 0.9.2: the «Grundrauschen» tile before a valid minute (until 0.9.1 «– dB(A)»). */
+const val NO_VALUE_YET = "noch kein Wert"
+
+/** 0.9.2: the «Lärmspitzen» tile before any valid time (until 0.9.1 «–»). */
+const val NONE_YET_TILE = "noch keine"
+
+/** 0.9.2: the «Lauteste» tile of a window without a Lärmspitze (until 0.9.1 «–»). */
+const val NO_PEAK = "keine"
+
+/** 0.9.2: the legend of the band from L90 to L10 (until 0.9.1 «Schwankung», which did not say what varies). */
+const val BAND_LEGEND = "leise bis laut"
+
+/** 0.9.2: the note under the «Grundrauschen» tile, what the word means. */
+const val HUM_NOTE = "ohne Spitzen"
+
+/** 0.9.2: the label in front of the category chips: a tap colours that kind of Lärmspitze in the chart. */
+const val HIGHLIGHT_LABEL = "Hervorheben:"
+
 /** Raw data of one window as loaded from the database. */
 data class ChartData(
     val window: TimeWindow,
@@ -120,13 +138,16 @@ data class WindowSummary(
      */
     val humLimitDb: Double? = null,
 ) {
-    /** The «Grundrauschen» tile: «41,2 dB(A)», or «≤ 34,0 dB(A)» at the phone's noise floor. */
+    /**
+     * The «Grundrauschen» tile: «41,2 dB(A)», or «≤ 34,0 dB(A)» at the phone's noise floor; 0.9.2:
+     * [NO_VALUE_YET] without a valid minute (until 0.9.1 «– dB(A)»).
+     */
     val humText: String
-        get() = humLimitDb?.let { "≤ ${ChartFmt.db(it)} dB(A)" } ?: "${ChartFmt.db(humDb)} dB(A)"
+        get() = humLimitDb?.let { "≤ ${ChartFmt.db(it)} dB(A)" } ?: if (humDb.isNaN()) NO_VALUE_YET else "${ChartFmt.db(humDb)} dB(A)"
 
-    /** «Lärmspitzen pro Stunde» tile: «12», «4,5», «–» without valid time. */
+    /** «Lärmspitzen pro Stunde» tile: «12», «4,5»; 0.9.2: [NONE_YET_TILE] without valid time (until 0.9.1 «–»). */
     val eventsPerHourText: String
-        get() = if (eventsPerHour.isNaN()) "–" else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
+        get() = if (eventsPerHour.isNaN()) NONE_YET_TILE else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
 
     /**
      * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 Töff & Poser · 76 % gemessen» ([highlightName]

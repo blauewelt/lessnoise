@@ -71,7 +71,7 @@ import kotlin.math.sin
  * microphone, no tiles from the network): the «Laut! Melden» dialog (its content, ReportDialogBody, in
  * a frame drawn like Material's AlertDialog — Paparazzi does not draw Dialog windows), and «Messen»
  * idle/running, «Teilen», «Messungen», «Einstellungen», each light and dark. Written to
- * $stadtlaerm.screenshotDir/0.9.1-polish (default app/build/screenshots/0.9.1-polish), for review only.
+ * $stadtlaerm.screenshotDir/0.9.2-polish (default app/build/screenshots/0.9.2-polish), for review only.
  */
 private class PolishPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
@@ -90,7 +90,7 @@ private class PolishPngWriter(private val dir: File) : SnapshotHandler {
 private fun polishPaparazzi(heightPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = heightPx, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.1-polish")),
+    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-polish")),
     useDeviceResolution = true,
 )
 
@@ -131,11 +131,16 @@ internal fun ReportDialogFrame(body: @Composable () -> Unit) {
 internal fun ReportDialogSample(
     chosen: ReportCategory?,
     fixState: ReportFixState = ReportFixState.FIX,
-    fixLine: String = "Standort ± 100 m",
+    // 0.9.2: with the streets drawn the app appends «· Karte verschiebbar» (reportFixLine(…, draggable = true)).
+    fixLine: String = reportFixLine(100, draggable = true),
     suggested: List<ReportCategory> = emptyList(),
     level: Boolean = true,
     waiting: Boolean = false,
     scrolledToEnd: Boolean = false,
+    /** 0.9.2: the compass's accuracy status (0–1: unreliable, the figure-eight line under the hint). */
+    sensorStatus: Int = 3,
+    /** 0.9.2: a photo taken (thumbnail with «×» and «Neues Foto»). */
+    photo: java.io.File? = null,
 ) {
     val lat = 47.3769
     val lon = 8.5417
@@ -144,7 +149,7 @@ internal fun ReportDialogSample(
         meter.step(61.0, 68.4, 60.0, valid = true)
         meter.step(57.5, 58.0, 57.0, valid = true)
     }
-    val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, 3))
+    val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, sensorStatus))
     val fix = if (fixState == ReportFixState.SEARCHING) null else lat to lon
     val tiles = if (fix != null) fakeTiles(lat, lon) else null
     ReportDialogFrame {
@@ -153,7 +158,7 @@ internal fun ReportDialogSample(
             disc = { ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles) { false } },
             level = if (level) meter else null,
             fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
-            photo = { ReportPhotoRow(null, enabled = !waiting, onTake = {}, onRemove = {}) },
+            photo = { ReportPhotoRow(photo, enabled = !waiting, onTake = {}, onRemove = {}) },
             photoNote = null,
             categories = reportCategoryOrder(suggested), suggested = suggested, chosen = chosen, onSelect = {},
             sendEnabled = chosen != null && !waiting, onSend = {},
@@ -172,7 +177,7 @@ class ReportDialogScreenshots {
         dark: Boolean,
         chosen: ReportCategory?,
         fixState: ReportFixState = ReportFixState.FIX,
-        fixLine: String = "Standort ± 100 m",
+        fixLine: String = reportFixLine(100, draggable = true),
         suggested: List<ReportCategory> = emptyList(),
         level: Boolean = true,
         waiting: Boolean = false,
@@ -231,7 +236,7 @@ class ReportDialogSmallScreenshots {
             screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.1-polish")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-polish")),
         useDeviceResolution = true,
     )
 
@@ -424,7 +429,7 @@ class MessenIdleSmallScreenshots {
             screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-idle")),
         useDeviceResolution = true,
     )
 
@@ -455,7 +460,7 @@ class MessenIdlePixel5Screenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_5.copy(fontScale = 1.3f),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-idle")),
         useDeviceResolution = true,
     )
 

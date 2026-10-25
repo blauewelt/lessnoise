@@ -99,7 +99,7 @@ class ShareStatusTest {
         assertEquals(REPORT_LOCATING, STATUS_LOCATING)
         // The chip texts of 0.8.3 (shorter; «·» instead of «–»; the «›» and the icon say the rest).
         assertEquals("Nicht auf der Karte", STATUS_OFF)
-        assertEquals("Kein Standort", STATUS_NO_POINT)
+        assertEquals("Kein Standort für die Karte", STATUS_NO_POINT)
         assertEquals("Auf der Karte · 18:42", statusSent("18:42"))
         assertEquals("Unterwegs · nichts auf die Karte", STATUS_UNTERWEGS)
     }

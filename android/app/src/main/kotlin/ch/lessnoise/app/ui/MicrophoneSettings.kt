@@ -20,8 +20,11 @@ import ch.lessnoise.app.container
 /** 0.7.2: texts of «Mikrofon» (pure, unit-tested). */
 object MicrophoneTexts {
     const val TITLE = "Mikrofon"
-    const val INTRO = "Gemessen wird mit dem eingebauten Mikrofon. Ein anderes Mikrofon hier wählen: " +
-        "Die App nimmt es, sobald es verbunden ist, sonst das eingebaute."
+    /**
+     * 0.9.2: which microphone measures (until 0.9.1 «Gemessen wird mit dem eingebauten Mikrofon. Ein anderes …»,
+     * which was wrong as soon as another one was chosen).
+     */
+    const val INTRO = "Wähle, welches Mikrofon misst. Die App nimmt es, sobald es verbunden ist, sonst das eingebaute."
     const val UNUSABLE = "«nicht nutzbar»: Bluetooth-Headsets liefern den Ton nur über die Telefonie-Verbindung, die die App nicht verwendet."
     const val WHILE_MEASURING = "Gilt sofort, auch für die laufende Messung."
 }
@@ -36,7 +39,12 @@ fun MicrophoneCard() {
     val inputs by c.microphones.inputs.collectAsStateWithLifecycle()
     val chosen by c.microphones.chosen.collectAsStateWithLifecycle()
     val live by c.live.collectAsStateWithLifecycle()
-    val rows = MicChoice.rows(chosen, inputs)
+    MicrophoneCardContent(MicChoice.rows(chosen, inputs), running = live.running) { c.microphones.choose(it) }
+}
+
+/** The card «Mikrofon» without the container (0.9.2, so the JVM renders draw it). */
+@Composable
+fun MicrophoneCardContent(rows: List<MicChoice.Row>, running: Boolean, onChoose: (MicChoice.Option) -> Unit) {
     SectionCard(MicrophoneTexts.TITLE) {
         Text(MicrophoneTexts.INTRO, style = MaterialTheme.typography.bodySmall)
         Column {
@@ -44,7 +52,7 @@ fun MicrophoneCard() {
                 Row(
                     Modifier.fillMaxWidth().selectable(
                         selected = row.selected, enabled = row.selectable, role = Role.RadioButton,
-                        onClick = { c.microphones.choose(row.option) },
+                        onClick = { onChoose(row.option) },
                     ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -58,6 +66,6 @@ fun MicrophoneCard() {
             }
         }
         if (rows.any { it.note == "nicht nutzbar" }) Text(MicrophoneTexts.UNUSABLE, style = MaterialTheme.typography.bodySmall)
-        if (live.running) Text(MicrophoneTexts.WHILE_MEASURING, style = MaterialTheme.typography.bodySmall)
+        if (running) Text(MicrophoneTexts.WHILE_MEASURING, style = MaterialTheme.typography.bodySmall)
     }
 }

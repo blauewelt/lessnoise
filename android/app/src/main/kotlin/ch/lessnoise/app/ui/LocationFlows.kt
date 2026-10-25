@@ -52,6 +52,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -163,6 +166,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     }
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
+    // 0.9.2: whether the disc's map can be dragged now (streets drawn), for «· Karte verschiebbar» in the location row.
+    var draggable by remember { mutableStateOf(false) }
     // 0.8.5: the level while the dialog is open (ReportLevel.kt), reset when it opens; the microphone
     // permission (asked when the dialog opens if missing; without it there is no level); the level of
     // the «Senden» tap.
@@ -172,7 +177,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     // Whether the pending permission request includes the location (it may ask for the microphone only).
     var askedLocation by remember { mutableStateOf(false) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null; draggable = false
     }
 
     fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?, level: ReportLevel?) {
@@ -300,7 +305,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                     ReportDialogBody(
                         erkanntAt = if (suggested.isNotEmpty()) Fmt.hm(tapMs) else null,
                         disc = if (reading == null) null else ({
-                            ReportDirectionUi.Panel(reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon }) { p ->
+                            ReportDirectionUi.Panel(
+                                reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon },
+                                onDraggable = { draggable = it },
+                            ) { p ->
                                 // Taken only within 2 km of the fix and in Switzerland; else the map stops.
                                 val next = fix?.let { reportMovedPlace(it, p.first, p.second) }
                                 if (next != null && !waiting) moved = next
@@ -309,7 +317,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         }),
                         // 0.8.5: the level (none without the microphone and no measurement).
                         level = if (micAllowed || measuring) meter else null,
-                        fixLine = reportFixLine(fix?.accuracyText, moved != null),
+                        fixLine = reportFixLine(fix?.accuracyText, moved != null, draggable = draggable && !waiting),
                         fixState = reportFixState(fix != null, moved != null),
                         waiting = waiting,
                         onMoveBack = { moved = null },
@@ -427,8 +435,11 @@ fun ReportDialogBody(
                 )
                 Spacer(Modifier.height(REPORT_INNER_GAP))
             }
-            // 1. Wohin?
+            // 1. Wohin? — 0.9.2: with its own heading, like «Was war es?» (the arrow had no label of its own).
             if (disc != null) {
+                Text(REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)
+                // The disc's hint line follows directly, as the heading's subtitle (ReportDirectionUi.Panel).
+                Spacer(Modifier.height(2.dp))
                 disc()
                 Spacer(Modifier.height(REPORT_GROUP_GAP))
             }
@@ -533,6 +544,9 @@ const val REPORT_CANCEL = "Abbrechen"
 /** 0.8.6: the heading of the category grid. */
 const val REPORT_WHAT = "Was war es?"
 
+/** 0.9.2: the heading above the compass disc (the step's title until 0.7.8), in the style of [REPORT_WHAT]. */
+const val REPORT_WHERE = "Wohin fuhr es?"
+
 /** 0.9.1: the height of «Senden» (Material's large button; the category buttons are 72 dp). */
 val REPORT_SEND_HEIGHT = 56.dp
 
@@ -586,15 +600,20 @@ fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove:
         return
     }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(REPORT_THUMB_DP.dp)) {
-            ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp)
-            Surface(
-                onClick = onRemove, enabled = enabled, shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(22.dp),
+        // 0.9.2: the «×» keeps its 22 dp circle at the thumbnail's top-right corner, but the tap target is
+        // REPORT_REMOVE_TOUCH_DP (was the 22 dp circle itself); the box is 8 dp wider and taller than the
+        // thumbnail so that the whole target lies inside it.
+        Box(Modifier.size((REPORT_THUMB_DP + 8).dp)) {
+            Box(Modifier.align(Alignment.BottomStart)) { ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp) }
+            Box(
+                Modifier.align(Alignment.TopEnd).size(REPORT_REMOVE_TOUCH_DP.dp).clip(CircleShape)
+                    .clickable(enabled = enabled, role = Role.Button, onClickLabel = ReportPhotos.REMOVE, onClick = onRemove),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(14.dp))
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), modifier = Modifier.size(22.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(14.dp))
+                    }
                 }
             }
         }
@@ -608,6 +627,9 @@ fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove:
 
 /** 0.8.5: the photo thumbnail in the dialog, dp (0.8.6: 56, was 64). */
 const val REPORT_THUMB_DP = 56
+
+/** 0.9.2: the tap target of the photo's «×» (the visible circle stays 22 dp). */
+const val REPORT_REMOVE_TOUCH_DP = 40
 
 /** 0.8.5: «Foto», or «Neues Foto» once one is taken (0.8.6: «Foto vom Fahrzeug (optional)»). */
 fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON
@@ -721,13 +743,21 @@ const val REPORT_LOCATING = "Standort wird gesucht …"
 
 /**
  * «Standort wird gesucht …» while there is no fix, then «Standort ± 12 m»; 0.8.1 (same build):
- * [REPORT_MOVED_LINE] once the map was moved under the dot ([moved]).
+ * [REPORT_MOVED_LINE] once the map was moved under the dot ([moved]); 0.9.2: «Standort ± 12 m · Karte
+ * verschiebbar» while the map can be dragged ([draggable]).
  */
-fun reportFixLine(accuracyM: Int?, moved: Boolean = false): String = when {
+fun reportFixLine(accuracyM: Int?, moved: Boolean = false, draggable: Boolean = false): String = when {
     accuracyM == null -> REPORT_LOCATING
     moved -> REPORT_MOVED_LINE
+    draggable -> "Standort ± $accuracyM m · $REPORT_DRAG_HINT"
     else -> "Standort ± $accuracyM m"
 }
+
+/**
+ * 0.9.2: appended to «Standort ± n m» while the disc's map can be dragged (streets drawn, not moved yet):
+ * the only sign of the drag. Once moved, [REPORT_MOVED_LINE] and «Zurück zum Standort» take over.
+ */
+const val REPORT_DRAG_HINT = "Karte verschiebbar"
 
 // ---- 0.8.1 (same build, Labor·Karte): the map moved under the dot -------------------------------
 // The disc (src/karte ReportDirectionUi.Panel) lets the person drag the map under the dot when
@@ -815,7 +845,7 @@ fun reportSendEnabled(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome
  * the point is public (server/DESIGN.md §2 rule 10), and how to delete.
  */
 const val REPORT_CONSENT_TEXT =
-    "Gesendet werden Zeit, genauer Standort und Art des Lärms, nie Audio. " +
+    "Gesendet werden Zeit, genauer Standort, Fahrtrichtung, Pegel und Art des Lärms, nie Audio. " +
         "Der Punkt erscheint auf der Lärmkarte; wer oft vom gleichen Ort meldet, macht ihn sichtbar. " +
         "Dafür wird «Teilen» eingeschaltet; löschen kannst du alles mit «Vom Server löschen»."
 

@@ -109,7 +109,8 @@ fun MeasureScreen(
         if (road) askUnterwegs()
     }
     val requestPermission = rememberMicPermissionLauncher { granted ->
-        if (granted) startMeasurement(pendingUnterwegs)
+        // 0.9.2: a «no» to Android's microphone prompt said nothing until 0.9.1 (the button just did nothing).
+        if (granted) startMeasurement(pendingUnterwegs) else scope.launch { snackbar.showSnackbar(MIC_DENIED) }
     }
     fun onStart(unterwegs: Boolean) {
         // 0.7.5, Labor editions only (always null in the public editions): the audio budget is used up.
@@ -327,7 +328,7 @@ fun MeasureContent(
                     }
                     LevelBar(live.lafDb)
                     Spacer(Modifier.height(2.dp))
-                    StatRow("Grundrauschen", humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
+                    StatRow(HUM_LABEL, humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))

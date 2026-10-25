@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.2 — Labor·Karte first (branch labor-0.9.1): clarity pass — every element says what it is for (versionCode 43)
+
+In short: everything a first-time user sees now says what it is for, in a few words. Nothing that is
+sent or kept changes.
+
+- **«Laut! Melden»:** a heading «Wohin fuhr es?» above the compass and, always, «Telefon in die
+  Fahrtrichtung halten» (until 0.9.1 the red «Kompass ungenau: …» line replaced it, and the arrow had
+  no explanation; now it is an extra line under it). Both sit above the disc, so a small phone shows
+  them without scrolling. While the map can be dragged the location row reads «Standort ± 100 m ·
+  Karte verschiebbar». The level card says «Mikrofon läuft». The «×» on the photo is easier to hit
+  (40 dp).
+- **«Meldungen senden?»** and «Was gesendet wird» now name everything a report carries: time, exact
+  place, direction, level and kind of noise.
+- **«Messen»:** «Grundrauschen (ohne Spitzen)»; saying no to the microphone now shows «Ohne Mikrofon
+  kann die App nicht messen.».
+- **«Messungen»:** the band in the chart is «leise bis laut» (was «Schwankung»); the category chips
+  are labelled «Hervorheben:»; empty tiles say «noch kein Wert», «noch keine» or «keine» instead of «–».
+- **«Teilen»:** «Noch nicht gesendet» (was «Noch zu senden»); the chip «Kein Standort für die Karte»;
+  the photo full-screen has «Foto löschen» (was «Löschen»).
+- **«Einstellungen»:** «Exportieren» and «Alle löschen» are rows with a line each («Alle Messungen als
+  Datei teilen», «Messungen auf diesem Telefon; Kalibrierungen bleiben»); «Erweitert» lists «Lärmspitzen,
+  Mikrofon, Kalibrieren»; in «Erweitert» the «Lärmspitzen» card says what it sets, «Mikrofon» says
+  which microphone measures, «Kalibrieren» says what calibrating does.
+- PRIVACY.md, docs/datenschutz.html and android/README.md updated where they quote a changed text.
+
 ## 0.9.1 — Labor·Karte first (branch labor-0.9.1) (versionCode 42)
 
 In short: «Laut! Melden» is quicker to finish. The dialog offers four choices and «Senden» is its

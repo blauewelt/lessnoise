@@ -34,7 +34,13 @@ const val REPORTS_NONE = "Noch keine Meldung gesendet."
  */
 const val REPORTS_SAME_SWITCH = "Eine Meldung schaltet «Auf die Karte senden» ein – das gilt dann auch für Messungen am Fenster."
 
-/** Section 1, «Noch zu senden»: «12 Minuten». */
+/**
+ * 0.9.2: the row of what waits for the upload, in both sections (until 0.9.1 «Noch zu senden», which read
+ * like a to-do: «Noch zu senden 0 Minuten»).
+ */
+const val PENDING_LABEL = "Noch nicht gesendet"
+
+/** Section 1, [PENDING_LABEL]: «12 Minuten». */
 fun pendingMinutesText(n: Int): String = if (n == 1) "1 Minute" else "$n Minuten"
 
 /** The bullet about location in «Nie gesendet». */
@@ -44,7 +50,7 @@ const val LOCATION_NEVER_SENT = "Dein genauer Standort (ausser bei einer Meldung
 val SHARE_SENT_BULLETS: List<String> = listOf(
     "Lärmwerte pro Minute und Lärmspitzen von Motoren und Maschinen (z. B. «Töff & Poser»); Stimmen und Musik nie.",
     "Ein zufällig verschobener Punkt statt deines Standorts, und wo das Telefon liegt.",
-    "Meldungen: Zeit, genauer Standort, Art des Lärms.",
+    "Meldungen: Zeit, genauer Standort, Fahrtrichtung, Pegel, Art des Lärms.",
     "Telefonmodell, Audioquelle, Kalibrierung und eine zufällige Kennung.",
 )
 
@@ -108,7 +114,8 @@ const val STATUS_OFF = "Nicht auf der Karte"
 
 /** The one fix is running; the same words as in «Laut! Melden» ([REPORT_LOCATING]). */
 const val STATUS_LOCATING = REPORT_LOCATING
-const val STATUS_NO_POINT = "Kein Standort"
+/** 0.9.2: «… für die Karte» (until 0.9.1 «Kein Standort», which did not say for what). */
+const val STATUS_NO_POINT = "Kein Standort für die Karte"
 const val STATUS_FIRST_VALUES = "Wird geteilt · erste Werte in etwa 1 Minute"
 const val STATUS_ON_IDLE = "Teilen an · nächste Messung kommt auf die Karte"
 const val STATUS_NO_INTERNET = "Kein Internet · wird nachgeholt"

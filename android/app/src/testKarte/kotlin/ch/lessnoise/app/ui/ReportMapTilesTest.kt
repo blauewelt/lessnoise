@@ -281,6 +281,17 @@ class ReportMapTilesTest {
         // The preview tiles (JVM renders) replace the download only when passed; the app never passes them.
         assertTrue(ui.contains("val tiles = previewTiles ?: rememberStreetTiles("))
         assertEquals("Telefon in die Fahrtrichtung halten", ReportDirectionUi.POINT_HINT)
+        // 0.9.2 (owner): the hint is always drawn, above the disc; the figure-eight line is an extra line under
+        // it while the compass is unreliable, never instead of it (until 0.9.1: if … CALIBRATE_HINT else POINT_HINT).
+        val panel = ui.substringAfter("fun Panel(").substringBefore("\n    }\n")
+        val hint = panel.indexOf("POINT_HINT, style")
+        val eight = panel.indexOf("CALIBRATE_HINT, style")
+        val disc = panel.indexOf("Box(Modifier.widthIn(max = DISC_DP.dp)")
+        assertTrue(hint in 0 until eight && eight < disc, "hint, then the figure-eight line, then the disc")
+        assertTrue(panel.substring(hint - 400, hint).contains("Column(Modifier.fillMaxWidth()"), "the hint is not inside a condition")
+        assertTrue(panel.substring(hint, eight).contains("if (r != null && showCalibrationHint(r.sensorStatus)) {"))
+        assertFalse(panel.contains("} else {\n                Text(POINT_HINT"))
+        assertTrue(panel.contains("LaunchedEffect(canDrag) { onDraggableNow(canDrag) }"))
         // «Standort wird gesucht …» while the fix is searched: the dialog's fix line (src/main, every edition).
         assertEquals("Standort wird gesucht …", reportFixLine(null))
         // Nothing is written: no file, preference or log in either file.

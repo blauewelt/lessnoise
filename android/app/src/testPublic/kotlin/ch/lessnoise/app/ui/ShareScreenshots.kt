@@ -64,7 +64,7 @@ class ShareScreenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2340, xdpi = 420, ydpi = 420, density = Density(420)),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-share")),
         useDeviceResolution = true,
     )
 

@@ -108,7 +108,8 @@ class LoudAlertIsolationTest {
         // 0.8.1: same API as the real one, no compass: no reading, no disc.
         assertTrue(stub.contains("fun rememberReading(): State<CompassReading?>? = null"))
         // 0.8.1 (same build): the place moved under the dot; the stand-in has no disc, so no drag.
-        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onMove: (Pair<Double, Double>) -> Boolean) = Unit"))
+        // 0.9.2: with onDraggable (the hint «Karte verschiebbar»), which the stand-in never calls.
+        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onDraggable: (Boolean) -> Unit = {}, onMove: (Pair<Double, Double>) -> Boolean) = Unit"))
         assertFalse(stub.contains("pointerInput"))
     }
 

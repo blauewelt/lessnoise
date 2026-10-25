@@ -130,43 +130,18 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
 
         // Lärmspitzen: the two detector options left (hidden here since 0.6.1). ---------------
         item {
-            SectionCard("Lärmspitzen") {
-                StatRow("Lärmspitze ab … über Grundrauschen", "${Fmt.db(settings.eventExcessDb, 1)} dB")
-                Slider(
-                    value = settings.eventExcessDb.toFloat(),
-                    valueRange = AppSettings.EVENT_EXCESS_MIN.toFloat()..AppSettings.EVENT_EXCESS_MAX.toFloat(),
-                    steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
-                    onValueChange = { v -> c.settings.update { it.copy(eventExcessDb = EventFloor.roundToHalf(v.toDouble())) } },
-                )
-                Text("Kleiner = mehr Spitzen. Standard 6,5 dB.", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
-                StatRow("Lärmspitzen erst ab", "${Fmt.db(settings.eventMinLevelDb, 1)} dB(A)")
-                Slider(
-                    value = settings.eventMinLevelDb.toFloat(),
-                    valueRange = AppSettings.EVENT_MIN_LEVEL_MIN.toFloat()..AppSettings.EVENT_MIN_LEVEL_MAX.toFloat(),
-                    // 0.5 dB steps: the floor follows calibrations in 0.5 dB steps.
-                    steps = ((AppSettings.EVENT_MIN_LEVEL_MAX - AppSettings.EVENT_MIN_LEVEL_MIN) * 2).toInt() - 1,
-                    onValueChange = { v -> c.settings.update { it.copy(eventMinLevelDb = EventFloor.roundToHalf(v.toDouble())) } },
-                )
-                Text("Filtert Geräusche am Telefon selbst (Tippen, Atmen). Standard 30 dB(A).", style = MaterialTheme.typography.bodySmall)
-            }
+            EventSettingsCard(
+                excessDb = settings.eventExcessDb, minLevelDb = settings.eventMinLevelDb,
+                onExcess = { v -> c.settings.update { it.copy(eventExcessDb = v) } },
+                onMinLevel = { v -> c.settings.update { it.copy(eventMinLevelDb = v) } },
+            )
         }
 
         // Mikrofon (0.7.2): the manual choice ---------------------------------------------------
         item { MicrophoneCard() }
 
         // Kalibrieren ---------------------------------------------------------------------------
-        item {
-            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-                Text("Kalibrieren", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "Nur nötig, wenn du ein Messgerät hast. Ohne Kalibrierung sind die Werte Richtwerte.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(CalibrationTexts.PER_MICROPHONE, style = MaterialTheme.typography.bodyMedium)
-                MoreLink(Links.CALIBRATE)
-            }
-        }
+        item { CalibrateIntro() }
         item {
             SectionCard {
                 val a = active
@@ -352,3 +327,52 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
 /** «Messgrenze dieses Telefons: ca. 34 dB(A) (aus 1234 Minuten geschätzt)» (0.6.5; floor + 3 dB, whole dB). */
 fun floorLine(nf: ch.lessnoise.dsp.NoiseFloor.Limit): String =
     "Messgrenze dieses Telefons: ca. ${Fmt.db(nf.limitDb, 0)} dB(A) (aus ${nf.estimate.minutes} Minuten geschätzt)"
+
+/**
+ * Erweitert › «Lärmspitzen» (pure since 0.9.2, so the JVM renders draw it): when a sound counts as a
+ * Lärmspitze. 0.9.2: one line under the title saying so (until 0.9.1 the title alone).
+ */
+@Composable
+fun EventSettingsCard(excessDb: Double, minLevelDb: Double, onExcess: (Double) -> Unit, onMinLevel: (Double) -> Unit) {
+    SectionCard("Lärmspitzen") {
+        Text(EVENT_SETTINGS_SUBTITLE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        StatRow("Lärmspitze ab … über Grundrauschen", "${Fmt.db(excessDb, 1)} dB")
+        Slider(
+            value = excessDb.toFloat(),
+            valueRange = AppSettings.EVENT_EXCESS_MIN.toFloat()..AppSettings.EVENT_EXCESS_MAX.toFloat(),
+            steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
+            onValueChange = { v -> onExcess(EventFloor.roundToHalf(v.toDouble())) },
+        )
+        Text("Kleiner = mehr Spitzen. Standard 6,5 dB.", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(8.dp))
+        StatRow("Lärmspitzen erst ab", "${Fmt.db(minLevelDb, 1)} dB(A)")
+        Slider(
+            value = minLevelDb.toFloat(),
+            valueRange = AppSettings.EVENT_MIN_LEVEL_MIN.toFloat()..AppSettings.EVENT_MIN_LEVEL_MAX.toFloat(),
+            // 0.5 dB steps: the floor follows calibrations in 0.5 dB steps.
+            steps = ((AppSettings.EVENT_MIN_LEVEL_MAX - AppSettings.EVENT_MIN_LEVEL_MIN) * 2).toInt() - 1,
+            onValueChange = { v -> onMinLevel(EventFloor.roundToHalf(v.toDouble())) },
+        )
+        Text("Filtert Geräusche am Telefon selbst (Tippen, Atmen). Standard 30 dB(A).", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** 0.9.2: the line under «Lärmspitzen» in «Erweitert». */
+const val EVENT_SETTINGS_SUBTITLE = "Wann ein Geräusch als Lärmspitze zählt."
+
+/**
+ * The heading of «Kalibrieren» in «Erweitert» (pure since 0.9.2). 0.9.2: the first line says what
+ * calibrating does (until 0.9.1 only when it is needed).
+ */
+@Composable
+fun CalibrateIntro() {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Text("Kalibrieren", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(CALIBRATE_INTRO, style = MaterialTheme.typography.bodyMedium)
+        Text(CalibrationTexts.PER_MICROPHONE, style = MaterialTheme.typography.bodyMedium)
+        MoreLink(Links.CALIBRATE)
+    }
+}
+
+/** 0.9.2: what calibrating does, then when it is needed (until 0.9.1 «Nur nötig, wenn du ein Messgerät hast. …»). */
+const val CALIBRATE_INTRO = "Gleicht die Werte an ein Messgerät an. Nur nötig, wenn du eins hast; sonst sind die Werte Richtwerte."

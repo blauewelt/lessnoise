@@ -163,7 +163,7 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
   the median of their L90 and L10; an hour needs 10 valid minutes), events at their clock time.
   ‹ › or a sideways swipe on the chart (≥ 15 % of its width, or a fling) move to the older/newer
   measurement.
-- **Marks:** a band from L90 to L10 (legend «Schwankung»), the LAeq line per minute (legend «Mittel
+- **Marks:** a band from L90 to L10 (legend «leise bis laut»; «Schwankung» until 0.9.1), the LAeq line per minute (legend «Mittel
   pro Minute»), and every event as a dot at (start, LAFmax) (legend «andere Spitzen»); wind events
   are not drawn (since 0.6.1). One category is highlighted in orange and drawn on top (default
   Töff & Poser; chosen with the scrolling row of chips under the chart and remembered; the
@@ -351,7 +351,7 @@ Instead:
    wird bestimmt …», «Wird geteilt – erste Werte in etwa einer Minute», «Auf der Karte · zuletzt
    gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»; since 0.8.3 a
    status chip with an icon and shorter words: «Standort wird gesucht …», «Wird geteilt · erste Werte
-   in etwa 1 Minute», «Auf der Karte · 18:42», «Kein Standort» ›). While measuring, a persistent notification
+   in etwa 1 Minute», «Auf der Karte · 18:42», «Kein Standort für die Karte» › — «Kein Standort» until 0.9.1). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
    «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
    screen shows «Jetzt» (LAF), «Grundrauschen» (the 5-min L90), «Klingt nach» (the current
@@ -821,18 +821,18 @@ the others on arrival. A measurement started as «Unterwegs» shares nothing (ab
    nachgeholt», «Nicht gesendet: … – wird nachgeholt», «Unterbrochen – tippen für «Neu starten»»;
    `ui/ShareStatus.kt`, pure and JVM-tested; since 0.8.3 a chip with an icon — `StatusIcon`: cloud_done,
    cloud_upload, cloud_off, my_location with a spinner, location_off, directions_walk — and shorter
-   words, e.g. «Nicht auf der Karte ›» (tap: «Teilen»), «Kein Standort ›», «Auf der Karte · HH:MM ›»),
+   words, e.g. «Nicht auf der Karte ›» (tap: «Teilen»), «Kein Standort für die Karte ›» (0.9.2; «Kein Standort ›» until 0.9.1), «Auf der Karte · HH:MM ›»),
    the count of records the server refused for good;
    then, always visible since 0.8.8 (until 0.8.7 under «Weitere Angaben ▸») and drawn disabled while
    sharing is off, «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
-   most about 3 MB a day measuring round the clock), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
+   most about 3 MB a day measuring round the clock), «Noch nicht gesendet: n Minuten» (until 0.9.1 «Noch zu senden») and (since 0.6.2) **«Standort verschieben»** — σ of the location
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
    macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice; and
    **«Wo liegt das Telefon? (freiwillig) ▾»** (folded): «Das Telefon liegt» am offenen Fenster / auf
    dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
    «Weitere Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all
    optional, remembered for the next measurements.
-2. **«Meldungen unterwegs»** (megaphone): «Gesendet n» (and «Noch zu senden» while reports wait), the
+2. **«Meldungen unterwegs»** (megaphone): «Gesendet n» (and «Noch nicht gesendet» while reports wait; «Noch zu senden» until 0.9.1), the
    last five sent reports (category icon, time, kind, dB, photo thumbnail; photos stay on the phone),
    and the line «Eine Meldung schaltet «Auf die Karte senden» ein – das gilt dann auch für Messungen
    am Fenster.»
@@ -878,7 +878,7 @@ rule 2). The secret is 32 random bytes made at the first shared «Starten» (`up
 stored encrypted next to the upload token, never sent) and dropped by «Neu starten» and «Vom
 Server löschen». The point is accepted only with «Genauer Standort» and accuracy ≤ 75 m
 (`location/LocationPolicy.kt`, pure Kotlin). If it fails there is no dialog: the status line says
-«Kein Standort – tippen» (0.8.3: the chip «Kein Standort ›»), and the tap says why in one sentence and offers «Nochmals», the app or
+«Kein Standort – tippen» (0.8.3: the chip «Kein Standort ›»; 0.9.2: «Kein Standort für die Karte ›»), and the tap says why in one sentence and offers «Nochmals», the app or
 location settings where they help, and «Koordinaten einfügen» (WGS84 decimal degrees `47.3769, 8.5417`,
 LV95 `2'683'304, 1'247'925`, LV03 or a cell id — its centre —, `upload/CellInput.kt`; moved the same
 way). The shifted point, its σ and its display cell are then **attached to the running
@@ -966,7 +966,7 @@ follows the report: on every change of the queue `ReportPhotos.sweep` deletes ea
 «Vom Server löschen» or by switching sharing off, a report the server refused, and a sent entry that
 leaves the last `SENT_KEEP` (500) take their photo with them. In «Teilen» › «Meldungen» a sent report
 with a photo shows a 40 dp thumbnail; a tap shows it full-screen (`ReportPhotoViewer`) with
-«Löschen» (the photo alone: `ReportQueue.dropSentPhoto`, then the file) and «Schliessen». The 0.8.2
+«Foto löschen» (0.9.2; «Löschen» until 0.9.1; the photo alone: `ReportQueue.dropSentPhoto`, then the file) and «Schliessen». The 0.8.2
 text recognition plan is dropped with the field: `PlateCamera.kt`, `PlateOcr.kt` and `PlateOcrTest`
 are deleted (no ML Kit, no Google Play services, `ReportPhotoTest` keeps that check). It is shown in
 «Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, `photo` true/false —
@@ -1007,8 +1007,11 @@ without a compass, which then gets no disc and sends no direction) and `Panel` (
 Offline and Labor builds have the stand-in in `src/nomap` with the same API and no sensors. A 200 dp
 disc (240 dp in 0.7.8's own dialog): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
 16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
-below and one line «Telefon in die Fahrtrichtung halten», replaced by the figure-eight hint while the
-compass is unreliable. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
+below. Above the disc (0.9.2) the heading «Wohin fuhr es?» and, always, «Telefon in die Fahrtrichtung
+halten»; while the compass is unreliable the figure-eight hint «Kompass ungenau: …» is an additional red
+line under it (until 0.9.1 it replaced the line under the label, and the arrow was left unexplained).
+While the streets are drawn the location row reads «Standort ± n m · Karte verschiebbar» (0.9.2; the
+only sign of the drag), and the level card says «Mikrofon läuft» in its top-right corner. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
 Online-Version**, i.e. in both editions with the map — `src/karte` is not compiled into Offline or Labor;
 no edition flag): once the fix is there
 (`LocationFlows` passes it as `fix`; null while locating), the real streets around it are drawn under the arrow — swisstopo's grey

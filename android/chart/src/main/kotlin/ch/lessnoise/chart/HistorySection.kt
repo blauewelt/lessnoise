@@ -174,7 +174,7 @@ fun HistorySection(
                             else -> "Mittel pro Minute"
                         },
                     )
-                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), "Schwankung")
+                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), BAND_LEGEND)
                     if (model != null && model.windEvents.isNotEmpty()) {
                         LegendItem(Swatch.Hollow(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor)), WIND_LEGEND)
                     }
@@ -188,9 +188,16 @@ fun HistorySection(
         // carries an orange dot like the highlighted events.
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
             contentPadding = PaddingValues(horizontal = margin),
             modifier = Modifier.fillMaxWidth(),
         ) {
+            // 0.9.2: what the chips are for (until 0.9.1 an unlabelled row).
+            item(key = "label") {
+                Box(Modifier.height(32.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(HIGHLIGHT_LABEL, style = MaterialTheme.typography.labelLarge, color = scheme.onSurfaceVariant)
+                }
+            }
             items(ChartCategories.all, key = { it.first }) { (id, name) ->
                 val selected = highlight == id
                 FilterChip(
@@ -210,11 +217,11 @@ fun HistorySection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // The hum (steady background) and the bursts above it are separate quantities.
-            StatTile("Grundrauschen", s?.humText ?: "–", null, Modifier.weight(1f))
+            StatTile("Grundrauschen", s?.humText ?: "–", HUM_NOTE, Modifier.weight(1f))
             StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", "pro Stunde", Modifier.weight(1f))
             val loud = s?.loudest
             StatTile(
-                "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
+                "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: (if (s == null) "–" else NO_PEAK),
                 loud?.let { TimeFmt(zone, windows.crossesDates(window)).hm(it.startEpochMs) }, Modifier.weight(1f),
             )
         }

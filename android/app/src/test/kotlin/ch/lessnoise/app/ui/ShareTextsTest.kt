@@ -132,7 +132,7 @@ class ShareTextsTest {
         val order = listOf(
             "ScreenTitle(SHARE_TITLE)", "HelperText(SHARE_INTRO", "CardHeader(AppIcons.Window, WINDOW_SECTION_TITLE, WINDOW_SECTION_SUBTITLE)",
             "SwitchRow(\"Auf die Karte senden\"", "StatusChip(it, onStatus)", "WindowSettings(enabled = s.enabled)", "\"Nur über WLAN\"",
-            "SigmaSetting(", "StatRow(\"Noch zu senden\"", "\"Wo liegt das Telefon? (freiwillig)\"", "ReportsCard(reports)",
+            "SigmaSetting(", "StatRow(PENDING_LABEL", "\"Wo liegt das Telefon? (freiwillig)\"", "ReportsCard(reports)",
             "FoldRow(\"Was gesendet wird\"", "SectionCard(\"Deine Daten auf dem Server\")", "DestructiveButton(\"Vom Server löschen\"",
         ).map { content.indexOf(it) }
         assertTrue(order.all { it >= 0 } && order == order.sorted(), order.toString())

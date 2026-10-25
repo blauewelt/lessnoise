@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +75,12 @@ object ReportLevelUi {
 
     /** Prefix of the peak since the dialog opened. */
     const val PEAK = "Spitze"
+
+    /**
+     * 0.9.2: the small label in the level card's top-right corner: the numbers come from the microphone,
+     * now (its own engine, or the running measurement's). Without it the card did not say where they come from.
+     */
+    const val MIC_ON = "Mikrofon läuft"
 
     fun hasMic(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -268,18 +275,23 @@ fun ReportLevelStats(meter: ReportLevelMeter, modifier: Modifier = Modifier) {
     val nowText = ReportLevelUi.nowText(now.lafDb)
     val peakText = ReportLevelUi.peakText(now.peakDb)
     val cs = MaterialTheme.colorScheme
-    Row(
-        modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics(mergeDescendants = true) { contentDescription = "$nowText ${ReportLevelUi.NOW}, $peakText" },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Icon(AppIcons.GraphicEq, contentDescription = null, tint = cs.primary, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(12.dp))
-            ReportStat(Fmt.db(now.lafDb), "dB(A) ${ReportLevelUi.NOW}")
+    // 0.9.2: «Mikrofon läuft» at the card's top-right, as a row of its own above the two stats (not an
+    // overlay, so that it can never cover the peak value on a narrow phone with a large font).
+    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "${ReportLevelUi.MIC_ON}: $nowText ${ReportLevelUi.NOW}, $peakText" }) {
+        Text(
+            ReportLevelUi.MIC_ON, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant,
+            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Icon(AppIcons.GraphicEq, contentDescription = null, tint = cs.primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                ReportStat(Fmt.db(now.lafDb), "dB(A) ${ReportLevelUi.NOW}")
+            }
+            Box(Modifier.fillMaxHeight().padding(vertical = 4.dp).width(1.dp).background(cs.outlineVariant))
+            Spacer(Modifier.width(16.dp))
+            ReportStat(Fmt.db(now.peakDb), "dB(A) ${ReportLevelUi.PEAK}", Modifier.weight(1f))
         }
-        Box(Modifier.fillMaxHeight().padding(vertical = 4.dp).width(1.dp).background(cs.outlineVariant))
-        Spacer(Modifier.width(16.dp))
-        ReportStat(Fmt.db(now.peakDb), "dB(A) ${ReportLevelUi.PEAK}", Modifier.weight(1f))
     }
 }
 

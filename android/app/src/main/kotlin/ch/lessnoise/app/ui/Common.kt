@@ -258,6 +258,30 @@ fun NavRow(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modi
     )
 }
 
+/**
+ * 0.9.2: an action as a list row (leading icon, label, a line saying what it does, no chevron): «Exportieren»,
+ * «Alle löschen». [destructive]: label and icon in the error colour. Disabled: faded, not clickable.
+ */
+@Composable
+fun ActionRow(
+    label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier,
+    supporting: String? = null, enabled: Boolean = true, destructive: Boolean = false,
+) {
+    val cs = MaterialTheme.colorScheme
+    val tint = when {
+        !enabled -> cs.onSurface.copy(alpha = 0.38f)
+        destructive -> cs.error
+        else -> cs.onSurfaceVariant
+    }
+    ListItem(
+        headlineContent = { Text(label, style = MaterialTheme.typography.bodyLarge, color = if (destructive && enabled) cs.error else if (!enabled) tint else cs.onSurface) },
+        supportingContent = supporting?.let { { Text(it, style = MaterialTheme.typography.bodyMedium) } },
+        leadingContent = { Icon(icon, contentDescription = null, tint = tint) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+    )
+}
+
 /** 0.8.6: a switch as a list row (label, supporting text under it, trailing Switch); the whole row toggles. */
 @Composable
 fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier, supporting: String? = null, icon: ImageVector? = null, enabled: Boolean = true) {

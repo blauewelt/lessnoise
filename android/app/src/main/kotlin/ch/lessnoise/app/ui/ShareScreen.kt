@@ -201,7 +201,7 @@ fun ShareContent(
                 )
                 CardBlock {
                     SigmaSetting(s.sigmaM, onSigma, enabled = s.enabled)
-                    StatRow("Noch zu senden", pendingMinutesText(pending))
+                    StatRow(PENDING_LABEL, pendingMinutesText(pending))
                 }
                 FoldRow(
                     "Wo liegt das Telefon? (freiwillig)", showPlacement && s.enabled, { showPlacement = !showPlacement },
@@ -378,7 +378,7 @@ private fun ReportsCard(r: ReportSnapshot) {
     SectionCard(rows = true) {
         CardHeader(AppIcons.Campaign, REPORTS_SECTION_TITLE, REPORTS_SECTION_SUBTITLE)
         CardBlock {
-            if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
+            if (r.pending.isNotEmpty()) StatRow(PENDING_LABEL, r.pending.size.toString())
             if (r.sent.isEmpty() && r.pending.isEmpty()) HelperText(REPORTS_NONE) else StatRow("Gesendet", r.sent.size.toString())
         }
         r.sent.takeLast(5).reversed().forEach { s ->

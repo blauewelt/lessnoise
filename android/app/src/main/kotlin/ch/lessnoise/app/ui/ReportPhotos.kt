@@ -104,7 +104,8 @@ object ReportPhotos {
     const val BUTTON_AGAIN = "Neues Foto"
     const val REMOVE = "Foto entfernen"
     const val DESCRIPTION = "Foto der Meldung"
-    const val DELETE = "Löschen"
+    /** 0.9.2: «Foto löschen» (until 0.9.1 «Löschen», which read as deleting the report). */
+    const val DELETE = "Foto löschen"
     const val CLOSE = "Schliessen"
     const val NO_CAMERA = "Keine Kamera-App gefunden"
     const val FAILED = "Foto konnte nicht gespeichert werden"
@@ -335,7 +336,7 @@ fun ReportPhotoThumbnail(file: File, size: Dp, modifier: Modifier = Modifier, on
     }
 }
 
-/** The photo full-screen (0.8.5, «Teilen» › «Meldungen»): «Löschen» deletes this photo alone, «Schliessen» closes. */
+/** The photo full-screen (0.8.5, «Teilen» › «Meldungen»): «Foto löschen» (0.9.2; «Löschen» until 0.9.1) deletes this photo alone, «Schliessen» closes. */
 @Composable
 fun ReportPhotoViewer(file: File, onDelete: () -> Unit, onDismiss: () -> Unit) {
     val px = with(LocalDensity.current) { 2000.dp.roundToPx() }
@@ -343,15 +344,21 @@ fun ReportPhotoViewer(file: File, onDelete: () -> Unit, onDismiss: () -> Unit) {
         value = withContext(Dispatchers.IO) { ReportPhotos.thumbnail(file, minOf(px, ReportPhotos.MAX_SIDE)) }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = Color.Black, contentColor = Color.White) {
-            Column(Modifier.fillMaxSize().padding(8.dp)) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    bitmap?.let { Image(it, contentDescription = ReportPhotos.DESCRIPTION, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text(ReportPhotos.DELETE) }
-                    TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text(ReportPhotos.CLOSE) }
-                }
+        ReportPhotoViewerContent(bitmap, onDelete, onDismiss)
+    }
+}
+
+/** The full-screen photo without the Dialog window (0.9.2, so the JVM renders draw it). */
+@Composable
+fun ReportPhotoViewerContent(bitmap: ImageBitmap?, onDelete: () -> Unit, onDismiss: () -> Unit) {
+    Surface(Modifier.fillMaxSize(), color = Color.Black, contentColor = Color.White) {
+        Column(Modifier.fillMaxSize().padding(8.dp)) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                bitmap?.let { Image(it, contentDescription = ReportPhotos.DESCRIPTION, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text(ReportPhotos.DELETE) }
+                TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text(ReportPhotos.CLOSE) }
             }
         }
     }

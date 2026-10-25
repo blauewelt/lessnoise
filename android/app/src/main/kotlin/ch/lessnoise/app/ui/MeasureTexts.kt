@@ -57,3 +57,17 @@ const val TAGLINE_PLAIN = "Miss den Lärm vor deinem Fenster."
 
 /** The line under the logo; [reports]: «Laut! Melden» is a button (editions with the map). */
 fun idleTagline(reports: Boolean): String = if (reports) TAGLINE_REPORTS else TAGLINE_PLAIN
+
+/**
+ * 0.9.2: «Grundrauschen» with a short parenthetical where it is a row label (running «Messen», the
+ * measurement cards): the steady level under the Lärmspitzen (per minute the L90), which a first-time
+ * user cannot guess from the word alone. «ohne Spitzen» rather than «leisester Pegel»: the L90 is not
+ * the quietest moment, it is the level left when the peaks are taken away.
+ */
+const val HUM_LABEL = "Grundrauschen (ohne Spitzen)"
+
+/** 0.9.2: «Lärmspitzen pro Stunde» before any measured time (until 0.9.1 «–»). */
+const val NONE_YET = "noch keine"
+
+/** 0.9.2: the snackbar after a «no» to Android's microphone prompt at «Langzeitmessung starten» (the service's own words). */
+const val MIC_DENIED = "Ohne Mikrofon kann die App nicht messen."

@@ -307,7 +307,7 @@ class ShareController internal constructor(
                 val outcome = (st as? LocateState.Failed)?.outcome
                 AlertDialog(
                     onDismissRequest = ::dismiss,
-                    title = { Text("Kein Standort") },
+                    title = { Text(STATUS_NO_POINT) },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(if (outcome != null) LocationPolicy.message(outcome) else STATUS_NO_POINT_HINT)

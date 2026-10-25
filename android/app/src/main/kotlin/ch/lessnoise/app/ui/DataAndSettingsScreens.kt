@@ -19,6 +19,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import ch.lessnoise.app.icons.AppIcons
@@ -150,29 +151,40 @@ fun SettingsContent(
             )
         }
         // «Deine Messungen»: what is stored on this phone, export (CSV via the share sheet), delete.
-        SectionCard("Deine Messungen") {
-            HelperText("Gespeichert auf diesem Telefon: $minutes Minuten, $events Lärmspitzen")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = onExport, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
-                    Icon(AppIcons.Download, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                    Text("Exportieren")
-                }
-                DestructiveButton("Alle löschen", onClear, enabled = canClear)
+        // 0.9.2: «Exportieren» and «Alle löschen» as list rows with a line each saying what they do (until
+        // 0.9.1 two buttons side by side without one); the labels stay (docs/anleitung.html quotes them).
+        SectionCard("Deine Messungen", rows = true) {
+            CardBlock { HelperText("Gespeichert auf diesem Telefon: $minutes Minuten, $events Lärmspitzen") }
+            ActionRow(EXPORT_LABEL, AppIcons.Download, onExport, supporting = EXPORT_SUBTITLE)
+            ActionRow(
+                CLEAR_LABEL, Icons.Outlined.Delete, onClear, enabled = canClear, destructive = true,
+                supporting = if (running) CLEAR_WHILE_RUNNING else CLEAR_SUBTITLE,
+            )
+            CardBlock {
+                info?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                MoreLink(Links.DATA, icon = Icons.Outlined.Info)
             }
-            if (running) Text("Zum Löschen zuerst die Messung stoppen.", style = MaterialTheme.typography.bodySmall)
-            info?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            MoreLink(Links.DATA, icon = Icons.Outlined.Info)
         }
         AboutAppCard()
         PrivacyCard()
         editionSection()
         SectionCard(rows = true) {
-            NavRow("Erweitert", AppIcons.Tune, onAdvanced, supporting = "Lärmspitzen, Kalibrieren")
+            NavRow("Erweitert", AppIcons.Tune, onAdvanced, supporting = ADVANCED_SUBTITLE)
         }
         Spacer(Modifier.height(24.dp))
     }
 }
+
+/** 0.9.2: «Deine Messungen»: the two rows and what each does. */
+const val EXPORT_LABEL = "Exportieren"
+const val EXPORT_SUBTITLE = "Alle Messungen als Datei teilen"
+const val CLEAR_LABEL = "Alle löschen"
+const val CLEAR_SUBTITLE = "Messungen auf diesem Telefon; Kalibrierungen bleiben"
+/** While a measurement runs the row is disabled and says why (until 0.9.1 a line under the buttons). */
+const val CLEAR_WHILE_RUNNING = "Zum Löschen zuerst die Messung stoppen."
+
+/** 0.9.2: what «Erweitert» holds (until 0.9.1 «Lärmspitzen, Kalibrieren», without the «Mikrofon» card). */
+const val ADVANCED_SUBTITLE = "Lärmspitzen, Mikrofon, Kalibrieren"
 
 /** «Datenschutz»: the audio promise of this edition, what goes online, the tolerance, the model credit. */
 @Composable
