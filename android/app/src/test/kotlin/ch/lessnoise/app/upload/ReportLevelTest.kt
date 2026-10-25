@@ -270,8 +270,9 @@ class ReportLevelTest {
         val service = File(app, "src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
         assertTrue(service.contains("AudioTapProvider.create(this)"))
         // The dialog stops its engine when it closes (DisposableEffect), opens no second microphone while measuring.
-        assertTrue(level.contains("DisposableEffect(measuring, micAllowed)"))
-        assertTrue(level.contains("if (measuring || !micAllowed) return@DisposableEffect onDispose {}"))
+        // 0.8.5: and not while the app is in the background (the camera app for «Foto» on screen).
+        assertTrue(level.contains("DisposableEffect(measuring, micAllowed, onScreen)"))
+        assertTrue(level.contains("if (measuring || !micAllowed || !onScreen) return@DisposableEffect onDispose {}"))
         assertTrue(level.contains("c.appScope.launch(Dispatchers.IO) { mic.close() }"))
     }
 

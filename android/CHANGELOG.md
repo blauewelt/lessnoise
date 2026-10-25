@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.5 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 37)
+
+In short (the owner's requests): «Laut! Melden» measures while it is open and sends the level with
+the report; a photo replaces the typed licence plate.
+
+- **Level while the dialog is open.** With no measurement running, the microphone runs through the
+  same dsp engine as a measurement (`MeasurementEngine`, the phone's calibration offset, in the app's
+  process, no classifier, no audio tap), from the dialog's opening to its closing; while a measurement
+  runs, the dialog uses its live values and opens no second microphone. Under the disc: «58,2 dB(A)
+  jetzt · Spitze 81,4 dB(A)». The report carries `level` {peak LAFmax, LAeq of those seconds, seconds,
+  calibrated}; «Teilen» › «Meldungen» shows «· 81 dB». No audio is stored or sent. The microphone
+  permission is asked when the dialog opens if it is missing; without it, no level.
+- **Server** (schema v8, not deployed): `LevelIn` on reports, four new columns, `reports.json`
+  publishes `lafmax_db` in whole dB; the map's report tooltip shows «84 dB». An older server refuses
+  the field: the app resends the report without it in the same run.
+- **«Foto» instead of «Kontrollschild».** The text field is gone; «Foto» opens the phone's camera app
+  (no camera permission), the photo is re-encoded (≤ 1600 px, JPEG 85, no EXIF), shown as a 64 dp
+  thumbnail with «×» / «Neues Foto», and kept only in the app's private files with the report. Never
+  sent; deleted with the report or alone («Löschen» in the full-screen view of «Meldungen», which shows
+  thumbnails). Plates of 0.7.6–0.8.4 reports are still listed. The 0.8.2 text-recognition code
+  (`PlateOcr`) is removed. The Labor manifest `report` line says `photo: true/false`.
+- PRIVACY.md, README, android/README, server/DESIGN.md updated; the website's datenschutz.html changes
+  when this reaches a release (WORKLOG).
+
 ## 0.8.4 — Labor·Karte only, not published (branch labor-one-tap) (versionCode 36)
 
 In short (the owner's decision): no mode switch — a running measurement means the phone lies at a

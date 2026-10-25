@@ -21,6 +21,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import ch.lessnoise.app.AppContainer
 import ch.lessnoise.app.audio.AudioCapture
 import ch.lessnoise.app.audio.AudioSourceSelector
@@ -201,7 +204,9 @@ fun reportLevelEngine(offsetDb: Double, calibrated: Boolean, calibrationId: Long
 /**
  * Runs the level for the open dialog into [meter]: the dialog's own engine while no measurement runs
  * and [micAllowed]; the running measurement's values while one runs. Stops with the composition
- * (the dialog closing) — never later.
+ * (the dialog closing) — never later — and while the app is not in the foreground (e.g. the camera
+ * app for «Foto» is on screen: the microphone is closed meanwhile and opened again on return; the
+ * level then covers the seconds the dialog was actually on screen, the open time still counts all).
  */
 @Composable
 fun ReportLevelEffect(meter: ReportLevelMeter, micAllowed: Boolean) {
@@ -209,8 +214,10 @@ fun ReportLevelEffect(meter: ReportLevelMeter, micAllowed: Boolean) {
     val c = context.container
     val live by c.live.collectAsState()
     val measuring = live.running
-    DisposableEffect(measuring, micAllowed) {
-        if (measuring || !micAllowed) return@DisposableEffect onDispose {}
+    val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val onScreen = lifecycle.isAtLeast(Lifecycle.State.STARTED)
+    DisposableEffect(measuring, micAllowed, onScreen) {
+        if (measuring || !micAllowed || !onScreen) return@DisposableEffect onDispose {}
         val mic = ReportLevelMic(context.applicationContext, meter)
         val job = c.appScope.launch(Dispatchers.IO) { mic.open(c) }
         onDispose {
