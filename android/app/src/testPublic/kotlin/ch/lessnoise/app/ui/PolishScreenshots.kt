@@ -89,7 +89,7 @@ private class PolishPngWriter(private val dir: File) : SnapshotHandler {
 private fun polishPaparazzi(heightPx: Int) = Paparazzi(
     deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = heightPx, xdpi = 420, ydpi = 420, density = Density(420)),
     theme = "android:Theme.Material.Light.NoActionBar",
-    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-polish")),
+    snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-polish")),
     useDeviceResolution = true,
 )
 
@@ -385,7 +385,7 @@ class MessenIdleSmallScreenshots {
             screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-idle")),
         useDeviceResolution = true,
     )
 
@@ -416,7 +416,7 @@ class MessenIdlePixel5Screenshots {
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.PIXEL_5.copy(fontScale = 1.3f),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.8.8-idle")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.0-idle")),
         useDeviceResolution = true,
     )
 

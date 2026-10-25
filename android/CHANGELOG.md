@@ -59,6 +59,10 @@ server/DESIGN.md §2 and §4.7 say what changed.
   The status chip says the day of the last send when it was not today (0.8.6 fix).
 - **«Langzeitmessung starten»** (0.8.8, was «Starten»/«Messung starten») with «Für Stunden am offenen
   Fenster, am Ladegerät.».
+- **Idle «Messen», new in 0.9.0** (owner): the helper lines under the buttons are centred, 8 dp under
+  their button (was 4), 20 dp between the groups (was 16); the Online-Version's tagline is «Kurz laut?
+  Melden. Oft laut? Lange messen.» (was «… Oft laut? Messen.»), matching «Langzeitmessung starten»;
+  Offline keeps «Miss den Lärm vor deinem Fenster.».
 
 **Labor·Karte only** (not in the published editions): the «Unterwegs aufnehmen» button with the
 «Sehr laut» notification and the notification's «Melden» (0.8.4), the preselected category from that

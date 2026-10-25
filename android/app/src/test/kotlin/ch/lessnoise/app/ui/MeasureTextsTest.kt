@@ -51,15 +51,22 @@ class MeasureTextsTest {
         // with one label style (stackButtonLabel), the helper lines in HelperText.
         val idle = screen.substring(screen.indexOf("// Editions with the map: «Laut! Melden» is the first action"))
         val report = idle.indexOf("Text(REPORT_BUTTON, style = stackButtonLabel())")
-        val reportHint = idle.indexOf("HelperText(REPORT_HINT)")
+        val reportHint = idle.indexOf("StackHint(REPORT_HINT)")
         val tonal = idle.indexOf("FilledTonalButton(onClick = onStart")
-        val hint = idle.indexOf("HelperText(START_HINT)")
+        val hint = idle.indexOf("StackHint(START_HINT)")
         val road = idle.indexOf("Text(UNTERWEGS_BUTTON, style = stackButtonLabel())")
-        val roadHint = idle.indexOf("HelperText(UNTERWEGS_LABOR_HINT)")
+        val roadHint = idle.indexOf("StackHint(UNTERWEGS_LABOR_HINT)")
         assertTrue(report in 0 until reportHint && reportHint < tonal && tonal < hint && hint < road && road < roadHint, "$report $reportHint $tonal $hint $road $roadHint")
-        // 0.8.8: the same helper style (HelperText, 4 dp under its button) for all three buttons, and the
-        // report line only where «Laut! Melden» exists (inside `if (onReport != null)`).
-        assertTrue(idle.contains("Text(REPORT_BUTTON, style = stackButtonLabel())\n                    }\n                    Spacer(Modifier.height(4.dp))\n                    HelperText(REPORT_HINT)"))
+        // 0.8.8: the same helper style for all three buttons, and the report line only where «Laut! Melden»
+        // exists (inside `if (onReport != null)`). 0.9.0 (owner): centred over the full width (StackHint),
+        // 8 dp under its button (was 4), 20 dp between the groups (was 16).
+        assertTrue(idle.contains("Text(REPORT_BUTTON, style = stackButtonLabel())\n                    }\n                    Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(REPORT_HINT)\n                    Spacer(Modifier.height(STACK_GROUP_GAP))"))
+        assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                StackHint(START_HINT)"))
+        assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(UNTERWEGS_LABOR_HINT)"))
+        assertEquals(8, STACK_HINT_GAP.value.toInt())
+        assertEquals(20, STACK_GROUP_GAP.value.toInt())
+        assertTrue(screen.contains("HelperText(text, Modifier.fillMaxWidth(), textAlign = TextAlign.Center)"), "the helper lines are centred, full width")
+        assertFalse(Regex("""HelperText\((REPORT_HINT|START_HINT|UNTERWEGS_LABOR_HINT)""").containsMatchIn(screen), "every stack hint goes through StackHint")
         assertTrue(idle.substring(idle.indexOf("if (onReport != null) {"), reportHint).contains("onClick = onReport,"))
         assertTrue(idle.substring(0, report).contains("onClick = onReport,") && idle.substring(0, report).contains("Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)"))
         assertEquals(56, STACK_BUTTON_HEIGHT.value.toInt())
@@ -73,7 +80,7 @@ class MeasureTextsTest {
         assertTrue(running.contains("Text(STOP_BUTTON, style = stackButtonLabel())"))
         // Without reports «Messung starten» stays the primary button.
         assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)"))
-        assertTrue(idle.contains("if (onUnterwegs != null) {\n                    Spacer(Modifier.height(16.dp))\n                    OutlinedButton(onClick = onUnterwegs"))
+        assertTrue(idle.contains("if (onUnterwegs != null) {\n                    Spacer(Modifier.height(STACK_GROUP_GAP))\n                    OutlinedButton(onClick = onUnterwegs"))
     }
 
     @Test
@@ -113,9 +120,14 @@ class MeasureTextsTest {
         // two weighted spacers, then the actions; the column at least the viewport's height and scrollable.
         assertEquals("Weniger Lärm", APP_NAME)
         assertEquals(TAGLINE_REPORTS, idleTagline(reports = true))
+        // 0.9.0 (owner): the tagline matches «Langzeitmessung starten»; Offline/Labor keep theirs.
+        assertEquals("Kurz laut? Melden. Oft laut? Lange messen.", TAGLINE_REPORTS)
+        assertEquals("Miss den Lärm vor deinem Fenster.", TAGLINE_PLAIN)
         assertEquals(TAGLINE_PLAIN, idleTagline(reports = false))
         for (t in listOf(TAGLINE_REPORTS, TAGLINE_PLAIN)) {
-            assertTrue(t.length < 40, t)
+            // 0.9.0: the owner's «… Lange messen.» is 42 characters (limit was 40); one line at the default font on a 411 dp
+            // phone (render messen-idle), two centred lines at 360 dp with 130 % font (messen-idle-360x640-font130).
+            assertTrue(t.length <= 42, t)
             assertFalse(t.contains('ß') || Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
         }
         val idle = screen.substring(screen.indexOf("fun IdleMeasure("), screen.indexOf("fun MoreSheetContent("))

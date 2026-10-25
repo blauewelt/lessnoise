@@ -46,8 +46,11 @@ fun runningLine(hm: String): String = "Läuft seit $hm · Bildschirm darf aus se
 /** 0.8.7: the app's name under the logo on the idle «Messen» screen (every edition; the Labor banner says «Labor»). */
 const val APP_NAME = "Weniger Lärm"
 
-/** 0.8.7: the line under the name, editions with «Laut! Melden»: what each of the two buttons is for. */
-const val TAGLINE_REPORTS = "Kurz laut? Melden. Oft laut? Messen."
+/**
+ * 0.8.7: the line under the name, editions with «Laut! Melden»: what each of the two buttons is for.
+ * 0.9.0 (owner): «Lange messen» to match the button «Langzeitmessung starten» (0.8.7–0.8.8 «… Messen.»).
+ */
+const val TAGLINE_REPORTS = "Kurz laut? Melden. Oft laut? Lange messen."
 
 /** 0.8.7: the same line where the start button is the only button (Offline, Labor). */
 const val TAGLINE_PLAIN = "Miss den Lärm vor deinem Fenster."

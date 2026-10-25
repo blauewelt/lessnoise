@@ -446,8 +446,9 @@ fun IdleMeasure(
             Spacer(Modifier.height(24.dp))
             // Bottom: the actions.
             // 0.8.6: one button height (STACK_BUTTON_HEIGHT) and one label style for every stacked
-            // button, the hierarchy only by style (filled → tonal → outlined); each helper line 4 dp
-            // under its button, 16 dp between the groups.
+            // button, the hierarchy only by style (filled → tonal → outlined). 0.9.0 (owner): each
+            // helper line centred under its button (StackHint), 8 dp under it (was 4), 20 dp between
+            // the groups (was 16, so the groups stay apart with the larger inner gap).
             Column(Modifier.fillMaxWidth().padding(start = SCREEN_GUTTER, end = SCREEN_GUTTER, bottom = 8.dp)) {
                 // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
                 // the FAB of 0.8.3 is gone, this button does its job.
@@ -461,9 +462,9 @@ fun IdleMeasure(
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(REPORT_BUTTON, style = stackButtonLabel())
                     }
-                    Spacer(Modifier.height(4.dp))
-                    HelperText(REPORT_HINT)
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(STACK_HINT_GAP))
+                    StackHint(REPORT_HINT)
+                    Spacer(Modifier.height(STACK_GROUP_GAP))
                 }
                 val startEnabled = !live.starting && !calibrating
                 val startContent: @Composable RowScope.() -> Unit = {
@@ -478,18 +479,18 @@ fun IdleMeasure(
                 } else {
                     Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)
                 }
-                Spacer(Modifier.height(4.dp))
-                HelperText(START_HINT)
+                Spacer(Modifier.height(STACK_HINT_GAP))
+                StackHint(START_HINT)
                 // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
                 if (onUnterwegs != null) {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(STACK_GROUP_GAP))
                     OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)) {
                         Icon(AppIcons.Walk, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(UNTERWEGS_BUTTON, style = stackButtonLabel())
                     }
-                    Spacer(Modifier.height(4.dp))
-                    HelperText(UNTERWEGS_LABOR_HINT)
+                    Spacer(Modifier.height(STACK_HINT_GAP))
+                    StackHint(UNTERWEGS_LABOR_HINT)
                 }
                 if (calibrating) HelperText("Erst nach dem Kalibrieren möglich.", Modifier.padding(top = 4.dp))
                 storageNotice()
@@ -616,3 +617,15 @@ fun liveHumLimit(live: LiveState, floor: ch.lessnoise.dsp.NoiseFloor.Limit?): Do
  */
 fun microphoneNote(live: LiveState): String? =
     live.microphone?.takeIf { live.running && it != ch.lessnoise.app.audio.MicChoice.STATUS_BUILTIN }
+
+/** 0.9.0: the gap between a stacked button and its helper line (owner; 4 dp until 0.8.8). */
+val STACK_HINT_GAP = 8.dp
+
+/** 0.9.0: the gap between two button groups of the idle stack (16 dp until 0.8.8; raised with [STACK_HINT_GAP]). */
+val STACK_GROUP_GAP = 20.dp
+
+/** 0.9.0: a helper line under a stacked button, centred over the full width like the button (owner). */
+@Composable
+private fun StackHint(text: String) {
+    HelperText(text, Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+}

@@ -221,8 +221,13 @@ fun SectionHeading(text: String, modifier: Modifier = Modifier) {
 
 /** 0.8.6: helper text (bodyMedium, onSurfaceVariant) — the one style of every hint line. */
 @Composable
-fun HelperText(text: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, color = color, modifier = modifier)
+fun HelperText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    textAlign: TextAlign? = null,
+) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = color, modifier = modifier, textAlign = textAlign)
 }
 
 /**
