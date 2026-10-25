@@ -4,8 +4,10 @@
 <paths>
     <!-- Exported CSV/JSON aggregates (as in the public app). -->
     <cache-path name="exports" path="exports/" />
-    <!-- 0.8.2 (as in the public app): the one photo of «Kontrollschild», deleted at once (ui/PlateCamera.kt). -->
-    <cache-path name="plate" path="plate/" />
+    <!-- 0.8.5: the photo of «Laut! Melden» (ui/ReportPhotos.kt), written by the camera app through a
+         write grant for this one file; re-encoded at once into the app's own files and then deleted.
+         (0.8.2–0.8.4: «plate», the «Kontrollschild» photo, deleted unread.) -->
+    <cache-path name="camera" path="camera/" />
     <!-- Labor only: ZIP of the audio clips + manifest. -->
     <external-cache-path name="labor_share" path="labor_share/" />
     <cache-path name="labor_share_internal" path="labor_share/" />

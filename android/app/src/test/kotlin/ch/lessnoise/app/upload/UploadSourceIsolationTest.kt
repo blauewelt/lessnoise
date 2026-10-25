@@ -52,11 +52,16 @@ class UploadSourceIsolationTest {
         "ContentResolver / input streams" to Regex("""\b(ContentResolver|contentResolver|openInputStream|openFileDescriptor|openAssetFileDescriptor|openTypedAssetFileDescriptor)\b"""),
         "assets" to Regex("""\b(AssetManager|assets)\b"""),
         "shared storage" to Regex("""\b(MediaStore|Environment|FileProvider|DocumentsContract|DocumentFile|StorageManager)\b"""),
+        // 0.8.5: the «Laut! Melden» photos (ui/ReportPhotos.kt, files/reports/) are never opened here.
+        "report photos" to Regex("""\b(ReportPhotos|ReportPhotoResult|Bitmap\w*|ExifInterface|ImageDecoder)\b"""),
     )
 
     /** String literals in the upload package must not name a Labor recording folder or file type. */
     private val recordingPathLiteral =
         Regex("""(^|/)(audio|clips|continuous|classifier|labor_share|external-fallback)(/|$)|manifest\.jsonl|\.(wav|m4a|aac|jsonl|zip)\b""")
+
+    /** 0.8.5: nor a folder or file type of the report photos (files/reports/, cache/camera/, cache/report-draft/). */
+    private val photoPathLiteral = Regex("""(^|/)(reports|camera|report-draft|plate)/|\.(jpe?g|png|webp|heic)\b""", RegexOption.IGNORE_CASE)
 
     /** Project classes the upload package may import. */
     private val allowedProjectImports = setOf(
@@ -100,6 +105,7 @@ class UploadSourceIsolationTest {
             }
             for (lit in src.literals) {
                 if (recordingPathLiteral.containsMatchIn(lit)) problems += "${f.name}: string literal names a recording path: \"$lit\""
+                if (photoPathLiteral.containsMatchIn(lit)) problems += "${f.name}: string literal names a report photo path: \"$lit\""
             }
             for (imp in src.imports) {
                 when {

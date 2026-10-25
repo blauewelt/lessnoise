@@ -21,13 +21,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,8 +49,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
@@ -59,10 +62,9 @@ import ch.lessnoise.app.upload.CompassReading
 import ch.lessnoise.app.upload.PendingReport
 import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.ReportLevel
-import ch.lessnoise.app.upload.ReportPlate
-import ch.lessnoise.app.upload.ReportQueue
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.ZoneId
 import kotlin.math.hypot
 
@@ -83,13 +85,14 @@ private sealed interface ReportStep {
  * labor-one-tap; until 0.7.8 three dialogs: «Was war laut?», «Wohin fuhr es?», «Meldung … –
  * senden?»). The dialog opens the location fix at once (ONE fix, any accuracy since 0.7.0) and
  * shows, top to bottom: the compass disc (ReportDirectionUi, editions with the map and a compass;
- * Labor·Karte draws the streets around the fix), the fix line («Standort wird gesucht …» /
- * «Standort ± n m»), «Kontrollschild (optional)», the category buttons in two columns and the
+ * Labor·Karte draws the streets around the fix), 0.8.5 the level line (ReportLevel.kt), the fix
+ * line («Standort wird gesucht …» / «Standort ± n m»), 0.8.5 «Foto» (ReportPhotos.kt; until 0.8.4
+ * «Kontrollschild (optional)»), the category buttons in two columns and the
  * line [REPORT_SPOT_WARNING]; then «Abbrechen» and [REPORT_SEND]. Since 0.8.2 (owner's decision)
  * **tapping a category selects it** (exactly one, drawn filled, the others outlined) and
  * **«Senden» sends the report**: that category, the compass reading of the «Senden» tap (true
  * north with the declination at the report's place; none without a compass or before its first
- * reading), the plate (on the phone only), the time [tapMs] and the fix. «Senden» is enabled with
+ * reading), the level of the «Senden» tap, the photo (on the phone only), the time [tapMs] and the fix. «Senden» is enabled with
  * a category selected and a fix present or still searched ([reportSendEnabled]); tapped before the
  * fix, everything is disabled under a progress bar and the report goes out as soon as the fix
  * arrives ([reportNext]); without a fix at all: «Kein genauer Standort» with «Nochmals» (back to
@@ -122,15 +125,20 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var chosen by remember { mutableStateOf<ReportCategory?>(null) }
     var sending by remember { mutableStateOf(false) }
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
-    // 0.7.6: «Kontrollschild (optional)»; on the phone only, never sent.
-    var plateText by remember { mutableStateOf("") }
-    // 0.8.2: the line under the field after a photo («Kein Kontrollschild erkannt», …); null: none.
-    var plateNote by remember { mutableStateOf<String?>(null) }
-    val plateCamera = rememberPlateCamera { r ->
+    // 0.8.5: the photo (ReportPhotos.kt) instead of the typed plate (0.7.6–0.8.4): the re-encoded
+    // draft in the cache until «Senden» moves it into the app's files; on the phone only, never sent.
+    var draft by remember { mutableStateOf<File?>(null) }
+    // A short line under the button when the photo failed («Keine Kamera-App gefunden», …); null: none.
+    var photoNote by remember { mutableStateOf<String?>(null) }
+    fun dropDraft() {
+        draft?.delete(); draft = null
+    }
+    val camera = rememberReportPhotoCamera { r ->
         when (r) {
-            is PlatePhoto.Found -> { plateText = ReportPlate.typing(r.plate); plateNote = null }
-            is PlatePhoto.Note -> plateNote = r.text
-            PlatePhoto.Cancelled -> Unit
+            // A new photo replaces the one taken before (also if the dialog was closed meanwhile: then it is dropped).
+            is ReportPhotoResult.Draft -> if (step == ReportStep.Report) { dropDraft(); draft = r.file; photoNote = null } else r.file.delete()
+            is ReportPhotoResult.Note -> photoNote = r.text
+            ReportPhotoResult.Cancelled -> Unit
         }
     }
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
@@ -144,7 +152,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     // Whether the pending permission request includes the location (it may ask for the microphone only).
     var askedLocation by remember { mutableStateOf(false) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; plateText = ""; plateNote = null; moved = null; chosenLevel = null
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null
     }
 
     fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?, level: ReportLevel?) {
@@ -152,17 +160,18 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         val place = reportPlace(fix, moved)
         // True north from the declination at the report's own place (magnetic if that fails).
         val direction = reading?.toDirection(ReportDirectionUi.declination(place.lat, place.lon, tapMs))
-        val plate = ReportPlate.normalize(plateText)
         val zone = ZoneId.systemDefault()
         val report = PendingReport(
             epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
             lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,
-            category = category.id, cell = place.cell, direction = direction, plate = plate, level = level,
+            category = category.id, cell = place.cell, direction = direction, level = level,
         )
-        ReportQueue.add(c.upload.reports, report)
+        // 0.8.5: the photo moves into files/reports/ and the report is queued with its name, in one step.
+        val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)
+        draft = null
         // Labor·Karte: one `report` line in the local manifest (no-op in every other edition).
         EditionDiagnostics.report(
-            context, report.epochMs, report.category, report.plate,
+            context, queued.epochMs, queued.category, queued.photo != null,
             direction?.bearingDeg, direction?.north?.id, direction?.accuracy?.id,
         )
         c.upload.uploadSoon(5)
@@ -291,26 +300,9 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         if (!waiting && moved != null) {
                             TextButton(onClick = { moved = null }) { Text(REPORT_MOVE_BACK) }
                         }
-                        OutlinedTextField(
-                            value = plateText,
-                            onValueChange = { plateText = ReportPlate.typing(it); plateNote = null },
-                            label = { Text(ReportPlate.LABEL) },
-                            singleLine = true,
-                            enabled = !waiting,
-                            // 0.8.2: the phone's camera app (no camera permission; PlateCamera).
-                            trailingIcon = {
-                                IconButton(onClick = { plateCamera() }, enabled = !waiting) {
-                                    Icon(painterResource(R.drawable.ic_plate_camera), contentDescription = PlateCamera.BUTTON)
-                                }
-                            },
-                            supportingText = plateNote?.let { n -> { Text(n) } },
-                            keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Characters,
-                                autoCorrectEnabled = false,
-                                imeAction = ImeAction.Done,
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        // 0.8.5: «Foto» (the phone's camera app, no camera permission) instead of «Kontrollschild».
+                        ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() })
+                        photoNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth()) }
                         for (row in reportCategoryRows(reportCategoryOrder(suggested))) {
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (cat in row) {
@@ -370,6 +362,41 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
 
     return { begin(System.currentTimeMillis(), emptyList()) }
 }
+
+/**
+ * 0.8.5: the photo row of the dialog: without a photo one full-width «Foto» button; with one its
+ * 64 dp thumbnail with an «×» (removes it) and the button «Neues Foto».
+ */
+@Composable
+private fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (draft != null) {
+            Box(Modifier.size(REPORT_THUMB_DP.dp)) {
+                ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp)
+                Surface(
+                    onClick = onRemove, enabled = enabled, shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(24.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+        OutlinedButton(onClick = onTake, enabled = enabled, modifier = Modifier.weight(1f)) {
+            Icon(painterResource(R.drawable.ic_photo_camera), contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(reportPhotoButton(draft != null))
+        }
+    }
+}
+
+/** 0.8.5: the photo thumbnail in the dialog, dp. */
+const val REPORT_THUMB_DP = 64
+
+/** 0.8.5: «Foto», or «Neues Foto» once one is taken. */
+fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON
 
 /**
  * One category button of the grid (0.8.1): the label centred, a suggested one with the small

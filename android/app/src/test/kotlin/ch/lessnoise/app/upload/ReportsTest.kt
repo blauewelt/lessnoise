@@ -216,11 +216,11 @@ class ReportsTest {
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         assertTrue(ui.contains("ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)"))
         assertTrue(ui.contains("ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)"))
-        // 0.7.0: the direction of travel (if read) goes with it; 0.7.6: and the licence plate (kept, never sent).
+        // 0.7.0: the direction of travel (if read) goes with it; 0.8.5: and the level (0.7.6–0.8.4: the plate).
         // 0.8.1 (same build): the place is the fix, or the one moved under the dot (ReportFlowTest).
         assertTrue(ui.contains("val place = reportPlace(fix, moved)"))
         assertTrue(ui.contains("lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,"))
-        assertTrue(ui.contains("category = category.id, cell = place.cell, direction = direction, plate = plate, level = level,"))
+        assertTrue(ui.contains("category = category.id, cell = place.cell, direction = direction, level = level,"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }
@@ -245,51 +245,76 @@ class ReportsTest {
         assertFalse(ui.contains("reportConfirm"), "0.8.1: no separate confirmation dialog (owner's decision)")
     }
 
-    // ---- 0.7.6: «Kontrollschild», on the phone only ------------------------------------------------
+    // ---- 0.7.6–0.8.4: «Kontrollschild»; 0.8.5: the photo instead — on the phone only ----------------
 
     @Test
-    fun thePlateIsNormalisedAndCapped() {
-        assertEquals("ZH 123", ReportPlate.normalize("  zh   123 "))
-        assertEquals("ZH 123", ReportPlate.normalize("zh\t123"))
-        assertEquals(null, ReportPlate.normalize("   "))
-        assertEquals(null, ReportPlate.normalize(null))
-        assertEquals("BE 123 456 A", ReportPlate.normalize("be 123 456 abc"), "at most 12 characters")
-        assertEquals(12, ReportPlate.MAX_LENGTH)
-        assertEquals("ZH 1", ReportPlate.typing("zh 1"))
-        assertEquals(12, ReportPlate.typing("x".repeat(20)).length)
-        // No trailing space when the cut lands on one.
-        assertEquals("ABCDEFGHIJK", ReportPlate.normalize("abcdefghijk lmn"))
+    fun oldPlatesAreStillReadAndKeptButNothingWritesOne() {
+        // Reports of 0.7.6–0.8.4 keep their plate in the queue and in the sent list.
+        val old = ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto","plate":"ZH 123"}]""")
+        assertEquals(listOf<String?>("ZH 123"), old.map { it.plate })
+        assertEquals(listOf<String?>("ZH 123"), ReportJson.parsePending(ReportJson.pending(old)).map { it.plate }, "kept when the queue is rewritten")
+        val sent = ReportJson.parseSent("""[{"t":1,"cat":"auto","cell":"h1_2","plate":"ZH 123"}]""")
+        assertEquals(listOf<String?>("ZH 123"), ReportJson.parseSent(ReportJson.sent(sent)).map { it.plate })
+        assertEquals(listOf<String?>("ZH 123"), old.map { it.toSent().plate })
+        // Files written before 0.7.6 have none.
+        assertEquals(listOf<String?>(null), ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto"}]""").map { it.plate })
+        // 0.8.5: the dialog has no plate field and writes none (ReportPhotos.kt replaces it).
+        val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        assertFalse(ui.contains("plate =") || ui.contains("ReportPlate") || ui.contains("OutlinedTextField"), "no plate in the dialog")
+        val reports = java.io.File("src/main/kotlin/ch/lessnoise/app/upload/Reports.kt").readText()
+        assertFalse(reports.contains("object ReportPlate"))
     }
 
     @Test
-    fun thePlateIsStoredRoundTripsAndSurvivesSending() {
-        val r = listOf(report(0).copy(plate = "ZH 123"), report(1))
+    fun thePhotoNameIsStoredRoundTripsAndSurvivesSending() {
+        val r = listOf(report(0).copy(photo = "${now}.jpg"), report(1))
         val json = ReportJson.pending(r)
         assertEquals(r, ReportJson.parsePending(json))
-        assertTrue(json.contains("\"plate\":\"ZH 123\""), json)
-        assertEquals(1, Regex("\"plate\"").findAll(json).count(), "absent when null")
-        // Files written before 0.7.6 have no plate.
-        assertEquals(listOf<String?>(null), ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto"}]""").map { it.plate })
+        assertTrue(json.contains("\"photo\":\"${now}.jpg\""), json)
+        assertEquals(1, Regex("\"photo\"").findAll(json).count(), "absent when null")
         val sent = r.map { it.toSent() }
-        assertEquals(listOf<String?>("ZH 123", null), sent.map { it.plate })
+        assertEquals(listOf<String?>("${now}.jpg", null), sent.map { it.photo })
         assertEquals(sent, ReportJson.parseSent(ReportJson.sent(sent)))
-        assertEquals(1, Regex("\"plate\"").findAll(ReportJson.sent(sent)).count())
+        // The names the sweep keeps: every pending and sent photo.
+        val snap = ReportSnapshot(pending = listOf(report(5).copy(photo = "5.jpg")), sent = sent)
+        assertEquals(setOf("5.jpg", "${now}.jpg"), ReportQueue.photos(snap))
+        // «Löschen» on a sent photo: the entry forgets it, the report stays.
+        val store = MemoryReportStore(snap)
+        ReportQueue.dropSentPhoto(store, now, "${now}.jpg")
+        assertEquals(listOf<String?>(null, null), store.state.value.sent.map { it.photo })
+        assertEquals(2, store.state.value.sent.size)
+        assertEquals(setOf("5.jpg"), ReportQueue.photos(store.state.value))
+        // «Vom Server löschen» drops the pending report, and with it the name the sweep would keep.
+        ReportQueue.dropPending(store)
+        assertEquals(emptySet(), ReportQueue.photos(store.state.value))
     }
 
     @Test
-    fun thePlateIsNeverSent() = runBlocking {
-        val r = report().copy(plate = "ZH 123")
+    fun thePlateAndThePhotoAreNeverSent() = runBlocking {
+        // A photo file with recognisable bytes, where the app keeps them (files/reports/).
+        val dir = kotlin.io.path.createTempDirectory("files").toFile()
+        val photos = java.io.File(dir, "reports").apply { mkdirs() }
+        val marker = "JPEG-BYTES-OF-A-PLATE-0123456789"
+        java.io.File(photos, "${now}.jpg").writeText(marker)
+        val r = report().copy(plate = "ZH 123", photo = "${now}.jpg")
         val o = Payloads.report(r)
         assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
-        assertFalse(o.toString().contains("plate") || o.toString().contains("ZH 123"), o.toString())
-        // Through the real upload: what the server receives has no plate; the phone keeps it.
+        assertFalse(o.toString().contains("plate") || o.toString().contains("ZH 123") || o.toString().contains("photo") || o.toString().contains(".jpg"), o.toString())
+        // Through the real upload: what the server receives has neither; the phone keeps both.
         val reports = MemoryReportStore()
         ReportQueue.add(reports, r)
         val (up, _) = setup(reports)
         assertIs<Uploader.Outcome.Done>(up.run())
         val bodies = server.requests.map { it.body.toString() }
         assertTrue(server.requests.any { it.path.endsWith("/reports") })
-        for (b in bodies) assertFalse(b.contains("plate") || b.contains("ZH 123"), b)
+        val b64 = java.util.Base64.getEncoder().encodeToString(marker.toByteArray())
+        for (b in bodies) {
+            for (bad in listOf("plate", "ZH 123", "photo", ".jpg", marker, b64.take(16))) assertFalse(b.contains(bad), "$bad in $b")
+        }
         assertEquals(listOf<String?>("ZH 123"), reports.state.value.sent.map { it.plate })
+        assertEquals(listOf<String?>("${now}.jpg"), reports.state.value.sent.map { it.photo })
+        assertEquals(marker, java.io.File(photos, "${now}.jpg").readText(), "the upload leaves the file alone")
+        dir.deleteRecursively()
+        Unit
     }
 }

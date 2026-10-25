@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 0.8.2: the camera button of «Kontrollschild (optional)» (LocationFlows.kt). Material icon
-     «photo_camera» (Apache-2.0); material-icons-core has no camera icon. Tinted by the IconButton. -->
+<!-- 0.8.2: the camera button of «Kontrollschild»; 0.8.5: of «Foto» in «Laut! Melden» (LocationFlows.kt). Material icon
+     «photo_camera» (Apache-2.0); material-icons-core has no camera icon. Tinted by the button. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

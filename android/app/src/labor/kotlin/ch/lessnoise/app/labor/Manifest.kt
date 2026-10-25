@@ -308,15 +308,16 @@ object ManifestLines {
 
     /**
      * 0.7.6, Labor·Karte only: a «Laut! Melden» report confirmed with «Senden» (`time` = the report's
-     * time): `cat` the category id, `plate` the licence plate as typed (null without one), `direction`
+     * time): `cat` the category id, `photo` whether a photo was taken (0.8.5; 0.7.6–0.8.4 wrote `plate`,
+     * the licence plate as typed — never the photo itself or its name), `direction`
      * the bearing in whole degrees with `north` (true/magnetic) and `accuracy` (null without a
      * direction). No coordinates. Stays in this file on the phone, like the rest of the manifest.
      */
     fun report(
-        session: String, reportMs: Long, zone: ZoneId, category: String, plate: String?,
+        session: String, reportMs: Long, zone: ZoneId, category: String, photo: Boolean,
         bearingDeg: Int?, north: String?, accuracy: String?,
     ): String {
-        val j = base("report", session, reportMs, zone).put("cat", category).put("plate", plate)
+        val j = base("report", session, reportMs, zone).put("cat", category).put("photo", photo)
         if (bearingDeg == null) j.put("direction", null as String?)
         else j.putRaw("direction", Json().put("deg", bearingDeg).put("north", north).put("accuracy", accuracy).build())
         return j.build()

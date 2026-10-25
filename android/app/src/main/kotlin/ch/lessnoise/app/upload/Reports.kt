@@ -157,14 +157,21 @@ data class PendingReport(
     /** App 0.6.7: where the vehicle drove, if the reporter gave it; dropped after sending. */
     val direction: ReportDirection? = null,
     /**
-     * App 0.7.6: the licence plate («Kontrollschild», optional, [ReportPlate.normalize]). Kept ON THE
-     * PHONE ONLY, also after sending (in [SentReport]); never sent: Payloads.report does not read it.
+     * App 0.7.6–0.8.4: the licence plate typed into «Kontrollschild». Since 0.8.5 nothing creates one
+     * (the field is gone, the owner takes a photo instead); it is only read from reports queued by
+     * those versions and carried into [SentReport]. Kept ON THE PHONE ONLY; never sent.
      */
     val plate: String? = null,
     /** App 0.8.5: the level while the dialog was open ([ReportLevel]); sent as `level`, kept in [SentReport]. */
     val level: ReportLevel? = null,
+    /**
+     * App 0.8.5: the file name («1761381603000.jpg», no path) of the photo taken in the dialog, in the
+     * app's private `files/reports/` (ui/ReportPhotos.kt). Kept ON THE PHONE ONLY, also after sending;
+     * never sent: Payloads.report does not read it, and this package opens no file.
+     */
+    val photo: String? = null,
 ) {
-    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb)
+    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb, photo)
 
     companion object {
         private val ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx")
@@ -176,9 +183,9 @@ data class PendingReport(
 }
 
 /**
- * What remains on the phone of a sent report: category, time and cell, (0.7.6) the licence plate
- * if one was typed in — it never left the phone — and (0.8.5) the report's level as sent
- * ([laeqDb], [lafMaxDb]). No coordinates.
+ * What remains on the phone of a sent report: category, time and cell; the licence plate typed in
+ * with 0.7.6–0.8.4 (it never left the phone); since 0.8.5 the report's level as sent ([laeqDb],
+ * [lafMaxDb]) and the photo's file name ([photo], never sent). No coordinates.
  */
 data class SentReport(
     val epochMs: Long,
@@ -187,24 +194,8 @@ data class SentReport(
     val plate: String? = null,
     val laeqDb: Double? = null,
     val lafMaxDb: Double? = null,
+    val photo: String? = null,
 )
-
-/**
- * The «Kontrollschild (optional)» field of «Laut! Melden» (0.7.6). No validation of the format (Swiss,
- * foreign, partial plates are all fine): trimmed, inner whitespace collapsed to one space, upper case,
- * at most [MAX_LENGTH] characters. Stored on the phone only, never sent.
- */
-object ReportPlate {
-    const val MAX_LENGTH = 12
-    const val LABEL = "Kontrollschild (optional)"
-
-    /** What the field keeps while typing: upper case, at most [MAX_LENGTH] characters (spaces kept). */
-    fun typing(s: String): String = s.uppercase(java.util.Locale.ROOT).take(MAX_LENGTH)
-
-    /** The stored value: «  zh  123 » → «ZH 123»; blank → null. */
-    fun normalize(s: String?): String? =
-        s?.trim()?.replace(Regex("""\s+"""), " ")?.uppercase(java.util.Locale.ROOT)?.take(MAX_LENGTH)?.trim()?.takeIf { it.isNotEmpty() }
-}
 
 data class ReportSnapshot(
     val pending: List<PendingReport> = emptyList(),
@@ -275,6 +266,21 @@ object ReportQueue {
         store.update { s -> s.copy(pending = s.pending.map { if (it in strip) it.copy(level = null) else it }) }
     }
 
+    /**
+     * App 0.8.5: «Löschen» on a sent report's photo: the sent entry of [epochMs] forgets its [photo].
+     * The file itself is deleted by ui/ReportPhotos.kt (this package opens no file).
+     */
+    fun dropSentPhoto(store: ReportStore, epochMs: Long, photo: String) {
+        store.update { s -> s.copy(sent = s.sent.map { if (it.epochMs == epochMs && it.photo == photo) it.copy(photo = null) else it }) }
+    }
+
+    /**
+     * App 0.8.5: every photo file name a pending or sent report still refers to; ui/ReportPhotos.sweep
+     * deletes every other file of `files/reports/` (a report dropped, rejected, rolled out of the last
+     * [ReportSnapshot.SENT_KEEP] or its photo deleted).
+     */
+    fun photos(s: ReportSnapshot): Set<String> = (s.pending.mapNotNull { it.photo } + s.sent.mapNotNull { it.photo }).toSet()
+
     /** «Daten auf dem Server löschen» also drops reports that were not sent yet. */
     fun dropPending(store: ReportStore) {
         store.update { it.copy(pending = emptyList()) }
@@ -320,10 +326,12 @@ object ReportJson {
                 r.direction?.let { d ->
                     put("dir", buildJsonObject { put("deg", d.bearingDeg); put("n", d.north.id); put("a", d.accuracy.id) })
                 }
+                // 0.7.6–0.8.4 only: an old report's plate is kept as it was (nothing creates one since 0.8.5).
                 r.plate?.let { put("plate", it) }
                 r.level?.let { l ->
                     put("lvl", buildJsonObject { put("max", l.lafMaxDb); put("eq", l.laeqDb); put("s", l.seconds); put("cal", l.calibrated) })
                 }
+                r.photo?.let { put("photo", it) }
             })
         }
     }.toString()
@@ -332,7 +340,7 @@ object ReportJson {
         list.forEach { r ->
             add(buildJsonObject {
                 put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) }
-                r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }
+                r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }; r.photo?.let { put("photo", it) }
             })
         }
     }.toString()
@@ -347,6 +355,7 @@ object ReportJson {
                 direction(o["dir"] as? JsonObject),
                 plate(o),
                 level(o["lvl"] as? JsonObject),
+                string(o, "photo"),
             )
         }
     } catch (_: Exception) {
@@ -378,7 +387,7 @@ object ReportJson {
         null
     }
 
-    /** A stored plate (0.7.6); absent in files of older versions. */
+    /** A stored plate (0.7.6–0.8.4); absent in files of older versions and in reports since 0.8.5. */
     private fun plate(o: JsonObject): String? = string(o, "plate")
 
     private fun string(o: JsonObject, key: String): String? = (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -390,7 +399,7 @@ object ReportJson {
             val o = it.jsonObject
             SentReport(
                 o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o),
-                number(o, "eq"), number(o, "max"),
+                number(o, "eq"), number(o, "max"), string(o, "photo"),
             )
         }
     } catch (_: Exception) {

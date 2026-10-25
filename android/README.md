@@ -889,18 +889,18 @@ content in a vertically scrollable column, a tap outside does nothing). It start
 any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom: «Erkannt um
 11:14» when it comes from the «Sehr laut» notification; the compass disc (editions with the map and a
 compass, below); «Standort wird gesucht …» until the fix is in, then «Standort ± 12 m»
-(`reportFixLine`); «Kontrollschild (optional)»; the six categories as outlined buttons in two columns
+(`reportFixLine`); since 0.8.5 «Foto» (below; 0.7.6–0.8.4 «Kontrollschild (optional)»); the six categories as outlined buttons in two columns
 (Töff / Auto, Lastwagen / Flugzeug, Poser / anderes Fahrzeug — until 0.6.3 «anderes»; «Flugzeug»
 since 0.7.7 → ids `motorrad`, `auto`, `lastwagen`, `flugzeug`, `poser`, `andere`;
 `reportCategoryRows`) and, on every report since 0.6.3, «Wer oft vom
 gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
 «Abbrechen» and «Senden». **Since 0.8.2 a tap on a category selects it** (exactly one, drawn filled,
 the others outlined, «erkannt» kept) and **«Senden» sends the report**: that category, the compass
-reading of the «Senden» tap, the plate, the time, the fix (in 0.8.1 the category tap itself sent, with
+reading and the level of the «Senden» tap, the photo, the time, the fix (in 0.8.1 the category tap itself sent, with
 «Antippen sendet die Meldung.» under the grid). «Senden» is enabled with a category and a fix present
 or still searched (`reportSendEnabled`); tapped before the fix is in, everything is disabled under a
 progress bar and «Standort wird gesucht …», and the report goes out the moment the fix arrives, with
-the category, plate and reading of the «Senden» tap (`reportNext`: CHOOSE / READY / WAIT / SEND /
+the category, photo, reading and level of the «Senden» tap (`reportNext`: CHOOSE / READY / WAIT / SEND /
 FAILED). From the «Sehr laut» notification a single suggested category is preselected
 (`reportPreselected`), so «Senden» is the one tap; with two suggestions nothing is. **Moving the
 map under the dot** (0.8.1, Labor·Karte, where the streets are drawn): a one-finger drag on the disc
@@ -923,28 +923,41 @@ the second with the phone's offset, latitude/longitude, accuracy, category, and 
 upload is scheduled (same constraints as the other uploads; registers the device first if needed).
 The queue is a private SharedPreferences file (`reports`, written with `commit()`); once the server
 has answered for a report its coordinates are deleted and only category, time and cell stay in the
-list of sent reports — plus, since 0.7.6, the licence plate if one was typed into «Kontrollschild
-(optional)» (trimmed, capitals, ≤ 12 characters; `ReportPlate`). Since 0.8.2 the field has a small
-camera button (`ui/PlateCamera.kt`, a vector icon `res/drawable/ic_plate_camera.xml`): it opens the
-phone's camera app with `ActivityResultContracts.TakePicture()` (no camera permission: the camera app
-takes the photo), which writes the photo into `cache/plate/` through the FileProvider path «plate»;
-the app deletes it in `finally` as soon as the camera returns, and leftovers at the next photo and at
-app start. **No text recognition in 0.8.2** (`PlateCamera.OCR = false`): the bundled Google ML Kit text
-recognition (`com.google.mlkit:text-recognition:16.0.1`) was checked and not added — it pulls in
-Google Play services (`play-services-base`, `-basement`, `-tasks`, `-mlkit-text-recognition`),
-Firebase components and the `com.google.android.datatransport` CCT backend (usage logs to
-`firebaselogging.googleapis.com`, a merged job service and alarm receiver) and adds about 20 MB to the
-release APK (WORKLOG.md, 0.8.2). The photo is therefore deleted unread and the field says «Foto gelöscht
-– Erkennung noch nicht eingebaut, bitte eintippen». The plate picker for a future on-device
-recogniser is pure and tested: `PlateOcr.bestPlate(lines)` prefers a Swiss plate (canton code + 1–6
-digits, spaces/dashes/dots between), then «FL» + digits, then a 4–10-character line that is mostly
-letters and digits; nothing found → «Kein Kontrollschild erkannt» (`PlateOcrTest`). The plate is never sent
-(`Payloads.report` does not read it; `ReportsTest.thePlateIsNeverSent`); it is shown in «Teilen» ›
-«Meldungen». Labor·Karte also writes a `report` line (time, category, plate, direction, no
-coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
+list of sent reports — plus the licence plate of a report made with 0.7.6–0.8.4, when one was typed
+into the field «Kontrollschild (optional)» (still read and listed; nothing writes one since 0.8.5), and
+since 0.8.5 the report's level and its photo. **«Foto» instead of the typed plate (0.8.5, Labor·Karte
+first; the owner finds a photo faster than typing; `ui/ReportPhotos.kt`).** In place of the text
+field a row: an `OutlinedButton` «Foto» with the camera icon (`res/drawable/ic_photo_camera.xml`,
+full width while there is no photo); once one is taken, its 64 dp thumbnail with an «×» (removes it)
+and the button «Neues Foto». The button opens the phone's camera app with
+`ActivityResultContracts.TakePicture()` (no camera permission: the camera app takes the photo) into
+`cache/camera/` (FileProvider path «camera»; until 0.8.4 «plate»). Off the main thread the app
+re-encodes it (`ReportPhotos.downscale`: `BitmapFactory` with `inSampleSize` to at least 1600 px on the
+long side, then scaled to at most 1600 px, turned upright from its EXIF orientation, JPEG 85 — about
+300 kB for a 12 MP photo, not measured on a phone) into `cache/report-draft/` and deletes the camera's
+original in `finally`. **EXIF:** a camera app writes the file we hand it and may put its own EXIF into
+it, GPS included when location tagging is on in the camera app (that the system camera leaves it out
+for an `EXTRA_OUTPUT` URI could not be verified without a phone); `Bitmap.compress` writes no EXIF at
+all, so the kept JPEG has none — no position, no time, no device. At «Senden» `ReportPhotos.queue`
+moves the draft to the app's private `files/reports/<epochMs>.jpg` and queues the report with that
+name, both under `ReportPhotos.lock`; «Abbrechen», «×» or a new photo delete the draft; leftovers of a
+killed app are deleted at the next start (`clearLeftovers`, also the old `cache/plate/`). The name
+travels with the report (`PendingReport.photo`, `SentReport.photo`, `"photo"` in the queue's JSON) and
+is **never sent** (`Payloads.report` does not read it; the upload package uses no file API and names
+no photo path, `UploadSourceIsolationTest`; `ReportsTest.thePlateAndThePhotoAreNeverSent`). Deletion
+follows the report: on every change of the queue `ReportPhotos.sweep` deletes each file of
+`files/reports/` that no pending or sent report names (`ReportQueue.photos`) — so a report dropped by
+«Vom Server löschen» or by switching sharing off, a report the server refused, and a sent entry that
+leaves the last `SENT_KEEP` (500) take their photo with them. In «Teilen» › «Meldungen» a sent report
+with a photo shows a 40 dp thumbnail; a tap shows it full-screen (`ReportPhotoViewer`) with
+«Löschen» (the photo alone: `ReportQueue.dropSentPhoto`, then the file) and «Schliessen». The 0.8.2
+text recognition plan is dropped with the field: `PlateCamera.kt`, `PlateOcr.kt` and `PlateOcrTest`
+are deleted (no ML Kit, no Google Play services, `ReportPhotoTest` keeps that check). It is shown in
+«Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, `photo` true/false —
+since 0.8.5 instead of the plate —, direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
 offline edition taking over also drops unsent reports. While a measurement runs there is no «Melden»
 button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
-(grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
+(grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportPhotoTest` (sizes, EXIF turn, the move, the sweep, no camera permission), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
 
 **The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Under the
 disc one line: the level now in `titleMedium` with a small «jetzt», and the peak since the dialog

@@ -336,14 +336,41 @@ internal fun sentReportLine(time: String, s: SentReport): String =
         (s.lafMaxDb?.takeIf { it.isFinite() }?.let { " · ${Math.round(it)} dB" } ?: "") +
         (s.plate?.let { " · $it" } ?: "")
 
+/**
+ * 0.8.5: a sent report's row shows its photo (if any) as a 40 dp thumbnail before the line; a tap
+ * opens it full-screen with «Löschen» for the photo alone (ReportPhotos.kt). Photos stay on the phone.
+ */
 @Composable
 private fun ReportsCard(r: ReportSnapshot) {
     if (r.pending.isEmpty() && r.sent.isEmpty()) return
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var viewing by remember { mutableStateOf<SentReport?>(null) }
     SectionCard("Meldungen") {
         if (r.pending.isNotEmpty()) StatRow("Noch zu senden", r.pending.size.toString())
         StatRow("Gesendet", r.sent.size.toString())
         r.sent.takeLast(5).reversed().forEach { s ->
-            Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodySmall)
+            val photo = ReportPhotos.file(context, s.photo)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (photo != null) ReportPhotoThumbnail(photo, SENT_THUMB_DP.dp, onClick = { viewing = s })
+                Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
+    val v = viewing
+    val file = v?.let { ReportPhotos.file(context, it.photo) }
+    if (v != null && file != null) {
+        ReportPhotoViewer(
+            file,
+            onDelete = {
+                viewing = null
+                val name = v.photo ?: return@ReportPhotoViewer
+                scope.launch(Dispatchers.IO) { ReportPhotos.deleteSentPhoto(context, context.container.upload.reports, v.epochMs, name) }
+            },
+            onDismiss = { viewing = null },
+        )
+    }
 }
+
+/** 0.8.5: the photo thumbnail in a «Meldungen» row, dp. */
+const val SENT_THUMB_DP = 40
