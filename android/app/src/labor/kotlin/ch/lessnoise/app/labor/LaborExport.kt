@@ -31,6 +31,9 @@ class ExportLedger(initial: Map<String, Entry> = emptyMap()) {
 
     fun remove(path: String) { entries.remove(path) }
 
+    /** 0.9.4.1: a copy of the entries (for merging a completed ZIP's pending list, [ZipJob.onShared]). */
+    fun entries(): Map<String, Entry> = LinkedHashMap(entries)
+
     fun serialize(): String = buildString {
         for ((p, e) in entries) append(p).append('\t').append(e.size).append('\t').append(e.lastModified).append('\n')
     }
@@ -65,6 +68,12 @@ interface ExportSink {
      * if needed and replacing an existing file of that name.
      */
     fun openForWrite(folder: String, name: String): OutputStream
+
+    /**
+     * 0.9.4.1: removes `<folder>/<name>` after a copy was cancelled in the middle of the file, so no
+     * half file stays in the destination. Best effort; the default does nothing.
+     */
+    fun discard(folder: String, name: String) {}
 }
 
 data class ExportProgress(val filesDone: Int, val filesTotal: Int, val bytesDone: Long, val bytesTotal: Long, val current: String)
@@ -75,6 +84,8 @@ data class ExportResult(
     /** Files that failed, with the exception's simple name; the export goes on after a failure. */
     val failures: List<Pair<String, String>>,
     val destination: String,
+    /** 0.9.4.1: stopped by «Abbrechen»; the files copied before it are in the ledger, the one being copied is not. */
+    val cancelled: Boolean = false,
 )
 
 /**
@@ -114,6 +125,8 @@ object IncrementalExport {
      * Copies [plan]'s files. Each file is recorded in [ledger] as soon as it is complete, so an
      * interrupted export (exception from the sink, device unplugged) resumes where it stopped;
      * [onFileDone] is called after each file for the caller to persist the ledger.
+     * 0.9.4.1: [isCancelled] is checked before each file and after each [CHUNK]; a file cancelled in
+     * the middle is not recorded and is removed from the destination ([ExportSink.discard]).
      */
     fun run(
         plan: List<ExportSource>,
@@ -126,15 +139,18 @@ object IncrementalExport {
         val total = plan.sumOf { it.size }
         var done = 0L
         var copied = 0
+        var cancelled = false
         val failures = ArrayList<Pair<String, String>>()
         val buf = ByteArray(CHUNK)
         for ((i, s) in plan.withIndex()) {
-            if (isCancelled()) break
+            if (isCancelled()) { cancelled = true; break }
             onProgress(ExportProgress(i, plan.size, done, total, s.relativePath))
+            val before = done
             try {
                 s.open().use { input ->
                     sink.openForWrite(s.folder, s.name).use { out ->
                         while (true) {
+                            if (isCancelled()) { cancelled = true; break }
                             val n = input.read(buf)
                             if (n < 0) break
                             out.write(buf, 0, n)
@@ -142,6 +158,12 @@ object IncrementalExport {
                             onProgress(ExportProgress(i, plan.size, done, total, s.relativePath))
                         }
                     }
+                }
+                if (cancelled) {
+                    ledger.remove(s.relativePath)
+                    done = before
+                    try { sink.discard(s.folder, s.name) } catch (e: Exception) { if (e is SecurityException) throw e }
+                    break
                 }
                 ledger.record(s.relativePath, s.size, s.lastModified)
                 copied++
@@ -152,7 +174,7 @@ object IncrementalExport {
                 if (e is SecurityException) throw e // the folder permission is gone: the caller asks for the folder again
             }
         }
-        onProgress(ExportProgress(plan.size, plan.size, done, total, ""))
-        return ExportResult(copied, done, failures, sink.name)
+        onProgress(ExportProgress(copied + failures.size, plan.size, done, total, ""))
+        return ExportResult(copied, done, failures, sink.name, cancelled)
     }
 }

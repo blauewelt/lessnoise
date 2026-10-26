@@ -152,6 +152,12 @@ def test_version_key():
     assert stats._version_key("0.5.0") == "0.5.0"
     assert stats._version_key("0.5.0-labor") == "0.5.0-labor"
     assert stats._version_key("0.4") == "0.4"
+    # 0.9.4.1: four parts are a version too; five are not; a two-word suffix stays «andere» as before.
+    assert stats._version_key("0.9.4.1") == "0.9.4.1"
+    assert stats._version_key("0.9.4.1-labor") == "0.9.4.1-labor"
+    assert stats._version_key("0.9.4.1.2") == "andere"
+    assert stats._version_key("0.9.4.1-labor-karte") == "andere"
+    assert stats._version_key("0.9.4-labor-karte") == "andere"
     assert stats._version_key("hello world") == "andere"
     assert stats._version_key("0.5.0-" + "x" * 20) == "andere"
     assert stats._version_key(None) == "unbekannt"

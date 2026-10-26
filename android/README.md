@@ -1356,7 +1356,8 @@ lastModified (`filesDir/labor-export-ledger.tsv`, one line per file, rewritten a
 file so an interrupted export resumes) and copies only what is new or changed — the manifest
 always, because it grows. Sub-folders are created in the tree with `DocumentsContract`
 (`LaborExportSaf.kt`), an existing file of the same name is replaced, the copy runs in 1 MB chunks
-on `Dispatchers.IO` with «Export: n von m Dateien, x MB von y MB» in the section and ends with
+on `Dispatchers.IO` (since 0.9.4.1 in the export service, see below) with «Export: n von m Dateien, x MB von y MB»
+(since 0.9.4.1 «Export · n von m Dateien · x von y MB») in the section and ends with
 «Exportiert: n Dateien, x MB nach ‹Ordner›». A failed file is reported in the message line and
 copied again next time; a lost grant (`SecurityException`, e.g. after the folder was deleted)
 forgets the folder and asks for it again. «Alle Aufnahmen löschen» also clears the ledger. «Als ZIP
@@ -1407,6 +1408,35 @@ what went into ZIPs (deletes less, never more). Logic in `labor/LaborExportScope
 (`ExportScopes`, `ManifestWindow`), tests in `ExportScopeTest` (names and mtimes, the 24 h window,
 the ledger per target, the size line, the ZIP name and contents, the manifest window, the deletion
 selection); the controls are rendered by `ExportScopeScreenshots` (testLaborKarte, Paparazzi).
+
+**Export in the background (0.9.4.1, Labor editions only).** Both buttons hand their job to a
+foreground service, `labor/LaborExportService.kt`, of type `dataSync` (`FOREGROUND_SERVICE_DATA_SYNC`,
+declared only in `src/labor/AndroidManifest.xml` and `src/laborKarte/AndroidManifest.xml`;
+`tools/check_release_apk.py` fails if a published edition has it). Until 0.9.4 the copy ran in the
+settings screen's coroutine scope, so a 2,8 GB ZIP was lost when the owner left the app. Now the
+export goes on when the app is left or the screen turns off: a notification «Export · 412 von 1830
+Dateien · 165 von 820 MB» with a progress bar (by bytes) and «Abbrechen», and the same bar and line
+in the Labor section (`ExportJobPanel`, live from `LaborExportJobs.state`, a `StateFlow`) with an
+«Abbrechen» button. A partial wake lock is held only while files are copied. One export at a time:
+pressing a button while one runs answers «Es läuft schon ein Export – warten oder «Abbrechen».»;
+deleting is disabled meanwhile. At the end «Export fertig»; for a ZIP the share menu opens by itself
+if the section is on screen, else by tapping the notification (an invisible `LaborShareActivity`) or
+«ZIP teilen».
+
+The ZIP stores the audio (`.wav`, `.m4a`) without compression and deflates only the text logs
+(`.jsonl`): deflate gained little on audio and cost most of the time (synthetic 220 MB set: 10–11 s
+all deflated, 0,3–0,4 s like this; WORKLOG 0.9.4.1). It is written in 1 MB chunks to
+`.<name>.part` in the share folder and renamed when complete; «Abbrechen», an error or a killed
+process leave no half ZIP (deleted at once, or before the next ZIP). Its files count as exported
+only when the ZIP is complete **and** its share menu has opened (the list waits in
+`cache/labor_zip_pending/` until then). Before writing, the free space is checked: the ZIP needs
+about its size in the cache partition (plus 20 MB); if that is missing the app says «Zu wenig
+Speicher für ZIP: n MB nötig, m MB frei – Ordner-Export nutzen» and offers «In Ordner exportieren»,
+which needs no copy on the phone. «Abbrechen» of a folder export keeps what was completely copied
+(in the ledger, so the next export resumes) and deletes the half-copied file from the folder. Tests:
+`ExportJobTest` (progress line and fraction, STORED/DEFLATE, chunk size, temp file on cancel and
+failure, ledger only after a completed and shared ZIP, free space, one job at a time) and
+`IncrementalExportTest` (cancel inside a file); renders in `ExportScopeScreenshots`.
 
 **Where the files are:** `Android/data/ch.lessnoise.labor/files/audio/` on the phone's shared
 storage (`getExternalFilesDir(null)/audio`):
@@ -1483,7 +1513,8 @@ file shows «Clip nicht gefunden».
 **Sending data for analysis:** «Als ZIP teilen» zips the clips, the manifest and the classifier
 logs of the chosen «Export» scope (and the hour files unless «Ohne Stundendateien» is on, and only if
 they total < 500 MB) and opens the share menu; it shows the count and size first (0.9.4, see
-«Export scope» above). Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
+«Export scope» above); since 0.9.4.1 it is built in the background with progress («Export in the
+background» above). Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
 
 **Performance.** The capture thread only copies (ring buffer, one block copy into a bounded
 queue) and never waits; resampling, WAV writing, logging and AAC encoding run on two

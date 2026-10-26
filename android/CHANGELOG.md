@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.9.4.1 — Labor only (branch labor-0.9.1): export runs in the background with progress; ZIP no longer gets cancelled (versionCode 46)
+
+In short: the owner's «Als ZIP teilen» of 2,8 GB showed «ZIP …» for a long time without progress and
+was then killed by Android when he left the app. Both exports now run in a foreground service with a
+progress bar and «Abbrechen», and the ZIP is many times faster. Only the Labor editions (`labor`,
+`laborKarte`) change; the public editions get the version number only. First version with four
+components (the owner's rule for a Labor-only fix).
+
+- **Foreground service** `LaborExportService` (type `dataSync`; `FOREGROUND_SERVICE_DATA_SYNC` in the
+  two Labor manifests only, checked by `tools/check_release_apk.py`): «In Ordner exportieren» and
+  «Als ZIP teilen» go on when the app is left or the screen turns off. Notification «Export · 412 von
+  1830 Dateien · 165 von 820 MB» with a progress bar and «Abbrechen»; at the end «Export fertig» (for a
+  ZIP: tap to share). Partial wake lock only while copying.
+- **In the app:** a progress bar (by bytes) with the same line and «Abbrechen» under the export
+  buttons; a second export while one runs is refused with a short message; deleting is disabled
+  during an export. A finished ZIP opens the share menu by itself while the section is on screen,
+  else «ZIP teilen» or the notification.
+- **ZIP:** audio (`.wav`, `.m4a`) stored without compression, `.jsonl` deflated (synthetic 220 MB:
+  10–11 s → 0,3–0,4 s on a desktop JVM); 1 MB chunks, never a whole file in memory; written to a temp
+  file and renamed when complete — «Abbrechen» or an error leaves no half ZIP and changes nothing in
+  the ledger; its files count as exported only after the ZIP is complete and its share menu opened.
+- **Free space:** before a ZIP the app checks the cache partition; if short it says «Zu wenig
+  Speicher für ZIP: n MB nötig, m MB frei – Ordner-Export nutzen» and offers the folder export.
+- **Folder export:** «Abbrechen» stops within 1 MB; what was completely copied stays recorded, the
+  half-copied file is deleted from the folder.
+- **Version parsers:** the server's stats (`app_versions`) accept four numeric parts
+  (`server/stadtlaerm_server/stats.py`); `docs/update.html`'s `compareVersions` already did (new test
+  `tests/unit/update-version.test.js`).
+- **Docs:** android/README.md («Export in the background»), PRIVACY.md (Labor: exports run as a
+  foreground service with a notification). No promise changes.
+- **Tests:** `ExportJobTest` (testLabor), one new case in `IncrementalExportTest`, four renders in
+  `ExportScopeScreenshots`, `test_stats.test_version_key`, `update-version.test.js`.
+
 ## 0.9.4 — Labor only (branch labor-0.9.1): export scope «Alles» / «Seit letztem Export» / «Letzte 24 h», «Ohne Stundendateien», «Exportierte Aufnahmen löschen» (versionCode 45)
 
 In short: a Labor phone that has recorded for weeks can hand over just last night instead of

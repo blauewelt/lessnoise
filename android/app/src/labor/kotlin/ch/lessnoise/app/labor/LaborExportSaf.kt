@@ -130,6 +130,11 @@ class SafExportSink(private val resolver: ContentResolver, private val tree: Uri
         return resolver.openOutputStream(doc, "w") ?: throw FileNotFoundException("$name nicht schreibbar")
     }
 
+    /** 0.9.4.1: after «Abbrechen» in the middle of a file: delete the half-written document. */
+    override fun discard(folder: String, name: String) {
+        find(folder(folder), name)?.let { DocumentsContract.deleteDocument(resolver, it.first) }
+    }
+
     private fun mimeOf(name: String) = when (name.substringAfterLast('.', "")) {
         "wav" -> "audio/wav"
         "m4a" -> "audio/mp4"

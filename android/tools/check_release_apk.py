@@ -21,7 +21,8 @@ Checks:
     (offline: no INTERNET / ACCESS_NETWORK_STATE / location; public: those four too) — so in
     particular **no CAMERA** (the photo of «Laut! Melden» is taken by the phone's camera app), no
     ACCESS_BACKGROUND_LOCATION, no FOREGROUND_SERVICE_LOCATION; for the Labor builds the network and
-    location rules of their edition;
+    location rules of their edition; FOREGROUND_SERVICE_DATA_SYNC (0.9.4.1, the export service) in
+    both Labor builds and in neither published edition;
   * manifest: the widget ReportWidget and the app shortcut (android.app.shortcuts) only in the
     editions with the map (public, laborKarte);
   * dex (dexdump): no Labor code in the published editions (ch/lessnoise/app/labor, class names
@@ -75,6 +76,8 @@ NEVER = {
     "android.permission.ACCESS_WIFI_STATE",
 }
 FGS_LOCATION = "android.permission.FOREGROUND_SERVICE_LOCATION"
+# 0.9.4.1: the Labor export runs in a foreground service of type dataSync (labor/LaborExportService.kt).
+FGS_DATA_SYNC = "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
 
 LABOR_CLASS_NAME = re.compile(r"labor|recorder|wav|aac|muxer|clipassembler", re.IGNORECASE)
 LABOR_STRING = re.compile(rb"Landroid/media/MediaMuxer;|Landroid/media/MediaCodec;|RIFF|WAVE|manifest\.jsonl|ch/lessnoise/app/labor/")
@@ -200,6 +203,7 @@ def check_apk(bt, edition, apk, version, code, cert):
     for p in sorted(NEVER):
         check(p not in uses, f"lacks {p}")
     check((FGS_LOCATION in uses) == (edition == "laborKarte"), f"{FGS_LOCATION} only in laborKarte")
+    check((FGS_DATA_SYNC in uses) == (edition in LABOR), f"{FGS_DATA_SYNC} {'present (Labor export service)' if edition in LABOR else 'absent'}")
 
     xml = run(bt / "aapt2", "dump", "xmltree", "--file", "AndroidManifest.xml", apk)
     widget = "ch.lessnoise.app.report.ReportWidget" in xml

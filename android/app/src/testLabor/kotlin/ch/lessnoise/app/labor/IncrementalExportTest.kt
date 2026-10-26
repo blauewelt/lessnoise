@@ -154,8 +154,40 @@ class IncrementalExportTest {
         write(d.manifest, 10, 1_000)
         write(File(d.clips, "a.wav"), 20, 1_000)
         val ledger = ExportLedger()
-        var n = 0
-        val r = IncrementalExport.run(IncrementalExport.plan(IncrementalExport.sources(d, null), ledger), ledger, FakeSink(), isCancelled = { n++ >= 1 })
+        // 0.9.4.1: the flag is read after every chunk too, so cancel when the first file is done.
+        var cancel = false
+        val r = IncrementalExport.run(
+            IncrementalExport.plan(IncrementalExport.sources(d, null), ledger), ledger, FakeSink(),
+            onFileDone = { cancel = true }, isCancelled = { cancel },
+        )
         assertEquals(1, r.filesCopied)
+        assertTrue(r.cancelled)
+        assertEquals(1, ledger.size)
+    }
+
+    @Test
+    fun cancelInTheMiddleOfAFileDiscardsItAndDoesNotRecordIt() {
+        val d = tempDirs()
+        write(d.manifest, 10, 1_000)
+        write(File(d.continuous, "20261026_01.m4a"), 3 * IncrementalExport.CHUNK + 5, 1_000)
+        val ledger = ExportLedger()
+        val discarded = ArrayList<String>()
+        val sink = object : ExportSink {
+            override val name = "USB"
+            override fun openForWrite(folder: String, name: String): OutputStream = ByteArrayOutputStream()
+            override fun discard(folder: String, name: String) { discarded += "$folder/$name" }
+        }
+        var chunks = 0
+        val r = IncrementalExport.run(
+            IncrementalExport.plan(IncrementalExport.sources(d, null), ledger), ledger, sink,
+            onProgress = { if (it.current.startsWith("continuous/") && it.bytesDone > 10) chunks++ },
+            isCancelled = { chunks >= 2 },
+        )
+        assertTrue(r.cancelled)
+        assertEquals(1, r.filesCopied) // the manifest
+        assertEquals(10L, r.bytesCopied) // the half hour file does not count
+        assertEquals(listOf("continuous/20261026_01.m4a"), discarded)
+        assertNull(ledger["continuous/20261026_01.m4a"])
+        assertTrue(ledger["manifest.jsonl"] != null)
     }
 }

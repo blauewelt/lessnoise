@@ -96,9 +96,10 @@ class BuiltInMicTest {
             permissions("main"),
         )
         assertEquals(net, permissions("public"))
-        assertEquals((net + "FOREGROUND_SERVICE_LOCATION").sorted(), permissions("laborKarte"))
+        // 0.9.4.1: FOREGROUND_SERVICE_DATA_SYNC for the Labor export service, in the two Labor manifests only.
+        assertEquals((net + "FOREGROUND_SERVICE_LOCATION" + "FOREGROUND_SERVICE_DATA_SYNC").sorted(), permissions("laborKarte"))
         assertEquals(net.map { "-$it" }.sorted(), permissions("offline"))
-        assertEquals(net.map { "-$it" }.sorted(), permissions("labor"))
+        assertEquals((net.map { "-$it" } + "FOREGROUND_SERVICE_DATA_SYNC").sorted(), permissions("labor"))
     }
 
     /**

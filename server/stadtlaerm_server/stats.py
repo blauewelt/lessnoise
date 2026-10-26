@@ -47,7 +47,8 @@ from . import aggregate as agg
 ACTIVE_SHORT_DAYS = 7
 ACTIVE_LONG_DAYS = 30
 WEEKS = 12
-VERSION_RE = re.compile(r"^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3})?(-[a-z]{1,12})?$")
+# Two to four numeric parts (0.9.4.1: a Labor-only fix gets a fourth), an optional one-word suffix.
+VERSION_RE = re.compile(r"^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3}){0,2}(-[a-z]{1,12})?$")
 
 # SQL form of aggregate.Minute.valid (kept in step by tests/test_stats.py).
 VALID_MINUTE_SQL = f"coverage >= {agg.MIN_MINUTE_COVERAGE} AND laeq_db IS NOT NULL AND valid_s > 0"

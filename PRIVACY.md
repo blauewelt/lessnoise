@@ -326,7 +326,9 @@ exports them with «In Ordner exportieren» (0.7.4) into a folder the user picks
 Since 0.9.4 an export can be partial: the «Export» choice («Alles», «Seit letztem Export», «Letzte 24 h») and
 «Ohne Stundendateien» decide which of these files a ZIP or the folder receives; for «Letzte 24 h» the manifest in
 the export holds only the lines of those 24 hours and the session lines they need. What leaves the phone is
-always a subset of what is described here, and only when the user presses the button. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
+always a subset of what is described here, and only when the user presses the button. Since 0.9.4.1 both exports run as a
+foreground service (permission `FOREGROUND_SERVICE_DATA_SYNC`, Labor builds only) with a notification showing the
+progress and «Abbrechen», so they go on when the app is left; the service only copies these files on the phone and sends nothing. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
 (and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` and no location permission
 either (the internal `laborKarte` variant below has them, for «Messwerte teilen» and «Laut! Melden» only).
 Recordings can contain voices of people nearby; use the Labor build only where everyone recorded

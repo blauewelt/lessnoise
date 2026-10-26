@@ -1,11 +1,15 @@
 package ch.lessnoise.app.labor
 
+import java.io.BufferedOutputStream
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -169,15 +173,107 @@ object ExportScopes {
         "lessnoise-labor-" + java.time.Instant.ofEpochMilli(nowMs).atZone(zone).format(DateTimeFormatter.BASIC_ISO_DATE).take(8) +
             "-" + scope.zipSuffix + ".zip"
 
-    /** Writes [sources] into [zip] (entries keep their folder: clips/…, classifier/…, continuous/…). */
-    fun writeZip(zip: File, sources: List<ExportSource>, isCancelled: () -> Boolean = { false }) {
-        zip.parentFile?.mkdirs()
-        ZipOutputStream(zip.outputStream().buffered()).use { z ->
-            for (s in sources) {
-                if (isCancelled()) break
-                z.putNextEntry(ZipEntry(s.relativePath).apply { time = s.lastModified })
-                s.open().use { it.copyTo(z) }
+    /**
+     * Writes [sources] into [zip] (entries keep their folder: clips/…, classifier/…, continuous/…).
+     *
+     * 0.9.4.1 (the owner's 2,8 GB ZIP that never finished):
+     * - entries are STORED (no compression) or DEFLATED as [method] says ([ZipMethods.forName]: the
+     *   audio stored, the text logs deflated). A STORED entry needs its CRC and size before its data,
+     *   so its file is read twice (one CRC pass, one copy pass), in [IncrementalExport.CHUNK] chunks;
+     *   no file is ever held in memory;
+     * - written to a temp file `.<name>.part` beside [zip] and renamed to [zip] only when complete;
+     *   cancelled ([isCancelled], checked before each file and after each chunk) or failed (exception,
+     *   rethrown), the temp file is deleted and [zip] does not exist;
+     * - [onProgress] after each chunk written and each file finished (bytes = the sources' bytes).
+     *
+     * Returns true if [zip] is complete, false if cancelled.
+     */
+    fun writeZip(
+        zip: File,
+        sources: List<ExportSource>,
+        isCancelled: () -> Boolean = { false },
+        onProgress: (ExportProgress) -> Unit = {},
+        method: (String) -> Int = ZipMethods::forName,
+    ): Boolean {
+        val dir = zip.absoluteFile.parentFile
+        dir.mkdirs()
+        val tmp = ZipMethods.tempFor(zip)
+        val total = sources.sumOf { it.size }
+        val n = sources.size
+        var done = 0L
+        val buf = ByteArray(IncrementalExport.CHUNK)
+        var complete = false
+        tmp.delete()
+        if (zip.exists()) zip.delete()
+        // Not `use`: closing the ZipOutputStream finishes the current entry (and throws for a STORED one
+        // cut short); on cancel or failure only the file is closed and deleted.
+        val file = FileOutputStream(tmp)
+        try {
+            val z = ZipOutputStream(BufferedOutputStream(file, IncrementalExport.CHUNK))
+            for ((i, s) in sources.withIndex()) {
+                if (isCancelled()) return false
+                onProgress(ExportProgress(i, n, done, total, s.relativePath))
+                val entry = ZipEntry(s.relativePath).apply { time = s.lastModified }
+                val stored = method(s.relativePath) == ZipEntry.STORED
+                var storedSize = 0L
+                if (stored) {
+                    val crc = CRC32()
+                    s.open().use { input ->
+                        while (true) {
+                            if (isCancelled()) return false
+                            val r = input.read(buf)
+                            if (r < 0) break
+                            crc.update(buf, 0, r)
+                            storedSize += r
+                        }
+                    }
+                    entry.method = ZipEntry.STORED
+                    entry.size = storedSize
+                    entry.compressedSize = storedSize
+                    entry.crc = crc.value
+                } else {
+                    entry.method = ZipEntry.DEFLATED
+                }
+                z.putNextEntry(entry)
+                s.open().use { input ->
+                    // STORED: exactly the bytes the CRC pass saw (a clip or a closed hour file does not change).
+                    var left = if (stored) storedSize else Long.MAX_VALUE
+                    while (left > 0) {
+                        if (isCancelled()) return false
+                        val r = input.read(buf, 0, minOf(buf.size.toLong(), left).toInt())
+                        if (r < 0) break
+                        z.write(buf, 0, r)
+                        done += r
+                        left -= r
+                        onProgress(ExportProgress(i, n, done, total, s.relativePath))
+                    }
+                }
                 z.closeEntry()
+                onProgress(ExportProgress(i + 1, n, done, total, s.relativePath))
+            }
+            if (isCancelled()) return false
+            z.close() // writes the central directory, closes the file
+            if (!tmp.renameTo(zip)) throw IOException("ZIP nicht umbenannt")
+            complete = true
+            onProgress(ExportProgress(n, n, done, total, ""))
+            return true
+        } finally {
+            if (!complete) {
+                try { file.close() } catch (_: IOException) {}
+                tmp.delete()
+            }
+        }
+    }
+
+    /** «Letzte 24 h»: [selected] with the manifest replaced by its filtered copy in [tmpDir] (0.9.4; moved here in 0.9.4.1). */
+    fun withScopedManifest(scope: ExportScope, selected: List<ExportSource>, manifest: File, tmpDir: File, nowMs: Long): List<ExportSource> {
+        if (scope != ExportScope.LAST_24H) return selected
+        return selected.map { s ->
+            if (s.relativePath != IncrementalExport.MANIFEST) s
+            else {
+                val f = File(tmpDir, IncrementalExport.MANIFEST)
+                ManifestWindow.write(manifest, f, nowMs - WINDOW_MS, nowMs)
+                replaced(s, f)
             }
         }
     }
