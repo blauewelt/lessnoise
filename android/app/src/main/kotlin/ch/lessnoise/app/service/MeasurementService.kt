@@ -26,6 +26,7 @@ import ch.lessnoise.app.audio.AudioTap
 import ch.lessnoise.app.audio.AudioTapSession
 import ch.lessnoise.app.audio.NoAudioTap
 import ch.lessnoise.app.edition.AudioTapProvider
+import ch.lessnoise.app.edition.EditionDetector
 import ch.lessnoise.app.edition.EditionEventHead
 import ch.lessnoise.app.motion.MotionWatch
 import ch.lessnoise.app.classify.YamnetClassifier
@@ -406,6 +407,8 @@ class MeasurementService : Service() {
             windLfShareMin = settings.windLfShareMin,
             windFlutterMinDb = settings.windFlutterMinDb,
             eventMinLevelDb = settings.eventMinLevelDb,
+            // 0.9.5: public editions always EventRules.V2 (unchanged); Labor editions V3 unless switched off.
+            eventRules = EditionDetector.rules(this),
             classifierEnabled = settings.classifierEnabled,
             classifierIntervalSeconds = settings.classifierIntervalSeconds.toDouble(),
             zone = ZoneId.systemDefault(),
@@ -448,6 +451,7 @@ class MeasurementService : Service() {
                 classifierEnabled = settings.classifierEnabled,
                 classifierNormalize = settings.classifierNormalize,
                 classifierIntervalSeconds = config.classifierIntervalSeconds,
+                eventRules = config.eventRules,
             )
         )
         return info

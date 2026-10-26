@@ -100,6 +100,21 @@ starts once 5 s of history exist. The excess in force is stored as `threshold_db
 are migrated once: a threshold *t* over the 5-min background becomes an excess of max(3, *t* − 3.5) dB
 (10 → 6.5, 7 → 3.5); up to 0.6.0 the app said so once if it had been changed (the notice was removed in 0.6.1).
 
+**Labor editions since 0.9.5: rule set V3.** The detector code is shared by all editions; its
+start/end rules are `EngineConfig.eventRules` (`dsp/.../EventDetector.kt`, `EventRules`). The
+published editions keep the rules above (`EventRules.V2`). The Labor editions use `EventRules.V3`:
+an event additionally needs a **rise** of ≥ 3.5 dB within 3 s (LAF now minus the lowest LAF of the
+previous 3 s), so a swell that creeps over the threshold is not an event; it ends when LAF falls
+within **3 dB of the frozen floor** (never above the v2 end) or after **30 s**; after such a cut no new
+event starts until LAF has dropped below the current floor + excess − 3 dB once (one long swell is
+one event, not a series). Chosen by replaying two recorded nights against 48 labelled events
+(`dsp/REPLAY_2026-10.md`): all 35 labelled vehicle / loud-vehicle events still detected, no event
+longer than 30 s (before up to 124 s), 7–8 % fewer events per night. It does **not** remove the
+«swells» less than 10 dB above the floor (only 11 % of them): by the labels those are distant vehicles. Einstellungen ›
+Labor › «Lärmspitzen-Regeln 0.9.5» (on by default) switches back to V2 for A/B nights; the Labor
+manifest's `session_start` records which rules ran (`eventRules`, `eventRiseDb`, `eventRiseWindowS`,
+`eventEndMarginDb`, `eventMaxDurationS`, `eventHoldAfterMax`).
+
 **Features.** When an event is complete the app computes, from the 125 ms ticks (all O(1) per
 sample, no FFT, no audio kept; code: `dsp/.../EventFeatures.kt`):
 
@@ -1249,7 +1264,11 @@ renders, and the replay of one real night (see "Validation on a recorded night")
 overlaps the manifest's event; `./gradlew :dsp:replayNight --args="--manifest manifest.jsonl --wavs dir
 --session <id> --out prefix"` replays a session's continuous hour files (decoded to 16 kHz WAVs with
 ffmpeg first) with the real 30 s history — clips alone have only 5 s of pre-roll, during which a
-slow pass is often already rising, so the clip replay underestimates detection. Not yet checked:
+slow pass is often already rising, so the clip replay underestimates detection. Since 0.9.5
+`replayNight` also takes `--from/--to` (part of a session), `--ticks` (writes every 125 ms tick) and
+`--rules v2|v3`, and `./gradlew :dsp:replayRules --args="--ticks t --variants v.csv --floor 30 --out r.csv"`
+runs detector-rule variants on such a tick file in seconds (the engine's own floor and detector;
+identical events to the engine, `EventRulesTest`); used for `dsp/REPLAY_2026-10.md`. Not yet checked:
 the thresholds on real nights other than the one they were derived from,
 the CPU cost of the extra filters on a phone, the settings screen and the one-time migration
 notice on a device.
@@ -1679,13 +1698,16 @@ dsp/   pure Kotlin/JVM, no Android dependencies — shared with the planned ESP3
   FrequencyWeighting.kt   A- and Z-weighting (bilinear biquads, 0 dB at 1 kHz)
   TimeWeighting.kt        Fast/Slow exponential averaging
   MeasurementEngine.kt    the pipeline: ticks, seconds, minutes, events, classifier hook
-  EventDetector.kt        local-floor + excess hysteresis event detector, SEL; 5-min background (L90)
+  EventDetector.kt        local-floor + excess hysteresis event detector, SEL; 5-min background (L90);
+                          EventRules (0.9.5: V2 default, V3 rise/end/cap/hold for the Labor editions)
   EventFeatures.kt        local floor (L90/30 s), band splits, event features, wind rule, shape
   Resampler.kt            48 → 16 kHz anti-aliasing FIR (241 taps, ≥ 70 dB) + ring buffer
   classify/               SoundClassifier interface, category mapping, input normalisation
   calibration/            calibration measurement, tone check (FFT), offset math
   Measurements.kt, Csv.kt measurement summaries and splitting, CSV export
-  src/test/.../Replay.kt  offline replay of WAV files through the engine (fixtures: src/test/resources/replay/)
+  src/test/.../Replay.kt  offline replay of WAV files through the engine (fixtures: src/test/resources/replay/),
+                          Labor clips (replayBatch), whole nights (replayNight), rule sweeps on ticks (replayRules)
+  REPLAY_2026-10.md       0.9.5: the two-night replay that chose the Labor rules V3
 chart/ Android library: the history chart (drawing model, Compose Canvas) and the app theme;
        JVM tests and Paparazzi renders
 dsp/geo/Lv95.kt          WGS84 ↔ LV95 and 100 m cell ids (same formulas as the map's docs/map/lv95.js)

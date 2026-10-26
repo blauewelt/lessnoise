@@ -103,6 +103,8 @@ object ManifestLines {
         val continuous: Boolean,
         val clipEvery: Int,
         val maxBytes: Long,
+        /** 0.9.5: the detector's start/end rules (EventRules), so that a night can be told apart from an A/B night. */
+        val eventRules: ch.lessnoise.dsp.EventRules = ch.lessnoise.dsp.EventRules.V2,
     )
 
     fun sessionStart(session: String, nowMs: Long, zone: ZoneId, i: SessionInfo): String =
@@ -117,6 +119,10 @@ object ManifestLines {
             // Detector v2 (0.4.0): start at local floor + excess; wind rule thresholds.
             .put("detector", "v2").put("eventExcessDb", i.eventExcessDb).put("localFloorWindowS", i.localFloorWindowSeconds)
             .put("eventFloorDb", i.eventMinLevelDb)
+            // 0.9.5: start/end rules ("v2" = up to 0.9.4; eventEndMarginDb null = end at floor + excess − 3 dB).
+            .put("eventRules", i.eventRules.id).put("eventRiseDb", i.eventRules.riseDb).put("eventRiseWindowS", i.eventRules.riseWindowSeconds)
+            .put("eventEndMarginDb", i.eventRules.endMarginDb).put("eventMaxDurationS", i.eventRules.maxDurationSeconds)
+            .put("eventHoldAfterMax", i.eventRules.holdAfterMax)
             .put("windLfShareMin", i.windLfShareMin).put("windFlutterMinDb", i.windFlutterMinDb)
             .put("classifier", i.classifierEnabled).put("classifierLevelAdjustment", i.classifierNormalize)
             .put("classifierIntervalS", i.classifierIntervalSeconds)

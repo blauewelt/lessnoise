@@ -22,6 +22,12 @@ data class LaborSettings(
     val clipEvery: Int = 1,
     /** «Maximaler Speicher» in GB. */
     val maxGb: Double = StorageBudget.DEFAULT_GB,
+    /**
+     * 0.9.5 «Lärmspitzen-Regeln 0.9.5»: on = [ch.lessnoise.dsp.EventRules.V3] (rise, 3 dB end, 30 s cap),
+     * off = the rules up to 0.9.4 ([ch.lessnoise.dsp.EventRules.V2]), for A/B nights. Read at the start
+     * of a measurement.
+     */
+    val eventRulesV3: Boolean = true,
 ) {
     val maxBytes: Long get() = (maxGb * StorageBudget.GB).toLong()
 }
@@ -63,6 +69,7 @@ object Labor {
             continuous = p.getBoolean("continuous", true),
             clipEvery = p.getInt("clip_every", 1).takeIf { it in ClipRateSampler.CHOICES } ?: 1,
             maxGb = p.getFloat("max_gb", StorageBudget.DEFAULT_GB.toFloat()).toDouble(),
+            eventRulesV3 = p.getBoolean(KEY_EVENT_RULES_V3, true),
         )
         Thread({ refreshClipIds(dirs(context)) }, "stadtlaerm-labor-scan").start()
     }
@@ -76,6 +83,7 @@ object Labor {
             .putBoolean("continuous", n.continuous)
             .putInt("clip_every", n.clipEvery)
             .putFloat("max_gb", n.maxGb.toFloat())
+            .putBoolean(KEY_EVENT_RULES_V3, n.eventRulesV3)
             .apply()
         _settings.value = n
     }
@@ -84,6 +92,12 @@ object Labor {
         val base = context.getExternalFilesDir(null) ?: File(context.filesDir, "external-fallback")
         return LaborDirs(File(base, "audio"))
     }
+
+    const val KEY_EVENT_RULES_V3 = "event_rules_v3"
+
+    /** The detector rules a measurement started now gets (0.9.5): V3 unless switched off for A/B. */
+    fun eventRules(s: LaborSettings): ch.lessnoise.dsp.EventRules =
+        if (s.eventRulesV3) ch.lessnoise.dsp.EventRules.V3 else ch.lessnoise.dsp.EventRules.V2
 
     private val CLIP_ID = Regex("""^ev_(\d+)_\d{8}_\d{6}(_\d+)?\.wav$""")
 

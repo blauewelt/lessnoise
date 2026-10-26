@@ -67,6 +67,8 @@ data class AudioTapSession(
     val classifierEnabled: Boolean,
     val classifierNormalize: Boolean,
     val classifierIntervalSeconds: Double,
+    /** 0.9.5: the detector's start/end rules in force (EngineConfig.eventRules). */
+    val eventRules: ch.lessnoise.dsp.EventRules = ch.lessnoise.dsp.EventRules.V2,
 )
 
 /** The public build's tap: does nothing, holds nothing, writes nothing. */

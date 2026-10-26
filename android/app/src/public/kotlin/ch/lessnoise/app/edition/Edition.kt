@@ -40,6 +40,11 @@ object EditionEventHead {
     fun create(): ch.lessnoise.dsp.classify.EventHeadClassifier? = null
 }
 
+/** The detector's start/end rules. Public: always detector v2 as up to 0.9.4 (the Labor editions can use V3). */
+object EditionDetector {
+    fun rules(@Suppress("UNUSED_PARAMETER") context: Context): ch.lessnoise.dsp.EventRules = ch.lessnoise.dsp.EventRules.V2
+}
+
 /** Public: there is no audio recorder, the measurement service always gets [NoAudioTap]. */
 object AudioTapProvider {
     fun create(@Suppress("UNUSED_PARAMETER") context: Context): AudioTap = NoAudioTap

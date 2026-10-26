@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.9.5 — Labor·Karte only, not published (branch labor-detector-replay): Lärmspitzen rules chosen from two replayed nights (versionCode 47)
+
+In short: the detector's start and end rules were replayed on two recorded sill nights (Rossberg
+22→23 Oct, Gieshübel 16→17 Oct) against 48 labelled events, and the Labor editions now use the best
+rule set found («V3»): no event is longer than 30 s any more (before: up to 124 s, clips cut at 60 s),
+all 35 labelled vehicle / loud-vehicle events are still detected, and there are 7–8 % fewer events
+per night. The target of dropping half of the events less than 10 dB above the floor («swells») was
+**not** reached (11 %): by the labels those are distant vehicles, so no level rule can drop them
+without dropping vehicles. Details and tables: `android/dsp/REPLAY_2026-10.md`.
+
+- **Rules V3** (`EventRules.V3`, android/dsp `EventDetector.kt`): the start needs, besides LAF ≥ local
+  floor + excess (the setting, unchanged, default 6.5 dB), a **rise of ≥ 3.5 dB within 3 s** (LAF now
+  minus the lowest LAF of the previous 3 s); an event **ends within 3 dB of the floor frozen at its
+  start** (never above the old end, floor + excess − 3 dB) **or after 30 s** (was 300 s); after such a
+  cut no new event starts until LAF has fallen below the current floor + excess − 3 dB once (one long
+  swell or rain is one event, not a series).
+- **The detector is shared** by all editions (android/dsp). The rules are a new option,
+  `EngineConfig.eventRules`, whose default `EventRules.V2` is exactly the detector up to 0.9.4.1; the
+  public editions (Offline-Version, Online-Version) pass that default and do not change
+  (`EditionDetector` in src/public; `DetectorRulesEditionTest`). Both Labor editions (`labor`,
+  `laborKarte`; they share src/labor) get V3.
+- **A/B:** Einstellungen › Labor › «Lärmspitzen-Regeln 0.9.5» (on by default; off = the rules up to
+  0.9.4, for comparison nights; applies from the next start of a measurement). The Labor manifest's
+  `session_start` now records `eventRules` (`v2`/`v3`), `eventRiseDb`, `eventRiseWindowS`,
+  `eventEndMarginDb`, `eventMaxDurationS`, `eventHoldAfterMax`.
+- **«Messwerte teilen» from Labor·Karte** (opt-in, the owner's phone): its shared events are now
+  V3 events, through the same gates and with the same fields as before; nothing new is sent, and the
+  payload does not say which rules ran (no server change). A V3 phone reports ≈ 7–8 % fewer events
+  per hour than a V2 phone at the same window.
+- **Replay tools** (dsp test sources): `replayNight` takes `--from/--to` (part of a session),
+  `--ticks` (every 125 ms tick to a file) and `--rules`; new `:dsp:replayRules` runs rule variants on
+  a tick file in seconds with the engine's own floor and detector (identical events to the engine).
+  Fixed: `replayNight` never read the session's clock anchor (a JSON `null` is not Kotlin `null`), so
+  its `start` column had wrong wall times.
+- **Docs:** android/README.md (event detection, replay tools, layout), `android/dsp/REPLAY_2026-10.md`.
+  PRIVACY.md unchanged: detector thresholds are not a privacy matter, and nothing new is stored or
+  sent (the manifest lines stay on the phone like the rest of the Labor manifest).
+- **Tests:** `EventRulesTest` (12, dsp: rise, end margin, cap, hold, invalid audio, engine, tick replay
+  = engine), `EventRulesSettingTest` (testLabor), `DetectorRulesEditionTest` (all flavours), the
+  manifest line in `PoliciesAndManifestTest`, the version in `EditionTextTest`.
+
 ## 0.9.4.1 — Labor only (branch labor-0.9.1): export runs in the background with progress; ZIP no longer gets cancelled (versionCode 46)
 
 In short: the owner's «Als ZIP teilen» of 2,8 GB showed «ZIP …» for a long time without progress and

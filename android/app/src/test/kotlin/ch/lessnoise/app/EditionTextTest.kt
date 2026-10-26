@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.1-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.5-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -75,10 +75,10 @@ class EditionTextTest {
         if (BuildConfig.FLAVOR == "labor") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor"))
         else if (BuildConfig.FLAVOR == "laborKarte") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor-karte"))
         else assertFalse(BuildConfig.VERSION_NAME.contains('-'), BuildConfig.VERSION_NAME)
-        // 0.9.4.1 (versionCode 46; Labor only, branch labor-0.9.1): one version for all four flavours; the
-        // owner's new rule: a Labor-only fix gets a fourth component (update.html, stats.py cope with it).
-        assertEquals(46, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.1"), BuildConfig.VERSION_NAME)
+        // 0.9.5 (versionCode 47; Labor editions only: detector rules V3, branch labor-detector-replay): one
+        // version for all four flavours. A Labor-only feature, so three components (0.9.4.1 was a fix: four).
+        assertEquals(47, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.5"), BuildConfig.VERSION_NAME)
     }
 
     @Test

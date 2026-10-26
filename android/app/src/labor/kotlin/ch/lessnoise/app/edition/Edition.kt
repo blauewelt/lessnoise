@@ -184,6 +184,17 @@ object EditionEventHead {
     }
 }
 
+/**
+ * 0.9.5: the detector's start/end rules. Labor editions: [ch.lessnoise.dsp.EventRules.V3] unless
+ * «Lärmspitzen-Regeln 0.9.5» is off (then V2, the rules up to 0.9.4, for A/B nights).
+ */
+object EditionDetector {
+    fun rules(context: Context): ch.lessnoise.dsp.EventRules {
+        Labor.init(context)
+        return Labor.eventRules(Labor.settings.value)
+    }
+}
+
 object AudioTapProvider {
     fun create(context: Context): AudioTap {
         Labor.init(context)
@@ -469,6 +480,14 @@ object EditionUi {
                     "(höchstens 2 MB) und das Klassifikator-Protokoll (jede Sekunde die erkannten Geräusche, ca. 1 MB pro Stunde). " +
                     "Ist der Speicher voll, stoppt nur die Aufnahme; Messung und Protokoll laufen weiter. " +
                     "Änderungen gelten ab dem nächsten Start der Messung; Ausschalten stoppt eine laufende Aufnahme sofort.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            // 0.9.5: the detector rules chosen from two replayed nights (android/dsp/REPLAY_2026-10.md); off = up to 0.9.4.
+            LaborSwitch("Lärmspitzen-Regeln 0.9.5", s.eventRulesV3) { v -> Labor.update(context) { it.copy(eventRulesV3 = v) } }
+            Text(
+                "An: Eine Lärmspitze beginnt nur, wenn der Pegel in 3 s um mindestens 3,5 dB steigt, und endet 3 dB über " +
+                    "dem Grundrauschen oder nach 30 s. Aus: die Regeln bis 0.9.4, zum Vergleich. «Lärmspitze ab … über " +
+                    "Grundrauschen» gilt in beiden Fällen. Gilt ab dem nächsten Start der Messung.",
                 style = MaterialTheme.typography.bodySmall,
             )
             HorizontalDivider(Modifier.padding(vertical = 4.dp))

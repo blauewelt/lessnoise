@@ -434,9 +434,14 @@ object ReplayBatch {
  * `head_decision`. `--offset manifest` uses the session's `calibrationOffsetDb` (else the engine
  * default; `--offset <dB>` sets it), so absolute levels match the manifest.
  *
+ * 0.9.5: `--from` / `--to` (hour-file names, inclusive) replay part of a long session (only the
+ * manifest events inside it are matched); `--ticks <file>` also writes every tick of the first
+ * setting for [ReplayRules]; `--rules v2|v3`, `--rise`, `--rise-window`, `--end-margin`, `--max-dur`,
+ * `--rearm` set the detector's [EventRules] (default v2).
+ *
  * ```
  * ./gradlew :dsp:replayNight --args="--manifest m.jsonl --wavs dir --session 20261007_220455 --out /tmp/night \
- *     [--excess 6.5,5,8] [--floor 30,20] [--skip 2049]"
+ *     [--excess 6.5,5,8] [--floor 30,20] [--skip 2049] [--from 20261007_22 --to 20261008_05] [--ticks n.ticks] [--rules v3]"
  * ```
  */
 object ReplayNight {
@@ -462,6 +467,7 @@ object ReplayNight {
         fun headCols(e: NoiseEvent?): String = if (head == null) "" else
             "," + (classes.map { k -> e?.headScores?.get(k)?.let { Csv.num(it, 5) } ?: "" } + listOf(e?.headDecision?.joinToString("|") ?: "")).joinToString(",")
         val headHeader = if (head == null) "" else "," + (classes.map { "head_$it" } + listOf("head_decision")).joinToString(",")
+        val rules = rulesFrom(a)
         val opens = ArrayList<Open>()
         val clipEvents = ArrayList<Ev>()
         var anchorMs = Replay.START_MS
@@ -473,11 +479,29 @@ object ReplayNight {
                 "session_start" -> if (a["offset"] == "manifest") offset = s("calibrationOffsetDb")?.toDouble()
                 "continuous_open" -> opens += Open(s("file")!!.substringAfterLast('/').removeSuffix(".m4a"), s("startInputSample")!!.toLong())
                 "clip" -> clipEvents += Ev(s("eventId")!!.toLong(), s("eventStartSample")!!.toLong(), s("eventEndSample")!!.toLong())
-                "clock" -> if (s("correctionMs") == null) anchorMs = s("anchorEpochMs")!!.toLong() - s("anchorSample")!!.toLong() / 48
+                // The first anchor (`"correctionMs":null` is a JsonNull, whose content is the string "null").
+                "clock" -> if (o["correctionMs"] == null || o["correctionMs"] is kotlinx.serialization.json.JsonNull) {
+                    if (anchorMs == Replay.START_MS) anchorMs = s("anchorEpochMs")!!.toLong() - s("anchorSample")!!.toLong() / 48
+                }
             }
         }
+        // --from / --to (hour-file names, inclusive): replay only part of a long session. The stream then
+        // starts at the first tick boundary of the session's axis at or after the first file's start, so
+        // sample indices and the 125 ms tick grid stay those of the session (and of its manifest).
+        val from = a["from"]; val to = a["to"]
+        val firstIdx = from?.let { f -> opens.indexOfFirst { it.file == f }.also { require(it >= 0) { "--from $f: no such file" } } } ?: 0
+        val lastIdx = to?.let { t -> opens.indexOfFirst { it.file == t }.also { require(it >= 0) { "--to $t: no such file" } } } ?: (opens.size - 1)
+        val window2 = opens.subList(firstIdx, lastIdx + 1).toList()
+        val base = if (firstIdx == 0) 0L else Math.floorDiv(window2.first().startInputSample + 2 + 5999, 6000L) * 6000L
         val settings = excess.flatMap { e -> floors.map { f -> e to f } }
-        val results = settings.parallelStream().map { (e, f) -> Triple(e, f, run(opens, wavs, skip, e, f, window, anchorMs, head, offset)) }.toList()
+        val ticksOut = a["ticks"]?.let { File(it) }
+        val runs = settings.parallelStream().map { (e, f) ->
+            Triple(e, f, run(window2, wavs, skip, e, f, window, anchorMs, head, offset, base, rules, if ((e to f) == settings.first()) ticksOut else null))
+        }.toList()
+        val results = runs.map { (e, f, r) -> Triple(e, f, r.first) }
+        // Only the manifest events inside the replayed span are matched.
+        val fedEnd = runs.firstOrNull()?.third?.second ?: Long.MAX_VALUE
+        clipEvents.retainAll { c -> c.start >= base && c.start < fedEnd }
         val ev = StringBuilder("excess_setting,floor_setting,start_sample,end_sample,start,matched_event_id," +
             "duration_s,lafmax_db,background_db," + Csv.EVENT_FEATURE_COLUMNS.joinToString(",") + headHeader + "\n")
         val cl = StringBuilder("event_id,excess_setting,floor_setting,detected,v2_start_sample,v2_dur_s,v2_lafmax_db," +
@@ -502,21 +526,58 @@ object ReplayNight {
         }
         File("$out.events.csv").writeText(ev.toString())
         File("$out.clips.csv").writeText(cl.toString())
-        println("${settings.size} settings: ${results.map { it.third.size }} v2 events; ${clipEvents.size} manifest events -> $out.*.csv")
+        println("${settings.size} settings (rules ${rules.id}): ${results.map { it.third.size }} events; ${clipEvents.size} manifest events -> $out.*.csv")
     }
 
+    /** A number, or NaN for `nan` (any case). */
+    fun dbOrNaN(v: String): Double = if (v.equals("nan", ignoreCase = true)) Double.NaN else v.toDouble()
+
+    /**
+     * Detector rules from the command line (defaults: the engine's, i.e. detector v2 as before 0.9.5):
+     * `--rules v2|v3` picks a preset ([EventRules.V2] / [EventRules.V3]); `--rise dB`, `--rise-window s`,
+     * `--end-margin dB` (`nan` = the hysteresis end), `--max-dur s`, `--rearm true|false` override it.
+     */
+    fun rulesFrom(a: Map<String, String>): EventRules {
+        var r = when (a["rules"]) { null, "v2" -> EventRules.V2; "v3" -> EventRules.V3; else -> error("--rules v2|v3") }
+        a["rise"]?.let { r = r.copy(riseDb = it.toDouble()) }
+        a["rise-window"]?.let { r = r.copy(riseWindowSeconds = it.toDouble()) }
+        a["end-margin"]?.let { r = r.copy(endMarginDb = dbOrNaN(it)) }
+        a["max-dur"]?.let { r = r.copy(maxDurationSeconds = it.toDouble()) }
+        a["rearm"]?.let { r = r.copy(holdAfterMax = it.toBooleanStrict()) }
+        return r
+    }
+
+    /**
+     * Feeds [opens] from session input sample [base] on; returns the emitted events and the input sample
+     * reached (session axis). [ticksOut]: every tick after the engine's warm-up as binary records
+     * (little-endian: long endSample on the session axis, double LAF, LAFmax, LAeq of the tick, byte valid),
+     * the input of [ReplayRules].
+     */
     private fun run(
         opens: List<Open>, wavs: File, skip: Int, excess: Double, floor: Double, window: Double, anchorMs: Long,
         head: ch.lessnoise.dsp.classify.EventHeadClassifier?, offset: Double? = null,
-    ): List<V2> {
+        base: Long = 0L, rules: EventRules = EventRules.V2, ticksOut: File? = null,
+    ): Pair<List<V2>, Long> {
         val found = ArrayList<V2>()
-        val clock = SimClock(anchorMs)
-        val cfg = Replay.config(excess, window, 5.0).copy(eventMinLevelDb = floor).let { c -> offset?.let { c.copy(calibrationOffsetDb = it) } ?: c }
+        val clock = SimClock(anchorMs + base / 48)
+        val cfg = Replay.config(excess, window, 5.0).copy(eventMinLevelDb = floor, eventRules = rules)
+            .let { c -> offset?.let { c.copy(calibrationOffsetDb = it) } ?: c }
+        val tickStream = ticksOut?.let { java.io.DataOutputStream(java.io.BufferedOutputStream(it.outputStream(), 1 shl 20)) }
+        val rec = ByteBuffer.allocate(33).order(ByteOrder.LITTLE_ENDIAN)
         val engine = MeasurementEngine(cfg, null, object : MeasurementEngine.Listener {
-            override fun onEventEmitted(event: NoiseEvent, startSample: Long, endSample: Long) { found += V2(startSample, endSample, event) }
+            override fun onEventEmitted(event: NoiseEvent, startSample: Long, endSample: Long) {
+                found += V2(startSample + base, endSample + base, event)
+            }
+            override fun onTick(tick: LafTick) {
+                if (tickStream == null) return
+                rec.clear()
+                rec.putLong(tick.endSample + base).putDouble(tick.lafDb).putDouble(tick.lafMaxDb).putDouble(tick.leqDb)
+                    .put(if (tick.valid) 1 else 0)
+                tickStream.write(rec.array(), 0, 33)
+            }
         }, clock::now, head)
         val block = FloatArray(6000)
-        var pos = 0L // input samples fed so far
+        var pos = base // input samples fed so far (session axis)
         fun feed(buf: FloatArray, n: Int) {
             var p = 0
             while (p < n) {
@@ -548,6 +609,78 @@ object ReplayNight {
             }
         }
         engine.stop()
-        return found
+        tickStream?.close()
+        return found to pos
+    }
+}
+
+/**
+ * Detector-rule sweep on a recorded tick series (test utility): reads the ticks [ReplayNight] wrote with
+ * `--ticks` and runs, per variant, the engine's own local floor ([LocalFloorEstimator], L90 over the
+ * trailing window) and [EventDetector] on them in the engine's order (per valid tick: floor before
+ * the tick → detector → floor update; an invalid tick interrupts). The audio path (A-weighting,
+ * Fast integration) is not repeated, so a variant costs seconds instead of an engine pass per night.
+ * Writes every event (wind included: the wind flag needs the engine's band energies, not in the
+ * ticks) as CSV with its variant.
+ *
+ * Variants file: CSV `name,excess,rise,rise_window,end_margin,max_dur,hold` (`end_margin` `nan` =
+ * the v2 end at floor + excess − 3 dB).
+ * ```
+ * ./gradlew :dsp:replayRules --args="--ticks night.ticks --variants v.csv --floor 30 --out rules.csv [--window 30]"
+ * ```
+ */
+object ReplayRules {
+    class Tick(val endSample: Long, val laf: Double, val lafMax: Double, val leq: Double, val valid: Boolean)
+
+    fun readTicks(f: File): List<Tick> {
+        val b = ByteBuffer.wrap(f.readBytes()).order(ByteOrder.LITTLE_ENDIAN)
+        val out = ArrayList<Tick>(b.limit() / 33)
+        while (b.remaining() >= 33) out += Tick(b.getLong(), b.getDouble(), b.getDouble(), b.getDouble(), b.get().toInt() != 0)
+        return out
+    }
+
+    /** The detector's events on [ticks] with [rules]: the engine's floor/detector sequence without the audio path. */
+    fun run(ticks: List<Tick>, excess: Double, minLevel: Double, rules: EventRules, window: Double = 30.0, minHistory: Double = 5.0): List<DetectedEvent> {
+        val events = ArrayList<DetectedEvent>()
+        val floor = LocalFloorEstimator(window, minHistory, 0.125)
+        val d = EventDetector(excessDb = excess, minLevelDb = minLevel, rules = rules, listener = object : EventDetector.Listener {
+            override fun onClosed(event: DetectedEvent) { events += event }
+        })
+        for (t in ticks) {
+            if (t.valid) {
+                d.floorDb = floor.value
+                d.onTick(t.endSample, t.laf, t.lafMax, t.leq)
+                floor.add(t.laf)
+            } else {
+                d.interrupt(t.endSample - 6000)
+            }
+        }
+        ticks.lastOrNull()?.let { d.flush(it.endSample) }
+        return events
+    }
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val a = HashMap<String, String>()
+        var i = 0
+        while (i < args.size) { a[args[i].removePrefix("--")] = args[i + 1]; i += 2 }
+        val ticks = readTicks(File(a.getValue("ticks")))
+        val minLevel = (a["floor"] ?: "30").toDouble()
+        val window = (a["window"] ?: "30").toDouble()
+        val variants = File(a.getValue("variants")).readLines().drop(1).filter { it.isNotBlank() }.map { line ->
+            val c = line.split(",").map { it.trim() }
+            c[0] to (c[1].toDouble() to EventRules(
+                riseDb = c[2].toDouble(), riseWindowSeconds = c[3].toDouble(), endMarginDb = ReplayNight.dbOrNaN(c[4]),
+                maxDurationSeconds = c[5].toDouble(), holdAfterMax = c[6].toBooleanStrict(),
+            ))
+        }
+        val sb = StringBuilder("variant,start_sample,end_sample,duration_s,lafmax_db,floor_db,excess_db,sel_db\n")
+        val results = variants.parallelStream().map { (name, v) -> name to run(ticks, v.first, minLevel, v.second, window) }.toList()
+        for ((name, evs) in results) for (e in evs) {
+            sb.append("$name,${e.startSample},${e.endSample},${Csv.num(e.durationSeconds, 3)},${Csv.num(e.lafMaxDb, 2)},")
+                .append("${Csv.num(e.localFloorDb, 2)},${Csv.num(e.lafMaxDb - e.localFloorDb, 2)},${Csv.num(e.selDb, 2)}\n")
+        }
+        File(a.getValue("out")).writeText(sb.toString())
+        println("${ticks.size} ticks, ${variants.size} variants: ${results.joinToString { "${it.first}=${it.second.size}" }} -> ${a["out"]}")
     }
 }

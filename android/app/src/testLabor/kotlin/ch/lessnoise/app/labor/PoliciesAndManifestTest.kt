@@ -199,10 +199,18 @@ class PoliciesAndManifestTest {
             """{"type":"session_start","session":"20261007_234210","time":"2026-10-07T23:42:10.250+02:00","zone":"Europe/Zurich",""" +
                 """"device":"Google Pixel 7","android":"15","sdk":35,"app":"0.3.3-labor","appCode":7,"audioSource":"UNPROCESSED",""" +
                 """"encoding":"PCM_FLOAT","effects":["AGC: nicht vorhanden"],"inputDevice":"eingebautes Mikrofon (bottom)","calibrationId":4,"calibrationOffsetDb":112.25,"calibrated":true,""" +
-                """"detector":"v2","eventExcessDb":6.5,"localFloorWindowS":30,"eventFloorDb":30,"windLfShareMin":0.95,"windFlutterMinDb":3.8,""" +
+                """"detector":"v2","eventExcessDb":6.5,"localFloorWindowS":30,"eventFloorDb":30,""" +
+                """"eventRules":"v2","eventRiseDb":0,"eventRiseWindowS":3,"eventEndMarginDb":null,"eventMaxDurationS":300,"eventHoldAfterMax":false,""" +
+                """"windLfShareMin":0.95,"windFlutterMinDb":3.8,""" +
                 """"classifier":true,"classifierLevelAdjustment":true,"classifierIntervalS":1,""" +
                 """"inputSampleRate":48000,"clips":true,"continuous":false,"clipEvery":2,"maxBytes":2000000000}""",
             ManifestLines.sessionStart("20261007_234210", t0, zurich, info),
+        )
+        // 0.9.5: the rules in force are written with the session (A/B nights can be told apart).
+        val v3 = ManifestLines.sessionStart("S", t0, zurich, info.copy(eventRules = ch.lessnoise.dsp.EventRules.V3))
+        assertTrue(
+            v3.contains(""""eventRules":"v3","eventRiseDb":3.5,"eventRiseWindowS":3,"eventEndMarginDb":3,"eventMaxDurationS":30,"eventHoldAfterMax":true,"""),
+            v3,
         )
         assertEquals(
             """{"type":"clock","session":"S","time":"2026-10-07T23:42:10.250+02:00","anchorSample":6000,"anchorEpochMs":$t0,""" +

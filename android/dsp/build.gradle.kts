@@ -71,3 +71,15 @@ tasks.register<JavaExec>("replayNight") {
     workingDir = gradle.startParameter.currentDir
     maxHeapSize = "3g"
 }
+
+// Detector-rule sweep on the tick series that replayNight wrote with --ticks (seconds per variant):
+//   ./gradlew :dsp:replayRules --args="--ticks night.ticks --variants v.csv --floor 30 --out rules.csv"
+tasks.register<JavaExec>("replayRules") {
+    group = "verification"
+    description = "Runs detector rule variants on a recorded tick series (local floor + EventDetector, no audio path)"
+    dependsOn("testClasses")
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("ch.lessnoise.dsp.ReplayRules")
+    workingDir = gradle.startParameter.currentDir
+    maxHeapSize = "2g"
+}

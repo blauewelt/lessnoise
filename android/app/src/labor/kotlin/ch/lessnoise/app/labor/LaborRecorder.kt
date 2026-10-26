@@ -402,6 +402,7 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         classifierEnabled = s.classifierEnabled, classifierNormalize = s.classifierNormalize,
         classifierIntervalSeconds = s.classifierIntervalSeconds,
         clips = settings.clips, continuous = settings.continuous, clipEvery = settings.clipEvery, maxBytes = settings.maxBytes,
+        eventRules = s.eventRules,
     )
 
     private fun writeClip(

@@ -29,6 +29,11 @@ data class EngineConfig(
     val eventHysteresisDb: Double = 3.0,
     val eventMinDurationSeconds: Double = 0.5,
     val eventMaxDurationSeconds: Double = 300.0,
+    /**
+     * Start/end rules beyond the excess (0.9.5): rise condition, end margin, cap and hold. The default
+     * [EventRules.V2] is the detector as before 0.9.5; the Labor editions pass [EventRules.V3].
+     */
+    val eventRules: EventRules = EventRules.V2,
     /** Events are only kept if their LAFmax reaches this absolute level (dB, with the offset). */
     val eventMinLevelDb: Double = DEFAULT_EVENT_MIN_LEVEL_DB,
     /** The 5-min background (L90), kept for continuity (stored with events, shown live); not used for detection. */
@@ -318,6 +323,7 @@ class MeasurementEngine(
         minLevelDb = config.eventMinLevelDb,
         tickSamples = tickLen,
         sampleRate = fs,
+        rules = config.eventRules,
         listener = object : EventDetector.Listener {
             override fun onCandidateStart(startSample: Long) {
                 // The previous event's tail ends where the next candidate starts.
