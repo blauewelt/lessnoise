@@ -74,13 +74,13 @@ class LoudAlertTest {
 
     @Test
     fun notificationContent() {
-        assertEquals("Sehr laut: Töff & Poser, 84 dB", LoudAlertRule.title(ev(84.4)))
+        assertEquals("Sehr laut: Lautes Fahrzeug, 84 dB", LoudAlertRule.title(ev(84.4)))
         assertEquals("Sehr laut: Strassenverkehr, 78 dB", LoudAlertRule.title(ev(77.6, "road_traffic")))
         assertEquals("Antippen zum Melden", LoudAlertRule.TEXT)
         assertEquals("Sehr laut", LoudAlertRule.CHANNEL_NAME)
         // The category names are the app's (categories.json name_de).
         val names = File(repo(), "android/app/src/main/assets/categories.json").readText()
-        assertTrue(names.contains("\"name_de\": \"Töff & Poser\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
+        assertTrue(names.contains("\"name_de\": \"Lautes Fahrzeug\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
         // 0.6.4: «Unterwegs» is a start mode; 0.8.3 a segment of the mode switch; since 0.8.4 the
         // Labor·Karte button «Unterwegs aufnehmen» with one Labor line (MeasureTextsTest).
         assertEquals("Unterwegs aufnehmen", UNTERWEGS_BUTTON)

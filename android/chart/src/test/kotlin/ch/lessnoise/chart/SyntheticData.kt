@@ -96,7 +96,7 @@ object SyntheticData {
     private fun fri(h: Int, m: Int, s: Int = 0) =
         if (h >= 12) friday.atTime(h, m, s) else friday.plusDays(1).atTime(h, m, s)
 
-    /** 18 events in the night; 5 Töff & Poser between 23:00 and 02:00 at 72–85 dB. */
+    /** 18 events in the night; 5 loud vehicles («Lautes Fahrzeug») between 23:00 and 02:00 at 72–85 dB. */
     val fridayEvents: List<Ev> = listOf(
         Ev(fri(22, 12), 61.0, "road_traffic"),
         Ev(fri(22, 31), 58.5, "voices", 4.0),
@@ -228,7 +228,7 @@ object SyntheticData {
 
     /**
      * An 8-hour measurement 18:30–02:30 at a busy street: frequent road traffic, buses and trams,
-     * voices around midnight and 9 Töff & Poser peaks of 74–88 dB(A), most of them 21:00–01:00.
+     * voices around midnight and 9 loud-vehicle peaks of 74–88 dB(A), most of them 21:00–01:00.
      */
     fun busyStreetEvents(): List<Ev> {
         val r = Random(42)

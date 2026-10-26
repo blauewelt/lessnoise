@@ -166,7 +166,7 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
 - **Marks:** a band from L90 to L10 (legend «leise bis laut»; «Schwankung» until 0.9.1), the LAeq line per minute (legend «Mittel
   pro Minute»), and every event as a dot at (start, LAFmax) (legend «andere Spitzen»); wind events
   are not drawn (since 0.6.1). One category is highlighted in orange and drawn on top (default
-  Töff & Poser; chosen with the scrolling row of chips under the chart and remembered; the
+  «Lautes Fahrzeug», id `loud_vehicle`, since 0.9.3; legend «Laute Fahrzeuge»; chosen with the scrolling row of chips under the chart and remembered; the
   selected chip carries the same orange dot), all others as smaller grey dots. The y axis runs from the lowest L90 − 5 dB to the loudest shown event or
   LAeq + 5 dB (rounded to 5 dB, at least 30 dB).
 - **Gaps:** the line and band are never drawn across a missing minute or one with < 50 % valid
@@ -184,7 +184,7 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
   Tapping the tooltip (or outside the plot) closes it.
 - **Summary:** three tiles — **«Grundrauschen»**, the hum, **«Lärmspitzen» … «pro Stunde»**, bursts
   per hour of valid measurement without wind, and **«Lauteste»**, the loudest burst — and one line
-  «Mittel 53,6 dB(A) · 67 Lärmspitzen, davon 9 Töff & Poser · 100 % gemessen». Since 0.6.1 the line
+  «Mittel 53,6 dB(A) · 67 Lärmspitzen, davon 9 laute Fahrzeuge · 100 % gemessen» (0.9.3: plural after a count, `ChartCategories.countName`). Since 0.6.1 the line
   no longer lists the dynamics (median L10 − L90) and the interruptions (the chart draws the gaps);
   both are still computed (`WindowSummary.dynamicsDb`, `gapTexts`). No «unkalibriert» badge (said
   once under Einstellungen › Datenschutz: «Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB).»).
@@ -226,12 +226,12 @@ score = max of its members. The dominant category is (a) the category of the **t
 that label is mapped and scores ≥ `top1_threshold` (0.10), else (b) the highest category score if
 ≥ `category_threshold` (0.20), else (c) "unclassified". Rule (a) exists because quiet, distant
 sources score low even when the best label is clearly right (a highway pass-by: «Vehicle» at
-0.1–0.3). Ties are broken by list order, so **Töff & Poser beats Strassenverkehr**. Stored events
+0.1–0.3). Ties are broken by list order, so **Lautes Fahrzeug beats Strassenverkehr**. Stored events
 keep the category they were given when measured:
 
 | id | UI name | AudioSet classes |
 |---|---|---|
-| `loud_vehicle` | Töff & Poser | Motorcycle; Accelerating, revving, vroom; Race car, auto racing; Engine starting |
+| `loud_vehicle` | Lautes Fahrzeug (since 0.9.3) | Motorcycle; Accelerating, revving, vroom; Race car, auto racing; Engine starting |
 | `road_traffic` | Strassenverkehr | Vehicle; Car; Car passing by; Motor vehicle (road); Traffic noise, roadway noise; Truck; Bus; Engine; Idling; Heavy/Medium/Light engine; Tire squeal; Skidding; Vehicle horn, car horn, honking; Air brake |
 | `rail_tram` | Tram & Bahn | Rail transport; Train; Railroad car, train wagon; Train wheels squealing; Subway, metro, underground; Train horn; Train whistle |
 | `aircraft` | Flugzeug | Aircraft; Aircraft engine; Jet engine; Fixed-wing aircraft, airplane; Propeller, airscrew; Helicopter |
@@ -665,7 +665,7 @@ While an «Unterwegs» measurement runs (`LiveState.unterwegs`), `LoudAlertWatch
 watches `LiveState.lastEvent`: an event that is not wind, with LAFmax ≥ 75 dB(A)
 (`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's «Sehr laut»; the
 level as shown — calibrated if the phone is, else with the default offset; uncalibrated phones
-alert too) and category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» /
+alert too) and category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Lautes Fahrzeug, 84 dB» /
 «Antippen zum Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default
 sound and vibration), at most one every 2 minutes. Since 0.7.6 this is **one notification**: the
 alert replaces the content of the measurement's own notification (id 1) for 30 s instead of a

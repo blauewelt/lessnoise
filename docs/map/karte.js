@@ -393,10 +393,10 @@
         "Die Werte der Lärmschutz-Verordnung stehen im Tagesverlauf jedes Felds (antippen).",
       l90: "Der Hintergrund ist der Pegel ohne die einzelnen lauten Momente.",
       dynamics: "Wenige dB: gleichmässiger Verkehr. Viele dB: ruhige Strasse mit einzelnen lauten Fahrzeugen.",
-      events: "Nur Maschinen- und Motorenlärm: Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle zusammen, " +
+      events: "Nur Maschinen- und Motorenlärm: laute Fahrzeuge, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle zusammen, " +
         "gezählt pro Stunde gültiger Messzeit; ein Ereignis ist ein kurzer Pegelanstieg deutlich über den Hintergrund.",
       peaks: "Gezählt pro Stunde gültiger Messzeit: Ereignisse mit einem Spitzenpegel ab " + dbText(state.loudDb) +
-        " dB(A), nur von Töff & Poser, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle.",
+        " dB(A), nur von lauten Fahrzeugen, Strassenverkehr, Tram & Bahn, Flugzeug und Baustelle.",
     }[state.metric];
     var s = m.source ? sourceOf() : null;
     if (s) {
@@ -491,7 +491,7 @@
   /** The bars under the chart: the chosen source's events per hour, or all five together. */
   function barLabel() {
     var s = sourceOf();
-    return s ? s.name : "Ereignisse";
+    return s ? (s.plural || s.name) : "Ereignisse";
   }
 
   /** The 24-hour profile of cells/{cell}.json: band L90–L10, LAeq line, the LSV reference

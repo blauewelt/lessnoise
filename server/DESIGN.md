@@ -899,13 +899,13 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   legend and the explanation say which). Period selector
   «Letzte 7 Tage» (default, from `default_period`) / «Letzte 30 Tage»; ‹ › move the period's
   last day back and forth through the last 90 days (`days/{date}.json`).
-- **One layer per source** (2026-10-16): chips «Quelle:» **Alle** (default) · **Töff & Poser** ·
+- **One layer per source** (2026-10-16): chips «Quelle:» **Alle** (default) · **Lautes Fahrzeug** (app 0.9.3; the id `loud_vehicle` unchanged) ·
   **Strassenverkehr** · **Tram & Bahn** · **Flugzeug** · **Baustelle** (the five ids of §6). A
   source other than «Alle» colours the cells by that source's `events_per_h_by_category` (and
   switches the metric to «Ereignisse/h»; a level metric or «Sehr laut/h» switches back to «Alle»),
   in a sequential ramp of that source's own hue, 5 steps light → dark (dark mode: dark → light,
   as the level scale), one scale for all five: < 0.5 · 0.5–1 · 1–2 · 2–5 · ≥ 5 per hour.
-  Hues (light / dark mode), validated as a set for colour-vision deficiency: Töff & Poser
+  Hues (light / dark mode), validated as a set for colour-vision deficiency: Lautes Fahrzeug
   #EB6834 / #D95926, Strassenverkehr #2A78D6 / #3987E5, Tram & Bahn #1BAF7A / #199E70, Flugzeug
   #4A3AA7 / #9085E9, Baustelle #EDA100 / #C98500; the ramps (`model.js` `SOURCES`) are those hues
   in OKLCH lightness steps and pass the dataviz ordinal checks. Only one hue is ever shown at a

@@ -90,7 +90,7 @@ fun HistorySection(
     val loading = data == null || data.window != window
     val scheme = MaterialTheme.colorScheme
     val palette = ChartPalette.current()
-    val highlightName = ChartCategories.name(highlight)
+    val highlightLegend = ChartCategories.legendName(highlight)
 
     val margin = 16.dp
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -162,7 +162,7 @@ fun HistorySection(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    LegendItem(Swatch.Dot(palette.series2), highlightName)
+                    LegendItem(Swatch.Dot(palette.series2), highlightLegend)
                     if (model?.hourly != true) {
                         LegendItem(Swatch.Dot(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor), small = true), "andere Spitzen")
                     }
@@ -233,7 +233,7 @@ fun HistorySection(
         }
         if (s != null && model?.isEmpty == false) {
             Text(
-                s.line(highlightName = highlightName), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                s.line(highlightName = ChartCategories.countName(highlight, s.highlightCount)), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = margin),
             )
         }

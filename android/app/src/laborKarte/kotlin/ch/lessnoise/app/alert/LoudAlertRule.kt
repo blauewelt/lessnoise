@@ -18,7 +18,7 @@ object LoudAlertRule {
      */
     const val THRESHOLD_DB = 75.0
 
-    /** «Töff & Poser» and «Strassenverkehr» (categories.json ids). */
+    /** «Lautes Fahrzeug» and «Strassenverkehr» (categories.json ids). */
     val CATEGORIES: Set<String> = setOf("loud_vehicle", "road_traffic")
 
     /** At most one notification per … */
@@ -47,15 +47,15 @@ object LoudAlertRule {
      */
     fun unterwegsNow(unterwegs: Boolean, moving: Boolean): Boolean = unterwegs || moving
 
-    /** «Töff & Poser» / «Strassenverkehr» (the names of categories.json). */
+    /** «Lautes Fahrzeug» / «Strassenverkehr» (the names of categories.json; renamed in 0.9.3). */
     fun categoryLabel(category: String?): String = when (category) {
-        "loud_vehicle" -> "Töff & Poser"
+        "loud_vehicle" -> "Lautes Fahrzeug"
         "road_traffic" -> "Strassenverkehr"
         "aircraft" -> "Flugzeug"
         else -> "Lärm"
     }
 
-    /** «Sehr laut: Töff & Poser, 84 dB». */
+    /** «Sehr laut: Lautes Fahrzeug, 84 dB». */
     fun title(e: LiveEvent): String = "Sehr laut: ${categoryLabel(e.category)}, ${e.lafMaxDb.roundToInt()} dB"
 
     /**

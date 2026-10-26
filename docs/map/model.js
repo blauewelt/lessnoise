@@ -169,8 +169,8 @@
       get: blockGet("events_per_h"),
     },
     loud: {
-      id: "loud", label: "Töff & Poser/h", unit: "pro Stunde",
-      title: "Ereignisse «Töff & Poser» (Motorräder, Hochdrehen) pro Stunde Messzeit",
+      id: "loud", label: "Laute Fahrzeuge/h", unit: "pro Stunde",
+      title: "Ereignisse «Lautes Fahrzeug» (Motorräder, Hochdrehen) pro Stunde Messzeit",
       breaks: [0.5, 1, 2, 3, 5, 8], colours: RATE_COLOURS,
       ticks: [0.5, 1, 2, 3, 5, 8],
       get: function (b) {
@@ -211,7 +211,8 @@
   // map, as LEVEL_COLOURS_DARK); every ramp passes the ordinal checks of the dataviz validator
   // (monotone lightness, steps ≥ 0.06 apart, end step ≥ 2:1 against the surface).
   var SOURCES = [
-    { id: "loud_vehicle", name: "Töff & Poser", colour: "#EB6834", colourDark: "#D95926",
+    // 0.9.3: «Lautes Fahrzeug» (the app's name of the detector class; plural where a count follows)
+    { id: "loud_vehicle", name: "Lautes Fahrzeug", plural: "Laute Fahrzeuge", colour: "#EB6834", colourDark: "#D95926",
       ramp: ["#f7936e", "#e46838", "#c24609", "#963300", "#6a2202"],
       rampDark: ["#ac4319", "#d55c2d", "#fc7848", "#fead91", "#fed8ca"] },
     { id: "road_traffic", name: "Strassenverkehr", colour: "#2A78D6", colourDark: "#3987E5",
@@ -241,7 +242,7 @@
     var s = source(id);
     if (!s) return null;
     return {
-      id: "source:" + s.id, source: s.id, label: s.name + "/h", unit: "pro Stunde",
+      id: "source:" + s.id, source: s.id, label: (s.plural || s.name) + "/h", unit: "pro Stunde",
       title: "Ereignisse «" + s.name + "» pro Stunde Messzeit",
       breaks: SOURCE_BREAKS, colours: s.ramp, coloursDark: s.rampDark, ticks: SOURCE_BREAKS,
       get: function (b) {
@@ -314,7 +315,7 @@
   /* ---------- sources and reports -------------------------------------------------------- */
 
   var CATEGORY_NAMES = {
-    loud_vehicle: "Töff & Poser", road_traffic: "Strassenverkehr", rail_tram: "Tram & Bahn",
+    loud_vehicle: "Lautes Fahrzeug", road_traffic: "Strassenverkehr", rail_tram: "Tram & Bahn",
     aircraft: "Flugzeug", construction: "Baustelle", voices: "Stimmen", music: "Musik",
     unclassified: "Sonstiges",
   };
@@ -427,7 +428,7 @@
    *  `runs` are maximal stretches of consecutive hours with levels: band and line are drawn per
    *  run, so nothing is drawn across an hour without enough data (a `gap`). The bars under the
    *  plot (`highlighted`) are the events per hour of `highlight`: a source id, "alle" for all five
-   *  together (`events_per_h`), or by default HIGHLIGHT (Töff & Poser). */
+   *  together (`events_per_h`), or by default HIGHLIGHT (Lautes Fahrzeug). */
   function chartModel(hours, highlight) {
     var hlKey = highlight === undefined || highlight === null ? HIGHLIGHT : highlight;
     if (!hours || !hours.length) return null;

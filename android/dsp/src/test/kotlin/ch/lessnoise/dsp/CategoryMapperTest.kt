@@ -31,7 +31,7 @@ class CategoryMapperTest {
         )
         assertEquals(0.2f, m.threshold)
         assertEquals(0.1f, m.top1Threshold)
-        assertEquals("Töff & Poser", m.nameDe("loud_vehicle"))
+        assertEquals("Lautes Fahrzeug", m.nameDe("loud_vehicle"))
     }
 
     @Test

@@ -262,7 +262,7 @@ class PolishScreenshots {
 
     private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
     private val on = UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t")
-    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Töff & Poser", "rail_tram" to "Tram & Bahn")
+    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Lautes Fahrzeug", "rail_tram" to "Tram & Bahn")
     private val point = LocationNoise.Point(2683351, 1247988, 50)
 
     private fun event(id: Long, at: Long, db: Double, category: String) = EventEntity(

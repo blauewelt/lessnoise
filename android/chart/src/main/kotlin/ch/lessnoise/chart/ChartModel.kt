@@ -150,8 +150,9 @@ data class WindowSummary(
         get() = if (eventsPerHour.isNaN()) NONE_YET_TILE else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
 
     /**
-     * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 Töff & Poser · 76 % gemessen» ([highlightName]
-     * null: without the highlighted category). The gaps are drawn in the chart, not listed (0.6.1);
+     * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 laute Fahrzeuge · 76 % gemessen» ([highlightName]
+     * null: without the highlighted category; the caller passes [ChartCategories.countName]). The
+     * gaps are drawn in the chart, not listed (0.6.1);
      * [gapTexts] and [dynamicsDb] stay for the tests and the CSV.
      */
     fun line(highlightName: String? = null): String {
@@ -590,7 +591,8 @@ object ChartCategories {
     const val DEFAULT_HIGHLIGHT = "loud_vehicle"
     val all: List<Pair<String, String>> = listOf(
         "road_traffic" to "Strassenverkehr",
-        "loud_vehicle" to "Töff & Poser",
+        // 0.9.3: renamed to «Lautes Fahrzeug» (a loud vehicle; the id stays).
+        "loud_vehicle" to "Lautes Fahrzeug",
         "rail_tram" to "Tram & Bahn",
         "aircraft" to "Flugzeug",
         "voices" to "Stimmen",
@@ -603,5 +605,20 @@ object ChartCategories {
         null -> "–"
         WindRule.CATEGORY -> WindRule.NAME_DE // the detector's wind flag, not a chip
         else -> all.firstOrNull { it.first == id }?.second ?: id
+    }
+
+    /**
+     * 0.9.3: the name after a count in the summary line, «davon 0 laute Fahrzeuge» / «davon 1 lautes
+     * Fahrzeug»; the other categories keep their chip name.
+     */
+    fun countName(id: String?, count: Int): String = when (id) {
+        "loud_vehicle" -> if (count == 1) "lautes Fahrzeug" else "laute Fahrzeuge"
+        else -> name(id)
+    }
+
+    /** 0.9.3: the legend entry of the highlighted dots, «Laute Fahrzeuge»; the others keep their chip name. */
+    fun legendName(id: String?): String = when (id) {
+        "loud_vehicle" -> "Laute Fahrzeuge"
+        else -> name(id)
     }
 }

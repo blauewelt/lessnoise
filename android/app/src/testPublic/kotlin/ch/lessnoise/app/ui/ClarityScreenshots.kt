@@ -152,7 +152,7 @@ class ClarityScreenshots {
     val paparazzi = clarityPaparazzi(2340)
 
     private val bar = appScreens(uploadAvailable = true, mapAvailable = true)
-    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Töff & Poser", "rail_tram" to "Tram & Bahn")
+    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Lautes Fahrzeug", "rail_tram" to "Tram & Bahn")
     private val on = UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t")
 
     private fun screen(name: String, tab: Screen?, dark: Boolean = false, content: @Composable (Modifier) -> Unit) = paparazzi.snapshot(name) {

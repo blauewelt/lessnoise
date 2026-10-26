@@ -3,7 +3,7 @@
 **Deutsch:** Weniger Lärm (bis v0.5.1 «Stadtlärm») ist ein offenes Messnetz für Strassenlärm,
 von Anwohnerinnen und Anwohnern für Anwohnerinnen und Anwohner. Eine Android-App misst den
 Schallpegel, solange eine Messung läuft – von «Start» bis «Stopp», zu jeder Tageszeit, auch über
-mehrere Tage –, hält laute Einzelereignisse (z. B. Töffs, Poser) mit Zeit, Spitzenpegel und
+mehrere Tage –, hält laute Einzelereignisse (z. B. laute Fahrzeuge) mit Zeit, Spitzenpegel und
 wahrscheinlicher Quelle fest, zeigt jede Messung als Grafik (ihr Zeitraum und der Tagesverlauf)
 und exportiert die Daten als CSV. Es wird nie Audio gespeichert oder übertragen.
 Es gibt die App in zwei Versionen. Die Online-Version (Standard) sendet nur dann Messwerte ins

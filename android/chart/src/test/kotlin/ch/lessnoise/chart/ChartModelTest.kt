@@ -366,7 +366,7 @@ class ChartModelTest {
         val e = d.events.maxBy { it.lafMaxDb }
         val lines = tooltipLines(Selection.Event(e, true), m)
         // Over midnight: weekday and date first.
-        assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", lines[0])
+        assertEquals("Fr 9.10. 23:40:30 · Lautes Fahrzeug", lines[0])
         // Two lines: time and source, then peak and duration (0.6.1).
         assertEquals(2, lines.size, lines.toString())
         assertTrue(lines[1].startsWith("85,0 dB(A) · "), lines.toString())
@@ -379,7 +379,7 @@ class ChartModelTest {
         assertEquals(listOf("Sa 10.10. 03:20", "keine Messung"), tooltipLines(Selection.NoData(SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 3, 20))), m))
         // Within one date: the time is enough.
         val evening = ChartModel.build(d.copy(window = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 23, 59)))), zone, "loud_vehicle", 45.0)
-        assertEquals("23:40:30 · Töff & Poser", tooltipLines(Selection.Event(e, true), evening)[0])
+        assertEquals("23:40:30 · Lautes Fahrzeug", tooltipLines(Selection.Event(e, true), evening)[0])
         val weekModel = ChartModel.build(SyntheticData.weekData(), zone, "loud_vehicle", 45.0)
         val p = weekModel.points.first { it.valid }
         assertEquals("Mo 5.10. 00:00–01:00", tooltipLines(Selection.Point(p), weekModel)[0])
@@ -398,7 +398,14 @@ class ChartModelTest {
         // Measurement 22–06 with data only 22–23: coverage 12.5 %. The gaps and the dynamics are no
         // longer in the line (0.6.1), but still computed.
         assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen · 13 % gemessen", m.summary.line())
-        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen, davon 0 Töff & Poser · 13 % gemessen", m.summary.line(highlightName = "Töff & Poser"))
+        // 0.9.3: «Lautes Fahrzeug» (renamed; the id stays); after a count the plural / singular.
+        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen, davon 0 laute Fahrzeuge · 13 % gemessen", m.summary.line(highlightName = ChartCategories.countName("loud_vehicle", m.summary.highlightCount)))
+        assertEquals("laute Fahrzeuge", ChartCategories.countName("loud_vehicle", 5))
+        assertEquals("lautes Fahrzeug", ChartCategories.countName("loud_vehicle", 1))
+        assertEquals("Strassenverkehr", ChartCategories.countName("road_traffic", 5))
+        assertEquals("Lautes Fahrzeug", ChartCategories.name("loud_vehicle"))
+        assertEquals("Laute Fahrzeuge", ChartCategories.legendName("loud_vehicle"))
+        assertEquals("Tram & Bahn", ChartCategories.legendName("rail_tram"))
         assertEquals(listOf("Messung bis Fr 23:00"), m.summary.gapTexts)
         assertEquals("48", m.summary.eventsPerHourText)
         val few = build(ms, evs.take(5), floor = 30.0)
@@ -492,7 +499,7 @@ class ChartModelTest {
         assertTrue(prof.hourly)
         assertEquals(listOf("0", "3", "6", "9", "12", "15", "18", "21", "24"), prof.axisLabels.map { it.text })
         assertEquals((14 * 60 + 10) * 60_000L, prof.highlightedEvents.single().startEpochMs)
-        assertEquals("14:10:00 · Töff & Poser", tooltipLines(Selection.Event(prof.highlightedEvents.single(), true), prof)[0])
+        assertEquals("14:10:00 · Lautes Fahrzeug", tooltipLines(Selection.Event(prof.highlightedEvents.single(), true), prof)[0])
         assertEquals("14:00–15:00", tooltipLines(Selection.Point(prof.points[14]), prof)[0])
         assertEquals(span.summary, prof.summary)
     }

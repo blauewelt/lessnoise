@@ -77,7 +77,7 @@ class ShareScreenshots {
         calibrationId = null, audioSource = "UNPROCESSED", calibrated = false,
     )
 
-    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Töff & Poser", "rail_tram" to "Tram & Bahn")
+    private val names = mapOf("road_traffic" to "Strassenverkehr", "loud_vehicle" to "Lautes Fahrzeug", "rail_tram" to "Tram & Bahn")
     private val point = LocationNoise.Point(2683351, 1247988, 50)
     private val on = UploadSnapshot(enabled = true, shareDecision = ShareDecision.YES, deviceId = "d", token = "t")
 

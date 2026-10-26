@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.3 — Labor·Karte first (branch labor-0.9.1): detector class «loud_vehicle» shown as «Lautes Fahrzeug» (versionCode 44)
+
+In short: the detector's category for motorcycles and revving engines is now called «Lautes
+Fahrzeug» — a loud vehicle, not a judgement about its driver. Only the name changes: the id
+`loud_vehicle`, what the detector counts, what is sent and what the map stores stay as they were.
+
+- **App:** the chip «Hervorheben», the «Klingt nach» chip in «Messen», the list of Lärmspitzen and
+  the chart's tooltip say «Lautes Fahrzeug» (from `categories.json` / `ChartCategories`). Where a
+  count or a series is meant the plural reads better: the summary line «… 413 Lärmspitzen, davon 0
+  laute Fahrzeuge …» («davon 1 lautes Fahrzeug»; `ChartCategories.countName`) and the chart legend
+  «Laute Fahrzeuge» (`ChartCategories.legendName`). Labor·Karte's alert reads «Sehr laut: Lautes
+  Fahrzeug, 84 dB». The «Teilen» bullet says «(z. B. «Lautes Fahrzeug»)».
+- **Map (website):** the source chip «Lautes Fahrzeug», the per-hour label «Laute Fahrzeuge/h», the
+  bars under the 24-hour chart «Laute Fahrzeuge pro h», the legend title «Ereignisse «Lautes
+  Fahrzeug» pro Stunde Messzeit» and the explanations («laute Fahrzeuge, Strassenverkehr, …»).
+- **Unchanged:** the report categories of «Laut! Melden» — «Töff» (`motorrad`) is offered as before,
+  «Poser» (`poser`) stays only as the name of old reports.
+- **Docs:** PRIVACY.md, the website's Datenschutz page, README.md, android/README.md and
+  server/DESIGN.md use the new name; no promise changes.
+
 ## 0.9.2 — Labor·Karte first (branch labor-0.9.1): clarity pass — every element says what it is for (versionCode 43)
 
 In short: everything a first-time user sees now says what it is for, in a few words. Nothing that is

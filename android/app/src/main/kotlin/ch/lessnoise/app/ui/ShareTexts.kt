@@ -48,7 +48,7 @@ const val LOCATION_NEVER_SENT = "Dein genauer Standort (ausser bei einer Meldung
 
 /** «Was gesendet wird». */
 val SHARE_SENT_BULLETS: List<String> = listOf(
-    "Lärmwerte pro Minute und Lärmspitzen von Motoren und Maschinen (z. B. «Töff & Poser»); Stimmen und Musik nie.",
+    "Lärmwerte pro Minute und Lärmspitzen von Motoren und Maschinen (z. B. «Lautes Fahrzeug»); Stimmen und Musik nie.",
     "Ein zufällig verschobener Punkt statt deines Standorts, und wo das Telefon liegt.",
     "Meldungen: Zeit, genauer Standort, Fahrtrichtung, Pegel, Art des Lärms.",
     "Telefonmodell, Audioquelle, Kalibrierung und eine zufällige Kennung.",

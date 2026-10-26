@@ -57,7 +57,7 @@ class MeasureScreenshot {
     )
 
     private val names = mapOf(
-        "road_traffic" to "Strassenverkehr", "loud_vehicle" to "Töff & Poser", "rail_tram" to "Tram & Bahn", "voices" to "Stimmen",
+        "road_traffic" to "Strassenverkehr", "loud_vehicle" to "Lautes Fahrzeug", "rail_tram" to "Tram & Bahn", "voices" to "Stimmen",
     )
 
     @Test

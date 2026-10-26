@@ -24,7 +24,7 @@ import android.app.PendingIntent
  * src/laborKarte; the Online-Version has the stand-in in src/nounterwegs, the Offline and Labor builds
  * the one in src/nomap): the Labor button «Unterwegs aufnehmen» under «Messung starten» starts a
  * measurement that is never shared (no point, no minutes, no events: LiveState.unterwegs,
- * MeasurementEntity.unterwegs). While it runs, a very loud vehicle (≥ 75 dB(A), «Töff & Poser» or
+ * MeasurementEntity.unterwegs). While it runs, a very loud vehicle (≥ 75 dB(A), «Lautes Fahrzeug» or
  * «Strassenverkehr») shows the «Sehr laut» alert, at most one every 2 minutes; a tap opens
  * «Laut! Melden» with the event's time. Since 0.7.6 the alert is not a second notification: it
  * replaces the content of the measurement's own notification for 30 s (one heads-up with sound and

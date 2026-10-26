@@ -84,6 +84,20 @@ test("LSV reference values: 6–22 Uhr and 22–6 Uhr, ES II", () => {
   assert.deepEqual(segs.map((s) => [s.x0 * 24, s.x1 * 24, s.pw]), [[0, 6, 45], [6, 22, 55], [22, 24, 45]]);
 });
 
+test("0.9.3: the detector class loud_vehicle is «Lautes Fahrzeug» (plural «Laute Fahrzeuge» per hour)", () => {
+  assert.equal(M.source("loud_vehicle").name, "Lautes Fahrzeug");
+  assert.equal(M.CATEGORY_NAMES.loud_vehicle, "Lautes Fahrzeug");
+  assert.equal(M.sourceMetric("loud_vehicle").label, "Laute Fahrzeuge/h");
+  assert.equal(M.sourceMetric("loud_vehicle").title, "Ereignisse «Lautes Fahrzeug» pro Stunde Messzeit");
+  assert.equal(M.sourceMetric("road_traffic").label, "Strassenverkehr/h");
+  assert.equal(M.METRICS.loud.label, "Laute Fahrzeuge/h");
+  // the old name is gone from the map's code and page; the report category «Poser» (old reports) stays
+  for (const f of ["docs/map/model.js", "docs/map/karte.js", "docs/karte.html"]) {
+    const text = fs.readFileSync(path.join(__dirname, "../..", f), "utf8");
+    assert.ok(!/Töff (&|&amp;) Poser/.test(text), f);
+  }
+});
+
 test("reports: categories, letters, filter by period", () => {
   assert.deepEqual(M.REPORT_CATEGORIES.map((c) => c.id).sort(), [...reports.categories].sort());
   const letters = M.REPORT_CATEGORIES.map((c) => c.letter);
