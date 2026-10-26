@@ -328,12 +328,15 @@ class PoliciesAndManifestTest {
     fun reportLine() {
         // 0.7.6, Labor·Karte: «Senden» in «Laut! Melden» writes one line; no coordinates.
         // 0.8.5: whether a photo was taken instead of the plate (no file name, no image).
-        val r = ManifestLines.report("S", t0, zurich, "motorrad", true, 47, "true", "high")
+        // 0.9.4.3: `media` «video», «photo» or null (until 0.9.4.2 `photo` true/false).
+        val r = ManifestLines.report("S", t0, zurich, "motorrad", "video", 47, "true", "high")
         assertTrue(r.startsWith("""{"type":"report","session":"S","""), r)
-        assertTrue(r.endsWith(""""cat":"motorrad","photo":true,"direction":{"deg":47,"north":"true","accuracy":"high"}}"""), r)
-        val bare = ManifestLines.report("none", t0, zurich, "auto", false, null, null, null)
-        assertTrue(bare.endsWith(""""cat":"auto","photo":false,"direction":null}"""), bare)
-        for (bad in listOf("lat", "lon", "cell", "plate", ".jpg")) assertFalse(r.contains(bad), bad)
+        assertTrue(r.endsWith(""""cat":"motorrad","media":"video","direction":{"deg":47,"north":"true","accuracy":"high"}}"""), r)
+        val photo = ManifestLines.report("S", t0, zurich, "auto", "photo", null, null, null)
+        assertTrue(photo.endsWith(""""cat":"auto","media":"photo","direction":null}"""), photo)
+        val bare = ManifestLines.report("none", t0, zurich, "auto", null, null, null, null)
+        assertTrue(bare.endsWith(""""cat":"auto","media":null,"direction":null}"""), bare)
+        for (bad in listOf("lat", "lon", "cell", "plate", ".jpg", ".mp4", "\"photo\":")) assertFalse(r.contains(bad), bad)
     }
 
     // ---- Classifier trace and log ------------------------------------------------------------

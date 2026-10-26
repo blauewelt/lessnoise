@@ -26,7 +26,7 @@ class LessNoiseApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // 0.8.5: «Laut! Melden» photos — the camera's and the dialog's leftovers (the app killed meanwhile)
+        // 0.8.5: «Laut! Melden» photos (0.9.4.3: and videos, .mp4) — the camera's and the dialog's leftovers (the app killed meanwhile)
         // are deleted, and from then on every photo no report refers to any more (a report dropped,
         // rejected or rolled out of the sent list, or its photo deleted), on every change of the queue.
         if (BuildConfig.UPLOAD_AVAILABLE) {

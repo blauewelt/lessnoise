@@ -241,7 +241,7 @@ class ExportScopeTest {
         val clock = ManifestLines.clock("S", ms(25, 2), zone, 48_000, ms(25, 2), 3)
         val open = ManifestLines.continuousOpen("S", ms(25, 7, 30), zone, "continuous/20261025_07.m4a", 0, ms(25, 7, 30))
         val full = ManifestLines.storageFull("S", ms(25, 7, 45), zone, 5, 4)
-        val inWin = ManifestLines.report("S", ms(26, 7), zone, "auto", false, null, null, null)
+        val inWin = ManifestLines.report("S", ms(26, 7), zone, "auto", null, null, null, null)
         assertEquals(listOf(clock, open, full, inWin), ManifestWindow.filter(listOf(old, clock, open, full, inWin), from, now))
         // No line of the session in the window: nothing of it.
         assertEquals(emptyList<String>(), ManifestWindow.filter(listOf(old, clock, open, full), from, now))

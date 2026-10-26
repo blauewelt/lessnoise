@@ -82,24 +82,24 @@ class ReportPhotoTest {
         for (n in listOf("1.jpg", "2.jpg", "3.jpg", "stray.tmp")) File(dir, n).writeText(n)
         val store = MemoryReportStore(
             ReportSnapshot(
-                pending = listOf(report(1).copy(photo = "1.jpg")),
-                sent = listOf(report(2).copy(photo = "2.jpg").toSent(), report(3).copy(photo = "3.jpg").toSent()),
+                pending = listOf(report(1).copy(media = "1.jpg")),
+                sent = listOf(report(2).copy(media = "2.jpg").toSent(), report(3).copy(media = "3.jpg").toSent()),
             ),
         )
         // Everything a report refers to stays; nothing else does.
-        assertEquals(1, ReportPhotos.sweep(dir, ReportQueue.photos(store.state.value)))
+        assertEquals(1, ReportPhotos.sweep(dir, ReportQueue.media(store.state.value)))
         assertEquals(setOf("1.jpg", "2.jpg", "3.jpg"), dir.list()!!.toSet())
         // «Löschen» on a sent photo: forgotten by its entry, then swept.
-        ReportQueue.dropSentPhoto(store, 3, "3.jpg")
-        ReportPhotos.sweep(dir, ReportQueue.photos(store.state.value))
+        ReportQueue.dropSentMedia(store, 3, "3.jpg")
+        ReportPhotos.sweep(dir, ReportQueue.media(store.state.value))
         assertEquals(setOf("1.jpg", "2.jpg"), dir.list()!!.toSet())
         // «Vom Server löschen» (or sharing off) drops the pending report, and its photo goes with it.
         ReportQueue.dropPending(store)
-        ReportPhotos.sweep(dir, ReportQueue.photos(store.state.value))
+        ReportPhotos.sweep(dir, ReportQueue.media(store.state.value))
         assertEquals(setOf("2.jpg"), dir.list()!!.toSet())
         // A sent entry that rolls out of the last 500 takes its photo with it.
         store.update { it.copy(sent = emptyList()) }
-        ReportPhotos.sweep(dir, ReportQueue.photos(store.state.value))
+        ReportPhotos.sweep(dir, ReportQueue.media(store.state.value))
         assertEquals(emptySet(), dir.list()!!.toSet())
         assertEquals(500, ReportSnapshot.SENT_KEEP)
     }
@@ -135,13 +135,17 @@ class ReportPhotoTest {
         }
         // The dialog: «Foto» instead of «Kontrollschild».
         val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
-        assertTrue(ui.contains("ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() })"))
+        // 0.9.4.3: one row for photo and video (ReportMediaRow); the camera of the edition (a constant per edition).
+        assertTrue(ui.contains("draft, video, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() },"))
+        assertTrue(ui.contains("val camera = if (video) rememberReportVideoCamera(onMedia) else rememberReportPhotoCamera(onMedia)"))
         assertTrue(ui.contains("val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)"))
         assertFalse(ui.contains("OutlinedTextField") || ui.contains("ReportQueue.add("), "no plate field; queued only together with its photo")
         // 0.9.4.2: «Foto» beside the status line; «Foto vom Fahrzeug (optional)» stays its spoken label.
         assertEquals("Foto", reportPhotoButton(false))
         assertEquals("Foto vom Fahrzeug (optional)", ReportPhotos.BUTTON)
-        assertTrue(ui.substringAfter("fun ReportPhotoRow(").substringBefore("\n}\n").contains("contentDescription = ReportPhotos.BUTTON"))
+        assertTrue(ui.substringAfter("fun ReportMediaRow(").substringBefore("\n}\n").contains("contentDescription = reportMediaSpoken(video)"))
+        assertEquals(ReportPhotos.BUTTON, reportMediaSpoken(false))
+        assertEquals("Foto", reportMediaButton(video = false, has = false))
         assertTrue(ui.contains("photoBesideStatus = draft == null,"))
         assertEquals("Neues Foto", reportPhotoButton(true))
         assertEquals(56, REPORT_THUMB_DP)

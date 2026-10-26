@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.4.3 — Labor·Karte first (branch labor-0.9.1): short video instead of a photo (versionCode 48)
+
+In short: in Labor·Karte «Laut! Melden» offers a short video instead of the photo — evidence a police report
+could use (a photo shows which car, a video with sound also that it was loud). It stays on the phone only, as
+the photo did. The Online-Version and the Offline-Version keep the photo: the video's metadata-free copy needs
+Android's MP4 writer, which `tools/check_release_apk.py` keeps out of the published APKs.
+
+- **«Video»** (videocam icon) where «Foto» was: the phone's camera app records at your tap, asked for at most
+  10 s in high quality; this app still has no camera permission and records nothing itself. Up to 30 s / 60 MB
+  is kept as it is, more is refused («Video zu lang – bitte höchstens 10 s»).
+- **Metadata stripped:** the picture and sound tracks are copied sample by sample (no re-encode) into a new MP4,
+  so the camera app's position, maker/model and extra tracks are gone; the camera's file is deleted at once.
+- **Shown and played on the phone:** first frame with a play mark and «0:07» in the dialog and in «Meldungen»;
+  a tap plays it full-screen (the platform's VideoView, no new library) with «Video löschen» (the video alone).
+  Muted while a measurement runs; the dialog's microphone is closed while the camera app records and while the
+  draft plays.
+- **Never sent**, deleted with its report, by «Video löschen», «×» or «Abbrechen». Old photos keep showing.
+- Data: the report's file name is now `media` (still reads the old `photo` key, never writes it); the Labor·Karte
+  manifest's `report` line has `media: "video"|"photo"|null` (was `photo: true/false`).
+- Tests: `ReportVideoTest` (new), `ReportsTest.theVideoIsNeverSent`, `theOldPhotoKeyIsReadAndNeverWrittenAgain`;
+  renders `VideoDeviceScreenshots`.
+
 ## 0.9.4.2 — Labor·Karte first (branch labor-0.9.1): report dialog — Töff · Auto · Andere, vehicle before direction, fits one screen (versionCode 47)
 
 In short: the owner's three points about «Laut! Melden». Only the dialog changes; what a report sends is

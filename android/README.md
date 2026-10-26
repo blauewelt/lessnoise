@@ -984,10 +984,41 @@ with a photo shows a 40 dp thumbnail; a tap shows it full-screen (`ReportPhotoVi
 text recognition plan is dropped with the field: `PlateCamera.kt`, `PlateOcr.kt` and `PlateOcrTest`
 are deleted (no ML Kit, no Google Play services, `ReportPhotoTest` keeps that check). It is shown in
 «Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, `photo` true/false —
-since 0.8.5 instead of the plate —, direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
+since 0.8.5 instead of the plate; since 0.9.4.3 `media` «video»/«photo»/null —, direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
 offline edition taking over also drops unsent reports. While a measurement runs there is no «Melden»
 button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
 (grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportPhotoTest` (sizes, EXIF turn, the move, the sweep, no camera permission), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
+
+**A short video instead of the photo (0.9.4.3, Labor·Karte only; `ui/ReportVideos.kt`).** Owner: evidence a
+police report could use — a photo shows which car, a short video with sound also that it was loud. In the
+Labor·Karte dialog the compact button is **«Video»** (videocam icon, `AppIcons.Videocam`; TalkBack «Kurzes Video
+vom Fahrzeug (optional)»), in the same place as «Foto». It launches the system camera with
+`ActivityResultContracts.CaptureVideo` (subclass `CaptureShortVideo` adding `MediaStore.EXTRA_DURATION_LIMIT` = 10 s
+and `EXTRA_VIDEO_QUALITY` = 1) into a FileProvider URI in `cache/camera/` (the photo's path; no new provider path).
+Still **no CAMERA permission**: the camera app records picture and sound; the dialog's own level meter is closed
+while the camera app is on screen (`ReportLevelEffect` runs only while the activity is `STARTED`). On return,
+off the main thread («Video wird gespeichert …»), `ReportVideos.prepare` applies the pure policy `verdict`: up to
+30 s and 60 MiB kept as it is (never cut), longer or larger refused with «Video zu lang – bitte höchstens 10 s»
+and deleted. Then `EditionReportVideo.strip` copies the first video and the first audio track
+(`tracksToCopy`) sample by sample with `MediaExtractor` → `MediaMuxer` into `cache/report-draft/draft-<ms>.mp4`
+— no re-encode, no `setLocation`, the orientation from the source track's rotation (`orientationHint`) — so no
+`udta`/`meta` box (GPS position, maker, model) and no extra track of the camera's file survives; the camera's
+file is deleted in `finally`, a failed copy keeps nothing. **Only in the Labor editions:** the copy lives in
+`src/labor/kotlin/…/edition/ReportVideoEdition.kt`; `src/public` has a stand-in (`AVAILABLE = false`), because
+`tools/check_release_apk.py` fails a published APK whose dex names `MediaMuxer` (its «no audio encoding» rule) —
+the Online-Version keeps the photo. From there on the video is a report file like the photo: `ReportPhotos.queue`
+moves it to `files/reports/<epochMs>.mp4` at «Senden», the name travels as `media` (renamed from `photo`; the
+queue's JSON still reads the old `photo` key and never writes it again), `ReportPhotos.sweep` deletes what no
+report names (`.mp4` and old `.jpg` alike), «Abbrechen» and «×» delete the draft. The thumbnail
+(`ReportMediaThumbnail`, by the file's extension) is the first frame (`MediaMetadataRetriever.getFrameAtTime(0)`)
+with a play mark and the length «0:07»; a tap — in the dialog and in «Meldungen» — opens `ReportVideoViewer`, the
+platform's `VideoView` in a full-screen dialog (no player library; plays once, a tap pauses/plays, muted while a
+measurement runs) with «Video löschen» (the video alone, `ReportQueue.dropSentMedia`) and «Schliessen»; while the
+draft plays, the dialog's microphone is closed. Never sent: `ReportsTest.theVideoIsNeverSent`,
+`UploadSourceIsolationTest` (no video class, no `.mp4` literal in the upload package). Tests: `ReportVideoTest`
+(policy, length text, track choice, rotation, flags, files, edition, source facts); renders
+`VideoDeviceScreenshots` (412 × 915 and 360 × 740 dp: dialog without and with a video, «Meldungen», the viewer).
+Not verified on a phone: the camera apps' handling of the limit, the copy of a real file, the first frame, playback.
 
 **The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Since 0.9.4.2
 the first line of the status (`ReportStatusLine`: microphone icon, «68,9 dB(A) · Spitze 75,8», semibold

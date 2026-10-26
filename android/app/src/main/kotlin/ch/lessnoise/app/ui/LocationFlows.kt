@@ -123,7 +123,8 @@ private sealed interface ReportStep {
  * shows, top to bottom (0.9.4.2, [ReportDialogBody]): «Was war es?» with Töff · Auto · «Andere» (Lastwagen ·
  * Flugzeug fold out), «Wohin fuhr es?» with the compass disc (ReportDirectionUi, editions with the map and a
  * compass; the streets around the fix), the status line with the level (ReportLevel.kt) and the place
- * («Standort wird gesucht …» / «Standort ± n m») and «Foto» beside it (ReportPhotos.kt; until 0.8.4
+ * («Standort wird gesucht …» / «Standort ± n m») and «Foto» beside it (ReportPhotos.kt; 0.9.4.3 in Labor·Karte
+ * «Video», ReportVideos.kt; until 0.8.4
  * «Kontrollschild (optional)»), the line [REPORT_SPOT_WARNING]; then [REPORT_SEND] (0.9.1: full width in the
  * content) and «Abbrechen» (0.9.1: centred under it, [ReportDialogLayout]). Until 0.9.4.1 the disc came
  * first and the categories (a 2 × 2 grid) last. Since 0.8.2 (owner's decision)
@@ -166,20 +167,27 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
     // 0.8.5: the photo (ReportPhotos.kt) instead of the typed plate (0.7.6–0.8.4): the re-encoded
     // draft in the cache until «Senden» moves it into the app's files; on the phone only, never sent.
+    // 0.9.4.3 (Labor·Karte; ReportVideos.enabled): a short video instead, its metadata-free copy as the draft.
+    val video = ReportVideos.enabled
     var draft by remember { mutableStateOf<File?>(null) }
-    // A short line under the button when the photo failed («Keine Kamera-App gefunden», …); null: none.
+    // A short line under the button when the photo / video failed («Keine Kamera-App gefunden», …), or
+    // «Video wird gespeichert …» while the video is copied; null: none.
     var photoNote by remember { mutableStateOf<String?>(null) }
+    // 0.9.4.3: the draft video plays full-screen (its own microphone is paused meanwhile, ReportLevelEffect).
+    var viewingDraft by remember { mutableStateOf(false) }
     fun dropDraft() {
-        draft?.delete(); draft = null
+        draft?.delete(); draft = null; viewingDraft = false
     }
-    val camera = rememberReportPhotoCamera { r ->
+    val onMedia: (ReportMediaResult) -> Unit = { r ->
         when (r) {
-            // A new photo replaces the one taken before (also if the dialog was closed meanwhile: then it is dropped).
-            is ReportPhotoResult.Draft -> if (step == ReportStep.Report) { dropDraft(); draft = r.file; photoNote = null } else r.file.delete()
-            is ReportPhotoResult.Note -> photoNote = r.text
-            ReportPhotoResult.Cancelled -> Unit
+            // A new photo / video replaces the one taken before (also if the dialog was closed meanwhile: then it is dropped).
+            is ReportMediaResult.Draft -> if (step == ReportStep.Report) { dropDraft(); draft = r.file; photoNote = null } else r.file.delete()
+            is ReportMediaResult.Note -> photoNote = r.text
+            ReportMediaResult.Cancelled -> Unit
         }
     }
+    // `video` is a constant of the edition, so the same launcher is registered on every composition.
+    val camera = if (video) rememberReportVideoCamera(onMedia) else rememberReportPhotoCamera(onMedia)
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
     // 0.9.2: whether the disc's map can be dragged now (streets drawn), for «· Karte verschiebbar» in the location row.
@@ -207,12 +215,12 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
             lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,
             category = category.id, cell = place.cell, direction = direction, level = level,
         )
-        // 0.8.5: the photo moves into files/reports/ and the report is queued with its name, in one step.
+        // 0.8.5: the photo (0.9.4.3: or video) moves into files/reports/ and the report is queued with its name, in one step.
         val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)
         draft = null
-        // Labor·Karte: one `report` line in the local manifest (no-op in every other edition).
+        // Labor·Karte: one `report` line in the local manifest (no-op in every other edition); 0.9.4.3: `media` video/photo/null.
         EditionDiagnostics.report(
-            context, queued.epochMs, queued.category, queued.photo != null,
+            context, queued.epochMs, queued.category, ReportPhotos.kind(queued.media),
             direction?.bearingDeg, direction?.north?.id, direction?.accuracy?.id,
         )
         c.upload.uploadSoon(5)
@@ -291,7 +299,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
             // The compass lives as long as this dialog (null: no compass on this phone / edition).
             val reading = ReportDirectionUi.rememberReading()
             // 0.8.5: the level, as long as this dialog shows (its own engine, or the running measurement's values).
-            ReportLevelEffect(meter, micAllowed)
+            // 0.9.4.3: its microphone is closed while the draft video plays (the speaker would be measured).
+            ReportLevelEffect(meter, micAllowed && !viewingDraft)
             val measuring = c.live.collectAsState().value.running
             val fix = fixOutcome as? LocationPolicy.ReportOutcome.Fix
             // «Senden» tapped before the fix: everything waits for it.
@@ -339,7 +348,13 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         onMoveBack = { moved = null },
                         // 0.8.5: «Foto» (the phone's camera app, no camera permission) instead of «Kontrollschild».
                         // 0.9.4.2: the compact «Foto» beside the status line; a photo taken gets its own row under it.
-                        photo = { ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() }) },
+                        // 0.9.4.3 (Labor·Karte): «Video» instead; a tap on the video's thumbnail plays it.
+                        photo = {
+                            ReportMediaRow(
+                                draft, video, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() },
+                                onOpen = if (video) ({ viewingDraft = true }) else null,
+                            )
+                        },
                         photoBesideStatus = draft == null,
                         photoNote = photoNote,
                         suggested = suggested,
@@ -351,6 +366,11 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         onSend = { sendTap() },
                     )
                 }
+            }
+            // 0.9.4.3: the draft video full-screen; «Video löschen» drops the video, not the report.
+            val playing = draft
+            if (viewingDraft && playing != null) {
+                ReportVideoViewer(playing, muted = measuring, onDelete = { dropDraft() }, onDismiss = { viewingDraft = false })
             }
         }
         is ReportStep.Failed -> AlertDialog(
@@ -436,7 +456,7 @@ fun reportFixIcon(state: ReportFixState): ImageVector = when (state) {
  * 2. «Wohin fuhr es?» — [disc] (the compass Panel with its heading [REPORT_WHERE], the live label and the
  *    hint lines; null without a compass), its side from the height left ([reportDiscDp], [ReportFitDisc]);
  * 3. the status line, level and place in one ([ReportStatusLine]; «Zurück zum Standort» under it once the map
- *    was moved), with [photo] («Foto») beside it, or under it once a photo is taken ([photoBesideStatus] false),
+ *    was moved), with [photo] («Foto»; 0.9.4.3 Labor·Karte «Video») beside it, or under it once one is taken ([photoBesideStatus] false),
  *    and [photoNote].
  *
  * These scroll on a short screen (0.9.1; since 0.9.4.2 only when the disc at [REPORT_DISC_MIN_DP] does not
@@ -633,17 +653,29 @@ fun ReportSendButton(onClick: () -> Unit, enabled: Boolean, waiting: Boolean = f
  * Fahrzeug (optional)» with the camera icon; with one its 56 dp rounded thumbnail with an «×» (removes
  * it) and «Neues Foto» as a text button. 0.9.4.2: without a photo a compact outlined button «Foto» beside the
  * status line (TalkBack still hears «Foto vom Fahrzeug (optional)»); with one the row as before, under it.
+ * 0.9.4.3 (until 0.9.4.2 `ReportPhotoRow`): [video] (Labor·Karte) — «Video» with the video camera icon (TalkBack:
+ * «Kurzes Video vom Fahrzeug (optional)»), with one its first frame with the play mark and the length, which
+ * [onOpen] plays, and «Neues Video». [preview] stands in for the decoded frame in the JVM renders.
  */
 @Composable
-fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove: () -> Unit) {
+fun ReportMediaRow(
+    draft: File?,
+    video: Boolean,
+    enabled: Boolean,
+    onTake: () -> Unit,
+    onRemove: () -> Unit,
+    onOpen: (() -> Unit)? = null,
+    preview: ReportVideoThumb? = null,
+) {
+    val icon = if (video) AppIcons.Videocam else AppIcons.PhotoCamera
     if (draft == null) {
         OutlinedButton(
             onClick = onTake, enabled = enabled, contentPadding = PaddingValues(start = 12.dp, end = 14.dp),
-            modifier = Modifier.semantics { contentDescription = ReportPhotos.BUTTON },
+            modifier = Modifier.semantics { contentDescription = reportMediaSpoken(video) },
         ) {
-            Icon(AppIcons.PhotoCamera, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(6.dp))
-            Text(reportPhotoButton(false), maxLines = 1, softWrap = false)
+            Text(reportMediaButton(video, false), maxLines = 1, softWrap = false)
         }
         return
     }
@@ -652,23 +684,25 @@ fun ReportPhotoRow(draft: File?, enabled: Boolean, onTake: () -> Unit, onRemove:
         // REPORT_REMOVE_TOUCH_DP (was the 22 dp circle itself); the box is 8 dp wider and taller than the
         // thumbnail so that the whole target lies inside it.
         Box(Modifier.size((REPORT_THUMB_DP + 8).dp)) {
-            Box(Modifier.align(Alignment.BottomStart)) { ReportPhotoThumbnail(draft, REPORT_THUMB_DP.dp) }
+            Box(Modifier.align(Alignment.BottomStart)) {
+                ReportMediaThumbnail(draft, REPORT_THUMB_DP.dp, onClick = if (enabled) onOpen else null, preview = preview)
+            }
             Box(
                 Modifier.align(Alignment.TopEnd).size(REPORT_REMOVE_TOUCH_DP.dp).clip(CircleShape)
-                    .clickable(enabled = enabled, role = Role.Button, onClickLabel = ReportPhotos.REMOVE, onClick = onRemove),
+                    .clickable(enabled = enabled, role = Role.Button, onClickLabel = reportMediaRemove(video), onClick = onRemove),
                 contentAlignment = Alignment.Center,
             ) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), modifier = Modifier.size(22.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Close, contentDescription = ReportPhotos.REMOVE, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Filled.Close, contentDescription = reportMediaRemove(video), modifier = Modifier.size(14.dp))
                     }
                 }
             }
         }
         TextButton(onClick = onTake, enabled = enabled, contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) {
-            Icon(AppIcons.PhotoCamera, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-            Text(reportPhotoButton(true))
+            Text(reportMediaButton(video, true))
         }
     }
 }
@@ -684,6 +718,18 @@ const val REPORT_REMOVE_TOUCH_DP = 40
  * button's spoken label, [ReportPhotos.BUTTON]; 0.9.4.2: «Foto» again, the button sits beside the status line).
  */
 fun reportPhotoButton(hasPhoto: Boolean): String = if (hasPhoto) ReportPhotos.BUTTON_AGAIN else ReportPhotos.BUTTON_SHORT
+
+/** 0.9.4.3 (Labor·Karte): «Video», or «Neues Video» once one is taken. */
+fun reportVideoButton(hasVideo: Boolean): String = if (hasVideo) ReportVideos.BUTTON_AGAIN else ReportVideos.BUTTON_SHORT
+
+/** 0.9.4.3: the visible label of the dialog's media button, photo or [video]. */
+fun reportMediaButton(video: Boolean, has: Boolean): String = if (video) reportVideoButton(has) else reportPhotoButton(has)
+
+/** 0.9.4.3: what TalkBack hears for the button: «Kurzes Video vom Fahrzeug (optional)» / «Foto vom Fahrzeug (optional)». */
+fun reportMediaSpoken(video: Boolean): String = if (video) ReportVideos.BUTTON else ReportPhotos.BUTTON
+
+/** 0.9.4.3: the «×» of the thumbnail: «Video entfernen» / «Foto entfernen». */
+fun reportMediaRemove(video: Boolean): String = if (video) ReportVideos.REMOVE else ReportPhotos.REMOVE
 
 /**
  * 0.8.6: the icon of each category (Material: two_wheeler, directions_car, local_shipping, flight, speed, more_horiz).

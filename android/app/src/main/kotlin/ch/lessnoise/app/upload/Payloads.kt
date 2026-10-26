@@ -152,7 +152,7 @@ object Payloads {
      * reporter gave one (whole degrees, true or magnetic north, the compass's accuracy class); since
      * 0.8.5 the `level` while the dialog was open (peak LAFmax and LAeq of those seconds, one decimal,
      * the seconds, calibrated or not) when the microphone gave one. A report without either is exactly
-     * the request of 0.6.6. The plate (0.7.6–0.8.4) and the photo (0.8.5) are never read here.
+     * the request of 0.6.6. The plate (0.7.6–0.8.4) and the photo (0.8.5) or video (0.9.4.3, `media`) are never read here.
      */
     fun report(r: PendingReport): JsonObject = buildJsonObject {
         put("time", r.timeIso)

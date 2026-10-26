@@ -148,17 +148,18 @@ object EditionDiagnostics {
 
     /**
      * 0.7.6, Labor·Karte (the only Labor build with «Laut! Melden»): at «Senden» one `report` line in
-     * manifest.jsonl — time, category, whether a photo was taken (0.8.5; until 0.8.4 the plate),
+     * manifest.jsonl — time, category, what was taken with it (0.9.4.3 `media` «video»/«photo»/null; 0.8.5–0.9.4.2
+     * whether a photo was taken; until 0.8.4 the plate),
      * direction; no coordinates. Plain values only: the
      * Labor code does not see the upload package (UploadSourceIsolationTest).
      */
     fun report(
-        context: Context, reportMs: Long, category: String, photo: Boolean,
+        context: Context, reportMs: Long, category: String, media: String?,
         bearingDeg: Int?, north: String?, accuracy: String?,
     ) {
         try {
             val line = ManifestLines.report(
-                Labor.currentSession ?: "none", reportMs, java.time.ZoneId.systemDefault(), category, photo, bearingDeg, north, accuracy,
+                Labor.currentSession ?: "none", reportMs, java.time.ZoneId.systemDefault(), category, media, bearingDeg, north, accuracy,
             )
             ManifestFile.append(Labor.dirs(context.applicationContext).manifest, line)
             Labor.filesVersion.update { it + 1 }

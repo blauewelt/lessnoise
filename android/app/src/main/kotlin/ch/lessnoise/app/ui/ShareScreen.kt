@@ -169,6 +169,8 @@ fun ShareContent(
     onDelete: () -> Unit,
     onNewId: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 0.9.4.3: stand-ins for decoded video thumbnails by file name (the JVM renders only; empty in the app). */
+    mediaPreview: Map<String, ReportVideoThumb> = emptyMap(),
 ) {
     var showExplanation by rememberSaveable { mutableStateOf(false) }
     var showPlacement by rememberSaveable { mutableStateOf(false) }
@@ -212,7 +214,7 @@ fun ShareContent(
         }
 
         // 2. The reports on the road («Laut! Melden»): exact place, sent only by the tap «Senden».
-        ReportsCard(reports)
+        ReportsCard(reports, mediaPreview)
 
         // 3. What is sent, what never, where, when, how to delete — for both kinds; folded away, unchanged in substance.
         SectionCard(rows = true) {
@@ -367,9 +369,11 @@ internal fun sentReportLine(time: String, s: SentReport): String =
 /**
  * 0.8.5: a sent report's row shows its photo (if any) as a 40 dp thumbnail before the line; a tap
  * opens it full-screen with «Löschen» for the photo alone (ReportPhotos.kt). Photos stay on the phone.
+ * 0.9.4.3 (Labor·Karte): a video the same way, its first frame with the play mark and the length; a tap plays it
+ * with «Video löschen» for the video alone (ReportVideos.kt). Old photos keep showing as photos.
  */
 @Composable
-private fun ReportsCard(r: ReportSnapshot) {
+internal fun ReportsCard(r: ReportSnapshot, mediaPreview: Map<String, ReportVideoThumb> = emptyMap()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var viewing by remember { mutableStateOf<SentReport?>(null) }
@@ -382,12 +386,14 @@ private fun ReportsCard(r: ReportSnapshot) {
             if (r.sent.isEmpty() && r.pending.isEmpty()) HelperText(REPORTS_NONE) else StatRow("Gesendet", r.sent.size.toString())
         }
         r.sent.takeLast(5).reversed().forEach { s ->
-            val photo = ReportPhotos.file(context, s.photo)
+            val media = ReportPhotos.file(context, s.media)
             val cat = ReportCategory.fromId(s.category)
             ListItem(
                 headlineContent = { Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodyMedium) },
                 leadingContent = cat?.let { c -> { Icon(reportCategoryIcon(c), contentDescription = null) } },
-                trailingContent = photo?.let { f -> { ReportPhotoThumbnail(f, SENT_THUMB_DP.dp, onClick = { viewing = s }) } },
+                trailingContent = media?.let { f ->
+                    { ReportMediaThumbnail(f, SENT_THUMB_DP.dp, onClick = { viewing = s }, preview = mediaPreview[f.name]) }
+                },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             )
         }
@@ -395,17 +401,20 @@ private fun ReportsCard(r: ReportSnapshot) {
         CardBlock { Text(REPORTS_SAME_SWITCH, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
     val v = viewing
-    val file = v?.let { ReportPhotos.file(context, it.photo) }
+    val file = v?.let { ReportPhotos.file(context, it.media) }
     if (v != null && file != null) {
-        ReportPhotoViewer(
-            file,
-            onDelete = {
-                viewing = null
-                val name = v.photo ?: return@ReportPhotoViewer
-                scope.launch(Dispatchers.IO) { ReportPhotos.deleteSentPhoto(context, context.container.upload.reports, v.epochMs, name) }
-            },
-            onDismiss = { viewing = null },
-        )
+        // Read only while the viewer is open (the JVM renders of this card have no app container).
+        val measuring = context.container.live.collectAsStateWithLifecycle().value.running
+        val delete = {
+            viewing = null
+            v.media?.let { name ->
+                scope.launch(Dispatchers.IO) { ReportPhotos.deleteSentMedia(context, context.container.upload.reports, v.epochMs, name) }
+            }
+            Unit
+        }
+        // 0.9.4.3: a video plays (muted while a measurement runs); a photo shows as before.
+        if (ReportPhotos.isVideo(file.name)) ReportVideoViewer(file, muted = measuring, onDelete = delete, onDismiss = { viewing = null })
+        else ReportPhotoViewer(file, onDelete = delete, onDismiss = { viewing = null })
     }
 }
 

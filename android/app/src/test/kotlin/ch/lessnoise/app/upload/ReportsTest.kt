@@ -285,26 +285,44 @@ class ReportsTest {
 
     @Test
     fun thePhotoNameIsStoredRoundTripsAndSurvivesSending() {
-        val r = listOf(report(0).copy(photo = "${now}.jpg"), report(1))
+        val r = listOf(report(0).copy(media = "${now}.jpg"), report(1))
         val json = ReportJson.pending(r)
         assertEquals(r, ReportJson.parsePending(json))
-        assertTrue(json.contains("\"photo\":\"${now}.jpg\""), json)
-        assertEquals(1, Regex("\"photo\"").findAll(json).count(), "absent when null")
+        // 0.9.4.3: written as `media` (0.8.5–0.9.4.2: `photo`).
+        assertTrue(json.contains("\"media\":\"${now}.jpg\""), json)
+        assertEquals(1, Regex("\"media\"").findAll(json).count(), "absent when null")
+        assertFalse(json.contains("\"photo\""), json)
         val sent = r.map { it.toSent() }
-        assertEquals(listOf<String?>("${now}.jpg", null), sent.map { it.photo })
+        assertEquals(listOf<String?>("${now}.jpg", null), sent.map { it.media })
         assertEquals(sent, ReportJson.parseSent(ReportJson.sent(sent)))
         // The names the sweep keeps: every pending and sent photo.
-        val snap = ReportSnapshot(pending = listOf(report(5).copy(photo = "5.jpg")), sent = sent)
-        assertEquals(setOf("5.jpg", "${now}.jpg"), ReportQueue.photos(snap))
-        // «Löschen» on a sent photo: the entry forgets it, the report stays.
+        val snap = ReportSnapshot(pending = listOf(report(5).copy(media = "5.jpg")), sent = sent)
+        assertEquals(setOf("5.jpg", "${now}.jpg"), ReportQueue.media(snap))
+        // «Foto löschen» on a sent photo: the entry forgets it, the report stays.
         val store = MemoryReportStore(snap)
-        ReportQueue.dropSentPhoto(store, now, "${now}.jpg")
-        assertEquals(listOf<String?>(null, null), store.state.value.sent.map { it.photo })
+        ReportQueue.dropSentMedia(store, now, "${now}.jpg")
+        assertEquals(listOf<String?>(null, null), store.state.value.sent.map { it.media })
         assertEquals(2, store.state.value.sent.size)
-        assertEquals(setOf("5.jpg"), ReportQueue.photos(store.state.value))
+        assertEquals(setOf("5.jpg"), ReportQueue.media(store.state.value))
         // «Vom Server löschen» drops the pending report, and with it the name the sweep would keep.
         ReportQueue.dropPending(store)
-        assertEquals(emptySet(), ReportQueue.photos(store.state.value))
+        assertEquals(emptySet(), ReportQueue.media(store.state.value))
+    }
+
+    /** 0.9.4.3: the queue written by 0.8.5–0.9.4.2 (`photo`) is still read; rewritten, it says `media` and never `photo`. */
+    @Test
+    fun theOldPhotoKeyIsReadAndNeverWrittenAgain() {
+        val pending = ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto","photo":"1.jpg"}]""")
+        assertEquals(listOf<String?>("1.jpg"), pending.map { it.media })
+        val sent = ReportJson.parseSent("""[{"t":2,"cat":"auto","cell":"h1_2","photo":"2.jpg"},{"t":3,"cat":"auto","media":"3.mp4"}]""")
+        assertEquals(listOf<String?>("2.jpg", "3.mp4"), sent.map { it.media })
+        for (json in listOf(ReportJson.pending(pending), ReportJson.sent(sent))) {
+            assertFalse(json.contains("\"photo\""), json)
+            assertTrue(json.contains("\"media\""), json)
+        }
+        assertEquals(setOf("1.jpg", "2.jpg", "3.mp4"), ReportQueue.media(ReportSnapshot(pending, sent)))
+        // Both keys present (cannot be written by the app): `media` wins.
+        assertEquals(listOf<String?>("4.mp4"), ReportJson.parseSent("""[{"t":4,"cat":"auto","photo":"4.jpg","media":"4.mp4"}]""").map { it.media })
     }
 
     @Test
@@ -314,10 +332,10 @@ class ReportsTest {
         val photos = java.io.File(dir, "reports").apply { mkdirs() }
         val marker = "JPEG-BYTES-OF-A-PLATE-0123456789"
         java.io.File(photos, "${now}.jpg").writeText(marker)
-        val r = report().copy(plate = "ZH 123", photo = "${now}.jpg")
+        val r = report().copy(plate = "ZH 123", media = "${now}.jpg")
         val o = Payloads.report(r)
         assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
-        assertFalse(o.toString().contains("plate") || o.toString().contains("ZH 123") || o.toString().contains("photo") || o.toString().contains(".jpg"), o.toString())
+        for (bad in listOf("plate", "ZH 123", "photo", "media", ".jpg")) assertFalse(o.toString().contains(bad), "$bad in $o")
         // Through the real upload: what the server receives has neither; the phone keeps both.
         val reports = MemoryReportStore()
         ReportQueue.add(reports, r)
@@ -327,11 +345,49 @@ class ReportsTest {
         assertTrue(server.requests.any { it.path.endsWith("/reports") })
         val b64 = java.util.Base64.getEncoder().encodeToString(marker.toByteArray())
         for (b in bodies) {
-            for (bad in listOf("plate", "ZH 123", "photo", ".jpg", marker, b64.take(16))) assertFalse(b.contains(bad), "$bad in $b")
+            for (bad in listOf("plate", "ZH 123", "photo", "media", ".jpg", marker, b64.take(16))) assertFalse(b.contains(bad), "$bad in $b")
         }
         assertEquals(listOf<String?>("ZH 123"), reports.state.value.sent.map { it.plate })
-        assertEquals(listOf<String?>("${now}.jpg"), reports.state.value.sent.map { it.photo })
+        assertEquals(listOf<String?>("${now}.jpg"), reports.state.value.sent.map { it.media })
         assertEquals(marker, java.io.File(photos, "${now}.jpg").readText(), "the upload leaves the file alone")
+        dir.deleteRecursively()
+        Unit
+    }
+
+    /**
+     * 0.9.4.3 (Labor·Karte): the short video, like the photo, is never sent — no `media` or `photo` key, no file
+     * name, none of the file's bytes (raw, Base64 or hex) in any request — and the upload leaves the file alone
+     * (it opens no file under `reports/` at all: UploadSourceIsolationTest).
+     */
+    @Test
+    fun theVideoIsNeverSent() = runBlocking {
+        val dir = kotlin.io.path.createTempDirectory("files").toFile()
+        val videos = java.io.File(dir, "reports").apply { mkdirs() }
+        val bytes = "ftypmp42-VIDEO-OF-A-LOUD-CAR-0123456789".toByteArray()
+        val file = java.io.File(videos, "${now}.mp4").apply { writeBytes(bytes) }
+        val modified = file.lastModified()
+        val r = report().copy(media = "${now}.mp4")
+        val o = Payloads.report(r)
+        assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
+        for (bad in listOf("media", "photo", "video", ".mp4", "$now")) assertFalse(o.toString().contains(bad), "$bad in $o")
+        val reports = MemoryReportStore()
+        ReportQueue.add(reports, r)
+        val (up, _) = setup(reports)
+        assertIs<Uploader.Outcome.Done>(up.run())
+        assertTrue(server.requests.any { it.path.endsWith("/reports") })
+        val b64 = java.util.Base64.getEncoder().encodeToString(bytes)
+        val hex = bytes.joinToString("") { "%02x".format(it) }
+        for (req in server.requests) {
+            val b = req.body.toString()
+            for (bad in listOf("media", "photo", ".mp4", "${now}.mp4", String(bytes), "VIDEO-OF-A-LOUD-CAR", b64.take(16), hex.take(24))) {
+                assertFalse(b.contains(bad), "$bad in ${req.path}: $b")
+            }
+            assertFalse(req.path.contains(".mp4") || req.path.contains("media"), req.path)
+        }
+        // Kept on the phone with the sent report, the file untouched.
+        assertEquals(listOf<String?>("${now}.mp4"), reports.state.value.sent.map { it.media })
+        assertTrue(bytes.contentEquals(file.readBytes()), "the upload leaves the file alone")
+        assertEquals(modified, file.lastModified())
         dir.deleteRecursively()
         Unit
     }

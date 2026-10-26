@@ -73,7 +73,7 @@ import kotlin.math.sin
  * idle/running, «Teilen», «Messungen», «Einstellungen», each light and dark. Written to
  * $stadtlaerm.screenshotDir/0.9.2-polish (default app/build/screenshots/0.9.2-polish), for review only.
  */
-private class PolishPngWriter(private val dir: File) : SnapshotHandler {
+internal class PolishPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
     override fun newFrameHandler(snapshot: Snapshot, frameCount: Int, fps: Int): SnapshotHandler.FrameHandler {
         val file = File(dir, "${snapshot.name ?: snapshot.testName.methodName}.png")
@@ -139,8 +139,12 @@ internal fun ReportDialogSample(
     scrolledToEnd: Boolean = false,
     /** 0.9.2: the compass's accuracy status (0–1: unreliable, the figure-eight line under the hint). */
     sensorStatus: Int = 3,
-    /** 0.9.2: a photo taken (thumbnail with «×» and «Neues Foto»). */
+    /** 0.9.2: a photo taken (thumbnail with «×» and «Neues Foto»); 0.9.4.3: with [video] a video («….mp4»). */
     photo: java.io.File? = null,
+    /** 0.9.4.3: the Labor·Karte dialog: «Video» instead of «Foto». */
+    video: Boolean = false,
+    /** 0.9.4.3: the decoded first frame and length of the video [photo] (MediaMetadataRetriever needs a phone). */
+    videoPreview: ReportVideoThumb? = null,
 ) {
     val lat = 47.3769
     val lon = 8.5417
@@ -158,7 +162,9 @@ internal fun ReportDialogSample(
             disc = { size, measureOnly -> ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles, discSize = size, measureOnly = measureOnly) { false } },
             level = if (level) meter else null,
             fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
-            photo = { ReportPhotoRow(photo, enabled = !waiting, onTake = {}, onRemove = {}) },
+            photo = {
+                ReportMediaRow(photo, video = video, enabled = !waiting, onTake = {}, onRemove = {}, onOpen = if (video) ({}) else null, preview = videoPreview)
+            },
             photoBesideStatus = photo == null,
             photoNote = null,
             suggested = suggested, chosen = chosen, onSelect = {},

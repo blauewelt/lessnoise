@@ -233,7 +233,8 @@ fun reportLevelEngine(offsetDb: Double, calibrated: Boolean, calibrationId: Long
  * Runs the level for the open dialog into [meter]: the dialog's own engine while no measurement runs
  * and [micAllowed]; the running measurement's values while one runs. Stops with the composition
  * (the dialog closing) — never later — and while the app is not in the foreground (e.g. the camera
- * app for «Foto» is on screen: the microphone is closed meanwhile and opened again on return; the
+ * app for «Foto» or, 0.9.4.3 in Labor·Karte, «Video» is on screen — the camera app then needs the microphone
+ * itself: our activity is stopped, so this microphone is closed meanwhile and opened again on return; the
  * level then covers the seconds the dialog was actually on screen, the open time still counts all).
  */
 @Composable

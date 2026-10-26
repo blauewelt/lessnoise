@@ -80,8 +80,13 @@ import java.io.FileOutputStream
  *   it only on the phone, in storage no other app can read, excluded from backup like everything else.
  * - Deleted with the report: [sweep] deletes every file of `files/reports/` that no pending or sent
  *   report refers to (a report dropped by «Vom Server löschen» or switching sharing off, rejected,
- *   rolled out of the last 500 sent ones), and «Löschen» deletes one photo alone ([deleteSentPhoto]).
+ *   rolled out of the last 500 sent ones), and «Löschen» deletes one photo alone ([deleteSentMedia]).
  *   Queueing and sweeping hold [lock], so a photo is never swept between its move and its report.
+ *
+ * 0.9.4.3 (Labor·Karte first): the same store also keeps the short video of «Laut! Melden»
+ * (ui/ReportVideos.kt; Labor·Karte only, `EditionReportVideo.AVAILABLE`): `files/reports/<epochMs>.mp4`, its
+ * name in the report's `media` (until 0.9.4.2 `photo`). [isName], [keep], [queue], [sweep], [deleteSentMedia] and
+ * [clearLeftovers] treat both kinds alike; old photos keep showing as photos.
  */
 object ReportPhotos {
     /** FileProvider path in res/xml/file_paths.xml (`<cache-path name="camera" path="camera/" />`). */
@@ -114,13 +119,28 @@ object ReportPhotos {
     const val FAILED = "Foto konnte nicht gespeichert werden"
 
     private const val TAG = "ReportPhotos"
-    private val NAME = Regex("""^\d{1,19}(-\d{1,3})?\.jpg$""")
+    /** 0.9.4.3: «.jpg» (photo) or «.mp4» (video, ReportVideos). */
+    private val NAME = Regex("""^\d{1,19}(-\d{1,3})?\.(jpg|mp4)$""")
+
+    /** The kinds of kept file, by extension (the Labor·Karte manifest's `media`). */
+    const val KIND_PHOTO = "photo"
+    const val KIND_VIDEO = "video"
 
     /** Held while a photo moves into [DIR] with its report, and while [sweep] decides what to delete. */
     val lock = Any()
 
-    /** Whether [name] is a photo name this app writes («1761381603000.jpg», «…-1.jpg»): no path, no other file. */
+    /** Whether [name] is a photo or (0.9.4.3) video name this app writes («1761381603000.jpg», «…-1.jpg», «….mp4»): no path, no other file. */
     fun isName(name: String?): Boolean = name != null && NAME.matches(name)
+
+    /** 0.9.4.3: «video» for a kept video, «photo» for a kept photo, null for none (or anything that is not ours). */
+    fun kind(name: String?): String? = when {
+        !isName(name) -> null
+        name!!.endsWith(".mp4") -> KIND_VIDEO
+        else -> KIND_PHOTO
+    }
+
+    /** 0.9.4.3: whether [name] is a kept video. */
+    fun isVideo(name: String?): Boolean = kind(name) == KIND_VIDEO
 
     fun dir(context: Context): File = File(context.filesDir, DIR)
 
@@ -207,14 +227,16 @@ object ReportPhotos {
 
     /**
      * Moves [draft] into [dir] as «<epochMs>.jpg» («<epochMs>-1.jpg» … if taken), returns the name;
-     * null when there is no draft or it cannot be moved (then nothing is kept). Pure file work (tested).
+     * null when there is no draft or it cannot be moved (then nothing is kept). 0.9.4.3: the extension is the
+     * draft's, «jpg» or «mp4» (anything else is not kept). Pure file work (tested).
      */
     fun keep(dir: File, draft: File, epochMs: Long): String? {
         if (!draft.isFile) return null
+        val ext = draft.extension.lowercase().takeIf { it == "jpg" || it == "mp4" } ?: return null
         dir.mkdirs()
-        var name = "$epochMs.jpg"
+        var name = "$epochMs.$ext"
         var i = 0
-        while (File(dir, name).exists() && i < 999) { i++; name = "$epochMs-$i.jpg" }
+        while (File(dir, name).exists() && i < 999) { i++; name = "$epochMs-$i.$ext" }
         val target = File(dir, name)
         if (target.exists()) return null
         if (!draft.renameTo(target)) {
@@ -236,23 +258,23 @@ object ReportPhotos {
         return n
     }
 
-    /** Queues [report] with the photo [draft] (moved into [DIR] first; none if [draft] is null or unusable). */
+    /** Queues [report] with the photo or (0.9.4.3) video [draft] (moved into [DIR] first; none if [draft] is null or unusable). */
     fun queue(context: Context, store: ReportStore, report: PendingReport, draft: File?): PendingReport = synchronized(lock) {
         val name = draft?.let { keep(dir(context), it, report.epochMs) }
-        val r = report.copy(photo = name)
+        val r = report.copy(media = name)
         ReportQueue.add(store, r)
         r
     }
 
-    /** The photos no report refers to any more are deleted (called on every change of the queue). */
+    /** The photos and videos no report refers to any more are deleted (called on every change of the queue). */
     fun sweep(context: Context, store: ReportStore): Int = synchronized(lock) {
-        sweep(dir(context), ReportQueue.photos(store.state.value))
+        sweep(dir(context), ReportQueue.media(store.state.value))
     }
 
-    /** «Löschen» in the photo viewer: the sent report forgets its photo, the file is deleted. */
-    fun deleteSentPhoto(context: Context, store: ReportStore, epochMs: Long, name: String) {
+    /** «Foto löschen» / (0.9.4.3) «Video löschen» in the viewer: the sent report forgets its file, the file is deleted. */
+    fun deleteSentMedia(context: Context, store: ReportStore, epochMs: Long, name: String) {
         synchronized(lock) {
-            ReportQueue.dropSentPhoto(store, epochMs, name)
+            ReportQueue.dropSentMedia(store, epochMs, name)
             file(context, name)?.delete()
         }
     }
@@ -273,11 +295,11 @@ object ReportPhotos {
     }
 }
 
-/** What the camera gave the dialog: a re-encoded draft, a short line, or nothing (cancelled). */
-sealed interface ReportPhotoResult {
-    data class Draft(val file: File) : ReportPhotoResult
-    data class Note(val text: String) : ReportPhotoResult
-    data object Cancelled : ReportPhotoResult
+/** What the camera gave the dialog: a re-encoded photo or (0.9.4.3) stripped video draft, a short line, or nothing (cancelled). */
+sealed interface ReportMediaResult {
+    data class Draft(val file: File) : ReportMediaResult
+    data class Note(val text: String) : ReportMediaResult
+    data object Cancelled : ReportMediaResult
 }
 
 /**
@@ -285,7 +307,7 @@ sealed interface ReportPhotoResult {
  * the camera's original, then hands [onResult] the draft.
  */
 @Composable
-fun rememberReportPhotoCamera(onResult: (ReportPhotoResult) -> Unit): () -> Unit {
+fun rememberReportPhotoCamera(onResult: (ReportMediaResult) -> Unit): () -> Unit {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // Saved: the camera may outlive this screen's state (the path is in the app's cache).
@@ -295,7 +317,7 @@ fun rememberReportPhotoCamera(onResult: (ReportPhotoResult) -> Unit): () -> Unit
         path = null
         if (file == null || !taken || !file.isFile || file.length() == 0L) {
             file?.delete()
-            onResult(ReportPhotoResult.Cancelled)
+            onResult(ReportMediaResult.Cancelled)
             return@rememberLauncherForActivityResult
         }
         scope.launch {
@@ -307,7 +329,7 @@ fun rememberReportPhotoCamera(onResult: (ReportPhotoResult) -> Unit): () -> Unit
                     file.delete()
                 }
             }
-            onResult(if (draft != null) ReportPhotoResult.Draft(draft) else ReportPhotoResult.Note(ReportPhotos.FAILED))
+            onResult(if (draft != null) ReportMediaResult.Draft(draft) else ReportMediaResult.Note(ReportPhotos.FAILED))
         }
     }
     return {
@@ -319,7 +341,7 @@ fun rememberReportPhotoCamera(onResult: (ReportPhotoResult) -> Unit): () -> Unit
             // No camera app on this phone.
             path = null
             file.delete()
-            onResult(ReportPhotoResult.Note(ReportPhotos.NO_CAMERA))
+            onResult(ReportMediaResult.Note(ReportPhotos.NO_CAMERA))
         }
     }
 }

@@ -175,12 +175,14 @@ data class PendingReport(
     val level: ReportLevel? = null,
     /**
      * App 0.8.5: the file name («1761381603000.jpg», no path) of the photo taken in the dialog, in the
-     * app's private `files/reports/` (ui/ReportPhotos.kt). Kept ON THE PHONE ONLY, also after sending;
-     * never sent: Payloads.report does not read it, and this package opens no file.
+     * app's private `files/reports/` (ui/ReportPhotos.kt). 0.9.4.3 (Labor·Karte first): renamed from `photo`,
+     * because it can also name a short video («1761381603000.mp4», ui/ReportVideos.kt); the extension says
+     * which. Kept ON THE PHONE ONLY, also after sending; never sent: Payloads.report does not read it, and
+     * this package opens no file.
      */
-    val photo: String? = null,
+    val media: String? = null,
 ) {
-    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb, photo)
+    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb, media)
 
     companion object {
         private val ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx")
@@ -194,7 +196,7 @@ data class PendingReport(
 /**
  * What remains on the phone of a sent report: category, time and cell; the licence plate typed in
  * with 0.7.6–0.8.4 (it never left the phone); since 0.8.5 the report's level as sent ([laeqDb],
- * [lafMaxDb]) and the photo's file name ([photo], never sent). No coordinates.
+ * [lafMaxDb]) and the photo's or (0.9.4.3) the video's file name ([media], never sent). No coordinates.
  */
 data class SentReport(
     val epochMs: Long,
@@ -203,7 +205,8 @@ data class SentReport(
     val plate: String? = null,
     val laeqDb: Double? = null,
     val lafMaxDb: Double? = null,
-    val photo: String? = null,
+    /** 0.8.5–0.9.4.2 `photo`; 0.9.4.3: `media`, a photo («….jpg») or a video («….mp4»). */
+    val media: String? = null,
 )
 
 data class ReportSnapshot(
@@ -276,19 +279,20 @@ object ReportQueue {
     }
 
     /**
-     * App 0.8.5: «Löschen» on a sent report's photo: the sent entry of [epochMs] forgets its [photo].
-     * The file itself is deleted by ui/ReportPhotos.kt (this package opens no file).
+     * App 0.8.5: «Foto löschen» on a sent report's photo (0.9.4.3: also «Video löschen» on its video): the
+     * sent entry of [epochMs] forgets its [media]. The file itself is deleted by ui/ReportPhotos.kt (this
+     * package opens no file).
      */
-    fun dropSentPhoto(store: ReportStore, epochMs: Long, photo: String) {
-        store.update { s -> s.copy(sent = s.sent.map { if (it.epochMs == epochMs && it.photo == photo) it.copy(photo = null) else it }) }
+    fun dropSentMedia(store: ReportStore, epochMs: Long, media: String) {
+        store.update { s -> s.copy(sent = s.sent.map { if (it.epochMs == epochMs && it.media == media) it.copy(media = null) else it }) }
     }
 
     /**
-     * App 0.8.5: every photo file name a pending or sent report still refers to; ui/ReportPhotos.sweep
-     * deletes every other file of `files/reports/` (a report dropped, rejected, rolled out of the last
-     * [ReportSnapshot.SENT_KEEP] or its photo deleted).
+     * App 0.8.5: every photo (0.9.4.3: or video) file name a pending or sent report still refers to;
+     * ui/ReportPhotos.sweep deletes every other file of `files/reports/` (a report dropped, rejected,
+     * rolled out of the last [ReportSnapshot.SENT_KEEP] or its photo / video deleted).
      */
-    fun photos(s: ReportSnapshot): Set<String> = (s.pending.mapNotNull { it.photo } + s.sent.mapNotNull { it.photo }).toSet()
+    fun media(s: ReportSnapshot): Set<String> = (s.pending.mapNotNull { it.media } + s.sent.mapNotNull { it.media }).toSet()
 
     /** «Daten auf dem Server löschen» also drops reports that were not sent yet. */
     fun dropPending(store: ReportStore) {
@@ -340,7 +344,8 @@ object ReportJson {
                 r.level?.let { l ->
                     put("lvl", buildJsonObject { put("max", l.lafMaxDb); put("eq", l.laeqDb); put("s", l.seconds); put("cal", l.calibrated) })
                 }
-                r.photo?.let { put("photo", it) }
+                // 0.9.4.3: `media` (until 0.9.4.2 `photo`, which is still read but never written again).
+                r.media?.let { put("media", it) }
             })
         }
     }.toString()
@@ -349,7 +354,7 @@ object ReportJson {
         list.forEach { r ->
             add(buildJsonObject {
                 put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) }
-                r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }; r.photo?.let { put("photo", it) }
+                r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }; r.media?.let { put("media", it) }
             })
         }
     }.toString()
@@ -364,7 +369,7 @@ object ReportJson {
                 direction(o["dir"] as? JsonObject),
                 plate(o),
                 level(o["lvl"] as? JsonObject),
-                string(o, "photo"),
+                media(o),
             )
         }
     } catch (_: Exception) {
@@ -399,6 +404,9 @@ object ReportJson {
     /** A stored plate (0.7.6–0.8.4); absent in files of older versions and in reports since 0.8.5. */
     private fun plate(o: JsonObject): String? = string(o, "plate")
 
+    /** 0.9.4.3: the photo's or video's file name: `media`, or `photo` as written by 0.8.5–0.9.4.2. */
+    private fun media(o: JsonObject): String? = string(o, "media") ?: string(o, "photo")
+
     private fun string(o: JsonObject, key: String): String? = (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
     private fun number(o: JsonObject, key: String): Double? = (o[key] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull
@@ -408,7 +416,7 @@ object ReportJson {
             val o = it.jsonObject
             SentReport(
                 o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o),
-                number(o, "eq"), number(o, "max"), string(o, "photo"),
+                number(o, "eq"), number(o, "max"), media(o),
             )
         }
     } catch (_: Exception) {

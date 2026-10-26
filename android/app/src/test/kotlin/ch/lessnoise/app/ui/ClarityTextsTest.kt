@@ -48,7 +48,7 @@ class ClarityTextsTest {
         assertEquals("Standort von Hand gesetzt", reportStatusNoBreak(REPORT_MOVED_LINE))
         assertEquals("Spitze\u00A075,8", reportStatusNoBreak("Spitze 75,8"))
         // The photo's «×»: the 40 dp target holds the 22 dp circle.
-        val photo = ui.substringAfter("fun ReportPhotoRow(").substringBefore("\n}\n")
+        val photo = ui.substringAfter("fun ReportMediaRow(").substringBefore("\n}\n")
         assertTrue(photo.contains("size(REPORT_REMOVE_TOUCH_DP.dp)") && photo.contains("Modifier.size(22.dp)"))
         assertTrue(photo.contains("onClick = onRemove"))
     }

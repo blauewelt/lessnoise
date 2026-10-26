@@ -19,7 +19,8 @@ Checks:
     builds), versionName, versionCode;
   * permissions: for the two published editions exactly the set of PRIVACY.md «How to verify»
     (offline: no INTERNET / ACCESS_NETWORK_STATE / location; public: those four too) — so in
-    particular **no CAMERA** (the photo of «Laut! Melden» is taken by the phone's camera app), no
+    particular **no CAMERA** (the photo of «Laut! Melden» — 0.9.4.3 in laborKarte the short video — is taken by
+    the phone's camera app), no
     ACCESS_BACKGROUND_LOCATION, no FOREGROUND_SERVICE_LOCATION; for the Labor builds the network and
     location rules of their edition; FOREGROUND_SERVICE_DATA_SYNC (0.9.4.1, the export service) in
     both Labor builds and in neither published edition;

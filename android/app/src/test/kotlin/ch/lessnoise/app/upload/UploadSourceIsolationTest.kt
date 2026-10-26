@@ -54,15 +54,17 @@ class UploadSourceIsolationTest {
         "assets" to Regex("""\b(AssetManager|assets)\b"""),
         "shared storage" to Regex("""\b(MediaStore|Environment|FileProvider|DocumentsContract|DocumentFile|StorageManager)\b"""),
         // 0.8.5: the «Laut! Melden» photos (ui/ReportPhotos.kt, files/reports/) are never opened here.
-        "report photos" to Regex("""\b(ReportPhotos|ReportPhotoResult|Bitmap\w*|ExifInterface|ImageDecoder)\b"""),
+        "report photos" to Regex("""\b(ReportPhotos|ReportPhotoResult|ReportMediaResult|Bitmap\w*|ExifInterface|ImageDecoder)\b"""),
+        // 0.9.4.3: nor the «Laut! Melden» videos (ui/ReportVideos.kt, the Labor editions' EditionReportVideo).
+        "report videos" to Regex("""\b(ReportVideos|ReportVideoThumb|EditionReportVideo|MediaMetadataRetriever|VideoView|MediaPlayer)\b"""),
     )
 
     /** String literals in the upload package must not name a Labor recording folder or file type. */
     private val recordingPathLiteral =
         Regex("""(^|/)(audio|clips|continuous|classifier|labor_share|external-fallback)(/|$)|manifest\.jsonl|\.(wav|m4a|aac|jsonl|zip)\b""")
 
-    /** 0.8.5: nor a folder or file type of the report photos (files/reports/, cache/camera/, cache/report-draft/). */
-    private val photoPathLiteral = Regex("""(^|/)(reports|camera|report-draft|plate)/|\.(jpe?g|png|webp|heic)\b""", RegexOption.IGNORE_CASE)
+    /** 0.8.5: nor a folder or file type of the report photos (files/reports/, cache/camera/, cache/report-draft/); 0.9.4.3: nor of the videos. */
+    private val photoPathLiteral = Regex("""(^|/)(reports|camera|report-draft|plate)/|\.(jpe?g|png|webp|heic|mp4|3gp|mov|webm|mkv)\b""", RegexOption.IGNORE_CASE)
 
     /** Project classes the upload package may import. */
     private val allowedProjectImports = setOf(
