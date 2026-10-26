@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.9.4 — Labor only (branch labor-0.9.1): export scope «Alles» / «Seit letztem Export» / «Letzte 24 h», «Ohne Stundendateien», «Exportierte Aufnahmen löschen» (versionCode 45)
+
+In short: a Labor phone that has recorded for weeks can hand over just last night instead of
+building a 3,5 GB ZIP, and free its storage without losing what was not exported yet. Only the
+Labor editions (`labor`, `laborKarte`) change; the public editions get the version number only.
+
+- **«Export»** (Einstellungen → Labor, above «In Ordner exportieren» / «Als ZIP teilen»; applies to
+  both, remembered): «Alles» (as before: the folder gets what is new or changed, the ZIP everything),
+  «Seit letztem Export» (only what is in no folder and no ZIP yet — the ZIP now shares the folder
+  export's ledger and records its files in it; never exported: «Noch nie exportiert – nimmt alles»),
+  «Letzte 24 h» (default: clips, classifier logs and hour files whose name — else lastModified —
+  falls in the last 24 h, and a filtered `manifest.jsonl` with the window's lines plus each of their
+  sessions' `session_start`, last `clock`, open `continuous_open` and last `storage_full` /
+  `logs_full`; the manifest on the phone stays whole).
+- **«Ohne Stundendateien»** (one switch for both buttons, on by default) leaves out
+  `continuous/*.m4a`. A size line shows the result before pressing, e.g. «Letzte 24 h ohne
+  Stundendateien: 412 Dateien, 165 MB».
+- **ZIP name** carries the scope: `lessnoise-labor-<yyyyMMdd>-24h.zip` / `-seit-export.zip` /
+  `-alles.zip` (was `lessnoise-labor-<yyyyMMdd_HHmm>.zip`).
+- **«Exportierte Aufnahmen löschen»** next to «Alle Aufnahmen löschen»: deletes only files already
+  exported to a folder or packed into a ZIP and unchanged since, never the manifest; the dialog names
+  count and size.
+- **Docs:** android/README.md («Export scope»), PRIVACY.md (Labor: exports can be partial; the new
+  delete action). No promise changes.
+- **Tests:** `ExportScopeTest` (11 cases, testLabor), `ExportScopeScreenshots` (Paparazzi, testLaborKarte).
+
 ## 0.9.3 — Labor·Karte first (branch labor-0.9.1): detector class «loud_vehicle» shown as «Lautes Fahrzeug» (versionCode 44)
 
 In short: the detector's category for motorcycles and revving engines is now called «Lautes

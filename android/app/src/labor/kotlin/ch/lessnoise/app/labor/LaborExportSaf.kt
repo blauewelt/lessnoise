@@ -25,6 +25,19 @@ object LaborExportStore {
         prefs(context).edit().apply { if (uri == null) remove(KEY_TREE) else putString(KEY_TREE, uri.toString()) }.apply()
     }
 
+    private const val KEY_SCOPE = "export_scope"
+    private const val KEY_WITHOUT_HOURS = "export_without_hour_files"
+
+    /** 0.9.4: the «Export» row («Letzte 24 h» until changed). */
+    fun scope(context: Context): ExportScope = ExportScope.of(prefs(context).getString(KEY_SCOPE, null))
+
+    fun setScope(context: Context, scope: ExportScope) { prefs(context).edit().putString(KEY_SCOPE, scope.key).apply() }
+
+    /** 0.9.4: «Ohne Stundendateien», one switch for both buttons, on until changed. */
+    fun withoutHourFiles(context: Context): Boolean = prefs(context).getBoolean(KEY_WITHOUT_HOURS, true)
+
+    fun setWithoutHourFiles(context: Context, v: Boolean) { prefs(context).edit().putBoolean(KEY_WITHOUT_HOURS, v).apply() }
+
     /** True if the persisted read+write grant for [uri] is still held (false after a reinstall or «Clear data»). */
     fun hasPermission(context: Context, uri: Uri): Boolean =
         context.contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission && it.isWritePermission }
@@ -48,7 +61,11 @@ object LaborExportStore {
     /** After «Alle Aufnahmen löschen»: a new recording could reuse a name with the same size and second. */
     fun clearLedger(context: Context) { ledgerFile(context).delete() }
 
-    /** A new destination starts with an empty ledger: nothing is there yet. */
+    /**
+     * 0.9.4: since the ZIP records into the same ledger, a new destination also forgets what went into
+     * ZIPs («Exportierte Aufnahmen löschen» then deletes less, never more).
+     * A new destination starts with an empty ledger: nothing is there yet.
+     */
     fun changeTree(context: Context, uri: Uri) { setTreeUri(context, uri); clearLedger(context) }
 
     /** The folder's display name for the final message («Exportiert … nach Downloads»). */

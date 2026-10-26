@@ -319,9 +319,14 @@ aufzeichnen» is switched on and confirmed; off by default): event clips (WAV, 1
 5 s after each event, at most 60 s) and/or a continuous recording (AAC, 16 kHz, 64 kbit/s, one file
 per hour), plus a `manifest.jsonl` with the event data and the classifier's per-second results for
 each clip, and `classifier/*.jsonl` with every classifier run (label names and scores, no audio). Files stay on the phone in
-`Android/data/ch.lessnoise.labor/files/audio/` until deleted in the app («Alle Aufnahmen löschen»)
+`Android/data/ch.lessnoise.labor/files/audio/` until deleted in the app («Alle Aufnahmen löschen»; since 0.9.4 also
+«Exportierte Aufnahmen löschen», which deletes only what was already exported or zipped)
 or by uninstalling it; they leave the phone only if the user shares them («Als ZIP teilen»), copies them over USB or
-exports them with «In Ordner exportieren» (0.7.4) into a folder the user picks in Android's folder picker — which may be a cloud-storage app's folder, such as Google Drive; the app itself has no network access and sends nothing. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
+exports them with «In Ordner exportieren» (0.7.4) into a folder the user picks in Android's folder picker — which may be a cloud-storage app's folder, such as Google Drive; the app itself has no network access and sends nothing.
+Since 0.9.4 an export can be partial: the «Export» choice («Alles», «Seit letztem Export», «Letzte 24 h») and
+«Ohne Stundendateien» decide which of these files a ZIP or the folder receives; for «Letzte 24 h» the manifest in
+the export holds only the lines of those 24 hours and the session lines they need. What leaves the phone is
+always a subset of what is described here, and only when the user presses the button. A red banner on every screen says «WENIGER LÄRM LABOR – kann Audio aufzeichnen»
 (and «Aufnahme läuft» while recording). The Labor app has no `INTERNET` and no location permission
 either (the internal `laborKarte` variant below has them, for «Messwerte teilen» and «Laut! Melden» only).
 Recordings can contain voices of people nearby; use the Labor build only where everyone recorded

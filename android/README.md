@@ -1338,9 +1338,10 @@ In addition, while recording is on, every classifier run (once per second) is lo
 `classifier/<yyyyMMdd_HH>.jsonl`, also where no clip exists, so missed events stay visible.
 
 Settings apply from the next start of a measurement; switching recording off stops it at once.
-The section also shows the space used and the number of clips and hour files, and has
-«In Ordner exportieren» (with «Ordner wählen» and «Wo sind die Dateien?»), «Als ZIP teilen» and
-«Alle Aufnahmen löschen».
+The section also shows the space used and the number of clips and hour files, and has the
+«Export» row with «Ohne Stundendateien» and the size line (0.9.4, below), «In Ordner exportieren»
+(with «Ordner wählen» and «Wo sind die Dateien?»), «Als ZIP teilen», «Exportierte Aufnahmen
+löschen» (0.9.4) and «Alle Aufnahmen löschen».
 
 **Folder export (branch labor-export, Labor editions only).** «In Ordner exportieren» copies the
 recording folder into a folder the owner picks once through Android's folder picker (the Storage
@@ -1363,6 +1364,49 @@ teilen» no longer refuses when the hour files exceed 500 MB: the ZIP then simpl
 and says so (the folder export covers them). Tests: `IncrementalExportTest` (ledger round trip,
 sources and the open hour file, incremental second run, failed file retried, lost permission,
 cancel) with an in-memory sink.
+
+**Export scope (0.9.4, Labor editions only).** A phone that has recorded for weeks holds gigabytes
+(the owner's: 3,37 GB, 6108 clips, 31 hour files, 29 classifier logs); handing over one night
+should not mean a 3,5 GB ZIP. Above the two export buttons a segmented row «Export» chooses what
+both take — «Alles» · «Seit letztem Export» · «Letzte 24 h» (default «Letzte 24 h») — and a switch
+«Ohne Stundendateien» (one switch for both buttons, default on) leaves out `continuous/*.m4a`. Both
+are kept in the Labor SharedPreferences (`export_scope`, `export_without_hour_files`). Below them a
+size line computed from the file list, e.g. «Letzte 24 h ohne Stundendateien: 412 Dateien, 165 MB»,
+plus «Davon neu für den Export-Ordner: …» when the folder export would copy less (it skips what is
+already there).
+
+- **«Alles»:** the folder export as before (everything new or changed against the ledger); the ZIP
+  everything.
+- **«Seit letztem Export»:** only files that are not in the ledger with the same size and
+  lastModified. The ZIP uses **the same ledger** as the folder export and, once the share menu has
+  opened, records its files in it, so «exportiert» means «copied to the folder or packed into a
+  ZIP». With an empty ledger the size line says «Noch nie exportiert – nimmt alles» and it behaves
+  like «Alles».
+- **«Letzte 24 h»:** files whose name falls in the 24 hours before the press — clips by the event
+  start in `ev_<id>_<yyyyMMdd_HHmmss>.wav`, classifier logs and hour files by their hour
+  `<yyyyMMdd_HH>` (an hour that overlaps the window counts); a name that does not parse falls back
+  to lastModified. The ZIP takes them all, the folder export those not yet there. The manifest is
+  replaced by a **filtered copy** `manifest.jsonl` (written to the app's cache, never over the
+  phone's own): every line whose `time` lies in the window, plus, for each session that has such a
+  line, the lines before the window it depends on — its `session_start` (calibration offset and
+  settings; `:dsp:replayBatch --offset manifest` reads it), its last `clock` line, the
+  `continuous_open` of an hour file still open at the window start, and its last `storage_full` /
+  `logs_full`. Keeping whole sessions instead would keep a measurement running for days in full. In
+  the export folder the filtered copy replaces a full manifest copied earlier until the next
+  «Alles» or «Seit letztem Export» export copies the full one again.
+
+The ZIP is named after the scope: `lessnoise-labor-<yyyyMMdd>-24h.zip`, `-seit-export.zip`,
+`-alles.zip`. Hour files still go into a ZIP only if they total less than 500 MB.
+
+**«Exportierte Aufnahmen löschen»** (0.9.4) frees the phone without losing unexported data: it
+deletes only files the ledger has with the same size and lastModified (re-checked at the moment of
+deleting), never the manifest, and removes them from the ledger; the confirm dialog states the count
+and size. Like «Alle Aufnahmen löschen» it is disabled while recording. The app cannot know whether
+a shared ZIP arrived — the dialog says so. «Ordner wählen» starts an empty ledger, which also forgets
+what went into ZIPs (deletes less, never more). Logic in `labor/LaborExportScope.kt`
+(`ExportScopes`, `ManifestWindow`), tests in `ExportScopeTest` (names and mtimes, the 24 h window,
+the ledger per target, the size line, the ZIP name and contents, the manifest window, the deletion
+selection); the controls are rendered by `ExportScopeScreenshots` (testLaborKarte, Paparazzi).
 
 **Where the files are:** `Android/data/ch.lessnoise.labor/files/audio/` on the phone's shared
 storage (`getExternalFilesDir(null)/audio`):
@@ -1437,8 +1481,9 @@ while measuring works, but the speaker is then measured too (use headphones). A 
 file shows «Clip nicht gefunden».
 
 **Sending data for analysis:** «Als ZIP teilen» zips the clips, the manifest and the classifier
-logs (and the hour files only if they total < 500 MB) and opens the share menu; it shows the size
-first. Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
+logs of the chosen «Export» scope (and the hour files unless «Ohne Stundendateien» is on, and only if
+they total < 500 MB) and opens the share menu; it shows the count and size first (0.9.4, see
+«Export scope» above). Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
 
 **Performance.** The capture thread only copies (ring buffer, one block copy into a bounded
 queue) and never waits; resampling, WAV writing, logging and AAC encoding run on two

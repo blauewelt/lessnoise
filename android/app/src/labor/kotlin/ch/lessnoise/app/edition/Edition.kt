@@ -61,7 +61,14 @@ import ch.lessnoise.app.labor.ClipLibrary
 import ch.lessnoise.app.labor.ClipPlayerSheet
 import ch.lessnoise.app.labor.ClipRateSampler
 import ch.lessnoise.app.labor.ClipsListDialog
+import ch.lessnoise.app.labor.ExportEstimate
 import ch.lessnoise.app.labor.ExportProgress
+import ch.lessnoise.app.labor.ExportScope
+import ch.lessnoise.app.labor.ExportScopeControls
+import ch.lessnoise.app.labor.ExportScopes
+import ch.lessnoise.app.labor.ExportSource
+import ch.lessnoise.app.labor.ExportTarget
+import ch.lessnoise.app.labor.ManifestWindow
 import ch.lessnoise.app.labor.IncrementalExport
 import ch.lessnoise.app.labor.LaborExportStore
 import ch.lessnoise.app.labor.SafExportSink
@@ -86,8 +93,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 
 // The LABOR edition (app/src/labor/): can record audio for debugging the event detector and the
 // classifier. Never published on the website. See PRIVACY.md → «Labor-Build».
@@ -345,7 +351,11 @@ object EditionUi {
         var exportProgress by remember { mutableStateOf<ExportProgress?>(null) }
         var exportInfo by remember { mutableStateOf(false) }
         var exportDone by remember { mutableStateOf<String?>(null) }
-        var zipPlan by remember { mutableStateOf<LaborDirs.Stats?>(null) }
+        var zipPlan by remember { mutableStateOf<ZipPlan?>(null) }
+        // 0.9.4: the «Export» row and «Ohne Stundendateien» (Labor SharedPreferences), «Exportierte Aufnahmen löschen».
+        var exportScope by remember { mutableStateOf(LaborExportStore.scope(context)) }
+        var withoutHours by remember { mutableStateOf(LaborExportStore.withoutHourFiles(context)) }
+        var deletePlan by remember { mutableStateOf<List<ExportSource>?>(null) }
         var zipBusy by remember { mutableStateOf(false) }
         var confirmDelete by remember { mutableStateOf(false) }
         var showClips by remember { mutableStateOf(false) }
@@ -354,15 +364,24 @@ object EditionUi {
 
         // «In Ordner exportieren» (branch labor-export): copies what is not yet in the picked folder. The hour
         // file being written is left out (Labor.openContinuousFile); the manifest is always re-copied.
+        // 0.9.4: within the chosen scope («Letzte 24 h»: with the filtered manifest), still only what is new or changed.
         fun runExport(tree: Uri) {
             exportBusy = true
             exportProgress = null
+            val sc = exportScope
+            val noHours = withoutHours
             scope.launch {
                 val outcome = withContext(Dispatchers.IO) {
                     try {
                         val ledger = LaborExportStore.loadLedger(context)
                         val sources = IncrementalExport.sources(dirs, Labor.openContinuousFile)
-                        val plan = IncrementalExport.plan(sources, ledger)
+                        val now = System.currentTimeMillis()
+                        val zone = ZoneId.systemDefault()
+                        val inScope = ExportScopes.select(
+                            sources, ExportTarget.ZIP, if (sc == ExportScope.LAST_24H) sc else ExportScope.ALL, noHours, ledger, now, zone,
+                        )
+                        val selected = ExportScopes.select(sources, ExportTarget.FOLDER, sc, noHours, ledger, now, zone)
+                        val plan = withScopedManifest(sc, selected, dirs, File(context.cacheDir, "labor_export"), now)
                         val sink = SafExportSink(context.contentResolver, tree, LaborExportStore.treeName(context, tree))
                         val r = IncrementalExport.run(
                             plan, ledger, sink,
@@ -370,7 +389,7 @@ object EditionUi {
                             onFileDone = { LaborExportStore.saveLedger(context, ledger) },
                         )
                         LaborExportStore.saveLedger(context, ledger)
-                        Result.success(r to (sources.size - plan.size))
+                        Result.success(r to (inScope.size - plan.size))
                     } catch (e: Exception) {
                         Result.failure(e)
                     }
@@ -379,8 +398,9 @@ object EditionUi {
                 exportProgress = null
                 outcome.fold(
                     onSuccess = { (r, skipped) ->
+                        Labor.filesVersion.value = Labor.filesVersion.value + 1 // the ledger changed: refresh the size line
                         exportDone = buildString {
-                            append("Exportiert: ${r.filesCopied} Dateien, ${mb(r.bytesCopied)} nach ${r.destination}")
+                            append("Exportiert (${sc.label}${if (noHours) " ohne Stundendateien" else ""}): ${r.filesCopied} Dateien, ${mb(r.bytesCopied)} nach ${r.destination}")
                             if (skipped > 0) append(" ($skipped schon vorhanden)")
                             if (r.failures.isNotEmpty()) append("; ${r.failures.size} fehlgeschlagen: ${r.failures.first().first} (${r.failures.first().second})")
                             append(".")
@@ -425,6 +445,12 @@ object EditionUi {
                 value = withContext(Dispatchers.IO) { dirs.stats() }
                 if (!recordingNow) break
                 delay(10_000)
+            }
+        }
+
+        val estimate by produceState<ExportEstimateUi?>(null, exportScope, withoutHours, version) {
+            value = withContext(Dispatchers.IO) {
+                try { estimateFor(context, dirs, exportScope, withoutHours) } catch (e: Exception) { null }
             }
         }
 
@@ -487,11 +513,27 @@ object EditionUi {
                 Text("Verworfen (Schreiben zu langsam oder Speicher voll): ${st.droppedThisSession}", style = MaterialTheme.typography.bodySmall)
             }
             OutlinedButton(onClick = { showClips = true }, enabled = (sts?.clipCount ?: 0) > 0) { Text("Clips anhören") }
+            ExportScopeControls(
+                scope = exportScope,
+                onScope = { exportScope = it; LaborExportStore.setScope(context, it) },
+                withoutHourFiles = withoutHours,
+                onWithoutHourFiles = { withoutHours = it; LaborExportStore.setWithoutHourFiles(context, it) },
+                estimate = estimate?.line,
+                folderNote = estimate?.folderNote,
+                enabled = !exportBusy && !zipBusy,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = !exportBusy, onClick = { exportOrPick() }) { Text(if (exportBusy) "Export …" else "In Ordner exportieren") }
                 OutlinedButton(
                     enabled = !zipBusy,
-                    onClick = { scope.launch { zipPlan = withContext(Dispatchers.IO) { dirs.stats() } } },
+                    onClick = {
+                        val sc = exportScope
+                        val noHours = withoutHours
+                        scope.launch {
+                            val p = withContext(Dispatchers.IO) { try { planZip(context, dirs, sc, noHours) } catch (e: Exception) { null } }
+                            if (p == null) message = "ZIP nicht möglich (Dateien nicht lesbar)." else zipPlan = p
+                        }
+                    },
                 ) { Text(if (zipBusy) "ZIP …" else "Als ZIP teilen") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -508,6 +550,15 @@ object EditionUi {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            OutlinedButton(enabled = !recordingNow, onClick = {
+                scope.launch {
+                    val p = withContext(Dispatchers.IO) {
+                        ExportScopes.exportedForDeletion(IncrementalExport.sources(dirs, Labor.openContinuousFile), LaborExportStore.loadLedger(context))
+                    }
+                    if (p.isEmpty()) message = "Nichts zu löschen: Keine Aufnahme ist schon exportiert (oder sie hat sich seither verändert)."
+                    else deletePlan = p
+                }
+            }) { Text("Exportierte Aufnahmen löschen") }
             OutlinedButton(enabled = !recordingNow, onClick = { confirmDelete = true }) { Text("Alle Aufnahmen löschen") }
             if (recordingNow) Text("Löschen ist während einer Aufnahme nicht möglich.", style = MaterialTheme.typography.bodySmall)
             message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -544,7 +595,12 @@ object EditionUi {
                             "«In Ordner exportieren» kopiert alles, was noch fehlt, in einen Ordner deiner Wahl – Downloads, ein USB-Stick " +
                             "oder die Google-Drive-App (sie erscheint im Ordner-Dialog als Ziel). Die Unterordner clips, classifier und " +
                             "continuous bleiben erhalten; das Manifest wird jedes Mal neu kopiert, die laufende Stundendatei erst nach dem " +
-                            "Stopp der Messung. Ein neuer Ordner lässt sich mit «Ordner wählen» setzen." +
+                            "Stopp der Messung. Ein neuer Ordner lässt sich mit «Ordner wählen» setzen.\n\n" +
+                            "«Export» gilt für beide Knöpfe: «Alles», «Seit letztem Export» (was noch in keinem Ordner und keinem ZIP war) " +
+                            "oder «Letzte 24 h» (Clips, Protokolle und Stundendateien dieser 24 h und ein Manifest nur mit ihren Zeilen; " +
+                            "das Manifest auf dem Telefon bleibt vollständig, im Export-Ordner ersetzt es bis zum nächsten «Alles» ein " +
+                            "früher kopiertes ganzes). «Ohne Stundendateien» lässt die grossen continuous-Dateien weg. " +
+                            "«Exportierte Aufnahmen löschen» löscht nur, was schon in einem Ordner oder ZIP ist." +
                             if (tree != null) "\n\nAktueller Export-Ordner: ${LaborExportStore.treeName(context, tree)}" else "\n\nNoch kein Export-Ordner gewählt."
                     )
                 },
@@ -553,22 +609,28 @@ object EditionUi {
         }
 
         zipPlan?.let { plan ->
-            val withContinuous = plan.continuousBytes in 1 until LaborDirs.ZIP_CONTINUOUS_LIMIT
-            val total = plan.textAndClipBytes + if (withContinuous) plan.continuousBytes else 0
+            val total = plan.files.sumOf { it.size }
+            val count = { folder: String -> plan.files.count { it.relativePath.startsWith("$folder/") } }
+            val zipName = ExportScopes.zipName(plan.scope, plan.nowMs, ZoneId.systemDefault())
             AlertDialog(
                 onDismissRequest = { zipPlan = null },
                 title = { Text("Als ZIP teilen") },
                 text = {
                     Text(
                         buildString {
-                            append("${plan.clipCount} Clips, das Manifest und ${plan.classifierFiles} Klassifikator-Protokolle")
-                            if (withContinuous) append(" sowie ${plan.hourFiles} Stundendateien")
-                            append(", etwa ${mb(total)}.")
-                            if (plan.continuousBytes >= LaborDirs.ZIP_CONTINUOUS_LIMIT) {
-                                append("\n\nOhne die ${plan.hourFiles} Stundendateien (${mb(plan.continuousBytes)}, zu gross für ein ZIP); «In Ordner exportieren» kopiert sie.")
+                            append(ExportScopes.estimateLine(plan.scope, plan.withoutHourFiles, ExportEstimate.of(plan.files), plan.neverExported)).append(".")
+                            append("\n\nDarin: ${count("clips")} Clips, das Manifest")
+                            if (plan.scope == ExportScope.LAST_24H) append(" (nur die Zeilen der letzten 24 h; auf dem Telefon bleibt es vollständig)")
+                            append(", ${count("classifier")} Klassifikator-Protokolle")
+                            if (count("continuous") > 0) append(" und ${count("continuous")} Stundendateien")
+                            append(".")
+                            if (plan.files.size <= 1) append("\n\nAusser dem Manifest ist nichts in dieser Auswahl.")
+                            if (plan.leftOutHours.isNotEmpty()) {
+                                append("\n\nOhne die ${plan.leftOutHours.size} Stundendateien (${mb(plan.leftOutHours.sumOf { it.size })}, zu gross für ein ZIP); «In Ordner exportieren» kopiert sie.")
                             }
                             if (total > 100_000_000L) append("\n\nDas ZIP ist gross; nicht jede App kann es versenden.")
-                            if (recordingNow) append("\n\nDie laufende Stundendatei ist erst nach dem Stopp der Messung lesbar.")
+                            if (recordingNow && !plan.withoutHourFiles) append("\n\nDie laufende Stundendatei ist erst nach dem Stopp der Messung lesbar.")
+                            append("\n\n$zipName. Danach gelten diese Dateien als exportiert («Seit letztem Export», «Exportierte Aufnahmen löschen»).")
                         }
                     )
                 },
@@ -581,8 +643,7 @@ object EditionUi {
                                 try {
                                     val dir = File(context.externalCacheDir ?: context.cacheDir, "labor_share")
                                     dir.listFiles()?.forEach { it.delete() }
-                                    val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmm"))
-                                    File(dir, "lessnoise-labor-$stamp.zip").also { dirs.zipTo(it, withContinuous) }
+                                    File(dir, zipName).also { ExportScopes.writeZip(it, plan.files) }
                                 } catch (e: Exception) {
                                     null
                                 }
@@ -590,7 +651,10 @@ object EditionUi {
                             zipBusy = false
                             if (zip == null) message = "ZIP konnte nicht erstellt werden (Speicher?)."
                             else try {
-                                shareFiles(context, listOf(zip), "application/zip", "Weniger Lärm Labor – Aufnahmen")
+                                shareFiles(context, listOf(zip), "application/zip", "Weniger Lärm Labor – Aufnahmen (${plan.scope.label})")
+                                // 0.9.4: the ZIP shares the folder export's ledger (one notion of «exportiert»).
+                                withContext(Dispatchers.IO) { recordZipped(context, plan) }
+                                Labor.filesVersion.value = Labor.filesVersion.value + 1
                             } catch (e: Exception) {
                                 message = "Teilen nicht möglich: ${e.javaClass.simpleName}"
                             }
@@ -598,6 +662,43 @@ object EditionUi {
                     }) { Text("ZIP erstellen") }
                 },
                 dismissButton = { TextButton(onClick = { zipPlan = null }) { Text("Abbrechen") } },
+            )
+        }
+
+        deletePlan?.let { files ->
+            val bytes = files.sumOf { it.size }
+            val count = { folder: String -> files.count { it.relativePath.startsWith("$folder/") } }
+            AlertDialog(
+                onDismissRequest = { deletePlan = null },
+                title = { Text("Exportierte Aufnahmen löschen?") },
+                text = {
+                    Text(
+                        "${ExportScopes.files(files.size)}, ${ExportScopes.size(bytes)} (${count("clips")} Clips, " +
+                            "${count("classifier")} Klassifikator-Protokolle, ${count("continuous")} Stundendateien): nur, was schon in " +
+                            "einen Ordner exportiert oder in ein ZIP gepackt wurde und sich seither nicht verändert hat. " +
+                            "Das Manifest und alles noch nicht Exportierte bleiben. Ob ein geteiltes ZIP angekommen ist, weiss die App nicht."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        deletePlan = null
+                        LaborPlayer.close()
+                        scope.launch {
+                            val done = withContext(Dispatchers.IO) {
+                                val ledger = LaborExportStore.loadLedger(context)
+                                val d = ExportScopes.deleteExported(dirs.root, files, ledger)
+                                LaborExportStore.saveLedger(context, ledger)
+                                Labor.refreshClipIds(dirs)
+                                if (dirs.usedBytes() < s.maxBytes) Labor.status.value = Labor.status.value.copy(storageFull = false)
+                                d
+                            }
+                            Labor.filesVersion.value = Labor.filesVersion.value + 1
+                            message = "Gelöscht: ${ExportScopes.files(done.files)}, ${ExportScopes.size(done.bytes)} (schon exportiert). " +
+                                "Nicht Exportiertes bleibt." + if (done.files < files.size) " ${files.size - done.files} übersprungen (verändert)." else ""
+                        }
+                    }) { Text("Löschen") }
+                },
+                dismissButton = { TextButton(onClick = { deletePlan = null }) { Text("Abbrechen") } },
             )
         }
 
@@ -672,4 +773,74 @@ private fun gbLabel(gb: Double): String =
 private fun mb(bytes: Long): String = when {
     bytes >= 1_000_000_000L -> String.format(Locale.GERMANY, "%.2f GB", bytes / 1e9)
     else -> String.format(Locale.GERMANY, "%.1f MB", bytes / 1e6)
+}
+
+/** 0.9.4: what «Als ZIP teilen» packs, decided when the button is pressed. */
+private data class ZipPlan(
+    val scope: ExportScope,
+    val withoutHourFiles: Boolean,
+    /** In ZIP order; for «Letzte 24 h» the manifest is the filtered copy. */
+    val files: List<ExportSource>,
+    /** Hour files of the scope that are too big together for a ZIP (≥ LaborDirs.ZIP_CONTINUOUS_LIMIT). */
+    val leftOutHours: List<ExportSource>,
+    val neverExported: Boolean,
+    val nowMs: Long,
+)
+
+/** 0.9.4: the size line under «Export» and, if it differs, what is new for the export folder. */
+private data class ExportEstimateUi(val line: String, val folderNote: String?)
+
+/** «Letzte 24 h»: [selected] with the manifest replaced by its filtered copy in [tmpDir]. */
+private fun withScopedManifest(scope: ExportScope, selected: List<ExportSource>, dirs: LaborDirs, tmpDir: File, nowMs: Long): List<ExportSource> {
+    if (scope != ExportScope.LAST_24H) return selected
+    return selected.map { s ->
+        if (s.relativePath != IncrementalExport.MANIFEST) s
+        else {
+            val f = File(tmpDir, IncrementalExport.MANIFEST)
+            ManifestWindow.write(dirs.manifest, f, nowMs - ExportScopes.WINDOW_MS, nowMs)
+            ExportScopes.replaced(s, f)
+        }
+    }
+}
+
+private fun planZip(context: Context, dirs: LaborDirs, scope: ExportScope, withoutHours: Boolean): ZipPlan {
+    val ledger = LaborExportStore.loadLedger(context)
+    val sources = IncrementalExport.sources(dirs, Labor.openContinuousFile)
+    val now = System.currentTimeMillis()
+    val selected = ExportScopes.select(sources, ExportTarget.ZIP, scope, withoutHours, ledger, now, ZoneId.systemDefault())
+    val (files, leftOut) = if (withoutHours) selected to emptyList() else ExportScopes.fitZip(selected)
+    val withManifest = withScopedManifest(scope, files, dirs, File(context.cacheDir, "labor_zip_manifest"), now)
+    return ZipPlan(scope, withoutHours, withManifest, leftOut, ExportScopes.neverExported(ledger), now)
+}
+
+/**
+ * After the share sheet opened: the ZIP's files count as exported. The manifest's entry only marks
+ * «schon einmal exportiert» (it is copied every time and never deleted), so the filtered one may stand for it.
+ */
+private fun recordZipped(context: Context, plan: ZipPlan) {
+    val ledger = LaborExportStore.loadLedger(context)
+    for (f in plan.files) ledger.record(f.relativePath, f.size, f.lastModified)
+    LaborExportStore.saveLedger(context, ledger)
+}
+
+private fun estimateFor(context: Context, dirs: LaborDirs, scope: ExportScope, withoutHours: Boolean): ExportEstimateUi {
+    val ledger = LaborExportStore.loadLedger(context)
+    val sources = IncrementalExport.sources(dirs, Labor.openContinuousFile)
+    val now = System.currentTimeMillis()
+    val zone = ZoneId.systemDefault()
+    // «Letzte 24 h»: the filtered manifest's size (one pass over the manifest), not the whole file's.
+    val manifestBytes = if (scope == ExportScope.LAST_24H) ManifestWindow.bytes(dirs.manifest, now - ExportScopes.WINDOW_MS, now) else null
+    fun est(list: List<ExportSource>): ExportEstimate {
+        val e = ExportEstimate.of(list)
+        val m = list.firstOrNull { it.relativePath == IncrementalExport.MANIFEST }
+        return if (m != null && manifestBytes != null) e.copy(bytes = e.bytes - m.size + manifestBytes) else e
+    }
+    val zip = ExportScopes.select(sources, ExportTarget.ZIP, scope, withoutHours, ledger, now, zone)
+    val folder = ExportScopes.select(sources, ExportTarget.FOLDER, scope, withoutHours, ledger, now, zone)
+    val line = ExportScopes.estimateLine(scope, withoutHours, est(zip), ExportScopes.neverExported(ledger))
+    val note = if (folder.size != zip.size) {
+        val f = est(folder)
+        "Davon neu für den Export-Ordner: ${ExportScopes.files(f.files)}, ${ExportScopes.size(f.bytes)}."
+    } else null
+    return ExportEstimateUi(line, note)
 }
