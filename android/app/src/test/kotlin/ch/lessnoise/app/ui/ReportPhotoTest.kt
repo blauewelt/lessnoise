@@ -138,7 +138,11 @@ class ReportPhotoTest {
         assertTrue(ui.contains("ReportPhotoRow(draft, enabled = !waiting, onTake = { camera() }, onRemove = { dropDraft() })"))
         assertTrue(ui.contains("val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)"))
         assertFalse(ui.contains("OutlinedTextField") || ui.contains("ReportQueue.add("), "no plate field; queued only together with its photo")
-        assertEquals("Foto vom Fahrzeug (optional)", reportPhotoButton(false))
+        // 0.9.4.2: «Foto» beside the status line; «Foto vom Fahrzeug (optional)» stays its spoken label.
+        assertEquals("Foto", reportPhotoButton(false))
+        assertEquals("Foto vom Fahrzeug (optional)", ReportPhotos.BUTTON)
+        assertTrue(ui.substringAfter("fun ReportPhotoRow(").substringBefore("\n}\n").contains("contentDescription = ReportPhotos.BUTTON"))
+        assertTrue(ui.contains("photoBesideStatus = draft == null,"))
         assertEquals("Neues Foto", reportPhotoButton(true))
         assertEquals(56, REPORT_THUMB_DP)
         // The app sweeps on every change of the queue and clears the camera's leftovers at start.

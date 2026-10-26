@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.1-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.4.2-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -77,8 +77,9 @@ class EditionTextTest {
         else assertFalse(BuildConfig.VERSION_NAME.contains('-'), BuildConfig.VERSION_NAME)
         // 0.9.4.1 (versionCode 46; Labor only, branch labor-0.9.1): one version for all four flavours; the
         // owner's new rule: a Labor-only fix gets a fourth component (update.html, stats.py cope with it).
-        assertEquals(46, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.1"), BuildConfig.VERSION_NAME)
+        // 0.9.4.2 (versionCode 47; Labor·Karte first, branch labor-0.9.1): the report dialog.
+        assertEquals(47, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.2"), BuildConfig.VERSION_NAME)
     }
 
     @Test

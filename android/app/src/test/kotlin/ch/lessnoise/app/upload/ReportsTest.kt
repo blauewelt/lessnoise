@@ -246,7 +246,7 @@ class ReportsTest {
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
         // 0.8.6: the dialog's content is ReportDialogBody (0.9.1: always passed to ReportDialogLayout); the line is
         // in a Row with an info icon, behind no condition, outside the scrolling part, directly above «Senden».
-        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
+        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.9.4.2: the content (ReportDialogBody): Was war es? · Wohin fuhr es? · level and place · Foto\n                    ReportDialogBody("))
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
         val lines = body.lines()
         val at = lines.indexOfFirst { it.contains("Text(REPORT_SPOT_WARNING") }

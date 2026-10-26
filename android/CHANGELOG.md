@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.4.2 — Labor·Karte first (branch labor-0.9.1): report dialog — Töff · Auto · Andere, vehicle before direction, fits one screen (versionCode 47)
+
+In short: the owner's three points about «Laut! Melden». Only the dialog changes; what a report sends is
+unchanged (category, compass reading and level of the «Senden» tap, time, place, never the photo). The
+code is in `src/main` and `src/karte`, so the Online-Version would get it with its next release; built and
+handed over first as Labor·Karte.
+
+- **Töff · Auto · Andere:** one row of three segment buttons (56 dp, icon left of the label). «Andere ▾»
+  slides open a second row **Lastwagen · Flugzeug**; a choice there is selected and shown on «Andere»
+  («Lastwagen ▴»), so it stays visible when the row is shut; Töff or Auto shut it. From the «Sehr laut»
+  notification a suggested Lastwagen opens the row at once, with «erkannt» there. The order is fixed (until
+  0.9.4.1 a 2 × 2 grid with the suggested ones moved first).
+- **Vehicle first, then direction:** «Was war es?» at the top, then «Wohin fuhr es?» with the compass —
+  «this kind of vehicle went that way». The live «Nord · 358°» moved to the heading's right.
+- **Fits one screen:** the disc takes the height that is left (140–220 dp, was always 200 dp); level and
+  place are one compact status (microphone icon, «68,9 dB(A) · Spitze 75,8», «Standort ± 100 m · Karte
+  verschiebbar») with a small «Foto» beside it instead of a card and a full-width button; a compact title
+  row. On 412 × 915 dp and on 360 × 740 dp (font 1.0) nothing scrolls; on 360 × 640 dp at font 1.3 the
+  middle scrolls, the category row and «Senden» stay on screen.
+- Tests: the row model (`reportCategoryButtons`, open/shut rules, TalkBack labels), `reportDiscDp`, the
+  status texts; renders of the dialog in 11 states on three phone sizes (`ReportDialogDeviceScreenshots`).
+
 ## 0.9.4.1 — Labor only (branch labor-0.9.1): export runs in the background with progress; ZIP no longer gets cancelled (versionCode 46)
 
 In short: the owner's «Als ZIP teilen» of 2,8 GB showed «ZIP …» for a long time without progress and

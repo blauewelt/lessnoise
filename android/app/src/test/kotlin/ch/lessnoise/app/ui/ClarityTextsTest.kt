@@ -28,13 +28,25 @@ class ClarityTextsTest {
         assertEquals(40, REPORT_REMOVE_TOUCH_DP)
         val ui = src("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt")
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
-        // The heading comes right before the disc, in the style of «Was war es?».
-        assertTrue(body.contains("Text(REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)"))
-        assertTrue(body.indexOf("Text(REPORT_WHERE") < body.indexOf("disc()"))
-        assertTrue(body.contains("Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)"))
-        // The microphone label is part of the level stats, shown whenever the level is.
-        val level = src("src/main/kotlin/ch/lessnoise/app/ui/ReportLevel.kt").substringAfter("fun ReportLevelStats(").substringBefore("\n}\n")
-        assertTrue(level.contains("ReportLevelUi.MIC_ON, style = MaterialTheme.typography.labelSmall"))
+        // The heading comes right before the disc, in the style of «Was war es?»; 0.9.4.2: drawn by the Panel (editions
+        // with the map), with the live label at its right, then the hint, then the disc.
+        val panel = src("src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").substringAfter("private fun PanelLines(").substringBefore("\n    }\n")
+        assertTrue(panel.contains("REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,"), panel)
+        assertTrue(panel.indexOf("REPORT_WHERE") < panel.indexOf("liveLabel(") && panel.indexOf("liveLabel(") < panel.indexOf("POINT_HINT") && panel.indexOf("POINT_HINT") < panel.indexOf("disc()"))
+        assertTrue(body.indexOf("ReportCategoryRows(rows") < body.indexOf("disc(discSize, measureOnly)"))
+        assertTrue(body.contains("Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))"))
+        // 0.9.4.2: «Mikrofon läuft» is the microphone icon at the start of the status line (its alternate text, and
+        // in the line's spoken sentence), shown whenever the level is.
+        val level = src("src/main/kotlin/ch/lessnoise/app/ui/ReportLevel.kt").substringAfter("fun ReportStatusLine(").substringBefore("\n}\n")
+        assertTrue(level.contains("appendInlineContent(STATUS_MIC, ReportLevelUi.MIC_ON)") && level.contains("Icon(AppIcons.Mic,"), level)
+        assertTrue(level.indexOf("appendInlineContent(STATUS_MIC, ReportLevelUi.MIC_ON)") < level.lastIndexOf("row(placeTrailing, place)"), "the level first, then the place")
+        assertEquals("Mikrofon läuft: 68,9 dB(A) jetzt, Spitze 75,8 dB(A)", reportLevelDescription(ReportLevelNow(68.9, 75.8)))
+        assertEquals("68,9 dB(A) · Spitze 75,8", reportLevelPart(ReportLevelNow(68.9, 75.8)))
+        assertEquals("– dB(A) · Spitze –", reportLevelPart(ReportLevelNow()))
+        // No break inside a part, only after « · » (and «·» ends the line).
+        assertEquals("Standort\u00A0±\u00A0100\u00A0m\u00A0· Karte verschiebbar", reportStatusNoBreak("Standort ± 100 m · Karte verschiebbar"))
+        assertEquals("Standort von Hand gesetzt", reportStatusNoBreak(REPORT_MOVED_LINE))
+        assertEquals("Spitze\u00A075,8", reportStatusNoBreak("Spitze 75,8"))
         // The photo's «×»: the 40 dp target holds the 22 dp circle.
         val photo = ui.substringAfter("fun ReportPhotoRow(").substringBefore("\n}\n")
         assertTrue(photo.contains("size(REPORT_REMOVE_TOUCH_DP.dp)") && photo.contains("Modifier.size(22.dp)"))

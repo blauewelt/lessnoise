@@ -7,6 +7,7 @@ import android.content.pm.ActivityInfo
 import android.hardware.GeomagneticField
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -90,8 +92,11 @@ object ReportDirectionUi {
     /** 0.9.2: an additional line under [POINT_HINT] (error colour) while the compass is unreliable, never instead of it. */
     const val CALIBRATE_HINT = "Kompass ungenau: Telefon in Form einer Acht bewegen."
 
-    /** 0.8.1: the disc's size (0.7.8: 240 dp in its own dialog); it still shows 300 m across. */
-    const val DISC_DP = 200
+    /**
+     * 0.8.1: the disc's size (0.7.8: 240 dp in its own dialog); it still shows 300 m across. 0.9.4.2: the
+     * largest size; the dialog passes the size that fits the screen (`reportDiscDp`, [REPORT_DISC_MIN_DP]–[REPORT_DISC_MAX_DP]).
+     */
+    const val DISC_DP = REPORT_DISC_MAX_DP
 
     /**
      * Magnetic declination (degrees, east positive) at the report's own place and time, from
@@ -170,12 +175,23 @@ object ReportDirectionUi {
         reading: State<CompassReading?>,
         fix: Pair<Double, Double>?,
         moved: Pair<Double, Double>?,
-        /** 0.8.6, for the JVM renders only (ReportDialogScreenshots): tiles drawn instead of downloading any; null in the app. */
+        /** 0.8.6, for the JVM renders only (ReportDialogDeviceScreenshots): tiles drawn instead of downloading any; null in the app. */
         previewTiles: Map<ReportMapTiles.Tile, ImageBitmap>? = null,
         /** 0.9.2: told whether the map can be dragged now (streets drawn, a fix and a reading), for the hint in the location row. */
         onDraggable: (Boolean) -> Unit = {},
+        /** 0.9.4.2: the disc's side, from the height the dialog has left (ReportDialogBody, `reportDiscDp`). */
+        discSize: Dp = DISC_DP.dp,
+        /**
+         * 0.9.4.2: true for the dialog's measuring pass only: the hint lines and the live label without the disc
+         * (no canvas, no tiles requested, no effects), so the dialog learns how much height the rest needs.
+         */
+        measureOnly: Boolean = false,
         onMove: (Pair<Double, Double>) -> Boolean,
     ) {
+        if (measureOnly) {
+            PanelLines(reading.value) {}
+            return
+        }
         // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
         var frozenDeg by remember(fix) { mutableStateOf<Double?>(null) }
         var dragging by remember(fix) { mutableStateOf(false) }
@@ -232,10 +248,41 @@ object ReportDirectionUi {
                 }
             }
         // 0.8.6: the disc with the credit tucked into its bottom-right corner (outside the circle), the
-        // heading in titleMedium 8 dp under it. 0.9.2: the hint lines ABOVE the disc, left-aligned under the
+        // heading under it. 0.9.2: the hint lines ABOVE the disc, left-aligned under the
         // dialog's heading «Wohin fuhr es?» (ReportDialogBody): on a short screen the disc fills the visible
         // part, and the line saying what the arrow is for must not be the part that is scrolled away.
+        // 0.9.4.2: the disc's side is [discSize] (the dialog's height decides), at most the width.
+        PanelLines(r) {
+            Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f)) {
+                DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
+                if (tiles.isNotEmpty() && r != null) {
+                    Text(
+                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.BottomEnd),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * 0.9.4.2: the panel's lines around [disc]: the heading «Wohin fuhr es?» ([REPORT_WHERE]; 0.9.2–0.9.4.1 drawn
+     * by the dialog above the panel) with the live label «Nordost · 47°» at its right (until 0.9.4.1 a line of
+     * its own under the disc: 24 dp the dialog needs to fit one screen), [POINT_HINT], always, and
+     * [CALIBRATE_HINT] in addition while the compass is unreliable (0.9.2), then the disc. Shared by the real
+     * panel and the dialog's measuring pass (an empty [disc]), so both have the same height but the disc's.
+     */
+    @Composable
+    private fun PanelLines(r: CompassReading?, disc: @Composable () -> Unit) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(if (r == null) "…" else liveLabel(r.magneticDeg), style = MaterialTheme.typography.titleSmall)
+            }
+            Spacer(Modifier.height(2.dp))
             // What the arrow is for, always; the figure-eight hint only in addition, under it (0.9.2; until
             // 0.9.1 it replaced this line).
             Text(
@@ -248,21 +295,8 @@ object ReportDirectionUi {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.widthIn(max = DISC_DP.dp).fillMaxWidth().aspectRatio(1f)) {
-                DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
-                if (tiles.isNotEmpty() && r != null) {
-                    Text(
-                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.BottomEnd),
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                if (r == null) "…" else liveLabel(r.magneticDeg),
-                style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
-            )
+            Spacer(Modifier.height(6.dp))
+            disc()
         }
     }
 

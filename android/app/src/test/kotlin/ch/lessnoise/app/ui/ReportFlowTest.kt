@@ -23,29 +23,107 @@ class ReportFlowTest {
     private val fix = LocationPolicy.ReportOutcome.Fix(47.37691, 8.54169, 12.0, "h26833_12479")
     private val noFix = LocationPolicy.ReportOutcome.Problem(LocationPolicy.Outcome.NoFix)
 
+    /** 0.9.4.2 (owner): Töff · Auto · «Andere» in one row; «Andere» folds out Lastwagen · Flugzeug (until 0.9.4.1 a 2 × 2 grid). */
     @Test
-    fun theGridIsTwoColumnsInTheOrderOfTheButtons() {
-        // 0.9.1: four categories, a 2 × 2 grid.
-        assertEquals(
-            listOf(listOf(MOTORRAD, AUTO), listOf(LASTWAGEN, FLUGZEUG)),
-            reportCategoryRows(reportCategoryOrder(emptyList())),
-        )
-        // From the «Sehr laut» notification: the suggested ones first (top row), the rest as always.
-        assertEquals(
-            listOf(listOf(AUTO, LASTWAGEN), listOf(MOTORRAD, FLUGZEUG)),
-            reportCategoryRows(reportCategoryOrder(listOf(AUTO, LASTWAGEN))),
-        )
-        assertEquals(
-            listOf(listOf(FLUGZEUG, MOTORRAD), listOf(AUTO, LASTWAGEN)),
-            reportCategoryRows(reportCategoryOrder(listOf(FLUGZEUG))),
-        )
-        // Every offered category exactly once, whatever is suggested; a suggestion not offered is left out.
-        for (s in listOf(emptyList(), listOf(AUTO, LASTWAGEN), ReportCategory.entries.toList(), listOf(POSER), listOf(MOTORRAD, POSER))) {
-            assertEquals(ReportCategory.OFFERED.toSet(), reportCategoryRows(reportCategoryOrder(s)).flatten().toSet())
-            assertEquals(4, reportCategoryRows(reportCategoryOrder(s)).flatten().size)
+    fun oneRowWithAndereThatFoldsOutTheRarerOnes() {
+        assertEquals(listOf(MOTORRAD, AUTO), REPORT_MAIN_CATEGORIES)
+        assertEquals(listOf(LASTWAGEN, FLUGZEUG), REPORT_MORE_CATEGORIES)
+        assertEquals(ReportCategory.OFFERED, REPORT_MAIN_CATEGORIES + REPORT_MORE_CATEGORIES)
+        assertEquals("Andere", REPORT_MORE)
+        // Nothing chosen, row shut: Töff · Auto · «Andere» (its own icon), none selected, no «erkannt».
+        val none = reportCategoryButtons(emptyList(), null, expanded = false)
+        assertEquals(listOf("Töff", "Auto", "Andere"), none.main.map { it.label })
+        assertEquals(listOf(MOTORRAD, AUTO, null), none.main.map { it.category })
+        assertEquals(listOf(MOTORRAD, AUTO, null), none.main.map { it.icon })
+        assertEquals(listOf("Lastwagen", "Flugzeug"), none.more.map { it.label })
+        assertFalse(none.expanded)
+        assertTrue((none.main + none.more).none { it.selected || it.suggested })
+        // Auto chosen: only Auto selected.
+        val auto = reportCategoryButtons(emptyList(), AUTO, expanded = false)
+        assertEquals(listOf(false, true, false), auto.main.map { it.selected })
+        assertTrue(auto.more.none { it.selected })
+        // Lastwagen chosen in the second row: selected there, and «Andere» shows «Lastwagen» with its icon, selected,
+        // so the choice stays visible with the row shut; a tap on «Andere» still selects nothing (category null).
+        for (open in listOf(true, false)) {
+            val lw = reportCategoryButtons(emptyList(), LASTWAGEN, expanded = open)
+            assertEquals(ReportCategoryButton(null, "Lastwagen", LASTWAGEN, selected = true, suggested = false), lw.main[2])
+            assertEquals(listOf(true, false), lw.more.map { it.selected })
+            assertEquals(listOf(false, false), lw.main.take(2).map { it.selected })
+            assertEquals(open, lw.expanded)
         }
-        // An odd count leaves one alone in the last row.
-        assertEquals(listOf(listOf(MOTORRAD, AUTO), listOf(LASTWAGEN)), reportCategoryRows(listOf(MOTORRAD, AUTO, LASTWAGEN)))
+        assertEquals("Flugzeug", reportCategoryButtons(emptyList(), FLUGZEUG, true).main[2].label)
+        // Every offered category exactly once (as a selectable button), whatever is suggested or chosen.
+        for (s in listOf(emptyList(), listOf(AUTO, LASTWAGEN), ReportCategory.entries.toList(), listOf(POSER), listOf(MOTORRAD, POSER))) {
+            for (c in listOf(null, MOTORRAD, LASTWAGEN, POSER)) {
+                val r = reportCategoryButtons(s, c, expanded = false)
+                assertEquals(ReportCategory.OFFERED, (r.main + r.more).mapNotNull { it.category })
+                assertEquals(1, r.main.count { it.category == null }, "one «Andere»")
+            }
+        }
+        // A category not offered (old reports) is never shown as chosen.
+        assertTrue(reportCategoryButtons(emptyList(), POSER, false).let { r -> (r.main + r.more).none { it.selected } })
+    }
+
+    @Test
+    fun theSecondRowOpensAndShuts() {
+        // At the start: open when the notification suggests a rarer one (its «erkannt» is seen) or one is chosen.
+        assertFalse(reportMoreOpenAtStart(emptyList(), null))
+        assertFalse(reportMoreOpenAtStart(listOf(MOTORRAD, AUTO), null))
+        assertFalse(reportMoreOpenAtStart(listOf(AUTO), AUTO))
+        assertTrue(reportMoreOpenAtStart(listOf(AUTO, LASTWAGEN), null))
+        assertTrue(reportMoreOpenAtStart(listOf(LASTWAGEN), LASTWAGEN))
+        assertTrue(reportMoreOpenAtStart(listOf(FLUGZEUG), FLUGZEUG))
+        assertTrue(reportMoreOpenAtStart(emptyList(), FLUGZEUG), "back from «Nochmals» with Flugzeug chosen")
+        // «Andere» toggles; Töff and Auto shut the row; Lastwagen and Flugzeug leave it as it is (open).
+        assertTrue(reportMoreOpenAfter(null, open = false))
+        assertFalse(reportMoreOpenAfter(null, open = true))
+        for (open in listOf(true, false)) {
+            assertFalse(reportMoreOpenAfter(MOTORRAD, open))
+            assertFalse(reportMoreOpenAfter(AUTO, open))
+        }
+        assertTrue(reportMoreOpenAfter(LASTWAGEN, open = true))
+        assertTrue(reportMoreOpenAfter(FLUGZEUG, open = true))
+        // «erkannt» where the suggestion stands; on «Andere» too while its row is shut.
+        val road = reportCategoryButtons(listOf(AUTO, LASTWAGEN), null, expanded = true)
+        assertEquals(listOf(false, true, false), road.main.map { it.suggested })
+        assertEquals(listOf(true, false), road.more.map { it.suggested })
+        assertTrue(reportCategoryButtons(listOf(AUTO, LASTWAGEN), null, expanded = false).main[2].suggested)
+        assertFalse(reportCategoryButtons(listOf(MOTORRAD, AUTO), null, expanded = false).main[2].suggested)
+        // TalkBack labels.
+        assertEquals("Andere", reportCategoryDescription(reportCategoryButtons(emptyList(), null, false).main[2]))
+        assertEquals("Andere: Lastwagen", reportCategoryDescription(reportCategoryButtons(emptyList(), LASTWAGEN, true).main[2]))
+        assertEquals("Auto, erkannt", reportCategoryDescription(road.main[1]))
+        assertEquals("Lastwagen, erkannt", reportCategoryDescription(road.more[0]))
+        // The body keeps the state above both passes and applies it with the selection.
+        val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
+        val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
+        assertTrue(body.contains("var moreOpen by remember { mutableStateOf(reportMoreOpenAtStart(suggested, chosen)) }"))
+        assertTrue(body.contains("moreOpen = reportMoreOpenAfter(b.category, moreOpen)\n        b.category?.let(onSelect)"))
+        assertTrue(body.indexOf("var moreOpen") < body.indexOf("ReportFitDisc("))
+        val rows = ui.substringAfter("private fun ReportCategoryRows(").substringBefore("\n}\n")
+        assertTrue(rows.contains("AnimatedVisibility(") && rows.contains("visible = rows.expanded"), rows)
+    }
+
+    /** 0.9.4.2: the disc takes the height that is left, 140–220 dp. */
+    @Test
+    fun theDiscFitsTheHeightLeft() {
+        assertEquals(140, REPORT_DISC_MIN_DP)
+        assertEquals(220, REPORT_DISC_MAX_DP)
+        assertEquals(200, reportDiscDp(600f, 400f))
+        assertEquals(220, reportDiscDp(900f, 400f))
+        assertEquals(140, reportDiscDp(500f, 400f))
+        assertEquals(140, reportDiscDp(300f, 400f))
+        assertEquals(220, reportDiscDp(Float.POSITIVE_INFINITY, 400f))
+        assertEquals(171, reportDiscDp(571.9f, 400.5f))
+        val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
+        val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        val fit = ui.substringAfter("private fun ReportFitDisc(").substringBefore("\n}\n")
+        // The measuring pass: a zero disc, measureOnly; then the real one with reportDiscDp, scrolling.
+        assertTrue(fit.contains("content(0.dp, true)") && fit.contains("reportDiscDp(available, rest.toDp().value)") && fit.contains("verticalScroll(scroll)) { content(disc, false) }"), fit)
+        // The dialog hands both to the Panel.
+        val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        assertTrue(dialog.contains("discSize = size, measureOnly = measureOnly,"))
     }
 
     /** 0.9.1 (owner): the dialog offers exactly Töff, Auto, Lastwagen, Flugzeug; «Poser» and «anderes Fahrzeug» are kept only for old reports. */
@@ -53,17 +131,18 @@ class ReportFlowTest {
     fun theDialogOffersExactlyTheFour() {
         assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG), ReportCategory.OFFERED)
         assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug"), ReportCategory.OFFERED.map { it.label })
-        assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG), reportCategoryOrder(emptyList()))
         assertEquals(listOf(POSER, ANDERE), ReportCategory.entries.filter { !it.offered })
         // Still parsed (queued and sent reports of 0.9.0 and older).
         assertEquals(POSER, ReportCategory.fromId("poser"))
         assertEquals(ANDERE, ReportCategory.fromId("andere"))
-        // The dialog builds its grid from reportCategoryOrder, never from all entries.
+        // The «Andere» button is not the category ANDERE («anderes Fahrzeug», id andere): nothing is sent as «Andere».
+        assertNotEquals(ANDERE.label, REPORT_MORE)
+        // The dialog builds its rows from the two lists, never from all entries.
         val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
         val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        assertTrue(dialog.contains("categories = reportCategoryOrder(suggested),"))
-        assertFalse(ui.substringAfter("fun reportCategoryOrder(").substringBefore("\n\n").contains("entries"))
+        assertTrue(dialog.contains("suggested = suggested,") && dialog.contains("chosen = chosen,"))
+        assertFalse(ui.substringAfter("fun reportCategoryButtons(").substringBefore("\n}\n").contains("entries"))
     }
 
     @Test
@@ -175,7 +254,9 @@ class ReportFlowTest {
         // 0.8.6: the content is ReportDialogBody; the dialog passes the reset and the line.
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
         assertTrue(dialog.contains("onMoveBack = { moved = null },"))
-        assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) {\n                            TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
+        // 0.9.4.2: at the end of the status line's place (was in the location row of the card).
+        assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) ({\n                TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
+        assertTrue(body.contains("placeTrailing = moveBack,"))
         // 0.9.2: «· Karte verschiebbar» only while the disc says the drag works, and not while «Senden» waits.
         assertTrue(dialog.contains("fixLine = reportFixLine(fix?.accuracyText, moved != null, draggable = draggable && !waiting),"))
         assertTrue(dialog.contains("onDraggable = { draggable = it },"))
@@ -223,19 +304,25 @@ class ReportFlowTest {
         assertTrue(sendButton.contains("if (waiting) {\n            CircularProgressIndicator(") && sendButton.contains("REPORT_LOCATING, style = MaterialTheme.typography.labelLarge, maxLines = 1,"), sendButton)
         assertTrue(dialog.contains("dismissOnClickOutside = false"))
         val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
-        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.8.6: the content in three groups (ReportDialogBody): Wohin? · Was hörst du? · Was war es?\n                    ReportDialogBody("))
-        assertTrue(ui.contains("    scroll: ScrollState = rememberScrollState(),\n) {") && body.contains("Column(Modifier.weight(1f, fill = false).verticalScroll(scroll)) {"), "the groups scroll on small screens")
+        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.9.4.2: the content (ReportDialogBody): Was war es? · Wohin fuhr es? · level and place · Foto\n                    ReportDialogBody("))
+        // 0.9.4.2: the groups scroll inside ReportFitDisc (weight(1f, fill = false), so the bottom part keeps its place).
+        assertTrue(ui.contains("    scroll: ScrollState = rememberScrollState(),\n) {") && body.contains("ReportFitDisc(scroll, Modifier.weight(1f, fill = false)) {"), "the groups scroll on small screens")
         // 0.9.1: «Senden» is the body's last element, full width, outside the scrolling part (never scrolled away).
         val bodyLines = body.trimEnd().lines()
         assertEquals("        ReportSendButton(onClick = onSend, enabled = sendEnabled, waiting = waiting, modifier = Modifier.fillMaxWidth())", bodyLines[bodyLines.size - 2])
-        assertTrue(body.indexOf("ReportSendButton(") > body.indexOf("for (row in reportCategoryRows(categories))"), "under the grid")
-        // A category tap only selects; the selected one is drawn filled.
-        assertTrue(body.contains("selected = cat == chosen") && body.contains("{ onSelect(cat) }") && dialog.contains("onSelect = { cat -> select(cat) },"))
+        assertTrue(body.indexOf("ReportSendButton(") > body.indexOf("ReportCategoryRows(rows, enabled = !waiting, onTap = onTap)"), "under the rows")
+        // 0.9.4.2 (owner): the vehicle first, then the direction, then level and place.
+        val what = body.indexOf("Text(REPORT_WHAT")
+        assertTrue(what in 0 until body.indexOf("ReportCategoryRows(rows") && body.indexOf("ReportCategoryRows(rows") < body.indexOf("disc(discSize, measureOnly)"))
+        assertTrue(body.indexOf("disc(discSize, measureOnly)") < body.indexOf("ReportStatusLine("))
+        // A category tap only selects (and folds the row); the selected one is drawn filled.
+        assertTrue(body.contains("b.category?.let(onSelect)") && dialog.contains("onSelect = { cat -> select(cat) },"))
+        assertTrue(ui.substringAfter("fun reportCategoryButtons(").substringBefore("\n}\n").contains("selected = c == chosen"))
         assertTrue(dialog.contains("chosen = chosen,"))
         val select = dialog.substringAfter("fun select(").substringBefore("fun sendTap(")
         assertFalse(select.contains("advance()") || select.contains("send("), select)
         val buttons = ui.substringAfter("private fun CategoryButton(").substringBefore("\n}")
-        assertTrue(buttons.contains("if (selected) {") && buttons.contains("Button(onClick = onClick") && buttons.contains("OutlinedButton(onClick = onClick"))
+        assertTrue(buttons.contains("if (b.selected) {") && buttons.contains("Button(onClick = onClick") && buttons.contains("OutlinedButton(onClick = onClick"))
         assertTrue(buttons.contains("REPORT_SUGGESTED_MARK"), "the «erkannt» mark stays")
         // The reading is taken at the «Senden» tap, kept for a late fix.
         val sendTap = dialog.substringAfter("fun sendTap() {").substringBefore("\n            }")

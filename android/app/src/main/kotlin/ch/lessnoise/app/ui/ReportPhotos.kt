@@ -102,6 +102,9 @@ object ReportPhotos {
     /** 0.8.6: «Foto vom Fahrzeug (optional)» (0.8.5: «Foto»), so that it reads as optional next to the required category. */
     const val BUTTON = "Foto vom Fahrzeug (optional)"
     const val BUTTON_AGAIN = "Neues Foto"
+
+    /** 0.9.4.2: the visible label of the compact button beside the status line ([BUTTON] stays its spoken label). */
+    const val BUTTON_SHORT = "Foto"
     const val REMOVE = "Foto entfernen"
     const val DESCRIPTION = "Foto der Meldung"
     /** 0.9.2: «Foto löschen» (until 0.9.1 «Löschen», which read as deleting the report). */

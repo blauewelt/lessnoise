@@ -898,14 +898,28 @@ and switches sharing on only with «Ja, einschalten». Then **one dialog «Laut!
 Labor·Karte first, branch `labor-one-tap`; `ui/LocationFlows.kt`; 94 % of the screen wide, its
 content in a vertically scrollable column, a tap outside does nothing). It starts the one fix at once
 (`LocationFetcher.locateForReport`, the location permission asked first if needed; since 0.6.7 at
-any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom: «Erkannt um
-11:14» when it comes from the «Sehr laut» notification; the compass disc (editions with the map and a
-compass, below); «Standort wird gesucht …» until the fix is in, then «Standort ± 12 m»
-(`reportFixLine`); since 0.8.5 «Foto» (below; 0.7.6–0.8.4 «Kontrollschild (optional)»); the categories as outlined buttons in two columns
+any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom — **since 0.9.4.2
+(Labor·Karte first; owner: «this kind of vehicle went that way», and the whole dialog on one screen)**:
+the title row (megaphone left of «Laut! Melden»); **«Was war es?»** («Erkannt um 11:14» at its right when it
+comes from the «Sehr laut» notification) with **one row of three 56 dp segment buttons, icon left of the
+label: Töff · Auto · «Andere ▾»** — «Andere» slides open a second row **Lastwagen · Flugzeug** (trucks and
+aircraft are rare); a choice there selects it and «Andere» then shows it («Lastwagen ▴», drawn selected), so
+it stays visible with the row shut; Töff or Auto shut the row; a Lastwagen or Flugzeug suggested by the
+notification opens the row at the start, with «erkannt» there (`reportCategoryButtons`,
+`reportMoreOpenAtStart`, `reportMoreOpenAfter`; «Andere» is not a category, nothing is sent as «Andere»);
+**«Wohin fuhr es?»** with the live «Nord · 358°» at its right, the hint line(s) and the compass disc
+(editions with the map and a compass, below), its side from the height left, 140–220 dp
+(`reportDiscDp`: the dialog measures its content once without the disc, `ReportFitDisc`); one **status
+line**: a microphone icon (for «Mikrofon läuft»), «68,9 dB(A) · Spitze 75,8» and the button «Foto» at its
+right, under it the place «Standort wird gesucht …» / «Standort ± 12 m · Karte verschiebbar»
+(`reportFixLine`; «Zurück zum Standort» at its end once the map was moved); with a photo taken, its row
+under the status. On a 412 × 915 dp phone and on 360 × 740 dp at font 1.0 nothing scrolls; on 360 × 640 dp at
+font 1.3 the middle scrolls, the category row is at its top. Until 0.9.4.1 the order was disc · level card ·
+location row · «Foto» (full width) · the categories as outlined buttons in two columns
 — since 0.9.1 four, a 2 × 2 grid (Töff / Auto, Lastwagen / Flugzeug → ids `motorrad`, `auto`, `lastwagen`,
-`flugzeug`; `ReportCategory.OFFERED`, `reportCategoryOrder`, `reportCategoryRows`); until 0.9.0 six, with Poser / anderes Fahrzeug
+`flugzeug`; `ReportCategory.OFFERED`, `reportCategoryOrder`, `reportCategoryRows`, both gone in 0.9.4.2); until 0.9.0 six, with Poser / anderes Fahrzeug
 (until 0.6.3 «anderes») → `poser`, `andere`, which stay in the enum so that queued and listed reports of older
-versions still parse and the server still accepts them (DESIGN.md §4.7); «Flugzeug» since 0.7.7 — and, on every report since 0.6.3, «Wer oft vom
+versions still parse and the server still accepts them (DESIGN.md §4.7); «Flugzeug» since 0.7.7. Then, in every order, on every report since 0.6.3, «Wer oft vom
 gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
 «Abbrechen» and «Senden». Since 0.9.1 the groups above the line scroll on a short screen while the line,
 «Senden» (full width, 56 dp, the send icon; while it waits for the fix a small progress circle and «Standort wird
@@ -975,8 +989,10 @@ offline edition taking over also drops unsent reports. While a measurement runs 
 button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
 (grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportPhotoTest` (sizes, EXIF turn, the move, the sweep, no camera permission), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
 
-**The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Under the
-disc one line: the level now in `titleMedium` with a small «jetzt», and the peak since the dialog
+**The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Since 0.9.4.2
+the first line of the status (`ReportStatusLine`: microphone icon, «68,9 dB(A) · Spitze 75,8», semibold
+tabular value; a line breaks only after a «·», never inside a value; 0.8.6–0.9.4.1 a card with two large
+figures and «Mikrofon läuft»). In 0.8.5 under the disc one line: the level now in `titleMedium` with a small «jetzt», and the peak since the dialog
 opened, «Spitze 81,4 dB(A)» (reset at every opening; decimal comma, `Fmt.db`). While no measurement
 runs the dialog runs its own short-lived `MeasurementEngine` (the dsp engine of a measurement, no
 classifier, no category mapper, no event head, **no audio tap**) on an `AudioCapture` of the microphone
@@ -1005,9 +1021,11 @@ laut?» with «Richtung übernehmen» / «Überspringen»). `src/karte/.../ui/Re
 screen's orientation locked meanwhile, the sensors only while the app is in front; null on a phone
 without a compass, which then gets no disc and sends no direction) and `Panel` (the drawing); the
 Offline and Labor builds have the stand-in in `src/nomap` with the same API and no sensors. A 200 dp
-disc (240 dp in 0.7.8's own dialog): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
+disc (240 dp in 0.7.8's own dialog; since 0.9.4.2 140–220 dp, the size the dialog passes, `discSize`; the
+dialog's measuring pass calls the Panel with `measureOnly`, which composes only its lines — no canvas, no tile
+request, no effect): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
 16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
-below. Above the disc (0.9.2) the heading «Wohin fuhr es?» and, always, «Telefon in die Fahrtrichtung
+below (since 0.9.4.2 at the right of the heading). Above the disc (0.9.2) the heading «Wohin fuhr es?» (since 0.9.4.2 drawn by the Panel) and, always, «Telefon in die Fahrtrichtung
 halten»; while the compass is unreliable the figure-eight hint «Kompass ungenau: …» is an additional red
 line under it (until 0.9.1 it replaced the line under the label, and the arrow was left unexplained).
 While the streets are drawn the location row reads «Standort ± n m · Karte verschiebbar» (0.9.2; the

@@ -126,7 +126,7 @@ internal fun ReportDialogFrame(body: @Composable () -> Unit) {
     }
 }
 
-/** 0.9.1: one «Laut! Melden» dialog with synthetic values (the renders of ReportDialogScreenshots and ReportDialogSmallScreenshots). */
+/** 0.9.1: one «Laut! Melden» dialog with synthetic values (the renders of ReportDialogDeviceScreenshots and ClarityDialogScreenshots). */
 @Composable
 internal fun ReportDialogSample(
     chosen: ReportCategory?,
@@ -146,8 +146,8 @@ internal fun ReportDialogSample(
     val lon = 8.5417
     val meter = ReportLevelMeter()
     if (level) {
-        meter.step(61.0, 68.4, 60.0, valid = true)
-        meter.step(57.5, 58.0, 57.0, valid = true)
+        meter.step(68.9, 75.8, 66.0, valid = true)
+        meter.step(68.9, 70.0, 66.0, valid = true)
     }
     val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, sensorStatus))
     val fix = if (fixState == ReportFixState.SEARCHING) null else lat to lon
@@ -155,12 +155,13 @@ internal fun ReportDialogSample(
     ReportDialogFrame {
         ReportDialogBody(
             erkanntAt = if (suggested.isNotEmpty()) "22:36" else null,
-            disc = { ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles) { false } },
+            disc = { size, measureOnly -> ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles, discSize = size, measureOnly = measureOnly) { false } },
             level = if (level) meter else null,
             fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
             photo = { ReportPhotoRow(photo, enabled = !waiting, onTake = {}, onRemove = {}) },
+            photoBesideStatus = photo == null,
             photoNote = null,
-            categories = reportCategoryOrder(suggested), suggested = suggested, chosen = chosen, onSelect = {},
+            suggested = suggested, chosen = chosen, onSelect = {},
             sendEnabled = chosen != null && !waiting, onSend = {},
             // ScrollState clamps the value to the end once the layout knows the height.
             scroll = rememberScrollState(if (scrolledToEnd) Int.MAX_VALUE else 0),
@@ -168,12 +169,26 @@ internal fun ReportDialogSample(
     }
 }
 
-class ReportDialogScreenshots {
+/**
+ * 0.9.4.2: the «Laut! Melden» dialog in its states on one phone size: [widthDp] × [heightDp] at 480 dpi
+ * (3 px per dp) and [fontScale]. Written to $stadtlaerm.screenshotDir/0.9.4.2-dialog as
+ * report-<state>-<suffix>.png. The three sizes: the owner's phone (about 412 × 915 dp), a small phone
+ * (360 × 740 dp, font 1.0: everything must fit without scrolling) and a very small one with a large font
+ * (360 × 640 dp, font 1.3: may scroll, but the category row and «Senden» are on screen).
+ */
+abstract class ReportDialogDeviceScreenshots(widthDp: Int, heightDp: Int, fontScale: Float, private val suffix: String) {
     @get:Rule
-    val paparazzi = polishPaparazzi(3000)
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_6.copy(
+            screenWidth = widthDp * 3, screenHeight = heightDp * 3, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = fontScale,
+        ),
+        theme = "android:Theme.Material.Light.NoActionBar",
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4.2-dialog")),
+        useDeviceResolution = true,
+    )
 
     private fun dialog(
-        name: String,
+        state: String,
         dark: Boolean,
         chosen: ReportCategory?,
         fixState: ReportFixState = ReportFixState.FIX,
@@ -181,80 +196,53 @@ class ReportDialogScreenshots {
         suggested: List<ReportCategory> = emptyList(),
         level: Boolean = true,
         waiting: Boolean = false,
-    ) = paparazzi.snapshot(name) {
+        scrolledToEnd: Boolean = false,
+    ) = paparazzi.snapshot("report-$state-$suffix") {
         LessNoiseTheme(dark = dark) {
-            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting)
+            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting, scrolledToEnd)
         }
     }
 
-    @Test
-    fun reportDialogDark() = dialog("report-dialog-dark", dark = true, chosen = null)
+    @Test fun nothingChosen() = dialog("nothing", dark = false, chosen = null)
+    @Test fun nothingChosenDark() = dialog("nothing-dark", dark = true, chosen = null)
+    @Test fun autoChosen() = dialog("auto", dark = false, chosen = ReportCategory.AUTO)
+    @Test fun autoChosenDark() = dialog("auto-dark", dark = true, chosen = ReportCategory.AUTO)
 
-    @Test
-    fun reportDialogLight() = dialog("report-dialog", dark = false, chosen = null)
+    // «Andere» tapped, then «Lastwagen»: the second row stays open, «Andere» shows «Lastwagen ▴».
+    @Test fun andereLastwagen() = dialog("andere-lastwagen", dark = false, chosen = ReportCategory.LASTWAGEN)
+    @Test fun andereLastwagenDark() = dialog("andere-lastwagen-dark", dark = true, chosen = ReportCategory.LASTWAGEN)
 
-    @Test
-    fun reportDialogSelectedDark() = dialog("report-dialog-selected-dark", dark = true, chosen = ReportCategory.AUTO)
+    // From the «Sehr laut» notification (Labor·Karte): one suggestion Lastwagen, preselected, the row open, «erkannt» there.
+    @Test fun erkanntLastwagen() = dialog("erkannt-lastwagen", dark = false, chosen = ReportCategory.LASTWAGEN, suggested = listOf(ReportCategory.LASTWAGEN))
 
-    @Test
-    fun reportDialogSelectedLight() = dialog("report-dialog-selected", dark = false, chosen = ReportCategory.AUTO)
+    // road_traffic suggests Auto and Lastwagen (LoudAlertRule): nothing preselected, «erkannt» on both, the row open.
+    @Test fun erkanntRoad() = dialog("erkannt-auto-lastwagen", dark = false, chosen = null, suggested = listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN))
 
-    // From the «Sehr laut» notification (Labor·Karte): one suggestion, preselected, marked «erkannt».
-    @Test
-    fun reportDialogErkannt() = dialog(
-        "report-dialog-erkannt", dark = false, chosen = ReportCategory.MOTORRAD, suggested = listOf(ReportCategory.MOTORRAD),
-    )
-
-    // 0.9.1: a loud vehicle suggests Töff and Auto (two suggestions: none preselected).
-    @Test
-    fun reportDialogErkanntTwo() = dialog(
-        "report-dialog-erkannt-two", dark = false, chosen = null, suggested = listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO),
-    )
-
-    @Test
-    fun reportDialogMovedDark() = dialog(
-        "report-dialog-moved-dark", dark = true, chosen = ReportCategory.FLUGZEUG,
-        fixState = ReportFixState.MOVED, fixLine = REPORT_MOVED_LINE,
-    )
-
-    // «Senden» tapped before the fix, no microphone: 0.9.1: «Senden» shows the progress and «Standort wird gesucht …».
-    @Test
-    fun reportDialogWaiting() = dialog(
-        "report-dialog-waiting", dark = false, chosen = ReportCategory.LASTWAGEN,
+    // «Senden» tapped before the fix, no microphone: «Senden» shows the progress and «Standort wird gesucht …».
+    @Test fun waiting() = dialog(
+        "waiting", dark = false, chosen = ReportCategory.AUTO,
         fixState = ReportFixState.SEARCHING, fixLine = REPORT_LOCATING, level = false, waiting = true,
     )
-}
 
-/**
- * 0.9.1: the «Laut! Melden» dialog on a 360 × 640 dp phone (1080 × 1920 px at 480 dpi) with font scale 1.3:
- * the groups scroll, the rule-10 line and «Senden» stay on screen.
- */
-class ReportDialogSmallScreenshots {
-    @get:Rule
-    val paparazzi = Paparazzi(
-        deviceConfig = DeviceConfig.PIXEL_6.copy(
-            screenWidth = 1080, screenHeight = 1920, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.3f,
-        ),
-        theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.2-polish")),
-        useDeviceResolution = true,
+    @Test fun movedDark() = dialog(
+        "moved-dark", dark = true, chosen = ReportCategory.FLUGZEUG, fixState = ReportFixState.MOVED, fixLine = REPORT_MOVED_LINE,
     )
 
-    @Test fun small360x640() = paparazzi.snapshot("report-dialog-360x640-font130") {
-        LessNoiseTheme(dark = false) { ReportDialogSample(chosen = ReportCategory.AUTO) }
-    }
-
-    // The same, scrolled to the end: the grid and the photo button above the fixed line and «Senden».
-    @Test fun small360x640Scrolled() = paparazzi.snapshot("report-dialog-360x640-font130-scrolled") {
-        LessNoiseTheme(dark = false) { ReportDialogSample(chosen = ReportCategory.AUTO, scrolledToEnd = true) }
-    }
-
-    @Test fun small360x640Waiting() = paparazzi.snapshot("report-dialog-360x640-font130-waiting") {
-        LessNoiseTheme(dark = false) {
-            ReportDialogSample(chosen = ReportCategory.LASTWAGEN, fixState = ReportFixState.SEARCHING, fixLine = REPORT_LOCATING, level = false, waiting = true)
-        }
-    }
+    // Scrolled to the end (only differs where the content scrolls).
+    @Test fun movedScrolled() = dialog(
+        "moved-scrolled", dark = false, chosen = ReportCategory.FLUGZEUG, fixState = ReportFixState.MOVED, fixLine = REPORT_MOVED_LINE,
+        scrolledToEnd = true,
+    )
 }
+
+/** The owner's phone, approximately (412 × 915 dp), font 1.0. */
+class ReportDialog412x915Screenshots : ReportDialogDeviceScreenshots(412, 915, 1.0f, "412x915")
+
+/** A small phone, font 1.0: the whole dialog without scrolling. */
+class ReportDialog360x740Screenshots : ReportDialogDeviceScreenshots(360, 740, 1.0f, "360x740")
+
+/** A very small phone with a large font (0.9.1's case): may scroll; the category row and «Senden» on screen. */
+class ReportDialog360x640Font130Screenshots : ReportDialogDeviceScreenshots(360, 640, 1.3f, "360x640-font130")
 
 class PolishScreenshots {
     @get:Rule

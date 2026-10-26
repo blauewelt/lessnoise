@@ -8,7 +8,8 @@ import ch.lessnoise.app.ui.UNTERWEGS_BUTTON
 import ch.lessnoise.app.ui.UNTERWEGS_LABOR_HINT
 import ch.lessnoise.app.ui.REPORT_SUGGESTED_MARK
 import ch.lessnoise.app.ui.ReportPreset
-import ch.lessnoise.app.ui.reportCategoryOrder
+import ch.lessnoise.app.ui.reportCategoryButtons
+import ch.lessnoise.app.ui.reportMoreOpenAtStart
 import ch.lessnoise.app.upload.ReportCategory
 import java.io.File
 import kotlin.test.Test
@@ -100,17 +101,23 @@ class LoudAlertTest {
         assertEquals(listOf(ReportCategory.FLUGZEUG), LoudAlertRule.suggested("aircraft"))
         assertEquals("Flugzeug", LoudAlertRule.categoryLabel("aircraft"))
         assertEquals(emptyList<ReportCategory>(), LoudAlertRule.suggested("rail_tram"))
-        // Suggested first and marked «erkannt», all four offered still there: nothing is picked silently.
+        // Marked «erkannt» where they stand, all four offered still there: nothing is picked silently.
+        // 0.9.4.2: the order is fixed (Töff · Auto · «Andere» › Lastwagen · Flugzeug); a suggested Lastwagen or
+        // Flugzeug opens the second row at the start, so its «erkannt» is seen.
         assertEquals("erkannt", REPORT_SUGGESTED_MARK)
-        assertEquals(
-            listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG),
-            reportCategoryOrder(p!!.suggested),
-        )
-        assertEquals(
-            listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN, ReportCategory.MOTORRAD, ReportCategory.FLUGZEUG),
-            reportCategoryOrder(LoudAlertRule.suggested("road_traffic")),
-        )
-        assertEquals(ReportCategory.OFFERED, reportCategoryOrder(emptyList()))
+        val vehicle = reportCategoryButtons(p!!.suggested, null, reportMoreOpenAtStart(p.suggested, null))
+        assertEquals(listOf(true, true, false), vehicle.main.map { it.suggested })
+        assertFalse(vehicle.expanded)
+        val road = LoudAlertRule.suggested("road_traffic")
+        val roadRows = reportCategoryButtons(road, null, reportMoreOpenAtStart(road, null))
+        assertTrue(roadRows.expanded)
+        assertEquals(listOf(false, true, false), roadRows.main.map { it.suggested })
+        assertEquals(listOf(true, false), roadRows.more.map { it.suggested })
+        assertTrue(reportMoreOpenAtStart(LoudAlertRule.suggested("aircraft"), null))
+        for (s in listOf(p.suggested, road, LoudAlertRule.suggested("aircraft"), emptyList())) {
+            val r = reportCategoryButtons(s, null, false)
+            assertEquals(ReportCategory.OFFERED, (r.main + r.more).mapNotNull { it.category })
+        }
         // 0.9.1: every suggestion is one the dialog offers (never «Poser» or «anderes Fahrzeug»).
         for (c in listOf("loud_vehicle", "road_traffic", "aircraft", "rail_tram", null)) {
             assertTrue(LoudAlertRule.suggested(c).all { it.offered }, "$c")

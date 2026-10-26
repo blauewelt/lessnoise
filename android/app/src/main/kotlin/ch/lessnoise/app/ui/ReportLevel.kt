@@ -4,19 +4,28 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,13 +34,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import ch.lessnoise.app.icons.AppIcons
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -79,6 +86,8 @@ object ReportLevelUi {
     /**
      * 0.9.2: the small label in the level card's top-right corner: the numbers come from the microphone,
      * now (its own engine, or the running measurement's). Without it the card did not say where they come from.
+     * 0.9.4.2: a microphone icon at the start of the status line instead ([ReportStatusLine]); this text is
+     * its spoken form (TalkBack) and the icon's alternate text.
      */
     const val MIC_ON = "Mikrofon läuft"
 
@@ -265,41 +274,120 @@ fun ReportLevelEffect(meter: ReportLevelMeter, micAllowed: Boolean) {
 }
 
 /**
- * 0.8.6: the level in the dialog as two stat blocks side by side (until 0.8.5 one centred line «58,2
- * dB(A) jetzt · Spitze 81,4 dB(A)»): left the graphic_eq icon, the value now big and «dB(A) jetzt»
- * under it; right the peak since the dialog opened and «dB(A) Spitze». TalkBack reads one sentence.
+ * 0.9.4.2: one part of the status line: «68,9 dB(A) · Spitze 75,8» (the peak without its unit, which the
+ * value before it already names; «– dB(A) · Spitze –» before the first value). Until 0.9.4.1 the level was
+ * a card of its own with two large figures and «Mikrofon läuft».
+ */
+fun reportLevelPart(now: ReportLevelNow): String = "${ReportLevelUi.nowText(now.lafDb)} · ${ReportLevelUi.PEAK} ${Fmt.db(now.peakDb)}"
+
+/**
+ * 0.9.4.2: the status line never breaks inside a value with its unit («68,9 dB(A)», «Spitze 75,8», «Standort ±
+ * 100 m»: the spaces of a part with a digit become no-break spaces) and never before a «·» (it ends a line). Parts
+ * without a digit («Karte verschiebbar», «Standort von Hand gesetzt») break as usual: kept whole they would be cut
+ * inside a word on a narrow phone with a large font.
+ */
+fun reportStatusNoBreak(s: String): String =
+    s.split(" · ").joinToString("\u00A0· ") { part -> if (part.any { it.isDigit() }) part.replace(' ', '\u00A0') else part }
+
+/** 0.9.4.2: what TalkBack reads for the level (the icon has no text): one sentence, as the level card did. */
+fun reportLevelDescription(now: ReportLevelNow): String =
+    "${ReportLevelUi.MIC_ON}: ${ReportLevelUi.nowText(now.lafDb)} ${ReportLevelUi.NOW}, ${ReportLevelUi.peakText(now.peakDb)}"
+
+private const val STATUS_MIC = "mic"
+
+/**
+ * 0.9.4.2: the level and the place as one compact status, two lines at most on a phone at font scale 1:
+ * «🎤 68,9 dB(A) · Spitze 75,8» with [trailing] («Foto») at its end, and under it «⌖ Standort ± 100 m · Karte
+ * verschiebbar» over the full width (beside «Foto» the place would wrap to a third line on a 360 dp phone).
+ * Replaces the level card (two stat blocks and «Mikrofon läuft», 0.8.6–0.9.4.1) and its location row. The
+ * microphone icon at the start keeps the meaning of «Mikrofon läuft» (the numbers come from the microphone,
+ * now); [meter] null (no microphone and no measurement): only the place, «Foto» beside it. [placeIcon] is the
+ * location row's icon of 0.8.6 (searching / fix / set by hand); [placeTrailing] («Zurück zum Standort») ends the
+ * place line. The live value is semibold with tabular figures.
  */
 @Composable
-fun ReportLevelStats(meter: ReportLevelMeter, modifier: Modifier = Modifier) {
-    val now by meter.now.collectAsState()
-    val nowText = ReportLevelUi.nowText(now.lafDb)
-    val peakText = ReportLevelUi.peakText(now.peakDb)
+fun ReportStatusLine(
+    meter: ReportLevelMeter?,
+    fixLine: String,
+    placeIcon: ImageVector,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
+    placeTrailing: (@Composable () -> Unit)? = null,
+) {
+    val now = meter?.now?.collectAsState()?.value
     val cs = MaterialTheme.colorScheme
-    // 0.9.2: «Mikrofon läuft» at the card's top-right, as a row of its own above the two stats (not an
-    // overlay, so that it can never cover the peak value on a narrow phone with a large font).
-    Column(modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "${ReportLevelUi.MIC_ON}: $nowText ${ReportLevelUi.NOW}, $peakText" }) {
-        Text(
-            ReportLevelUi.MIC_ON, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant,
-            textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth(),
-        )
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Icon(AppIcons.GraphicEq, contentDescription = null, tint = cs.primary, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(12.dp))
-                ReportStat(Fmt.db(now.lafDb), "dB(A) ${ReportLevelUi.NOW}")
+    val icon = Placeholder(16.sp, 16.sp, PlaceholderVerticalAlign.TextCenter)
+    val inline = mapOf(
+        STATUS_MIC to InlineTextContent(icon) { Icon(AppIcons.Mic, contentDescription = null, tint = cs.primary, modifier = Modifier.fillMaxSize()) },
+    )
+    // The place's icon beside the text, not inline: a wrapped place line keeps its words whole and hangs under the
+    // text, not under the icon (an icon glued to «Standort» forced a cut inside the word at font 1.3).
+    val place: @Composable (Modifier) -> Unit = { m ->
+        Row(m.semantics(mergeDescendants = true) { contentDescription = fixLine }, verticalAlignment = Alignment.Top) {
+            Icon(placeIcon, contentDescription = null, tint = cs.primary, modifier = Modifier.padding(top = 2.dp).size(with(LocalDensity.current) { 16.sp.toDp() }))
+            Spacer(Modifier.width(4.dp))
+            Text(reportStatusNoBreak(fixLine), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    val row: @Composable ((@Composable () -> Unit)?, @Composable (Modifier) -> Unit) -> Unit = { end, first ->
+        if (end == null) first(Modifier.fillMaxWidth()) else BesideOrBelow(first = { first(Modifier) }, end = end)
+    }
+    Column(modifier) {
+        if (now == null) {
+            // No level: «Foto» beside the place; with «Zurück zum Standort» there too, «Foto» gets a line of its own.
+            if (placeTrailing == null) {
+                row(trailing, place)
+            } else {
+                row(placeTrailing, place)
+                if (trailing != null) row(trailing) { m -> Spacer(m) }
             }
-            Box(Modifier.fillMaxHeight().padding(vertical = 4.dp).width(1.dp).background(cs.outlineVariant))
-            Spacer(Modifier.width(16.dp))
-            ReportStat(Fmt.db(now.peakDb), "dB(A) ${ReportLevelUi.PEAK}", Modifier.weight(1f))
+        } else {
+            row(trailing) { m ->
+                Text(
+                    buildAnnotatedString {
+                        appendInlineContent(STATUS_MIC, ReportLevelUi.MIC_ON)
+                        append('\u00A0')
+                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")) {
+                            append(reportStatusNoBreak(ReportLevelUi.nowText(now.lafDb)))
+                        }
+                        append("\u00A0· ")
+                        append(reportStatusNoBreak("${ReportLevelUi.PEAK} ${Fmt.db(now.peakDb)}"))
+                    },
+                    inlineContent = inline, style = MaterialTheme.typography.bodyMedium,
+                    modifier = m.semantics { contentDescription = reportLevelDescription(now) },
+                )
+            }
+            row(placeTrailing, place)
         }
     }
 }
 
-/** One stat block: the number (headlineSmall, tabular figures) over its unit (bodySmall, onSurfaceVariant). */
+/**
+ * 0.9.4.2: [first] (a line of the status) with [end] («Foto», «Zurück zum Standort») at its right, centred, as long
+ * as the longest word of [first] still fits beside it; else [end] goes under [first] (a narrow phone with a large
+ * font: a word is never cut to make room for a button).
+ */
 @Composable
-private fun ReportStat(value: String, unit: String, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(value, style = MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold)
-        Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun BesideOrBelow(first: @Composable () -> Unit, end: @Composable () -> Unit) {
+    Layout(contents = listOf(first, end)) { (firstM, endM), c ->
+        val gap = 8.dp.roundToPx()
+        val max = if (c.hasBoundedWidth) c.maxWidth else Constraints.Infinity
+        val e = endM.first().measure(Constraints(maxWidth = max))
+        val word = firstM.first().minIntrinsicWidth(Constraints.Infinity)
+        if (max == Constraints.Infinity || word + gap + e.width <= max) {
+            val f = firstM.first().measure(Constraints(maxWidth = if (max == Constraints.Infinity) max else max - gap - e.width))
+            val w = if (max == Constraints.Infinity) f.width + gap + e.width else max
+            val h = maxOf(f.height, e.height)
+            layout(w, h) {
+                f.place(0, (h - f.height) / 2)
+                e.place(w - e.width, (h - e.height) / 2)
+            }
+        } else {
+            val f = firstM.first().measure(Constraints(maxWidth = max))
+            layout(max, f.height + e.height) {
+                f.place(0, 0)
+                e.place(0, f.height)
+            }
+        }
     }
 }
