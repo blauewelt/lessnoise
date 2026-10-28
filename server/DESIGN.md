@@ -821,8 +821,8 @@ offsets are whole hours, so the UTC hour and the local hour coincide; in the aut
 the two «02:00» hours keep their offsets). `lat`/`lon` as stored (5 decimals). No device id,
 no accuracy, no exact time. `direction` (since v6): the direction of travel in whole degrees
 clockwise from north, or null (none given, a report of an older app, or a compass the phone marked
-«unreliable»); north reference and compass accuracy are not published. The map draws it as a small
-arrow on the report's marker. `lafmax_db` (since v8, app 0.8.5): the peak level while the report
+«unreliable»); north reference and compass accuracy are not published. The map draws it as the one
+pointed corner of the report's marker (a teardrop; until 2026-10-28 a small arrowhead on the rim). `lafmax_db` (since v8, app 0.8.5): the peak level while the report
 dialog was open, **rounded to whole dB** (half up), or null (none measured, a report of an older app);
 the LAeq, the seconds and the calibration flag are not published. The map shows it in the marker's
 tooltip after the direction («84 dB»). Sorted by (hour, lat, lon, category, direction, lafmax_db): deterministic and testable,

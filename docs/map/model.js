@@ -343,6 +343,12 @@
     return typeof d === "number" && isFinite(d) && d >= 0 && d < 360 ? Math.round(d) % 360 : null;
   }
 
+  /** The CSS rotation of a report marker's teardrop shape so that its pointed corner (south-west,
+   *  225°, in the unrotated shape) points at the direction of travel `deg` (0 = north, clockwise). */
+  function headingShapeRotation(deg) {
+    return (((deg - 225) % 360) + 360) % 360;
+  }
+
   /** A report's peak level while the app's report dialog was open (reports.json `lafmax_db`, app
    *  0.8.5): whole dB, or null when none was measured (older reports, older apps, no microphone). */
   function reportLevel(r) {
@@ -516,7 +522,7 @@
     sourceMetric: sourceMetric, metricFor: metricFor,
     parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
     REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
-    reportDirection: reportDirection, directionLabel: directionLabel, reportLevel: reportLevel, reportText: reportText,
+    reportDirection: reportDirection, headingShapeRotation: headingShapeRotation, directionLabel: directionLabel, reportLevel: reportLevel, reportText: reportText,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };
 });
