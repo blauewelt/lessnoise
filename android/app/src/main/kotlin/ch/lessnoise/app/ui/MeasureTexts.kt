@@ -2,13 +2,14 @@ package ch.lessnoise.app.ui
 
 /**
  * The texts of «Messen». 0.8.4: no mode switch any more (0.8.3's «Am Fenster» | «Unterwegs» and its
- * stored choice are gone): a running measurement means the phone lies at a window; no running
- * measurement means the person holds the phone and is on the road, so idle the first button is
- * «Laut! Melden» (editions with the map), then the start button. Labor·Karte keeps the road
- * recording as a third button ([UNTERWEGS_BUTTON]). Pure, so that MeasureTextsTest checks it on the JVM.
+ * stored choice are gone). 0.9.4.4 (owner: «the main UI flow is to report someone»): in the editions with
+ * the map «Laut! Melden» is the big main surface in both states — idle above the start button, and while
+ * a measurement runs under the level card (until 0.9.4.3 the running screen had none: «running = phone at
+ * the window»). Labor·Karte keeps the road recording as a further button ([UNTERWEGS_BUTTON]). Pure, so
+ * that MeasureTextsTest checks it on the JVM.
  */
 
-/** The button «Laut! Melden» (idle, editions with the map: the primary button on top). */
+/** The big button «Laut! Melden» (editions with the map; 0.9.4.4 in both states, BigReportButton). */
 const val REPORT_BUTTON = "Laut! Melden"
 
 /**
@@ -23,8 +24,11 @@ const val STOP_BUTTON = "Stoppen"
 /** 0.8.8: the line under the start button, in every edition (until 0.8.7 «Zum Messen: Telefon ans offene Fenster, am Ladegerät.»). */
 const val START_HINT = "Für Stunden am offenen Fenster, am Ladegerät."
 
-/** 0.8.8: the line under «Laut! Melden» (editions with the map), the same helper style as the others. */
-const val REPORT_HINT = "Unterwegs: lauten Verkehr sofort melden."
+/**
+ * The line under «Laut! Melden» (editions with the map), the same helper style as the others. 0.9.4.4: also
+ * while a measurement runs, so without «Unterwegs:» (0.8.8–0.9.4.3 «Unterwegs: lauten Verkehr sofort melden.»).
+ */
+const val REPORT_HINT = "Lauten Verkehr sofort melden."
 
 /** Labor·Karte only: the third button, today's «Unterwegs» measurement (EXTRA_UNTERWEGS) with the Labor recorder. */
 const val UNTERWEGS_BUTTON = "Unterwegs aufnehmen"

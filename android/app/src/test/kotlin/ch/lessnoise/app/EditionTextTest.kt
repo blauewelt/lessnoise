@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.3-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.4.4-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -79,8 +79,10 @@ class EditionTextTest {
         // owner's new rule: a Labor-only fix gets a fourth component (update.html, stats.py cope with it).
         // 0.9.4.2 (versionCode 47; Labor·Karte first, branch labor-0.9.1): the report dialog.
         // 0.9.4.3 (versionCode 48; Labor·Karte first, branch labor-0.9.1): a short video instead of the photo.
-        assertEquals(48, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.3"), BuildConfig.VERSION_NAME)
+        // 0.9.4.4 (versionCode 49; Labor·Karte first, branch labor-0.9.1): «Laut! Melden» as the main surface in both
+        // states, «Melden» in the measurement notification.
+        assertEquals(49, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.4"), BuildConfig.VERSION_NAME)
     }
 
     @Test

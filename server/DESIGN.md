@@ -175,13 +175,16 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     sequence (§6.4). Only the last 30 days are published; reports of hidden devices are left
     out; `MIN_DEVICES_PER_CELL` does not apply (a report is a statement, not a measurement of
     someone's home). The raw report is deleted with the device (rules 4, 9) and at the latest
-    after 2 years (§5). Risk that remains, and that the app must say on its report screen:
+    after 2 years (§5). What the app must say on its report screen, on every report: that the
+    report appears on the map at exactly this place. Risk that remains, which follows from it:
     someone who reports often from the same spot (their balcony, their front door) makes that
-    spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
-    confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
-    sichtbar.», because the first-report consent is skipped once sharing is on; since app 0.9.0
-    (Labor·Karte 0.8.1), which has no separate confirmation, the one report dialog says it just
-    above its «Senden».)
+    spot visible on the map as a cluster of points, at hour resolution; the first-report consent
+    says so. (Since app 0.6.3 the confirmation of every report said «Wer oft vom gleichen Ort
+    meldet, macht ihn auf der Karte sichtbar.», because the first-report consent is skipped once
+    sharing is on; since app 0.9.0 (Labor·Karte 0.8.1), which has no separate confirmation, the
+    one report dialog says it just above its «Senden». Since app 0.9.4.4 (Labor·Karte first), with
+    reports also offered while a measurement runs, that line is plain about the exact place:
+    «Die Meldung erscheint genau an diesem Ort auf der Karte.»)
 
 ## 3. Cell ids
 

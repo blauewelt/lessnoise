@@ -144,7 +144,8 @@ private sealed interface ReportStep {
  * report time instead of the tap) and the categories to suggest (first, marked «erkannt»; since
  * 0.8.2 a single suggestion is preselected, so «Senden» is the one tap left, [reportPreselected]);
  * [onPresetUsed] is called once the flow has taken it. Since 0.6.4 the button is also shown while
- * a measurement started as «Unterwegs» runs (MeasureContent).
+ * a measurement started as «Unterwegs» runs (MeasureContent); since 0.9.4.4 while any measurement runs (the big
+ * «Laut! Melden» of both states) and from the notification's «Melden» in both editions with the map.
  *
  * Returns the action for the button.
  */
@@ -1095,9 +1096,12 @@ const val REPORT_CONSENT_TEXT =
  * The risk server/DESIGN.md §2 rule 10 asks the report screen to state. Since 0.6.3 on the
  * confirmation of EVERY report (the consent, REPORT_CONSENT_TEXT, is skipped once sharing is on);
  * since 0.8.1 in the one «Laut! Melden» dialog under the buttons (0.8.2: above «Senden»; 0.9.1: directly
- * above the full-width «Senden», outside the scrolling part).
+ * above the full-width «Senden», outside the scrolling part). 0.9.4.4 (owner): plain about the exact place —
+ * reports are now also offered while a measurement runs, where the report's exact point would sit next to the
+ * measurement's shifted one; until 0.9.4.3 «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
+ * (the first-report consent, REPORT_CONSENT_TEXT, still names the «gleichen Ort» risk).
  */
-const val REPORT_SPOT_WARNING = "Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar."
+const val REPORT_SPOT_WARNING = "Die Meldung erscheint genau an diesem Ort auf der Karte."
 
 /** «App-Einstellungen» or «Standort einschalten», depending on why there is no fix. */
 @Composable

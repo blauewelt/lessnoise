@@ -920,7 +920,8 @@ location row · «Foto» (full width) · the categories as outlined buttons in t
 `flugzeug`; `ReportCategory.OFFERED`, `reportCategoryOrder`, `reportCategoryRows`, both gone in 0.9.4.2); until 0.9.0 six, with Poser / anderes Fahrzeug
 (until 0.6.3 «anderes») → `poser`, `andere`, which stay in the enum so that queued and listed reports of older
 versions still parse and the server still accepts them (DESIGN.md §4.7); «Flugzeug» since 0.7.7. Then, in every order, on every report since 0.6.3, «Wer oft vom
-gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
+gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (since 0.9.4.4 «Die Meldung erscheint genau an diesem Ort auf der
+Karte.»; DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
 «Abbrechen» and «Senden». Since 0.9.1 the groups above the line scroll on a short screen while the line,
 «Senden» (full width, 56 dp, the send icon; while it waits for the fix a small progress circle and «Standort wird
 gesucht …») and «Abbrechen» (a text button centred under it) stay on screen (`BasicAlertDialog` + `ReportDialogLayout`;

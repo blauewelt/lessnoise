@@ -7,9 +7,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * 0.8.4 (was MeasureModeTest, 0.8.3): «Messen» without a mode switch — running means the window, idle
- * means the road. «Laut! Melden» first while idle (editions with the map), «Messung starten» under it,
- * one line; Labor·Karte's «Unterwegs aufnehmen» as a third button (MeasureTexts.kt, MeasureScreen.kt).
+ * 0.8.4 (was MeasureModeTest, 0.8.3): «Messen» without a mode switch. «Laut! Melden» first while idle
+ * (editions with the map), «Langzeitmessung starten» under it, one line; Labor·Karte's «Unterwegs aufnehmen»
+ * as a third button (MeasureTexts.kt, MeasureScreen.kt). 0.9.4.4: «Laut! Melden» is the big main surface in
+ * both states (BigReportButton), also while a measurement runs.
  */
 class MeasureTextsTest {
     private val app: File = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
@@ -23,7 +24,8 @@ class MeasureTextsTest {
         assertEquals("Stoppen", STOP_BUTTON)
         // 0.8.8: one helper line under each button, the same in every edition.
         assertEquals("Für Stunden am offenen Fenster, am Ladegerät.", START_HINT)
-        assertEquals("Unterwegs: lauten Verkehr sofort melden.", REPORT_HINT)
+        // 0.9.4.4: also under the button while measuring, so without «Unterwegs:».
+        assertEquals("Lauten Verkehr sofort melden.", REPORT_HINT)
         assertTrue(REPORT_HINT.length <= 45 && START_HINT.length <= 45)
         assertEquals("Unterwegs aufnehmen", UNTERWEGS_BUTTON)
         assertEquals("Labor: nimmt Audio auf, teilt nichts.", UNTERWEGS_LABOR_HINT)
@@ -46,11 +48,11 @@ class MeasureTextsTest {
 
     @Test
     fun idleReportFirstThenStartTonal() {
-        // Order in the idle branch: the primary «Laut! Melden» (56 dp), then the tonal «Messung starten», the line,
-        // Labor·Karte's outlined «Unterwegs aufnehmen» with its line. 0.8.6: all three 56 dp (STACK_BUTTON_HEIGHT)
-        // with one label style (stackButtonLabel), the helper lines in HelperText.
+        // Order in the idle branch: the big «Laut! Melden» (0.9.4.4: BigReportButton, 120 dp; was a 56 dp stacked
+        // button), then the tonal «Langzeitmessung starten», the line, Labor·Karte's outlined «Unterwegs aufnehmen»
+        // with its line. 0.8.6: the stacked buttons 56 dp (STACK_BUTTON_HEIGHT) with one label style (stackButtonLabel).
         val idle = screen.substring(screen.indexOf("// Editions with the map: «Laut! Melden» is the first action"))
-        val report = idle.indexOf("Text(REPORT_BUTTON, style = stackButtonLabel())")
+        val report = idle.indexOf("BigReportButton(onClick = onReport, enabled = !live.starting)")
         val reportHint = idle.indexOf("StackHint(REPORT_HINT)")
         val tonal = idle.indexOf("FilledTonalButton(onClick = onStart")
         val hint = idle.indexOf("StackHint(START_HINT)")
@@ -60,23 +62,23 @@ class MeasureTextsTest {
         // 0.8.8: the same helper style for all three buttons, and the report line only where «Laut! Melden»
         // exists (inside `if (onReport != null)`). 0.9.0 (owner): centred over the full width (StackHint),
         // 8 dp under its button (was 4), 20 dp between the groups (was 16).
-        assertTrue(idle.contains("Text(REPORT_BUTTON, style = stackButtonLabel())\n                    }\n                    Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(REPORT_HINT)\n                    Spacer(Modifier.height(STACK_GROUP_GAP))"))
+        assertTrue(idle.contains("BigReportButton(onClick = onReport, enabled = !live.starting)\n                    Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(REPORT_HINT)\n                    Spacer(Modifier.height(STACK_GROUP_GAP))"))
         assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                StackHint(START_HINT)"))
         assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(UNTERWEGS_LABOR_HINT)"))
         assertEquals(8, STACK_HINT_GAP.value.toInt())
         assertEquals(20, STACK_GROUP_GAP.value.toInt())
         assertTrue(screen.contains("HelperText(text, Modifier.fillMaxWidth(), textAlign = TextAlign.Center)"), "the helper lines are centred, full width")
         assertFalse(Regex("""HelperText\((REPORT_HINT|START_HINT|UNTERWEGS_LABOR_HINT)""").containsMatchIn(screen), "every stack hint goes through StackHint")
-        assertTrue(idle.substring(idle.indexOf("if (onReport != null) {"), reportHint).contains("onClick = onReport,"))
-        assertTrue(idle.substring(0, report).contains("onClick = onReport,") && idle.substring(0, report).contains("Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)"))
+        assertTrue(idle.substring(idle.indexOf("if (onReport != null) {"), reportHint).contains("BigReportButton(onClick = onReport"))
         assertEquals(56, STACK_BUTTON_HEIGHT.value.toInt())
         // One height for every stacked button: no other height literal in the idle and running branches.
         val stack = screen.substring(screen.indexOf("// 0.8.6: one button height"), screen.indexOf("if (calibrating) HelperText("))
         assertFalse(Regex("""fillMaxWidth\(\)\.height\(\d+\.dp\)""").containsMatchIn(stack) || stack.contains("fontSize ="), "one height, one label style")
-        assertEquals(4, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Laut! Melden, Messung starten (two variants), Unterwegs aufnehmen")
+        assertEquals(3, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Langzeitmessung starten (two variants), Unterwegs aufnehmen")
         // 0.8.7: «Stoppen» is in the running branch (MeasureContent), the idle stack in IdleMeasure; the same height.
+        // 0.9.4.4: two variants (outlined with reports, filled without).
         val running = screen.substring(screen.indexOf("// Running: «Stoppen»"), screen.indexOf("item { SectionHeading(\"Letzte Lärmspitzen\") }"))
-        assertEquals(1, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(running).count(), "Stoppen")
+        assertEquals(2, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(running).count(), "Stoppen")
         assertTrue(running.contains("Text(STOP_BUTTON, style = stackButtonLabel())"))
         // Without reports «Messung starten» stays the primary button.
         assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)"))
@@ -84,16 +86,39 @@ class MeasureTextsTest {
     }
 
     @Test
-    fun noLautMeldenWhileRunning() {
-        // The running branch («Stoppen» …) has no report button; the report dialog still opens from a preset
-        // (shortcut, widget, Labor·Karte's notification «Melden»).
-        // 0.8.7: the running branch is everything of MeasureContent after the idle branch returns.
-        val content = screen.substring(screen.indexOf("fun MeasureContent("), screen.indexOf("/** 0.8.7: the logo's circle"))
+    fun lautMeldenIsTheBigMainSurfaceAlsoWhileRunning() {
+        // 0.9.4.4 (owner: «the main UI flow is to report someone»; 0.8.4–0.9.4.3 the running branch had no report):
+        // the compact level card, then the big «Laut! Melden» with its line, then «Stoppen» outlined in the error
+        // colour; without reports (Offline, Labor) the 0.9.0 level card and the filled «Stoppen».
+        val content = screen.substring(screen.indexOf("fun MeasureContent("), screen.indexOf("/** The level card of a running measurement"))
         val running = content.substring(content.indexOf("return@Scaffold"))
-        assertTrue(running.contains("onClick = onStop,"))
-        assertFalse(running.contains("onReport"), running)
+        val card = running.indexOf("if (onReport != null) CompactLevelCard(live, noiseFloor, categoryName)")
+        val big = running.indexOf("BigReportButton(onClick = onReport)")
+        val hint = running.indexOf("StackHint(REPORT_HINT)")
+        val stop = running.indexOf("// Running: «Stoppen»")
+        val chip = running.indexOf("StatusChip(it, onShareStatus)")
+        val peaks = running.indexOf("item { SectionHeading(\"Letzte Lärmspitzen\") }")
+        assertTrue(card in 0 until big && big < hint && hint < stop && stop < chip && chip < peaks, "$card $big $hint $stop $chip $peaks")
+        assertTrue(running.contains("else LevelCard(live, noiseFloor, categoryName)"))
+        assertTrue(running.substring(0, big).contains("if (onReport != null) {\n                item {"), "only in the editions with reports")
+        val stopBlock = running.substring(stop, chip)
+        assertTrue(stopBlock.contains("if (onReport != null) {\n                        OutlinedButton(\n                            onClick = onStop,"))
+        assertTrue(stopBlock.contains("colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),"))
+        assertTrue(stopBlock.contains("border = BorderStroke(1.dp, cs.error),"))
+        assertTrue(stopBlock.contains("colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),"))
         assertTrue(content.contains("if (!live.running) {\n            IdleMeasure("))
         assertTrue(screen.contains("preset = reportPreset, onPresetUsed = onReportPresetUsed,"))
+        // The big button: 120 dp, the megaphone 40 dp above the label (headlineSmall), the full width.
+        assertEquals(120, BIG_REPORT_HEIGHT.value.toInt())
+        assertEquals(40, BIG_REPORT_ICON.value.toInt())
+        val button = screen.substring(screen.indexOf("fun BigReportButton("), screen.indexOf("/** 0.8.7: the logo's circle"))
+        assertTrue(button.contains("modifier = modifier.fillMaxWidth().heightIn(min = BIG_REPORT_HEIGHT),"))
+        assertTrue(button.contains("Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(BIG_REPORT_ICON))"))
+        assertTrue(button.contains("Text(REPORT_BUTTON, style = MaterialTheme.typography.headlineSmall"))
+        assertTrue(button.indexOf("Icon(AppIcons.Campaign") < button.indexOf("Text(REPORT_BUTTON"), "the icon above the label")
+        assertEquals(1, Regex("""Text\(REPORT_BUTTON""").findAll(screen).count(), "one place draws the label")
+        assertEquals(2, Regex("""BigReportButton\(onClick = onReport""").findAll(screen).count(), "idle and running")
+        assertEquals(52, COMPACT_LEVEL_SIZE.value.toInt())
     }
 
     @Test
@@ -133,11 +158,15 @@ class MeasureTextsTest {
         val idle = screen.substring(screen.indexOf("fun IdleMeasure("), screen.indexOf("fun MoreSheetContent("))
         assertTrue(idle.contains("Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport)"))
         val order = listOf(
-            "ScreenTitle(\"Messen\"", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo()", "Text(APP_NAME",
+            "ScreenTitle(\"Messen\"", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo(size = if (reports) IDLE_LOGO_SIZE_REPORTS else IDLE_LOGO_SIZE)",
+            "APP_NAME, style = if (reports) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall",
             "idleTagline(reports = onReport != null)", "shareStatus?.takeIf(::showOnIdle)", "StatusChip(it, onShareStatus", "Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))",
-            "Text(REPORT_BUTTON", "Text(MORE_LABEL)", "ModalBottomSheet(",
+            "BigReportButton(onClick = onReport", "Text(MORE_LABEL)", "ModalBottomSheet(",
         ).map { idle.indexOf(it) }
         assertTrue(order.all { it >= 0 } && order == order.sorted(), order.toString())
+        // 0.9.4.4: the logo block is smaller where the big «Laut! Melden» is (the 0.8.7 size without reports).
+        assertEquals(72, IDLE_LOGO_SIZE_REPORTS.value.toInt())
+        assertEquals(120, IDLE_LOGO_SIZE.value.toInt())
         // No nested lazy list and no fold-out in the idle screen; «Mehr dazu» is a sheet.
         assertFalse(idle.contains("LazyColumn") || idle.contains("AnimatedVisibility"))
         // The logo is the launcher artwork of the edition on its own background colour (resources, no literal colour).

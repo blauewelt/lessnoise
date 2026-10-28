@@ -850,7 +850,9 @@ class MeasurementService : Service() {
     }
 
     /**
-     * 0.6.8 (since 0.8.4 Labor·Karte only; LoudAlerts.reportTap is null in every other edition): while the run is
+     * 0.9.4.4: in both editions with the map a «Melden» button during the whole run (Online-Version:
+     * ReportNow.notificationTap through src/nounterwegs; Labor·Karte: its alert/ rule, below); null in Offline and Labor.
+     * 0.6.8 (since 0.8.4 Labor·Karte only): while the run is
      * «unterwegs» — started with «Unterwegs», or LiveState.moving in a «Messen» run — the notification's
      * tap opens «Laut! Melden» and its text is «Antippen zum Melden». Re-posted only when that state
      * changes; back to the level text and the usual tap when it ends.
@@ -941,8 +943,9 @@ class MeasurementService : Service() {
     }
 
     private fun notification(text: String, reportTap: NotificationTap? = null): Notification {
+        // 0.9.4.4: the usual tap opens the app on «Messen» (ACTION_SHOW_MEASURE), every edition.
         val open = reportTap?.intent ?: PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            this, 0, Intent(this, MainActivity::class.java).setAction(MeasurementNotification.ACTION_SHOW_MEASURE).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val stop = PendingIntent.getService(

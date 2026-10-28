@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import ch.lessnoise.app.icons.AppIcons
 import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.edition.EditionUi
+import ch.lessnoise.app.service.MeasurementNotification
 import ch.lessnoise.chart.LessNoiseTheme
 
 class MainActivity : ComponentActivity() {
@@ -49,13 +50,16 @@ class MainActivity : ComponentActivity() {
     // (the event's time and suggested categories) and the notification's «Melden» (the time of the tap).
     // Read in onCreate (a cold start from the shortcut or the widget) and in onNewIntent (app open).
     private var alertPreset by mutableStateOf<ReportPreset?>(null)
+    // 0.9.4.4: the measurement notification's own tap (MeasurementNotification.ACTION_SHOW_MEASURE): «Messen»
+    // comes to the front, also when another tab was open. A counter, so a second tap switches again.
+    private var showMeasure by mutableStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Not again after a rotation: the intent was taken the first time.
         if (savedInstanceState == null) takeAlert(intent)
-        setContent { LessNoiseTheme { AppRoot(alertPreset) { alertPreset = null } } }
+        setContent { LessNoiseTheme { AppRoot(alertPreset, onAlertPresetUsed = { alertPreset = null }, showMeasure = showMeasure) } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -64,6 +68,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun takeAlert(intent: Intent?) {
+        if (MeasurementNotification.showsMeasure(intent?.action)) {
+            showMeasure++
+            setIntent(Intent(this, MainActivity::class.java))
+            return
+        }
         // The tap's time is now, when the activity receives it (also while it is already open: onNewIntent).
         val preset = LoudAlerts.presetFrom(intent, System.currentTimeMillis()) ?: return
         alertPreset = preset
@@ -132,7 +141,7 @@ private val TabHistorySaver = Saver<TabHistory, ArrayList<String>>(
 )
 
 @Composable
-fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {}) {
+fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {}, showMeasure: Int = 0) {
     val screens = remember { appScreens(BuildConfig.UPLOAD_AVAILABLE, MapTab.AVAILABLE) }
     // The undo stack of tabs opened (TabHistory): every switch, tapped or opened from a status
     // line or banner, pushes the tab left; back pops it; with nothing left back leaves the app
@@ -147,6 +156,8 @@ fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {
     BackHandler(enabled = history.canGoBack) { history = history.back() }
     // «Laut! Melden» from the notification runs on «Messen» (a tab switch like any other).
     LaunchedEffect(alertPreset) { if (alertPreset != null) open(Screen.MEASURE) }
+    // 0.9.4.4: a tap on the measurement notification shows «Messen» (the running measurement, and «Laut! Melden»).
+    LaunchedEffect(showMeasure) { if (showMeasure > 0) open(Screen.MEASURE) }
     // The map tab's WebView is created the first time the tab is shown and then kept (paused while
     // another tab is shown) until the activity ends, so that switching tabs does not reload it.
     var mapOpened by remember { mutableStateOf(false) }

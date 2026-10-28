@@ -180,6 +180,13 @@ What the project counts, and who counts it — totals over the whole project, al
   LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
   whenever it is connected. Calibration is per microphone; a minute measured with another
   microphone sends that microphone's kind with its audio source.
+- **Next (in the internal Labor·Karte test build 0.9.4.4, not published yet):** «Messen» puts reporting
+  first. «Laut! Melden» is one large button in both states — idle above «Langzeitmessung starten», and also
+  while a measurement runs, under a compact level card, with «Stoppen» below it — and the measurement
+  notification gets a «Melden» button that opens the report dialog; a tap on the notification opens
+  «Messen». The report dialog says plainly «Die Meldung erscheint genau an diesem Ort auf der Karte.» (was
+  «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»). Long measurements are unchanged; the
+  Offline-Version has no reports and keeps its «Messen».
 - **Phone app v0.9.0 (published 2026-10-25, the current version):** in the Online-Version
   «Laut! Melden» is one dialog with «Senden» (compass and streets, the map can be moved under the dot
   to correct the place, the level measured while the dialog is open and sent with the report, an

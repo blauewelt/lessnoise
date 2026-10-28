@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.9.4.4 — Labor·Karte first (branch labor-0.9.1): «Laut! Melden» as the main surface, also while measuring; «Melden» in the measurement notification (versionCode 49)
+
+In short: the owner's rule «the main UI flow is to report someone». Opening the app, or tapping the measurement
+notification, lands on «Messen», where «Laut! Melden» is one large tap — also while a measurement runs (until
+0.9.4.3 the running screen had no report button: «running = phone at the window»). Long measurements are
+unchanged. The code is in `src/main` and `src/karte`, so the Online-Version gets it with its next release; the
+Offline-Version and the plain Labor build have no reports and keep the 0.9.0 «Messen».
+
+- **The big «Laut! Melden»** (`BigReportButton`): full width, 120 dp high, the megaphone (40 dp) above the label
+  (headlineSmall), with «Lauten Verkehr sofort melden.» under it (was «Unterwegs: lauten Verkehr sofort melden.»).
+- **Idle:** the logo block is smaller (logo 72 dp, the name in titleLarge), so the big button sits in the thumb
+  zone; «Langzeitmessung starten» (tonal, 56 dp) with its line, Labor·Karte's «Unterwegs aufnehmen» and «Mehr dazu»
+  stay below it.
+- **While measuring:** a compact level card (level, «Jetzt», bar, «Grundrauschen …», «Klingt nach»), then the big
+  «Laut! Melden», then «Stoppen» outlined in the error colour (56 dp; filled until 0.9.4.3), «Läuft seit …», the
+  status chip and «Letzte Lärmspitzen». The report dialog keeps taking the level from the running measurement
+  (no second microphone, 0.8.5).
+- **Notification:** «Melden» next to «Stopp» during every run in both editions with the map (Labor·Karte since
+  0.6.9; the Online-Version's comes from `src/karte/…/report/ReportNow.kt`, no «Sehr laut» code); it opens the
+  report dialog at the time of the tap. A tap on the notification itself opens the app on «Messen» (every edition;
+  `MeasurementNotification.ACTION_SHOW_MEASURE`). Labor·Karte's tap while «unterwegs» still opens the report.
+- **Privacy line of the dialog (server/DESIGN.md §2 rule 10), on every report:** «Die Meldung erscheint genau an diesem
+  Ort auf der Karte.» (owner; was «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»): plain about
+  the exact place, now that reports are also made while a measurement runs. Rule 10 and PRIVACY.md quote it. What a
+  report sends is unchanged.
+- Tests: `MeasureTextsTest.lautMeldenIsTheBigMainSurfaceAlsoWhileRunning` (replaces `noLautMeldenWhileRunning`),
+  `ShortcutAndWidgetTest.theMeasurementNotificationHasMeldenDuringEveryRun`, `ReportsTest` (the new line, quoted by
+  rule 10); renders `MessenMain*Screenshots` (src/testKarte, both editions with the map).
+
 ## 0.9.4.3 — Labor·Karte first (branch labor-0.9.1): short video instead of a photo (versionCode 48)
 
 In short: in Labor·Karte «Laut! Melden» offers a short video instead of the photo — evidence a police report

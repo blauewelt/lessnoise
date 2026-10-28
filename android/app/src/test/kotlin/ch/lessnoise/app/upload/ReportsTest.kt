@@ -240,7 +240,11 @@ class ReportsTest {
         // DESIGN.md §2 rule 10: the report screen states the risk, on every report (0.6.3: the
         // consent above is skipped once sharing is on). Since 0.8.1 there is no separate confirmation: the
         // line is in the one «Laut! Melden» dialog, unconditionally, above «Senden» (0.8.2).
-        assertEquals("Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.", REPORT_SPOT_WARNING)
+        // 0.9.4.4 (owner): plain about the exact place (until 0.9.4.3 «Wer oft vom gleichen Ort meldet, macht ihn auf der
+        // Karte sichtbar.»); rule 10 quotes it.
+        assertEquals("Die Meldung erscheint genau an diesem Ort auf der Karte.", REPORT_SPOT_WARNING)
+        val design = java.io.File(listOf(java.io.File("../.."), java.io.File("..")).first { java.io.File(it, "server/DESIGN.md").isFile }, "server/DESIGN.md").readText()
+        assertTrue(design.replace(Regex("\\s+"), " ").contains("«$REPORT_SPOT_WARNING»"), "server/DESIGN.md §2 rule 10 quotes the line")
         assertEquals("Senden", REPORT_SEND)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")

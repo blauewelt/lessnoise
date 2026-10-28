@@ -42,6 +42,17 @@ object MeasurementNotification {
     const val ALERT_BUTTON = "Melden"
 
     /**
+     * 0.9.4.4 (owner: «the main UI flow is to report someone»): the action of the notification's own tap in
+     * every edition. MainActivity then shows the tab «Messen» (where the editions with reports have the big
+     * «Laut! Melden»), not the tab last open. Labor·Karte's tap while «unterwegs» still opens the report
+     * itself (0.6.8).
+     */
+    const val ACTION_SHOW_MEASURE = "ch.lessnoise.app.action.SHOW_MEASURE"
+
+    /** 0.9.4.4: whether an intent with [action] asks MainActivity for «Messen». */
+    fun showsMeasure(action: String?): Boolean = action == ACTION_SHOW_MEASURE
+
+    /**
      * Content text: the running 1-min LAeq as «Letzte Minute»; [note] is appended (Labor build).
      * [calibrated] is no longer shown (0.6.1: «Richtwerte» is said once, under Einstellungen › Datenschutz).
      */
@@ -54,8 +65,9 @@ object MeasurementNotification {
 /**
  * 0.6.8, editions with the map: the measurement notification while the run is «unterwegs» — its
  * [text] («Antippen zum Melden») and the [intent] its tap fires («Laut! Melden»). Built by
- * ui/LoudAlerts.reportTap — since 0.8.4 only in Labor·Karte (src/laborKarte); the Online-Version
- * (src/nounterwegs), the Offline and the Labor builds never have one.
+ * ui/LoudAlerts.reportTap — since 0.8.4 the text and content tap only in Labor·Karte (src/laborKarte);
+ * 0.9.4.4: the Online-Version (src/nounterwegs → ReportNow.notificationTap) has the «Melden» [button] during
+ * every run, no text and no content tap; the Offline and the Labor builds never have one.
  * 0.6.9 (Labor·Karte): [text] null keeps the level text (posted every 2 s as usual), [intent] null
  * keeps the usual tap (open the app), [button] adds an action [buttonLabel] («Melden») next to «Stopp».
  */

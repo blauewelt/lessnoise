@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -121,8 +122,8 @@ fun MeasureScreen(
     val report = if (BuildConfig.UPLOAD_AVAILABLE) {
         rememberReportAction(
             onQueued = { scope.launch { snackbar.showSnackbar("Meldung wird gesendet.") } },
-            // From the shortcut / widget (0.8.4) and, Labor·Karte, the «Sehr laut» and «Melden» notification
-            // taps: the dialog opens directly, also while measuring.
+            // From the shortcut / widget (0.8.4), the notification's «Melden» (0.9.4.4 also in the Online-Version)
+            // and, Labor·Karte, the «Sehr laut» tap: the dialog opens directly, also while measuring.
             preset = reportPreset, onPresetUsed = onReportPresetUsed,
         )
     } else null
@@ -257,15 +258,16 @@ fun StatusChip(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modi
 
 /**
  * «Messen» without the app container (also rendered on the JVM for the screenshots). Since 0.8.4 no
- * mode switch: idle means the person holds the phone (on the road), running means it lies at a
- * window. Idle ([IdleMeasure], 0.8.7): the title, the app's logo with its name, one line and the
+ * mode switch. Idle ([IdleMeasure], 0.8.7): the title, the app's logo with its name, one line and the
  * status chip in the middle of the free space, the actions at the bottom within thumb reach — editions
- * with the map ([onReport] set): «Laut! Melden» (filled), «Messung starten» (tonal) with one line,
- * (Labor·Karte, [onUnterwegs] set) «Unterwegs aufnehmen» (outlined) with its Labor line, «Mehr dazu»
- * (a bottom sheet). Without reports (Offline, Labor): «Messung starten» filled. While measuring: the
- * level card (level, bar, Grundrauschen, «Klingt nach»), «Stoppen», «Läuft seit …», the status chip,
- * the last Lärmspitzen — and no «Laut! Melden» (the phone lies at the window; the shortcut and the
- * widget still open it).
+ * with the map ([onReport] set): the big «Laut! Melden» ([BigReportButton], 0.9.4.4) with its line,
+ * «Langzeitmessung starten» (tonal) with one line, (Labor·Karte, [onUnterwegs] set) «Unterwegs
+ * aufnehmen» (outlined) with its Labor line, «Mehr dazu» (a bottom sheet). Without reports (Offline,
+ * Labor): «Langzeitmessung starten» filled, the 0.9.0 layout. While measuring, editions with reports
+ * (0.9.4.4, owner: «the main UI flow is to report someone»; until 0.9.4.3 no «Laut! Melden» here): the
+ * compact level card ([CompactLevelCard]), the big «Laut! Melden» with its line, «Stoppen» (outlined,
+ * error colour), «Läuft seit …», the status chip, the last Lärmspitzen. Without reports: the 0.9.0 level
+ * card and «Stoppen» filled in the error colour.
  */
 @Composable
 fun MeasureContent(
@@ -319,35 +321,53 @@ fun MeasureContent(
             }
 
             item {
-                SectionCard {
-                    Text("Jetzt", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
-                    }
-                    LevelBar(live.lafDb)
-                    Spacer(Modifier.height(2.dp))
-                    StatRow(HUM_LABEL, humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
+                // 0.9.4.4: with «Laut! Melden» below, the level card is compact, so the big button sits high.
+                if (onReport != null) CompactLevelCard(live, noiseFloor, categoryName)
+                else LevelCard(live, noiseFloor, categoryName)
+            }
+
+            if (onReport != null) {
+                item {
+                    // 0.9.4.4: the main action also while measuring. The dialog takes the level from the running
+                    // measurement instead of opening a second microphone (ReportLevelEffect, 0.8.5).
+                    Column(Modifier.fillMaxWidth().padding(start = SCREEN_GUTTER, end = SCREEN_GUTTER, top = 8.dp)) {
+                        BigReportButton(onClick = onReport)
+                        Spacer(Modifier.height(STACK_HINT_GAP))
+                        StackHint(REPORT_HINT)
                     }
                 }
             }
 
             item {
                 // Running: «Stoppen» (STACK_BUTTON_HEIGHT, stackButtonLabel as the idle buttons), the line
-                // 4 dp under it, 16 dp before the status chip.
-                Column(Modifier.fillMaxWidth().padding(horizontal = SCREEN_GUTTER, vertical = 8.dp)) {
-                    Button(
-                        onClick = onStop,
-                        modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
-                        colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
-                    ) {
+                // 4 dp under it, 16 dp before the status chip. 0.9.4.4, editions with reports: outlined in the
+                // error colour — still easy to hit, but not the main action; without reports filled as before.
+                Column(
+                    Modifier.fillMaxWidth().padding(
+                        start = SCREEN_GUTTER, end = SCREEN_GUTTER, bottom = 8.dp,
+                        top = if (onReport != null) STACK_GROUP_GAP else 8.dp,
+                    ),
+                ) {
+                    val stopContent: @Composable RowScope.() -> Unit = {
                         Icon(AppIcons.Stop, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                         Text(STOP_BUTTON, style = stackButtonLabel())
+                    }
+                    if (onReport != null) {
+                        OutlinedButton(
+                            onClick = onStop,
+                            modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = cs.error),
+                            border = BorderStroke(1.dp, cs.error),
+                            content = stopContent,
+                        )
+                    } else {
+                        Button(
+                            onClick = onStop,
+                            modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
+                            colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),
+                            content = stopContent,
+                        )
                     }
                     Spacer(Modifier.height(4.dp))
                     HelperText(runningLine(Fmt.hm(live.startedAtMs)))
@@ -374,8 +394,90 @@ fun MeasureContent(
     }
 }
 
-/** 0.8.7: the logo's circle on the idle «Messen» screen. */
+/** The level card of a running measurement as since 0.8.3 (editions without reports: Offline, Labor). */
+@Composable
+private fun LevelCard(live: LiveState, noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit?, categoryName: (String?) -> String) {
+    val cs = MaterialTheme.colorScheme
+    SectionCard {
+        Text("Jetzt", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(Fmt.db(live.lafDb), fontSize = 64.sp, fontWeight = FontWeight.Bold, lineHeight = 64.sp)
+            Spacer(Modifier.width(8.dp))
+            Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
+        }
+        LevelBar(live.lafDb)
+        Spacer(Modifier.height(2.dp))
+        StatRow(HUM_LABEL, humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
+        }
+    }
+}
+
+/** 0.9.4.4: the number of the compact level card (64 sp in [LevelCard]). */
+val COMPACT_LEVEL_SIZE = 52.sp
+
+/**
+ * 0.9.4.4, editions with reports: the same values as [LevelCard] in less height, so that the big
+ * «Laut! Melden» under it sits in the upper half of the screen: «Jetzt» at the right of the number
+ * (not a line above it), the number [COMPACT_LEVEL_SIZE], the bar, «Grundrauschen …» and «Klingt nach».
+ */
+@Composable
+fun CompactLevelCard(live: LiveState, noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit?, categoryName: (String?) -> String) {
+    val cs = MaterialTheme.colorScheme
+    SectionCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text(Fmt.db(live.lafDb), fontSize = COMPACT_LEVEL_SIZE, fontWeight = FontWeight.Bold, lineHeight = COMPACT_LEVEL_SIZE)
+            Spacer(Modifier.width(6.dp))
+            Text("dB(A)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 7.dp).weight(1f))
+            Text("Jetzt", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant, modifier = Modifier.padding(bottom = 9.dp))
+        }
+        Spacer(Modifier.height(4.dp))
+        LevelBar(live.lafDb)
+        StatRow(HUM_LABEL, humText(live.backgroundDb, liveHumLimit(live, noiseFloor)))
+        Spacer(Modifier.height(4.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
+        }
+    }
+}
+
+/** 0.9.4.4: the height of the big «Laut! Melden» (the stacked buttons are [STACK_BUTTON_HEIGHT], 56 dp). */
+val BIG_REPORT_HEIGHT = 120.dp
+
+/** 0.9.4.4: its megaphone, above the label. */
+val BIG_REPORT_ICON = 40.dp
+
+/**
+ * 0.9.4.4 (owner: «the main UI flow is to report someone»): «Laut! Melden» as THE action of «Messen», idle
+ * and while measuring: a filled button over the full width, [BIG_REPORT_HEIGHT] high, the megaphone
+ * ([BIG_REPORT_ICON]) above the label (headlineSmall), Material's extra-large corners (28 dp; a 120 dp
+ * pill would read as a banner). Only the label is spoken (the icon has no description).
+ */
+@Composable
+fun BigReportButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.fillMaxWidth().heightIn(min = BIG_REPORT_HEIGHT),
+        shape = MaterialTheme.shapes.extraLarge,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(BIG_REPORT_ICON))
+            Spacer(Modifier.height(6.dp))
+            Text(REPORT_BUTTON, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/** 0.8.7: the logo's circle on the idle «Messen» screen (0.9.4.4: editions without reports only). */
 val IDLE_LOGO_SIZE = 120.dp
+
+/** 0.9.4.4: the smaller logo of the editions with reports, so that the big «Laut! Melden» sits in the thumb zone. */
+val IDLE_LOGO_SIZE_REPORTS = 72.dp
 
 /**
  * 0.8.7: the app's logo as on the home screen: the launcher foreground (the edition's own artwork,
@@ -428,10 +530,15 @@ fun IdleMeasure(
             ScreenTitle("Messen", Modifier.align(Alignment.Start))
             Spacer(Modifier.height(16.dp))
             Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))
-            // Middle: logo, name, line, chip.
-            AppLogo()
-            Spacer(Modifier.height(16.dp))
-            Text(APP_NAME, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+            // Middle: logo, name, line, chip. 0.9.4.4: smaller with reports (72 dp logo, titleLarge name), so the
+            // big «Laut! Melden» sits lower, in the thumb zone.
+            val reports = onReport != null
+            AppLogo(size = if (reports) IDLE_LOGO_SIZE_REPORTS else IDLE_LOGO_SIZE)
+            Spacer(Modifier.height(if (reports) 10.dp else 16.dp))
+            Text(
+                APP_NAME, style = if (reports) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+            )
             Spacer(Modifier.height(4.dp))
             Text(
                 idleTagline(reports = onReport != null), style = MaterialTheme.typography.bodyMedium,
@@ -451,18 +558,10 @@ fun IdleMeasure(
             // helper line centred under its button (StackHint), 8 dp under it (was 4), 20 dp between
             // the groups (was 16, so the groups stay apart with the larger inner gap).
             Column(Modifier.fillMaxWidth().padding(start = SCREEN_GUTTER, end = SCREEN_GUTTER, bottom = 8.dp)) {
-                // Editions with the map: «Laut! Melden» is the first action (idle = on the road);
-                // the FAB of 0.8.3 is gone, this button does its job.
+                // Editions with the map: «Laut! Melden» is the first action; 0.9.4.4 the big button
+                // (BigReportButton, 120 dp; until 0.9.4.3 a 56 dp stacked button). The FAB of 0.8.3 is gone.
                 if (onReport != null) {
-                    Button(
-                        onClick = onReport,
-                        enabled = !live.starting,
-                        modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT),
-                    ) {
-                        Icon(AppIcons.Campaign, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
-                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                        Text(REPORT_BUTTON, style = stackButtonLabel())
-                    }
+                    BigReportButton(onClick = onReport, enabled = !live.starting)
                     Spacer(Modifier.height(STACK_HINT_GAP))
                     StackHint(REPORT_HINT)
                     Spacer(Modifier.height(STACK_GROUP_GAP))

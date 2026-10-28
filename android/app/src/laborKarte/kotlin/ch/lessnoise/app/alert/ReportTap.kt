@@ -20,15 +20,16 @@ object ReportTap {
 
     /**
      * PendingIntent request code. MeasurementService uses 0 (open the app) and 1 (Stopp),
-     * LoudAlertNotifier 2 («Sehr laut»).
+     * LoudAlertNotifier 2 («Sehr laut»). 0.9.4.4: the Online-Version's «Melden» uses the same
+     * (ReportNow.NOTIFICATION_REQUEST, src/karte).
      */
-    const val REQUEST = 3
+    const val REQUEST = ReportNow.NOTIFICATION_REQUEST
 
     /** The notification's text while it opens «Laut! Melden» (the same words as the «Sehr laut» notification). */
     const val TEXT = LoudAlertRule.TEXT
 
     /** The label of the notification's button (0.6.9, Labor·Karte): «Melden», next to «Stopp». */
-    const val BUTTON = "Melden"
+    const val BUTTON = ReportNow.NOTIFICATION_BUTTON
 
     /**
      * What the measurement notification shows and does in a state. [text]: the fixed text, or null to

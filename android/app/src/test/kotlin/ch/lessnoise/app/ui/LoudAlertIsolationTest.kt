@@ -42,10 +42,12 @@ class LoudAlertIsolationTest {
         val stub = File(app, "src/nounterwegs/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
         assertTrue(stub.contains("const val AVAILABLE = false"))
         assertTrue(stub.contains("fun start(context: Context, container: AppContainer) = Unit"))
-        assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? = null"))
         assertTrue(stub.contains("fun rememberUnterwegsPermission(): () -> Unit = {}"))
-        // Its only job: the shortcut's and the widget's intent opens the report at the tap's time.
+        // Its jobs: the shortcut's and the widget's intent opens the report at the tap's time; 0.9.4.4 (until 0.9.4.3
+        // `= null`): the measurement notification's «Melden» button, built in src/karte (report/ReportNow.kt, no alert
+        // code), whatever unterwegs/moving say (the Online-Version has no «Unterwegs» run).
         assertTrue(stub.contains("ReportNow.preset(intent?.action, tapMs)"))
+        assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? =\n        ReportNow.notificationTap(context, running)"))
         val stubCode = stub.replace("NotificationTap", "")
         for (bad in listOf("Notification", "notify", "PendingIntent", "SharedPreferences", "alert.", "Manifest.permission")) assertFalse(stubCode.contains(bad), bad)
         // Gradle: the stand-in is compiled into public only, the real facade into laborKarte only (its default source set).

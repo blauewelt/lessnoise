@@ -159,7 +159,7 @@ class ShareScreenshots {
         shareStatus(on, true, ms(18, 30), false, LocateState.Failed(ch.lessnoise.app.location.LocationPolicy.Outcome.LocationOff), true, hm = Fmt::hm)!!,
     )
 
-    // Running = at the window: level card, «Stoppen», «Läuft seit …», the chip, Lärmspitzen; no «Laut! Melden».
+    // Running = at the window: level card, «Stoppen», «Läuft seit …», the chip, Lärmspitzen; 0.9.4.4 with the big «Laut! Melden».
     @Test
     fun messenOnTheMap() = messen("messen-running-on-the-map", runningSent)
 
