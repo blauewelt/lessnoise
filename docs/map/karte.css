@@ -226,7 +226,9 @@ path.cell:focus { outline: none; }
   color: var(--rt);
   font: 700 10px/1 var(--sans);
 }
-.leaflet-marker-icon.report { width: 18px; height: 18px; }
+/* On the map the marker is Leaflet's and placed absolutely (leaflet.css); `.report`'s `position: relative`
+   (for the teardrop layer) must not override that, or every marker is drawn away from its point. */
+.leaflet-marker-icon.report { position: absolute; width: 18px; height: 18px; }
 .report span { pointer-events: none; display: contents; }
 .report b { position: relative; font: inherit; }
 /* Direction of travel (app 0.6.7): the round marker becomes a teardrop whose one pointed corner
