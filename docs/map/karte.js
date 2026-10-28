@@ -317,25 +317,13 @@
     var shown = state.reports && state.day ? M.reportsInPeriod(state.reports, state.day, period().days) : [];
     shown.forEach(function (r) {
       if (typeof r.lat !== "number" || typeof r.lon !== "number") return;
-      var cat = M.reportCategory(r.category);
-      var dir = M.reportDirection(r);
-      // App 0.8.5: the peak level while the report dialog was open, whole dB, after the direction.
-      var text = M.reportText(cat.name, M.hourLabel(r.time), dir, M.reportLevel(r));
-      // App 0.6.7: with a direction the round marker gets one pointed corner (a teardrop) that
-      // points where the vehicle drove. The shape is its own layer under the upright letter and is
-      // rotated through CSSOM (allowed by the page's CSP, unlike a style attribute); the corner of
-      // the unrotated shape points south-west (225°), hence the offset.
-      var shape = null;
-      if (dir !== null) {
-        shape = el("i", { class: "report-shape", "aria-hidden": "true", "data-direction": String(dir) });
-        shape.style.transform = "rotate(" + M.headingShapeRotation(dir) + "deg)";
-      }
-      var icon = L.divIcon({
-        className: "report report-" + cat.id + (dir !== null ? " report-heading" : ""),
-        html: el("span", { "aria-label": text, "data-category": cat.id }, [shape, el("b", { text: cat.letter })]),
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
+      // The marker (model.js reportMarker): the letter (0.9.4.5: a dot without a category); with a
+      // direction a teardrop whose pointed corner shows the way (app 0.6.7, rotated through CSSOM, which
+      // the page's CSP allows unlike a style attribute); 0.9.4.5 several vehicles as a convoy in the one
+      // divIcon (screen pixels, the same at every zoom), or «×n» without a direction.
+      var m = M.reportMarker(r, el);
+      var text = m.text;
+      var icon = L.divIcon({ className: m.className, html: m.html, iconSize: [18, 18], iconAnchor: [9, 9] });
       L.marker([r.lat, r.lon], { icon: icon, pane: "reports", keyboard: false, bubblingMouseEvents: false })
         .bindTooltip(el("span", { text: text }), { className: "cell-tip report-tip", direction: "top", offset: [0, -8], opacity: 1 })
         .addTo(reportLayer);
@@ -351,19 +339,8 @@
     var ul = document.getElementById("legend-reports");
     clear(ul);
     ul.appendChild(el("li", { class: "reports-head", id: "reports-count" }));
-    M.REPORT_CATEGORIES.forEach(function (c) {
-      ul.appendChild(el("li", null, [
-        el("span", { class: "report report-" + c.id, "aria-hidden": "true" }, [el("span", { text: c.letter })]),
-        c.name,
-      ]));
-    });
-    // The pointed corner of a marker (app 0.6.7) is the reported direction of travel.
-    var sample = el("i", { class: "report-shape" });
-    sample.style.transform = "rotate(" + M.headingShapeRotation(90) + "deg)";
-    ul.appendChild(el("li", { class: "legend-heading" }, [
-      el("span", { class: "report report-heading", "aria-hidden": "true" }, [sample]),
-      "Spitze = Fahrtrichtung",
-    ]));
+    // One entry per category, «Ohne Angabe» (0.9.4.5), «Spitze = Fahrtrichtung» and «= 3 Fahrzeuge» (model.js).
+    M.reportLegendItems(el).forEach(function (li) { ul.appendChild(li); });
     ul.hidden = !state.showReports;
   }
 

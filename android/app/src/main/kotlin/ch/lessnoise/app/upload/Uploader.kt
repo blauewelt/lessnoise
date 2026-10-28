@@ -233,6 +233,9 @@ class Uploader(
         var sentMinutes = 0
         var sentEvents = 0
         var refused = 0
+        // 0.9.4.5: reports without a category that this (older, schema ≤ 8) server refused for it: they stay
+        // queued, unchanged, and are not sent again in this run (Uploader.serverTooOld).
+        val held = mutableSetOf<PendingReport>()
         try {
             if (!s.registered) {
                 val reg = client.register(appVersion, appBuild)
@@ -259,7 +262,7 @@ class Uploader(
             // Reports first: few, small, and their coordinates should not stay on the phone longer than needed.
             while (true) {
                 if (stopRequested()) return Outcome.Disabled
-                val batch = reports.state.value.pending.take(UploadClient.MAX_REPORTS)
+                val batch = reports.state.value.pending.filter { it !in held }.take(UploadClient.MAX_REPORTS)
                 if (batch.isEmpty() || requests >= maxRequestsPerRun) break
                 val res = try {
                     client.postReports(id, token, JsonArray(batch.map(Payloads::report)))
@@ -280,12 +283,20 @@ class Uploader(
                 // one from before schema v8 refuses `level` the same way (both at once for a server
                 // older than v6). Such reports are not lost: they stay queued without the refused
                 // optional fields and go out again in this loop.
-                val retry = res.rejected.filter { rej ->
-                    batch.getOrNull(rej.index)?.let { onlyOptional(it, rej.fields) } == true
+                // 0.9.4.5: one before schema v9 refuses `count` the same way (re-sent as one vehicle), and a report
+                // without a category for the missing `category`: nothing sensible can be sent to such a server,
+                // so that report stays queued unchanged («Server zu alt – wird später gesendet»); the server is
+                // deployed from main, so this lasts until the next deploy.
+                val tooOld = res.rejected.filter { rej ->
+                    batch.getOrNull(rej.index)?.let { serverTooOld(it, rej.fields) } == true
                 }.map { it.index }.toSet()
-                val refusedHere = res.rejected.map { it.index }.toSet() - retry
+                held += tooOld.map { batch[it] }
+                val retry = res.rejected.filter { rej ->
+                    rej.index !in tooOld && batch.getOrNull(rej.index)?.let { onlyOptional(it, rej.fields) } == true
+                }.map { it.index }.toSet()
+                val refusedHere = res.rejected.map { it.index }.toSet() - retry - tooOld
                 if (refusedHere.isNotEmpty()) store.update { it.copy(refusedTotal = it.refusedTotal + refusedHere.size) }
-                val kept = batch.indices.filter { it !in retry }
+                val kept = batch.indices.filter { it !in retry && it !in tooOld }
                 ReportQueue.acknowledge(
                     reports, kept.map { batch[it] },
                     rejected = kept.withIndex().filter { (_, i) -> i in refusedHere }.map { it.index }.toSet(),
@@ -296,6 +307,16 @@ class Uploader(
                     reports,
                     // dropDirection replaced those reports in the queue: match them without the direction.
                     again.filter { (_, f) -> f.any(::isLevelField) }.map { (r, f) -> if (f.any(::isDirectionField)) r.copy(direction = null) else r },
+                )
+                ReportQueue.dropCount(
+                    reports,
+                    // dropDirection and dropLevel replaced those reports in the queue: match them without what they dropped.
+                    again.filter { (_, f) -> f.any(::isCountField) }.map { (r, f) ->
+                        r.copy(
+                            direction = if (f.any(::isDirectionField)) null else r.direction,
+                            level = if (f.any(::isLevelField)) null else r.level,
+                        )
+                    },
                 )
             }
 
@@ -330,7 +351,9 @@ class Uploader(
                 requests += events.requests; sentEvents = events.sent; refused += events.refused; more = events.more
             }
             // «Zuletzt gesendet» only moves when something was actually sent.
-            store.update { if (requests > 0) it.copy(lastSuccessAtMs = clock(), lastError = null) else it.copy(lastError = null) }
+            // 0.9.4.5: reports held for an older server say so where the last error is shown.
+            val note = if (held.isNotEmpty()) SERVER_TOO_OLD_TEXT else null
+            store.update { if (requests > 0) it.copy(lastSuccessAtMs = clock(), lastError = note) else it.copy(lastError = note) }
             return Outcome.Done(sentMinutes, sentEvents, refused, more, sentReports)
         } catch (e: UploadClient.Failure.Unauthorized) {
             store.update { it.copy(authFailed = true, lastError = AUTH_FAILED_TEXT) }
@@ -540,7 +563,21 @@ class Uploader(
          */
         fun onlyOptional(r: PendingReport, fields: List<String>): Boolean =
             fields.isNotEmpty() && fields.all { f ->
-                (isDirectionField(f) && r.direction != null) || (isLevelField(f) && r.level != null)
+                (isDirectionField(f) && r.direction != null) || (isLevelField(f) && r.level != null) ||
+                    (isCountField(f) && r.count > 1)
             }
+
+        /** 0.9.4.5: `count` (server schema v9). */
+        fun isCountField(f: String): Boolean = f == "count"
+
+        /**
+         * 0.9.4.5: whether [r] was refused because the server predates optional categories (schema ≤ 8 answers
+         * «Field required» for field `category`): [r] has no category and `category` is among the refused fields.
+         * Such a report is kept queued as it is and sent again on a later run ([SERVER_TOO_OLD_TEXT]).
+         */
+        fun serverTooOld(r: PendingReport, fields: List<String>): Boolean = r.category == null && "category" in fields
+
+        /** 0.9.4.5: shown as the last error while a report without a category waits for an updated server. */
+        const val SERVER_TOO_OLD_TEXT = "Server zu alt – wird später gesendet"
     }
 }

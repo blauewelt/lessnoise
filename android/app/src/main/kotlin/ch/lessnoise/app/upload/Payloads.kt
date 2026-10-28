@@ -153,13 +153,17 @@ object Payloads {
      * 0.8.5 the `level` while the dialog was open (peak LAFmax and LAeq of those seconds, one decimal,
      * the seconds, calibrated or not) when the microphone gave one. A report without either is exactly
      * the request of 0.6.6. The plate (0.7.6–0.8.4) and the photo (0.8.5) or video (0.9.4.3, `media`) are never read here.
+     * 0.9.4.5 (Labor·Karte first): only the place is required — no `category` key when none was chosen, and
+     * `count` (2–9) only for several vehicles; a report with a category and one vehicle is the request of 0.9.4.4.
      */
     fun report(r: PendingReport): JsonObject = buildJsonObject {
         put("time", r.timeIso)
         put("lat", num(r.lat, 5))
         put("lon", num(r.lon, 5))
         put("accuracy_m", num(r.accuracyM, 1))
-        put("category", r.category)
+        // 0.9.4.5 (server schema v9): absent when none was chosen; `count` only for more than one vehicle.
+        r.category?.let { put("category", it) }
+        if (r.count > 1) put("count", r.count)
         r.direction?.let { d ->
             put("direction", buildJsonObject {
                 put("bearing_deg", d.bearingDeg)

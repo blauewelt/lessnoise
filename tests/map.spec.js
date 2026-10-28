@@ -371,17 +371,27 @@ test("reports layer: on by default, one lettered marker per report of the period
   await expect(page.locator("#reports-toggle")).toBeChecked();
   await expect(markers).toHaveCount(in7.length);
   await expect(page.locator("#reports-count")).toHaveText(`${in7.length} Meldungen in diesem Zeitraum`);
-  const legend = await page.locator("#legend-reports li:not(.reports-head):not(.legend-heading)").allTextContents();
-  expect(legend.map((t) => t.slice(1))).toEqual(["Motorrad", "Poser", "Lastwagen", "Flugzeug", "Auto", "Andere"]);
+  const legend = await page.locator("#legend-reports li:not(.reports-head):not(.legend-heading):not(.legend-many)").allTextContents();
+  // 0.9.4.5: four more categories and «Ohne Angabe» (a dot, no letter)
+  expect(legend).toEqual([
+    "MMotorrad", "PPoser", "LLastwagen", "FFlugzeug", "AAuto", "ZBahn", "BBaustelle", "GGartengeräte", "HHupen", "+Andere",
+    "Ohne Angabe",
+  ]);
+  await expect(page.locator("#legend-reports li.legend-many")).toHaveText("×3= 3 Fahrzeuge");
   // the marker carries category and hour, nothing else
   const labels = await markers.locator("span").evaluateAll((s) => s.map((x) => x.getAttribute("aria-label")));
   for (const l of labels) {
-    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Flugzeug|Auto|Andere) · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?( · \d{1,3} dB)?$/);
+    expect(l).toMatch(/^(Motorrad|Poser|Lastwagen|Flugzeug|Auto|Bahn|Baustelle|Gartengeräte|Hupen|Andere|Ohne Angabe)( · [2-9] Fahrzeuge)? · (Mo|Di|Mi|Do|Fr|Sa|So) \d+\. \S+, \d+–\d+ Uhr( · Richtung (Nord|Nordost|Ost|Südost|Süd|Südwest|West|Nordwest))?( · \d{1,3} dB)?$/);
   }
   const first = in7[0];
   const firstDir = M.reportDirection(first);
-  expect(labels).toContain(
-    `${M.reportCategory(first.category).name} · ${M.hourLabel(first.time)}` + (firstDir === null ? "" : ` · ${M.directionLabel(firstDir)}`));
+  expect(labels).toContain(M.reportText(M.reportCategory(first.category).name, M.hourLabel(first.time), firstDir, M.reportLevel(first), M.reportCount(first)));
+  // 0.9.4.5: a convoy of n − 1 smaller teardrops behind each report of several vehicles with a direction; «×n» without
+  const many = in7.filter((r) => M.reportCount(r) > 1);
+  const tails = many.filter((r) => M.reportDirection(r) !== null).reduce((a, r) => a + M.reportCount(r) - 1, 0);
+  await expect(markers.locator(".report-tail")).toHaveCount(tails);
+  await expect(markers.locator(".report-count")).toHaveCount(many.filter((r) => M.reportDirection(r) === null).length);
+  await expect(page.locator("#karte .leaflet-marker-icon.report-none")).toHaveCount(in7.filter((r) => r.category === null).length);
   // app 0.6.7: a teardrop shape per report with a direction, its corner rotated to the bearing; none without one
   const withDir = in7.filter((r) => M.reportDirection(r) !== null);
   expect(withDir.length).toBeGreaterThan(0);
@@ -398,6 +408,21 @@ test("reports layer: on by default, one lettered marker per report of the period
     await m.hover({ force: true });
     await expect(page.locator(".leaflet-tooltip.report-tip")).toContainText(" Uhr");
   }
+  // Each marker sits on its report's point: Leaflet's absolute placement, not shifted by the pane's flow
+  // (b0e2672 had `.report { position: relative }` win over leaflet.css; fixed in 0.9.4.5).
+  const off = await page.evaluate(() => {
+    const k = window.__karte;
+    const out = [];
+    k.reportLayer.eachLayer((m) => {
+      const r = m.getElement().getBoundingClientRect();
+      const box = k.map.getContainer().getBoundingClientRect();
+      const p = k.map.latLngToContainerPoint(m.getLatLng());
+      out.push(Math.hypot(r.left + r.width / 2 - box.left - p.x, r.top + r.height / 2 - box.top - p.y));
+    });
+    return out;
+  });
+  expect(off.length).toBe(in7.length);
+  for (const d of off) expect(d).toBeLessThan(1.5);
   // 30 days: every report of the file
   await page.locator('#period input[value="last_30_days"]').check({ force: true });
   await expect(markers).toHaveCount(reportsJson.reports.length);

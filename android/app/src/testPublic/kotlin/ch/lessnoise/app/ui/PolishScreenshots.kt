@@ -145,6 +145,9 @@ internal fun ReportDialogSample(
     video: Boolean = false,
     /** 0.9.4.3: the decoded first frame and length of the video [photo] (MediaMetadataRetriever needs a phone). */
     videoPreview: ReportVideoThumb? = null,
+    /** 0.9.4.5: the direction switched off («×» on the disc), and «Anzahl». */
+    directionOn: Boolean = true,
+    count: Int = 1,
 ) {
     val lat = 47.3769
     val lon = 8.5417
@@ -159,7 +162,12 @@ internal fun ReportDialogSample(
     ReportDialogFrame {
         ReportDialogBody(
             erkanntAt = if (suggested.isNotEmpty()) "22:36" else null,
-            disc = { size, measureOnly -> ReportDirectionUi.Panel(reading, fix, null, previewTiles = tiles, discSize = size, measureOnly = measureOnly) { false } },
+            disc = { size, measureOnly ->
+                ReportDirectionUi.Panel(
+                    reading, fix, null, previewTiles = tiles, discSize = size, measureOnly = measureOnly,
+                    directionOn = directionOn, onDirectionOn = {},
+                ) { false }
+            },
             level = if (level) meter else null,
             fixLine = fixLine, fixState = fixState, waiting = waiting, onMoveBack = {},
             photo = {
@@ -168,7 +176,8 @@ internal fun ReportDialogSample(
             photoBesideStatus = photo == null,
             photoNote = null,
             suggested = suggested, chosen = chosen, onSelect = {},
-            sendEnabled = chosen != null && !waiting, onSend = {},
+            // 0.9.4.5: «Senden» without a category too.
+            sendEnabled = !waiting, onSend = {}, count = count,
             // ScrollState clamps the value to the end once the layout knows the height.
             scroll = rememberScrollState(if (scrolledToEnd) Int.MAX_VALUE else 0),
         )
@@ -203,11 +212,25 @@ abstract class ReportDialogDeviceScreenshots(widthDp: Int, heightDp: Int, fontSc
         level: Boolean = true,
         waiting: Boolean = false,
         scrolledToEnd: Boolean = false,
+        directionOn: Boolean = true,
+        count: Int = 1,
     ) = paparazzi.snapshot("report-$state-$suffix") {
         LessNoiseTheme(dark = dark) {
-            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting, scrolledToEnd)
+            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting, scrolledToEnd, directionOn = directionOn, count = count)
         }
     }
+
+    // 0.9.4.5: nothing chosen and «Senden» enabled (above: nothingChosen); the direction switched off; «Anzahl» 3;
+    // «Andere» open with its six choices (Hupen, Gartengeräte chosen); everything at once.
+    @Test fun directionOff() = dialog("direction-off", dark = false, chosen = null, directionOn = false)
+    @Test fun directionOffDark() = dialog("direction-off-dark", dark = true, chosen = null, directionOn = false)
+    @Test fun count3() = dialog("count3", dark = false, chosen = ReportCategory.AUTO, count = 3)
+    @Test fun count3Dark() = dialog("count3-dark", dark = true, chosen = ReportCategory.AUTO, count = 3)
+    @Test fun andereHupen() = dialog("andere-hupen", dark = false, chosen = ReportCategory.HUPEN)
+    @Test fun andereHupenDark() = dialog("andere-hupen-dark", dark = true, chosen = ReportCategory.HUPEN)
+    @Test fun andereGarten() = dialog("andere-garten", dark = false, chosen = ReportCategory.GARTEN, count = 2)
+    @Test fun allAtOnce() = dialog("baustelle-off-count3", dark = false, chosen = ReportCategory.BAUSTELLE, directionOn = false, count = 3)
+    @Test fun allAtOnceDark() = dialog("baustelle-off-count3-dark", dark = true, chosen = ReportCategory.BAUSTELLE, directionOn = false, count = 3)
 
     @Test fun nothingChosen() = dialog("nothing", dark = false, chosen = null)
     @Test fun nothingChosenDark() = dialog("nothing-dark", dark = true, chosen = null)

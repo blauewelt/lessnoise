@@ -125,7 +125,8 @@ fun shareStatus(
             LocateState.Idle -> ShareStatus(STATUS_NO_POINT, ShareAction.LOCATION_OPTIONS, StatusIcon.NO_LOCATION, problem = true)
         }
     }
-    val error = s.lastError
+    // 0.9.4.5: «Server zu alt» concerns reports without a category only (shown in «Meldungen»), not the measurements.
+    val error = s.lastError?.takeUnless { it == Uploader.SERVER_TOO_OLD_TEXT }
     return when {
         s.authFailed -> ShareStatus(STATUS_AUTH, ShareAction.OPEN_SHARE, StatusIcon.OFF_MAP, problem = true)
         !online || error == Uploader.NO_CONNECTION_TEXT -> ShareStatus(STATUS_NO_INTERNET, ShareAction.NONE, StatusIcon.OFF_MAP, problem = true)

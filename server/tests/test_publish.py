@@ -263,14 +263,16 @@ def test_reports_json(conn, tmp_path):
     r = load(out / "reports.json")
     assert set(r) == {"generated_at", "from", "to", "categories", "reports"}
     assert (r["from"], r["to"]) == ("2026-09-26", "2026-10-25")
-    assert r["categories"] == ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"]
+    assert r["categories"] == [
+        "motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn",
+    ]  # fmt: skip
     assert r["reports"] == [
-        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None, "lafmax_db": None},
-        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None, "lafmax_db": None},
+        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None, "lafmax_db": None, "count": 1},
         # 09:01, 09:30 and 09:59:59 are all «09:00»; within the hour, sorted by place, not by time or device.
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None, "lafmax_db": None},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None, "lafmax_db": None},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None, "lafmax_db": None},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None, "lafmax_db": None, "count": 1},
     ]
     text = (out / "reports.json").read_text()
     for forbidden in ("dev-", "accuracy", "123.4", "device"):

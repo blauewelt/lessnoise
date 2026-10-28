@@ -60,6 +60,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -166,6 +169,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var chosen by remember { mutableStateOf<ReportCategory?>(null) }
     var sending by remember { mutableStateOf(false) }
     var chosenReading by remember { mutableStateOf<CompassReading?>(null) }
+    // 0.9.4.5 (Labor·Karte first): the direction can be switched off («×» on the disc; then none is sent), and
+    // «Anzahl» counts the vehicles (1–9; sent only above 1).
+    var directionOn by remember { mutableStateOf(true) }
+    var count by remember { mutableStateOf(1) }
     // 0.8.5: the photo (ReportPhotos.kt) instead of the typed plate (0.7.6–0.8.4): the re-encoded
     // draft in the cache until «Senden» moves it into the app's files; on the phone only, never sent.
     // 0.9.4.3 (Labor·Karte; ReportVideos.enabled): a short video instead, its metadata-free copy as the draft.
@@ -203,9 +210,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     var askedLocation by remember { mutableStateOf(false) }
     fun cancel() {
         job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null; draggable = false
+        directionOn = true; count = 1
     }
 
-    fun send(category: ReportCategory, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?, level: ReportLevel?) {
+    fun send(category: ReportCategory?, fix: LocationPolicy.ReportOutcome.Fix, reading: CompassReading?, level: ReportLevel?) {
         // The fix, or the place moved under the dot (with MANUAL_ACCURACY_M and its own cell).
         val place = reportPlace(fix, moved)
         // True north from the declination at the report's own place (magnetic if that fails).
@@ -214,7 +222,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
         val report = PendingReport(
             epochMs = tapMs, timeIso = PendingReport.isoSeconds(tapMs, zone),
             lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,
-            category = category.id, cell = place.cell, direction = direction, level = level,
+            category = category?.id, cell = place.cell, direction = direction, level = level, count = count,
         )
         // 0.8.5: the photo (0.9.4.3: or video) moves into files/reports/ and the report is queued with its name, in one step.
         val queued = ReportPhotos.queue(context, c.upload.reports, report, draft)
@@ -232,10 +240,10 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     /** After «Senden» or a fix: send, keep waiting, or say why there is no fix ([reportNext]). */
     fun advance() {
         val o = fixOutcome
-        when (reportNext(chosen, o, sending)) {
-            ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)
+        when (reportNext(o, sending)) {
+            ReportNext.SEND -> send(chosen, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)
             ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)
-            ReportNext.CHOOSE, ReportNext.READY, ReportNext.WAIT -> Unit
+            ReportNext.READY, ReportNext.WAIT -> Unit
         }
     }
 
@@ -307,12 +315,14 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
             // «Senden» tapped before the fix: everything waits for it.
             val waiting = sending
             fun select(category: ReportCategory) {
-                if (!waiting) chosen = category
+                // 0.9.4.5: the category is optional; tapping the selected one again deselects it.
+                if (!waiting) chosen = reportSelectAfter(chosen, category)
             }
             fun sendTap() {
-                if (!reportSendEnabled(chosen, fixOutcome, sending)) return
+                if (!reportSendEnabled(fixOutcome, sending)) return
                 sending = true
-                chosenReading = reading?.value
+                // 0.9.4.5: no direction when it was switched off.
+                chosenReading = if (directionOn) reading?.value else null
                 chosenLevel = meter.level()
                 advance()
             }
@@ -334,6 +344,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                             ReportDirectionUi.Panel(
                                 reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon },
                                 onDraggable = { draggable = it }, discSize = size, measureOnly = measureOnly,
+                                directionOn = directionOn, onDirectionOn = { on -> if (!waiting) directionOn = on },
                             ) { p ->
                                 // Taken only within 2 km of the fix and in Switzerland; else the map stops.
                                 val next = fix?.let { reportMovedPlace(it, p.first, p.second) }
@@ -361,9 +372,12 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         suggested = suggested,
                         chosen = chosen,
                         onSelect = { cat -> select(cat) },
+                        count = count,
+                        onCount = { n -> if (!waiting) count = n.coerceIn(1, ReportCategory.MAX_COUNT) },
                         // 0.8.2: the explicit send (owner's decision), enabled with a category and a fix (or one
                         // being searched). 0.9.1: the dialog's main button, full width at the bottom (ReportSendButton).
-                        sendEnabled = reportSendEnabled(chosen, fixOutcome, sending),
+                        // 0.9.4.5: enabled without a category too (only the place is required).
+                        sendEnabled = reportSendEnabled(fixOutcome, sending),
                         onSend = { sendTap() },
                     )
                 }
@@ -422,6 +436,9 @@ fun reportFixState(hasFix: Boolean, moved: Boolean): ReportFixState = when {
 
 /** 0.8.6: the space between the dialog's groups (0.9.4.2: 14 dp, was 20), and inside a group (0.9.4.2: 6 dp, was 8). */
 val REPORT_GROUP_GAP = 14.dp
+
+/** 0.9.4.5: the gap between the groups while the rarer choices are open ([moreOpen]), else [REPORT_GROUP_GAP]. */
+fun reportGroupGap(moreOpen: Boolean): Dp = if (moreOpen) 6.dp else REPORT_GROUP_GAP
 val REPORT_INNER_GAP = 6.dp
 
 /** 0.9.4.2: the disc's side in the dialog: at least this (a short screen then scrolls) … */
@@ -482,6 +499,9 @@ fun ReportDialogBody(
     onSelect: (ReportCategory) -> Unit,
     sendEnabled: Boolean,
     onSend: () -> Unit,
+    /** 0.9.4.5: «Anzahl», how many vehicles (1–9), and its change. */
+    count: Int = 1,
+    onCount: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     scroll: ScrollState = rememberScrollState(),
 ) {
@@ -497,21 +517,29 @@ fun ReportDialogBody(
     // «Senden» stay below them, always on screen.
     Column(modifier.fillMaxWidth()) {
         ReportFitDisc(scroll, Modifier.weight(1f, fill = false)) { discSize, measureOnly ->
-            // 1. Was war es? — the category (required) first (0.9.4.2; until 0.9.4.1 last, under the disc and the level).
+            // 1. Was war es? — the category first (0.9.4.2; until 0.9.4.1 last, under the disc and the level); optional
+            // since 0.9.4.5. «Anzahl» at the right of the heading (0.9.4.5; there it costs 20 dp, not a row of its own),
+            // «Erkannt um 22:36» under the heading (until 0.9.4.4 at its right).
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
-                if (erkanntAt != null) {
-                    Text("Erkannt um $erkanntAt", style = MaterialTheme.typography.labelMedium, color = cs.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)
+                    if (erkanntAt != null) {
+                        Text("Erkannt um $erkanntAt", style = MaterialTheme.typography.labelMedium, color = cs.primary)
+                    }
                 }
+                ReportCountStepper(count, onCount, enabled = !waiting)
             }
-            Spacer(Modifier.height(REPORT_INNER_GAP))
+            // 0.9.4.5: no gap (was REPORT_INNER_GAP): the stepper's 40 dp targets already leave room around the heading.
             ReportCategoryRows(rows, enabled = !waiting, onTap = onTap)
-            Spacer(Modifier.height(REPORT_GROUP_GAP))
+            // 0.9.4.5: with the six rarer choices open the groups move closer ([reportGroupGap]), so that the dialog
+            // still fits a 360 × 740 dp phone with the disc at its minimum.
+            val groupGap = reportGroupGap(moreOpen)
+            Spacer(Modifier.height(groupGap))
             // 2. Wohin fuhr es? — 0.9.2: with its own heading; 0.9.4.2: the Panel draws it ([REPORT_WHERE]), with the
             // live «Nord · 358°» at its right, then the hint line, then the disc.
             if (disc != null) {
                 disc(discSize, measureOnly)
-                Spacer(Modifier.height(REPORT_GROUP_GAP))
+                Spacer(Modifier.height(groupGap))
             }
             // 3. Level and place in one line (0.9.4.2; until 0.9.4.1 a card), «Foto» beside it.
             // Once the map was moved: «Zurück zum Standort» at the end of the place line (0.9.4.2; was a line of its own).
@@ -531,7 +559,8 @@ fun ReportDialogBody(
                 Spacer(Modifier.height(4.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
             }
-            Spacer(Modifier.height(4.dp))
+            // 0.9.4.5: no end space while the rarer choices are open (every dp counts on a 360 × 740 dp phone).
+            if (!moreOpen) Spacer(Modifier.height(4.dp))
         }
         // 0.9.1: a line where the scrolling part ends, only when it does scroll (small screens, large font).
         if (scroll.canScrollForward || scroll.canScrollBackward) HorizontalDivider(color = cs.outlineVariant)
@@ -743,6 +772,10 @@ fun reportCategoryIcon(cat: ReportCategory): ImageVector = when (cat) {
     ReportCategory.FLUGZEUG -> AppIcons.Flight
     ReportCategory.POSER -> AppIcons.Speed
     ReportCategory.ANDERE -> AppIcons.MoreHoriz
+    ReportCategory.HUPEN -> AppIcons.VolumeUp
+    ReportCategory.BAUSTELLE -> AppIcons.Cone
+    ReportCategory.GARTEN -> AppIcons.Grass
+    ReportCategory.BAHN -> AppIcons.Train
 }
 
 /** 0.9.4.2: the category buttons' height (0.8.6–0.9.4.1: at least 72 dp, the icon over the label). */
@@ -780,21 +813,29 @@ private fun ReportCategoryRows(rows: ReportCategoryRowsModel, enabled: Boolean, 
             enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
             exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
         ) {
+            // 0.9.4.5: six rarer choices, three per row (Lastwagen · Flugzeug · Bahn / Baustelle · Gartengeräte · Hupen).
             Column {
-                Spacer(Modifier.height(REPORT_ROW_GAP))
-                ReportSegmentRow(rows.more, enabled, open = null, onTap = onTap)
+                // 40 dp high, 4 dp apart like the segments of a row (the first row stays 56 dp), so the dialog with this grid open still fits a
+                // 360 × 740 dp phone with the disc at its minimum; Material keeps each touch target at 48 dp.
+                rows.more.chunked(REPORT_MORE_PER_ROW).forEach { row ->
+                    Spacer(Modifier.height(REPORT_MORE_ROW_GAP))
+                    ReportSegmentRow(row, enabled, open = null, onTap = onTap, height = REPORT_MORE_HEIGHT)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ReportSegmentRow(buttons: List<ReportCategoryButton>, enabled: Boolean, open: Boolean?, onTap: (ReportCategoryButton) -> Unit) {
+private fun ReportSegmentRow(
+    buttons: List<ReportCategoryButton>, enabled: Boolean, open: Boolean?, onTap: (ReportCategoryButton) -> Unit,
+    height: Dp = REPORT_CATEGORY_HEIGHT,
+) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(REPORT_SEGMENT_GAP)) {
         buttons.forEachIndexed { i, b ->
             CategoryButton(
                 b, reportSegmentShape(i, buttons.size), enabled, open = if (b.category == null) open else null,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f), height = height,
             ) { onTap(b) }
         }
     }
@@ -809,10 +850,13 @@ private fun ReportSegmentRow(buttons: List<ReportCategoryButton>, enabled: Boole
  * a large font the icon gives way first (or, for «Andere» showing a choice, the label: the icon then says it).
  */
 @Composable
-private fun CategoryButton(b: ReportCategoryButton, shape: RoundedCornerShape, enabled: Boolean, open: Boolean?, modifier: Modifier, onClick: () -> Unit) {
+private fun CategoryButton(
+    b: ReportCategoryButton, shape: RoundedCornerShape, enabled: Boolean, open: Boolean?, modifier: Modifier,
+    height: Dp = REPORT_CATEGORY_HEIGHT, onClick: () -> Unit,
+) {
     val cs = MaterialTheme.colorScheme
     val padding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-    val m = modifier.heightIn(min = REPORT_CATEGORY_HEIGHT).semantics {
+    val m = modifier.heightIn(min = height).semantics {
         this.selected = b.selected
         contentDescription = reportCategoryDescription(b)
         if (open != null) stateDescription = if (open) REPORT_MORE_OPEN else REPORT_MORE_SHUT
@@ -902,8 +946,24 @@ const val REPORT_SUGGESTED_MARK = "erkannt"
 /** 0.9.4.2 (owner: trucks and aircraft are rare): the main choices, always in the first row. */
 val REPORT_MAIN_CATEGORIES: List<ReportCategory> = listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO)
 
-/** 0.9.4.2: the rarer choices, in the row «Andere» folds out. With [REPORT_MAIN_CATEGORIES]: exactly [ReportCategory.OFFERED]. */
-val REPORT_MORE_CATEGORIES: List<ReportCategory> = listOf(ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG)
+/**
+ * 0.9.4.2: the rarer choices, in the row «Andere» folds out; 0.9.4.5 six of them in two rows of three
+ * ([REPORT_MORE_PER_ROW]). With [REPORT_MAIN_CATEGORIES]: exactly [ReportCategory.OFFERED].
+ */
+val REPORT_MORE_CATEGORIES: List<ReportCategory> = listOf(
+    ReportCategory.LASTWAGEN, ReportCategory.FLUGZEUG, ReportCategory.BAHN,
+    ReportCategory.BAUSTELLE, ReportCategory.GARTEN, ReportCategory.HUPEN,
+)
+
+/** 0.9.4.5: buttons per row of the folded-out choices (as many as the first row has). */
+const val REPORT_MORE_PER_ROW = 3
+
+/** 0.9.4.5: the folded-out choices' height (the first row: [REPORT_CATEGORY_HEIGHT]) and the space above each of their rows. */
+val REPORT_MORE_HEIGHT = 40.dp
+val REPORT_MORE_ROW_GAP = 4.dp
+
+/** 0.9.4.5: the category after a tap on [tapped]: tapping the selected one again deselects it (the category is optional). */
+fun reportSelectAfter(chosen: ReportCategory?, tapped: ReportCategory): ReportCategory? = if (chosen == tapped) null else tapped
 
 /** 0.9.4.2: the third button of the first row; it folds out [REPORT_MORE_CATEGORIES]. Not a category: nothing is sent as «Andere». */
 const val REPORT_MORE = "Andere"
@@ -968,6 +1028,33 @@ fun reportMoreOpenAfter(tapped: ReportCategory?, open: Boolean): Boolean = when 
 fun reportCategoryDescription(b: ReportCategoryButton): String =
     (if (b.category == null && b.label != REPORT_MORE) "$REPORT_MORE: ${b.label}" else b.label) +
         (if (b.suggested) ", $REPORT_SUGGESTED_MARK" else "")
+
+/**
+ * 0.9.4.5 (Labor·Karte first): «Anzahl − 1 +» at the right of «Was war es?»: how many vehicles passed, 1 to
+ * [ReportCategory.MAX_COUNT]; − and + are 40 dp targets, disabled at the ends and while [enabled] is false.
+ */
+@Composable
+fun ReportCountStepper(count: Int, onCount: (Int) -> Unit, enabled: Boolean = true) {
+    val cs = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(REPORT_COUNT, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+        IconButton(onClick = { onCount(count - 1) }, enabled = enabled && count > 1, modifier = Modifier.size(40.dp)) {
+            Icon(AppIcons.Remove, contentDescription = REPORT_COUNT_LESS, modifier = Modifier.size(20.dp))
+        }
+        Text(
+            count.toString(), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 16.dp).semantics { contentDescription = "$REPORT_COUNT $count" },
+        )
+        IconButton(onClick = { onCount(count + 1) }, enabled = enabled && count < ReportCategory.MAX_COUNT, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Filled.Add, contentDescription = REPORT_COUNT_MORE, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** 0.9.4.5: the label of the stepper, and what TalkBack says of its buttons. */
+const val REPORT_COUNT = "Anzahl"
+const val REPORT_COUNT_LESS = "Ein Fahrzeug weniger"
+const val REPORT_COUNT_MORE = "Ein Fahrzeug mehr"
 
 /** 0.8.1: the title of the one dialog. */
 const val REPORT_TITLE = "Laut! Melden"
@@ -1045,18 +1132,15 @@ fun reportMovedPlace(fix: LocationPolicy.ReportOutcome.Fix, lat: Double, lon: Do
 fun reportPlace(fix: LocationPolicy.ReportOutcome.Fix, moved: ReportPlace?): ReportPlace =
     moved ?: ReportPlace(fix.lat, fix.lon, fix.accuracyM, fix.cell)
 
-/** What the one dialog does next (0.8.1; 0.8.2: with «Senden»). */
+/** What the one dialog does next (0.8.1; 0.8.2: with «Senden»; 0.9.4.5: no category needed, `CHOOSE` is gone). */
 enum class ReportNext {
-    /** No category selected: not sendable, the dialog waits (the fix may or may not be there). */
-    CHOOSE,
-
-    /** 0.8.2: a category selected, «Senden» not tapped yet: the dialog waits for «Senden». */
+    /** 0.8.2: «Senden» not tapped yet: the dialog waits for it. */
     READY,
 
     /** «Senden» tapped, the fix is still searched: everything is disabled, it goes out with the fix. */
     WAIT,
 
-    /** A category, «Senden» and a fix: the report is queued now. */
+    /** «Senden» and a fix (0.9.4.5: with or without a category): the report is queued now. */
     SEND,
 
     /** No fix (no permission, location off, none found, outside Switzerland): «Kein genauer Standort». */
@@ -1064,24 +1148,24 @@ enum class ReportNext {
 }
 
 /**
- * «Send now or wait»: [chosen] the selected category (null: none), [fix] the outcome of the one fix
- * (null: still searched), [sendTapped] whether «Senden» was tapped (0.8.2). A failed fix is shown
- * at once, sent or not, since nothing can be sent without one.
+ * «Send now or wait»: [fix] the outcome of the one fix (null: still searched), [sendTapped] whether «Senden» was
+ * tapped (0.8.2). A failed fix is shown at once, sent or not, since nothing can be sent without one. 0.9.4.5
+ * (owner: everything optional but the place): the category no longer decides anything here.
  */
-fun reportNext(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): ReportNext = when {
+fun reportNext(fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): ReportNext = when {
     fix is LocationPolicy.ReportOutcome.Problem -> ReportNext.FAILED
-    chosen == null -> ReportNext.CHOOSE
     !sendTapped -> ReportNext.READY
     fix == null -> ReportNext.WAIT
     else -> ReportNext.SEND
 }
 
 /**
- * 0.8.2: whether «Senden» can be tapped: a category selected, the fix present or still searched
- * (then the report waits for it), and not already sent and waiting.
+ * 0.8.2: whether «Senden» can be tapped: the fix present or still searched (then the report waits for it), and
+ * not already sent and waiting. Until 0.9.4.4 also a category had to be selected; since 0.9.4.5 (owner) only the
+ * place is required.
  */
-fun reportSendEnabled(chosen: ReportCategory?, fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): Boolean =
-    chosen != null && !sendTapped && fix !is LocationPolicy.ReportOutcome.Problem
+fun reportSendEnabled(fix: LocationPolicy.ReportOutcome?, sendTapped: Boolean): Boolean =
+    !sendTapped && fix !is LocationPolicy.ReportOutcome.Problem
 
 /**
  * The short consent before the first report while «Teilen» is off: what is sent, never audio, that

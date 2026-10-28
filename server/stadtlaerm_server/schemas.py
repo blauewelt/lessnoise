@@ -18,8 +18,12 @@ from .lv95 import cell_in_switzerland, lv95_cell, lv95_point_in_switzerland, poi
 DB_MIN, DB_MAX = 0.0, 140.0
 CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
-# Categories of a manual report (§4.7), as the app offers them.
-REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere")
+# Categories of a manual report (§4.7), as the app offers them. Schema v9 (Labor·Karte 0.9.4.5): `hupen`,
+# `baustelle`, `garten` (motorised garden tools), `bahn` (trains and trams) appended; the order is the app's
+# enum order (its test compares the two). The category itself is optional since v9 (ReportIn.category).
+REPORT_CATEGORIES = (
+    "motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn",
+)  # fmt: skip
 # Since app 0.7.0 a report is sent at whatever accuracy the phone's fix has (owner, 2026-10-17);
 # this bound only rejects nonsense, it is no quality gate. Until then it was 200 m.
 MAX_REPORT_ACCURACY_M = 10_000.0
@@ -27,6 +31,8 @@ MAX_REPORT_ACCURACY_M = 10_000.0
 # reports it, and whether the bearing is referred to true or to magnetic north.
 DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
 DIRECTION_NORTHS = ("true", "magnetic")
+# Several vehicles in one report (§4.7, schema v9, Labor·Karte 0.9.4.5): `count` 1–9; absent = 1.
+MAX_REPORT_COUNT = 9
 # Level of a report (§4.7, app 0.8.5): how long the report dialog was open, at most (seconds).
 MAX_REPORT_LEVEL_SECONDS = 600
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
@@ -244,13 +250,16 @@ class LevelIn(Strict):
 
 class ReportIn(Strict):
     """A manual report (§4.7): «here and now something loud passed», with its category and,
-    since app 0.6.7, optionally the direction it drove; since app 0.8.5 optionally the level."""
+    since app 0.6.7, optionally the direction it drove; since app 0.8.5 optionally the level.
+    Schema v9 (Labor·Karte 0.9.4.5): only the place and the time are required — the category may be
+    absent or null («not said»), and `count` (1–9, absent or null = 1) says how many passed."""
 
     time: Annotated[str, Field(max_length=40)]
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
     lon: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     accuracy_m: Annotated[float, Field(ge=0, le=MAX_REPORT_ACCURACY_M, allow_inf_nan=False)]
-    category: Literal[REPORT_CATEGORIES]  # type: ignore[valid-type]
+    category: Literal[REPORT_CATEGORIES] | None = None  # type: ignore[valid-type]
+    count: Annotated[StrictInt, Field(ge=1, le=MAX_REPORT_COUNT)] | None = None
     direction: DirectionIn | None = None
     level: LevelIn | None = None
 

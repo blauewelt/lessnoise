@@ -66,7 +66,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.4-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.4.5-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -81,8 +81,10 @@ class EditionTextTest {
         // 0.9.4.3 (versionCode 48; Labor·Karte first, branch labor-0.9.1): a short video instead of the photo.
         // 0.9.4.4 (versionCode 49; Labor·Karte first, branch labor-0.9.1): «Laut! Melden» as the main surface in both
         // states, «Melden» in the measurement notification.
-        assertEquals(49, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.4"), BuildConfig.VERSION_NAME)
+        // 0.9.4.5 (versionCode 50; Labor·Karte first, branch labor-0.9.1): only the place is required, direction can be
+        // switched off, «Anzahl», Hupen · Baustelle · Gartengeräte · Bahn.
+        assertEquals(50, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.5"), BuildConfig.VERSION_NAME)
     }
 
     @Test

@@ -180,7 +180,13 @@ What the project counts, and who counts it — totals over the whole project, al
   LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
   whenever it is connected. Calibration is per microphone; a minute measured with another
   microphone sends that microphone's kind with its audio source.
-- **Next (in the internal Labor·Karte test build 0.9.4.4, not published yet):** «Messen» puts reporting
+- **Next (in the internal Labor·Karte test build 0.9.4.5, not published yet; the public app will be 0.9.5):**
+  in «Laut! Melden» only the place is required — the kind of vehicle is optional (none chosen = none sent), the
+  direction can be switched off («×» on the compass, «Ohne Richtung»), and «Anzahl» (1–9) counts several
+  vehicles (sent only above 1). «Andere» folds out six choices: Lastwagen, Flugzeug, Bahn, Baustelle,
+  Gartengeräte, Hupen. The map shows a report without a kind as a grey point, several vehicles as a short
+  convoy (or «×3» without a direction). Nothing about the person is added. Server schema v9.
+- **Before that (Labor·Karte 0.9.4.4):** «Messen» puts reporting
   first. «Laut! Melden» is one large button in both states — idle above «Langzeitmessung starten», and also
   while a measurement runs, under a compact level card, with «Stoppen» below it — and the measurement
   notification gets a «Melden» button that opens the report dialog; a tap on the notification opens

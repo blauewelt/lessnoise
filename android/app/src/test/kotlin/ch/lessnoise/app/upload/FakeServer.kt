@@ -66,6 +66,13 @@ class FakeServer : AutoCloseable {
      */
     @Volatile var rejectLevel = false
 
+    /**
+     * 0.9.4.5: True: behave like the server before schema v9 (category required, `extra="forbid"` without `count`): a
+     * report without `category` is listed with field "category", «Field required», one with a `count` with field
+     * "count", «Extra inputs are not permitted» (missing fields first, then extra ones, as pydantic orders them).
+     */
+    @Volatile var beforeV9 = false
+
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
 
@@ -186,7 +193,7 @@ class FakeServer : AutoCloseable {
     }
 
     private fun reportKey(o: JsonObject): String =
-        listOf("time", "category", "lat", "lon").joinToString("|") { o[it]!!.jsonPrimitive.content }
+        listOf("time", "category", "lat", "lon").joinToString("|") { o[it]?.jsonPrimitive?.content ?: "" }
 
     private fun upsert(
         into: MutableMap<String, JsonObject>, arr: JsonArray, limit: Int,
@@ -199,14 +206,17 @@ class FakeServer : AutoCloseable {
             arr.forEachIndexed { i, el ->
                 val o = el.jsonObject
                 val start = key(o)
+                val missing = listOfNotNull("category".takeIf { beforeV9 && "time" in o && it !in o })
                 val unknown = listOfNotNull(
                     "direction".takeIf { rejectDirection && it in o },
                     "level".takeIf { rejectLevel && it in o },
+                    "count".takeIf { beforeV9 && it in o },
                 )
-                if (unknown.isNotEmpty()) {
+                if (missing.isNotEmpty() || unknown.isNotEmpty()) {
                     add(buildJsonObject {
                         put("index", i); put("time", o["time"]!!.jsonPrimitive.content)
                         put("reasons", buildJsonArray {
+                            for (f in missing) add(buildJsonObject { put("field", f); put("reason", "Field required") })
                             for (f in unknown) add(buildJsonObject { put("field", f); put("reason", "Extra inputs are not permitted") })
                         })
                     })

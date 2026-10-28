@@ -70,6 +70,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.alpha
 import kotlin.math.roundToInt
 
 /**
@@ -88,6 +98,17 @@ object ReportDirectionUi {
      * replaced it while the compass was unreliable, and then nothing said what the arrow is for.
      */
     const val POINT_HINT = "Telefon in die Fahrtrichtung halten"
+
+    /** 0.9.4.5: the «×» at the disc (TalkBack), what the heading says instead of the bearing, and the button that turns it back on. */
+    const val DIRECTION_OFF = "Richtung weglassen"
+    const val DIRECTION_NONE = "Ohne Richtung"
+    const val DIRECTION_ON = "Richtung angeben"
+
+    /** 0.9.4.5: the hint line while the direction is off (one line, like [POINT_HINT]). */
+    const val POINT_HINT_OFF = "Es wird keine Fahrtrichtung gesendet."
+
+    /** 0.9.4.5: the disc's opacity while the direction is off. */
+    private const val OFF_ALPHA = 0.38f
 
     /** 0.9.2: an additional line under [POINT_HINT] (error colour) while the compass is unreliable, never instead of it. */
     const val CALIBRATE_HINT = "Kompass ungenau: Telefon in Form einer Acht bewegen."
@@ -186,10 +207,19 @@ object ReportDirectionUi {
          * (no canvas, no tiles requested, no effects), so the dialog learns how much height the rest needs.
          */
         measureOnly: Boolean = false,
+        /**
+         * 0.9.4.5 (Labor·Karte first): whether a direction is given. «×» ([DIRECTION_OFF], a 40 dp button at the
+         * disc's top-right, outside the circle) calls [onDirectionOn] with false: the disc is then drawn faint without
+         * the arrow, with [DIRECTION_NONE] and the text button [DIRECTION_ON] over it, which calls it with true. The
+         * map under the dot can still be dragged (the place stays correctable); the caller sends no direction.
+         * Null: no «×» (the renders of older states).
+         */
+        directionOn: Boolean = true,
+        onDirectionOn: ((Boolean) -> Unit)? = null,
         onMove: (Pair<Double, Double>) -> Boolean,
     ) {
         if (measureOnly) {
-            PanelLines(reading.value) {}
+            PanelLines(reading.value, directionOn) {}
             return
         }
         // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
@@ -252,14 +282,34 @@ object ReportDirectionUi {
         // dialog's heading «Wohin fuhr es?» (ReportDialogBody): on a short screen the disc fills the visible
         // part, and the line saying what the arrow is for must not be the part that is scrolled away.
         // 0.9.4.2: the disc's side is [discSize] (the dialog's height decides), at most the width.
-        PanelLines(r) {
+        PanelLines(r, directionOn) {
             Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f)) {
-                DirectionArrow(frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag)
+                DirectionArrow(
+                    frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag, arrow = directionOn,
+                    modifier = if (directionOn) Modifier else Modifier.alpha(OFF_ALPHA),
+                )
                 if (tiles.isNotEmpty() && r != null) {
                     Text(
                         TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.BottomEnd),
                     )
+                }
+                if (onDirectionOn != null) {
+                    if (directionOn) {
+                        // 0.9.4.5: «×» in the square's corner, outside the circle: the direction off.
+                        IconButton(onClick = { onDirectionOn(false) }, modifier = Modifier.align(Alignment.TopEnd).size(40.dp)) {
+                            Icon(Icons.Filled.Close, contentDescription = DIRECTION_OFF, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        // Over the faint disc, under its centre (the dot stays visible): the way back. «Ohne Richtung»
+                        // stands where the live bearing stood (PanelLines).
+                        FilledTonalButton(
+                            onClick = { onDirectionOn(true) },
+                            // One line, also on the 140 dp disc: the button may reach past the disc's square sideways.
+                            modifier = Modifier.align(Alignment.Center).padding(top = 64.dp).wrapContentWidth(unbounded = true),
+                            contentPadding = PaddingValues(horizontal = 14.dp),
+                        ) { Text(DIRECTION_ON, maxLines = 1, softWrap = false) }
+                    }
                 }
             }
         }
@@ -273,23 +323,28 @@ object ReportDirectionUi {
      * panel and the dialog's measuring pass (an empty [disc]), so both have the same height but the disc's.
      */
     @Composable
-    private fun PanelLines(r: CompassReading?, disc: @Composable () -> Unit) {
+    private fun PanelLines(r: CompassReading?, directionOn: Boolean, disc: @Composable () -> Unit) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
-                Text(if (r == null) "…" else liveLabel(r.magneticDeg), style = MaterialTheme.typography.titleSmall)
+                // 0.9.4.5: no live bearing while the direction is off (nothing of it is sent).
+                Text(
+                    if (!directionOn) DIRECTION_NONE else if (r == null) "…" else liveLabel(r.magneticDeg),
+                    style = MaterialTheme.typography.titleSmall,
+                )
             }
             Spacer(Modifier.height(2.dp))
             // What the arrow is for, always; the figure-eight hint only in addition, under it (0.9.2; until
             // 0.9.1 it replaced this line).
             Text(
-                POINT_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (directionOn) POINT_HINT else POINT_HINT_OFF, style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (r != null && showCalibrationHint(r.sensorStatus)) {
+            if (directionOn && r != null && showCalibrationHint(r.sensorStatus)) {
                 Text(
                     CALIBRATE_HINT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.fillMaxWidth(),
@@ -371,12 +426,16 @@ object ReportDirectionUi {
         scaleLat: Double?,
         tiles: Map<ReportMapTiles.Tile, ImageBitmap>,
         drag: Modifier,
+        /** 0.9.4.5: false while the direction is off: no arrow (the rose, the map and the dot stay). */
+        arrow: Boolean = true,
+        modifier: Modifier = Modifier,
     ) {
         val ink = MaterialTheme.colorScheme.onSurface
         val accent = MaterialTheme.colorScheme.primary
         val surface = MaterialTheme.colorScheme.surface
         val dark = surface.luminance() < 0.5f
         val measurer = rememberTextMeasurer()
+        val showArrow = arrow
         val letterStyle = MaterialTheme.typography.labelLarge.copy(color = ink, fontWeight = FontWeight.Medium)
         val northStyle = MaterialTheme.typography.titleMedium.copy(color = accent, fontWeight = FontWeight.Bold)
         val point = remember(fix) { fix?.let { ReportMapTiles.tilePoint(it.first, it.second) } }
@@ -384,7 +443,7 @@ object ReportDirectionUi {
         // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
         // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
         val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
-        Canvas(Modifier.fillMaxSize().then(drag)) {
+        Canvas(modifier.fillMaxSize().then(drag)) {
             val c = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null
@@ -454,7 +513,7 @@ object ReportDirectionUi {
                 lineTo(c.x + r * 0.36f, c.y - r * 0.25f)
                 close()
             }
-            drawPath(arrow, if (live) accent else ink.copy(alpha = 0.3f))
+            if (showArrow) drawPath(arrow, if (live) accent else ink.copy(alpha = 0.3f))
             // The reporter: a small dot at the centre, where the fix lies on the map.
             if (onMap) {
                 drawCircle(surface, 5.dp.toPx(), c)

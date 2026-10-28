@@ -50,9 +50,16 @@ class ReportsTest {
     @Test
     fun categoriesMapToTheServersIdsAndShortLabels() {
         // 0.7.7: «Flugzeug» after «Lastwagen».
-        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"), ReportCategory.entries.map { it.id })
+        // 0.9.4.5: hupen, baustelle, garten, bahn appended (the server's order).
+        assertEquals(
+            listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"),
+            ReportCategory.entries.map { it.id },
+        )
         // 0.6.4: «anderes Fahrzeug» (was «anderes»); the id stays «andere».
-        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Poser", "anderes Fahrzeug"), ReportCategory.entries.map { it.label })
+        assertEquals(
+            listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Poser", "anderes Fahrzeug", "Hupen", "Baustelle", "Gartengeräte", "Bahn"),
+            ReportCategory.entries.map { it.label },
+        )
         assertEquals("andere", ReportCategory.ANDERE.id)
         // What is sent is the id, never the label.
         assertEquals("andere", Payloads.report(report().copy(category = ReportCategory.ANDERE.id))["category"]!!.jsonPrimitive.content)
@@ -77,7 +84,7 @@ class ReportsTest {
         val list = Regex("""REPORT_CATEGORIES\s*=\s*\(([^)]*)\)""").find(text)!!.groupValues[1]
         val accepted = Regex(""""([^"]+)"""").findAll(list).map { it.groupValues[1] }.toList()
         assertEquals(ReportCategory.entries.map { it.id }, accepted)
-        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"), accepted)
+        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"), accepted)
         assertTrue(accepted.containsAll(ReportCategory.OFFERED.map { it.id }))
     }
 
@@ -220,13 +227,13 @@ class ReportsTest {
         // The flow (0.8.1, one dialog; 0.8.2 with «Senden»): a Fix with a selected category is sent; only a Problem shows
         // «Kein genauer Standort» (ReportFlowTest pins the decision itself).
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
-        assertTrue(ui.contains("ReportNext.SEND -> send(chosen!!, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)"))
+        assertTrue(ui.contains("ReportNext.SEND -> send(chosen, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)"))
         assertTrue(ui.contains("ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)"))
         // 0.7.0: the direction of travel (if read) goes with it; 0.8.5: and the level (0.7.6–0.8.4: the plate).
         // 0.8.1 (same build): the place is the fix, or the one moved under the dot (ReportFlowTest).
         assertTrue(ui.contains("val place = reportPlace(fix, moved)"))
         assertTrue(ui.contains("lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,"))
-        assertTrue(ui.contains("category = category.id, cell = place.cell, direction = direction, level = level,"))
+        assertTrue(ui.contains("category = category?.id, cell = place.cell, direction = direction, level = level, count = count,"))
         val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
         assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
     }

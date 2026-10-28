@@ -4,6 +4,10 @@ import ch.lessnoise.app.location.LocationPolicy
 import ch.lessnoise.app.upload.ReportCategory
 import ch.lessnoise.app.upload.ReportCategory.ANDERE
 import ch.lessnoise.app.upload.ReportCategory.AUTO
+import ch.lessnoise.app.upload.ReportCategory.BAHN
+import ch.lessnoise.app.upload.ReportCategory.BAUSTELLE
+import ch.lessnoise.app.upload.ReportCategory.GARTEN
+import ch.lessnoise.app.upload.ReportCategory.HUPEN
 import ch.lessnoise.app.upload.ReportCategory.FLUGZEUG
 import ch.lessnoise.app.upload.ReportCategory.LASTWAGEN
 import ch.lessnoise.app.upload.ReportCategory.MOTORRAD
@@ -27,7 +31,9 @@ class ReportFlowTest {
     @Test
     fun oneRowWithAndereThatFoldsOutTheRarerOnes() {
         assertEquals(listOf(MOTORRAD, AUTO), REPORT_MAIN_CATEGORIES)
-        assertEquals(listOf(LASTWAGEN, FLUGZEUG), REPORT_MORE_CATEGORIES)
+        // 0.9.4.5: six rarer ones, three per row: Lastwagen · Flugzeug · Bahn / Baustelle · Gartengeräte · Hupen.
+        assertEquals(listOf(LASTWAGEN, FLUGZEUG, BAHN, BAUSTELLE, GARTEN, HUPEN), REPORT_MORE_CATEGORIES)
+        assertEquals(3, REPORT_MORE_PER_ROW)
         assertEquals(ReportCategory.OFFERED, REPORT_MAIN_CATEGORIES + REPORT_MORE_CATEGORIES)
         assertEquals("Andere", REPORT_MORE)
         // Nothing chosen, row shut: Töff · Auto · «Andere» (its own icon), none selected, no «erkannt».
@@ -35,7 +41,7 @@ class ReportFlowTest {
         assertEquals(listOf("Töff", "Auto", "Andere"), none.main.map { it.label })
         assertEquals(listOf(MOTORRAD, AUTO, null), none.main.map { it.category })
         assertEquals(listOf(MOTORRAD, AUTO, null), none.main.map { it.icon })
-        assertEquals(listOf("Lastwagen", "Flugzeug"), none.more.map { it.label })
+        assertEquals(listOf("Lastwagen", "Flugzeug", "Bahn", "Baustelle", "Gartengeräte", "Hupen"), none.more.map { it.label })
         assertFalse(none.expanded)
         assertTrue((none.main + none.more).none { it.selected || it.suggested })
         // Auto chosen: only Auto selected.
@@ -47,14 +53,15 @@ class ReportFlowTest {
         for (open in listOf(true, false)) {
             val lw = reportCategoryButtons(emptyList(), LASTWAGEN, expanded = open)
             assertEquals(ReportCategoryButton(null, "Lastwagen", LASTWAGEN, selected = true, suggested = false), lw.main[2])
-            assertEquals(listOf(true, false), lw.more.map { it.selected })
+            assertEquals(listOf(true, false, false, false, false, false), lw.more.map { it.selected })
             assertEquals(listOf(false, false), lw.main.take(2).map { it.selected })
             assertEquals(open, lw.expanded)
         }
         assertEquals("Flugzeug", reportCategoryButtons(emptyList(), FLUGZEUG, true).main[2].label)
+        assertEquals(ReportCategoryButton(null, "Gartengeräte", GARTEN, selected = true, suggested = false), reportCategoryButtons(emptyList(), GARTEN, false).main[2])
         // Every offered category exactly once (as a selectable button), whatever is suggested or chosen.
         for (s in listOf(emptyList(), listOf(AUTO, LASTWAGEN), ReportCategory.entries.toList(), listOf(POSER), listOf(MOTORRAD, POSER))) {
-            for (c in listOf(null, MOTORRAD, LASTWAGEN, POSER)) {
+            for (c in listOf(null, MOTORRAD, LASTWAGEN, POSER, HUPEN)) {
                 val r = reportCategoryButtons(s, c, expanded = false)
                 assertEquals(ReportCategory.OFFERED, (r.main + r.more).mapNotNull { it.category })
                 assertEquals(1, r.main.count { it.category == null }, "one «Andere»")
@@ -86,7 +93,7 @@ class ReportFlowTest {
         // «erkannt» where the suggestion stands; on «Andere» too while its row is shut.
         val road = reportCategoryButtons(listOf(AUTO, LASTWAGEN), null, expanded = true)
         assertEquals(listOf(false, true, false), road.main.map { it.suggested })
-        assertEquals(listOf(true, false), road.more.map { it.suggested })
+        assertEquals(listOf(true, false, false, false, false, false), road.more.map { it.suggested })
         assertTrue(reportCategoryButtons(listOf(AUTO, LASTWAGEN), null, expanded = false).main[2].suggested)
         assertFalse(reportCategoryButtons(listOf(MOTORRAD, AUTO), null, expanded = false).main[2].suggested)
         // TalkBack labels.
@@ -126,11 +133,17 @@ class ReportFlowTest {
         assertTrue(dialog.contains("discSize = size, measureOnly = measureOnly,"))
     }
 
-    /** 0.9.1 (owner): the dialog offers exactly Töff, Auto, Lastwagen, Flugzeug; «Poser» and «anderes Fahrzeug» are kept only for old reports. */
+    /**
+     * 0.9.1 (owner): the dialog offers exactly Töff, Auto, Lastwagen, Flugzeug; «Poser» and «anderes Fahrzeug» are kept
+     * only for old reports. 0.9.4.5: plus Bahn, Baustelle, Gartengeräte, Hupen (in «Andere»), in the dialog's order.
+     */
     @Test
     fun theDialogOffersExactlyTheFour() {
-        assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG), ReportCategory.OFFERED)
-        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Flugzeug"), ReportCategory.OFFERED.map { it.label })
+        assertEquals(listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG, BAHN, BAUSTELLE, GARTEN, HUPEN), ReportCategory.OFFERED)
+        assertEquals(
+            listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Bahn", "Baustelle", "Gartengeräte", "Hupen"),
+            ReportCategory.OFFERED.map { it.label },
+        )
         assertEquals(listOf(POSER, ANDERE), ReportCategory.entries.filter { !it.offered })
         // Still parsed (queued and sent reports of 0.9.0 and older).
         assertEquals(POSER, ReportCategory.fromId("poser"))
@@ -147,32 +160,39 @@ class ReportFlowTest {
 
     @Test
     fun sendNowOrWaitForTheFix() {
-        // No category: not sendable, with or without the fix, «Senden» tapped or not.
-        for (sent in listOf(false, true)) {
-            assertEquals(ReportNext.CHOOSE, reportNext(null, null, sent))
-            assertEquals(ReportNext.CHOOSE, reportNext(null, fix, sent))
-        }
-        assertFalse(reportSendEnabled(null, null, false))
-        assertFalse(reportSendEnabled(null, fix, false))
-        // 0.8.2: a category selected, «Senden» not tapped: nothing goes out, «Senden» is enabled.
-        assertEquals(ReportNext.READY, reportNext(AUTO, fix, sendTapped = false))
-        assertEquals(ReportNext.READY, reportNext(AUTO, null, sendTapped = false))
-        assertTrue(reportSendEnabled(AUTO, fix, false))
-        assertTrue(reportSendEnabled(AUTO, null, false), "enabled while the fix is searched: it then waits")
-        // Category + fix + «Senden»: send.
-        assertEquals(ReportNext.SEND, reportNext(AUTO, fix, sendTapped = true))
-        // Category + «Senden» before the fix: wait (all disabled, progress), then send when it arrives.
-        assertEquals(ReportNext.WAIT, reportNext(AUTO, null, sendTapped = true))
-        assertFalse(reportSendEnabled(AUTO, null, true), "not twice")
+        // 0.9.4.5 (owner): only the place is required; the category decides nothing here any more.
+        // «Senden» not tapped: nothing goes out, «Senden» is enabled (also without a fix yet: it then waits).
+        assertEquals(ReportNext.READY, reportNext(fix, sendTapped = false))
+        assertEquals(ReportNext.READY, reportNext(null, sendTapped = false))
+        assertTrue(reportSendEnabled(fix, false))
+        assertTrue(reportSendEnabled(null, false), "enabled while the fix is searched: it then waits")
+        // Fix + «Senden»: send (with or without a category).
+        assertEquals(ReportNext.SEND, reportNext(fix, sendTapped = true))
+        // «Senden» before the fix: wait (all disabled, progress), then send when it arrives.
+        assertEquals(ReportNext.WAIT, reportNext(null, sendTapped = true))
+        assertFalse(reportSendEnabled(null, true), "not twice")
         // No fix: «Kein genauer Standort», sent or not (nothing can be sent without one).
         for (sent in listOf(false, true)) {
-            assertEquals(ReportNext.FAILED, reportNext(AUTO, noFix, sent))
-            assertEquals(ReportNext.FAILED, reportNext(null, noFix, sent))
-            assertFalse(reportSendEnabled(AUTO, noFix, sent))
+            assertEquals(ReportNext.FAILED, reportNext(noFix, sent))
+            assertFalse(reportSendEnabled(noFix, sent))
         }
         for (o in listOf(LocationPolicy.Outcome.ApproximateOnly, LocationPolicy.Outcome.PermissionDenied, LocationPolicy.Outcome.LocationOff)) {
-            assertEquals(ReportNext.FAILED, reportNext(POSER, LocationPolicy.ReportOutcome.Problem(o), true))
+            assertEquals(ReportNext.FAILED, reportNext(LocationPolicy.ReportOutcome.Problem(o), true))
         }
+        assertEquals(listOf("READY", "WAIT", "SEND", "FAILED"), ReportNext.entries.map { it.name }, "no CHOOSE since 0.9.4.5")
+        // A tap selects; a tap on the selected one deselects (nothing chosen = no category sent).
+        assertEquals(AUTO, reportSelectAfter(null, AUTO))
+        assertEquals(MOTORRAD, reportSelectAfter(AUTO, MOTORRAD))
+        assertNull(reportSelectAfter(AUTO, AUTO))
+        assertNull(reportSelectAfter(ReportCategory.HUPEN, ReportCategory.HUPEN))
+        // The dialog: «Senden» is not gated by the category, and the direction of a disc switched off is not taken.
+        val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
+        val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        assertTrue(dialog.contains("sendEnabled = reportSendEnabled(fixOutcome, sending)"))
+        assertTrue(dialog.contains("chosenReading = if (directionOn) reading?.value else null"))
+        assertTrue(dialog.contains("chosen = reportSelectAfter(chosen, category)"))
+        assertTrue(ui.contains("category = category?.id, cell = place.cell, direction = direction, level = level, count = count,"))
     }
 
     /** 0.8.2: from the «Sehr laut» notification one suggestion is preselected («Senden» is one tap); two: none. */
@@ -184,9 +204,9 @@ class ReportFlowTest {
         assertNull(reportPreselected(listOf(AUTO, LASTWAGEN)))
         assertNull(reportPreselected(emptyList()))
         // Preselected + fix: «Senden» is enabled at once and sends.
-        val pre = reportPreselected(listOf(FLUGZEUG))
-        assertTrue(reportSendEnabled(pre, fix, false))
-        assertEquals(ReportNext.SEND, reportNext(pre, fix, true))
+        assertEquals(FLUGZEUG, reportPreselected(listOf(FLUGZEUG)))
+        assertTrue(reportSendEnabled(fix, false))
+        assertEquals(ReportNext.SEND, reportNext(fix, true))
         // Wired in begin(), after cancel() (which clears the selection).
         val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
         val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
@@ -221,7 +241,7 @@ class ReportFlowTest {
         assertNotEquals(fix.cell, moved.cell, "300 m away is another 100 m cell")
         assertEquals(moved, reportPlace(fix, moved))
         // The decision itself is unchanged: a tap with a fix sends (the place is chosen by reportPlace).
-        assertEquals(ReportNext.SEND, reportNext(AUTO, fix, sendTapped = true))
+        assertEquals(ReportNext.SEND, reportNext(fix, sendTapped = true))
     }
 
     @Test
@@ -287,7 +307,7 @@ class ReportFlowTest {
         // 0.8.6: «Senden» a filled button with the send icon (ReportSendButton). 0.9.1: no longer the confirm
         // button but the dialog's main button in the content (ReportDialogBody), full width, 56 dp, under the grid;
         // the dialog is a BasicAlertDialog in ReportDialogLayout, «Abbrechen» its one text button, centred under «Senden».
-        assertTrue(dialog.contains("sendEnabled = reportSendEnabled(chosen, fixOutcome, sending),\n                        onSend = { sendTap() },"), dialog)
+        assertTrue(dialog.contains("sendEnabled = reportSendEnabled(fixOutcome, sending),\n                        onSend = { sendTap() },"), dialog)
         assertFalse(dialog.contains("ReportSendButton("), "only inside ReportDialogBody")
         assertTrue(dialog.contains("BasicAlertDialog(") && dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {"), dialog)
         assertFalse(dialog.contains("confirmButton") || dialog.contains("dismissButton"), "no action row")
@@ -326,7 +346,7 @@ class ReportFlowTest {
         assertTrue(buttons.contains("REPORT_SUGGESTED_MARK"), "the «erkannt» mark stays")
         // The reading is taken at the «Senden» tap, kept for a late fix.
         val sendTap = dialog.substringAfter("fun sendTap() {").substringBefore("\n            }")
-        assertTrue(sendTap.contains("sending = true") && sendTap.contains("chosenReading = reading?.value") && sendTap.contains("advance()"), sendTap)
+        assertTrue(sendTap.contains("sending = true") && sendTap.contains("chosenReading = if (directionOn) reading?.value else null") && sendTap.contains("advance()"), sendTap)
         // The fix starts when the dialog opens, not after the category.
         val open = ui.substringAfter("fun open() {").substringBefore("\n    }")
         // 0.8.5: the microphone permission (for the level) goes into the same request (reportPermissions).

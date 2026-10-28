@@ -273,16 +273,16 @@ class ReportMapTilesTest {
         assertTrue(ui.contains("val canDrag = fix != null && tiles.isNotEmpty() && r != null"))
         assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"))
         assertTrue(ui.contains("if (c != f) delay(TILE_DEBOUNCE_MS)"))
-        assertTrue(ui.contains("DirectionArrow(frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
+        assertTrue(ui.contains("DirectionArrow(\n                    frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
         // 0.8.1: the disc of the one «Laut! Melden» dialog was 200 dp; 0.9.4.2: at most 220 dp, the dialog passes the
         // size that fits (discSize; still 300 m across, canvasScale).
         assertEquals(220, ReportDirectionUi.DISC_DP)
         assertEquals(REPORT_DISC_MAX_DP, ReportDirectionUi.DISC_DP)
         // 0.8.6: the square is a Box holding the canvas (filling it) and the credit in its corner.
-        assertTrue(ui.contains("Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f))") && ui.contains("Canvas(Modifier.fillMaxSize().then(drag))"))
+        assertTrue(ui.contains("Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f))") && ui.contains("Canvas(modifier.fillMaxSize().then(drag))"))
         // 0.9.4.2: the dialog's measuring pass composes only the lines: no tiles, no canvas, no effects.
         val measure = ui.substringAfter("        if (measureOnly) {").substringBefore("\n        }")
-        assertEquals("PanelLines(reading.value) {}\n            return", measure.trim())
+        assertEquals("PanelLines(reading.value, directionOn) {}\n            return", measure.trim())
         assertTrue(ui.indexOf("if (measureOnly) {") < ui.indexOf("rememberStreetTiles(fix, centre"))
         // The preview tiles (JVM renders) replace the download only when passed; the app never passes them.
         assertTrue(ui.contains("val tiles = previewTiles ?: rememberStreetTiles("))
@@ -291,15 +291,16 @@ class ReportMapTilesTest {
         // it while the compass is unreliable, never instead of it (until 0.9.1: if … CALIBRATE_HINT else POINT_HINT).
         // 0.9.4.2: the lines are in PanelLines, around the disc (which Panel passes in).
         val panel = ui.substringAfter("private fun PanelLines(").substringBefore("\n    }\n")
-        val hint = panel.indexOf("POINT_HINT, style")
+        // 0.9.4.5: POINT_HINT_OFF on the same line while the direction is off.
+        val hint = panel.indexOf("if (directionOn) POINT_HINT else POINT_HINT_OFF, style")
         val eight = panel.indexOf("CALIBRATE_HINT, style")
         val disc = panel.indexOf("disc()")
         assertTrue(hint in 0 until eight && eight < disc, "hint, then the figure-eight line, then the disc")
-        assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("PanelLines(r) {\n            Box(Modifier.widthIn(max = discSize)"))
+        assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("PanelLines(r, directionOn) {\n            Box(Modifier.widthIn(max = discSize)"))
         // 0.9.4.2: the heading row (with the live label) comes first; no condition between the column and the hint.
         val column = panel.indexOf("Column(Modifier.fillMaxWidth()")
         assertTrue(column in 0 until hint && !Regex("""if \(.*\) \{""").containsMatchIn(panel.substring(column, hint)), "the hint is not inside a condition")
-        assertTrue(panel.substring(hint, eight).contains("if (r != null && showCalibrationHint(r.sensorStatus)) {"))
+        assertTrue(panel.substring(hint, eight).contains("if (directionOn && r != null && showCalibrationHint(r.sensorStatus)) {"))
         assertFalse(panel.contains("} else {\n                Text(POINT_HINT"))
         assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("LaunchedEffect(canDrag) { onDraggableNow(canDrag) }"))
         // «Standort wird gesucht …» while the fix is searched: the dialog's fix line (src/main, every edition).

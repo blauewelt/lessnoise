@@ -681,8 +681,8 @@ measurement started with «Messen» never alerts. The tap opens `MainActivity` w
 time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
 report's time and the fitting categories first, each marked with a small «erkannt» after its label
 (since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Auto — until 0.9.0 Töff, Poser;
-`road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, but the alert does not fire for
-it; nothing is picked). Then as always: consent if sharing is off, one
+`road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, since 0.9.4.5 `construction` Baustelle and
+`rail_tram` Bahn, but the alert does not fire for them; nothing is picked). Then as always: consent if sharing is off, one
 fix with the app open, the rule-10 line, and only a tap (on «Senden» until 0.7.8, on the category
 since 0.8.1) sends. Swiping it away does
 nothing. Tests: `src/testLaborKarte/…/LoudAlertTest.kt` (until 0.8.3 `src/testKarte`, public and laborKarte), `LoudAlertIsolationTest`
@@ -907,7 +907,15 @@ aircraft are rare); a choice there selects it and «Andere» then shows it («La
 it stays visible with the row shut; Töff or Auto shut the row; a Lastwagen or Flugzeug suggested by the
 notification opens the row at the start, with «erkannt» there (`reportCategoryButtons`,
 `reportMoreOpenAtStart`, `reportMoreOpenAfter`; «Andere» is not a category, nothing is sent as «Andere»);
-**«Wohin fuhr es?»** with the live «Nord · 358°» at its right, the hint line(s) and the compass disc
+**Since 0.9.4.5 (Labor·Karte first; owner: only the place is required)** «Anzahl − 1 +» (1–9, 40 dp targets,
+`ReportCountStepper`; sent as `count` only above 1) sits at the right of «Was war es?» («Erkannt um …» moves
+under the heading); no category is needed for «Senden», and a tap on the chosen one deselects it
+(`reportSelectAfter`; none chosen = no `category` sent); «Andere» folds out **six** choices in two rows of three
+(Lastwagen · Flugzeug · Bahn / Baustelle · Gartengeräte · Hupen; 40 dp high, 4 dp apart, and the groups move
+to 6 dp apart while open, so that it fits 360 × 740 dp with the disc at 140 dp); the disc's «×» (40 dp,
+«Richtung weglassen») switches the direction off: the disc is drawn faint without the arrow, the heading
+says «Ohne Richtung», the hint «Es wird keine Fahrtrichtung gesendet.», and «Richtung angeben» turns it back
+on (the map under the dot can still be dragged). **«Wohin fuhr es?»** with the live «Nord · 358°» at its right, the hint line(s) and the compass disc
 (editions with the map and a compass, below), its side from the height left, 140–220 dp
 (`reportDiscDp`: the dialog measures its content once without the disc, `ReportFitDisc`); one **status
 line**: a microphone icon (for «Mikrofon läuft»), «68,9 dB(A) · Spitze 75,8» and the button «Foto» at its

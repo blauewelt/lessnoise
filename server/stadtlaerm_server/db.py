@@ -231,6 +231,40 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
     ALTER TABLE reports ADD COLUMN level_seconds INTEGER;
     ALTER TABLE reports ADD COLUMN level_calibrated INTEGER;
     """,
+    # 9: everything of a report optional but its place and time (§4.7, Labor·Karte 0.9.4.5): `category`
+    # may be NULL («not said»), and `count` (1–9) says how many vehicles passed; existing reports get 1.
+    # SQLite cannot drop a NOT NULL with ALTER TABLE, so the table is rebuilt (as v3 did for `hourly`):
+    # same columns in the same order, `count` appended, every row copied; the index is made again.
+    """
+    CREATE TABLE reports_v9 (
+        device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+        time_utc INTEGER NOT NULL,
+        time_iso TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        accuracy_m REAL NOT NULL,
+        category TEXT,
+        received_at TEXT NOT NULL,
+        direction_deg INTEGER,
+        direction_north TEXT,
+        direction_accuracy TEXT,
+        level_lafmax_db REAL,
+        level_laeq_db REAL,
+        level_seconds INTEGER,
+        level_calibrated INTEGER,
+        count INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (device_id, time_utc)
+    ) WITHOUT ROWID;
+    INSERT INTO reports_v9 (device_id, time_utc, time_iso, lat, lon, accuracy_m, category, received_at,
+                            direction_deg, direction_north, direction_accuracy,
+                            level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, count)
+        SELECT device_id, time_utc, time_iso, lat, lon, accuracy_m, category, received_at,
+               direction_deg, direction_north, direction_accuracy,
+               level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, 1 FROM reports;
+    DROP TABLE reports;
+    ALTER TABLE reports_v9 RENAME TO reports;
+    CREATE INDEX reports_time ON reports(time_utc);
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -248,7 +282,7 @@ EVENT_COLUMNS = (
 REPORT_COLUMNS = (
     "device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at",
     "direction_deg", "direction_north", "direction_accuracy",
-    "level_lafmax_db", "level_laeq_db", "level_seconds", "level_calibrated",
+    "level_lafmax_db", "level_laeq_db", "level_seconds", "level_calibrated", "count",
 )  # fmt: skip
 # Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
 REPORT_DECIMALS = 5
@@ -549,6 +583,7 @@ def report_row(device_id: str, r: ReportIn, received_at: str) -> dict:
         "level_laeq_db": round(r.level.laeq_db, 1) if r.level else None,
         "level_seconds": r.level.seconds if r.level else None,
         "level_calibrated": int(r.level.calibrated) if r.level else None,
+        "count": r.count or 1,
     }
 
 

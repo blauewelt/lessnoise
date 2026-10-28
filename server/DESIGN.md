@@ -5,7 +5,8 @@ reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 
 only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16; schema v5 (stored
 events of other categories deleted, `counted_since`, §5, §6) 2026-10-16; schema v8 (the optional
 `level` of a report, app 0.8.5 in Labor·Karte, published with app 0.9.0, §4.7, §5, §6.4) 2026-10-25,
-deployed with release 0.9.0. This document is the contract between the three parts that make the
+deployed with release 0.9.0; schema v9 (a report needs only its place and time: `category` optional,
+`count` of vehicles, four more categories; Labor·Karte 0.9.4.5, §4.7, §5, §6.4, §7) 2026-10-28. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
@@ -414,7 +415,8 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
   "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.9.0 / Labor·Karte 0.8.1), ≤ 10 000 m
-  "category": "motorrad",                // motorrad | auto | lastwagen | flugzeug | poser | andere (poser/andere: not offered since app 0.9.1, still accepted)
+  "category": "motorrad",                // optional since v9 (absent or null = not said); motorrad | auto | lastwagen | flugzeug | poser | andere | hupen | baustelle | garten | bahn (poser/andere: not offered since app 0.9.1, still accepted; the last four since v9)
+  "count": 3,                            // optional (v9, Labor·Karte 0.9.4.5): how many vehicles, whole number 1–9; absent or null = 1
   "direction": {                         // optional (app 0.7.0); absent or null = none given
     "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
     "north": "true",                     //   "true" | "magnetic" (no place for the declination)
@@ -438,7 +440,9 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
   lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
   border areas of neighbouring countries inside that box are accepted, as for site cells;
 - `0 ≤ accuracy_m ≤ 10 000` (a bound against nonsense, no quality gate: since app 0.7.0 a report
-  is sent at whatever accuracy the fix has; until then the bound was 200); `category` one of the five; no other fields;
+  is sent at whatever accuracy the fix has; until then the bound was 200); `category` absent, null or one of
+  the ids of `REPORT_CATEGORIES` (an unknown id or "" is refused; until v8 it was required); no other fields;
+- `count` (v9) optional; if present an integer 1–9 (no fraction, no string, no boolean) or null;
 - `direction` (app 0.7.0) optional; if present exactly these three fields: `bearing_deg` an
   integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
   the part, e.g. field `direction.bearing_deg`;
@@ -454,12 +458,19 @@ to 0.6.6 never send the field and are unaffected by v6. The same holds for `leve
 before schema v8 (field `level`; both fields listed for a server before v6): app 0.9.0 (Labor·Karte 0.8.5) re-queues a
 report rejected only for `direction` and/or `level` without the refused fields and sends it again in
 the same run (`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Published apps up to 0.8.0 (Labor·Karte up to 0.8.4) never send `level`.
+**Schema v9** (Labor·Karte 0.9.4.5): a server before v9 refuses `count` like any unknown field — the app
+sends the report again as one vehicle in the same run (`ReportQueue.dropCount`) — and refuses a report
+*without* `category` («Field required», field `category`). Nothing sensible can be sent to such a server
+for that report, so the app keeps it queued unchanged, does not send it again in that run, and shows «Server
+zu alt – wird später gesendet» in «Meldungen» (`Uploader.serverTooOld`); the server deploys from `main`, so
+this lasts until the next deploy. Apps before 0.9.4.5 always send a category and never a count and are
+unaffected by v9.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
 `accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds, the direction
 (v6) as `direction_deg`, `direction_north`, `direction_accuracy` (NULL when none was given), the
 level (v8) as `level_lafmax_db`, `level_laeq_db` (0.1 dB), `level_seconds`, `level_calibrated` (0/1;
-all NULL when none was measured).
+all NULL when none was measured), `category` NULL when none was given (v9), `count` (v9; 1 when absent).
 Idempotent on `(device_id, time)`: the same time again counts as a duplicate and replaces the
 stored report. Response like minutes: `{accepted, duplicates, rejected}`.
 
@@ -474,7 +485,8 @@ of up to 50 reports, bearer auth as above:
   "lat": 47.37691,
   "lon": 8.54169,
   "accuracy_m": 12.3,
-  "category": "motorrad | auto | lastwagen | flugzeug | poser | andere",
+  "category": "motorrad | auto | lastwagen | flugzeug | poser | andere | hupen | baustelle | garten | bahn (optional since v9)",
+  "count": 3,
   "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" },
   "level": { "lafmax_db": 81.4, "laeq_db": 66.2, "seconds": 9, "calibrated": true }
 }
@@ -487,6 +499,17 @@ app 0.9.1 (Labor·Karte first) the dialog offers only four — Töff, Auto, Last
 them, and a 0.9.0 phone updated to 0.9.1 may still have one queued. The list and its order stay as
 they are (the app's test compares its full category enum with it), and `reports.json` keeps all six
 in `categories`, so the map still shows the old reports with their markers.
+
+**Since schema v9 (Labor·Karte 0.9.4.5, owner's decision of 2026-10-28) only the place is required.**
+`category` may be absent (the reporter chose none, or tapped the chosen one again); `REPORT_CATEGORIES`
+gains four ids, appended so that the order of the old six stays: `hupen` (honking), `baustelle` (a
+construction site), `garten` (motorised garden tools: leaf blowers, mowers, trimmers), `bahn` (trains and
+trams). The dialog offers Töff · Auto · «Andere ▾», and «Andere» folds out Lastwagen · Flugzeug · Bahn /
+Baustelle · Gartengeräte · Hupen. `direction` was already optional; the dialog can now switch it off
+(«×» on the compass, «Ohne Richtung»). `count` («Anzahl», 1–9) is sent only when more than one vehicle
+passed. In Labor·Karte the «Sehr laut» suggestion maps the detector's `construction` to `baustelle` and
+`rail_tram` to `bahn` (the alert itself still fires only for `loud_vehicle` and `road_traffic`). Nothing
+about the person is added: one small number, and fewer fields when something is left out.
 
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
 publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
@@ -571,7 +594,8 @@ reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m R
         category TEXT, received_at, PRIMARY KEY(device_id, time_utc),   -- v3
         direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL,  -- v6
         level_lafmax_db REAL NULL, level_laeq_db REAL NULL, level_seconds INT NULL,
-        level_calibrated INT NULL)  -- v8
+        level_calibrated INT NULL,  -- v8
+        count INT NOT NULL DEFAULT 1)  -- v9; and category NULL allowed since v9
 counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
 newsletter(email TEXT PK, created_at TEXT)  -- v7; website form (§4.8), linked to nothing else
 ```
@@ -619,6 +643,15 @@ get NULL, i.e. «no direction given». No row is lost or changed.
 COLUMN level_lafmax_db`, `level_laeq_db` (REAL), `level_seconds`, `level_calibrated` (INTEGER).
 Existing reports get NULL, i.e. «no level measured». No row is lost or changed. (v6 → v7 added the
 `newsletter` table, §4.8.)
+
+**Migration v8 → v9** (Labor·Karte 0.9.4.5; runs at startup, one transaction): `reports` is rebuilt,
+because SQLite cannot drop the `NOT NULL` of `category` with `ALTER TABLE` (as v3 rebuilt `hourly`): a new
+table with the same columns in the same order, `category TEXT` nullable and `count INTEGER NOT NULL
+DEFAULT 1` appended, the foreign key to `devices` (`ON DELETE CASCADE`) and the primary key as before;
+every row copied with `count = 1`; the old table dropped, the new one renamed to `reports`, the index
+`reports_time` made again. Existing reports read as one vehicle of the category they had. No row is lost
+or changed (`tests/test_migration.py`: a v8 database with reports of a visible and a hidden device,
+with and without direction and level).
 
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
@@ -819,9 +852,9 @@ schema v2 is removed on the first publish after the update.
 {
   "generated_at": "2026-10-08T18:40:00+02:00",
   "from": "2026-09-09", "to": "2026-10-08",
-  "categories": ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere"],
+  "categories": ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"],
   "reports": [
-    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87, "lafmax_db": 84 }
+    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87, "lafmax_db": 84, "count": 1 }
   ]
 }
 ```
@@ -836,7 +869,10 @@ clockwise from north, or null (none given, a report of an older app, or a compas
 pointed corner of the report's marker (a teardrop; until 2026-10-28 a small arrowhead on the rim). `lafmax_db` (since v8, app 0.8.5): the peak level while the report
 dialog was open, **rounded to whole dB** (half up), or null (none measured, a report of an older app);
 the LAeq, the seconds and the calibration flag are not published. The map shows it in the marker's
-tooltip after the direction («84 dB»). Sorted by (hour, lat, lon, category, direction, lafmax_db): deterministic and testable,
+tooltip after the direction («84 dB»). `category` (v9) is null when the reporter gave none. `count` (v9):
+how many vehicles, 1–9, **always present** (1 for every report before v9) — like `direction` and `lafmax_db`,
+which are always present too, so every row has one shape. Sorted by (hour, lat, lon, category — a missing
+one first —, direction, lafmax_db, count): deterministic and testable,
 and within an hour the order says nothing about the order of the reports or who made them —
 chosen over a random shuffle, which could not be tested and would change the file on every run.
 
@@ -939,8 +975,12 @@ Online-Version (0.5.x: «Karten-Version») are counted.
 - Layer **«Meldungen»** (on by default, checkbox «Meldungen zeigen»): the reports of the chosen
   period from `reports.json` as small round markers with a letter per category (M Motorrad,
   P Poser, L Lastwagen, F Flugzeug (app 0.7.7), A Auto, + Andere — P and + only for reports of apps up to 0.9.0,
-  §4.7; the colour only helps), tooltip «category · day,
-  hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
+  §4.7; since v9 also Z Bahn («Zug»), B Baustelle, G Gartengeräte, H Hupen; the colour only helps), a report
+  without a category as a plain grey point with a small dot («Ohne Angabe»); tooltip «category · day,
+  hour–hour+1 Uhr». A report of several vehicles (`count` > 1, v9) with a direction is a short convoy in one
+  marker: smaller copies behind the reported one, against the direction of travel, a fixed number of screen
+  pixels apart at every zoom (`model.js convoyOffsets`); without a direction one marker with a badge «×3»; the
+  tooltip adds «· 3 Fahrzeuge» after the category. The legend lists the categories and the number of reports in the period.
 - Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
   figures each with *when* they were measured (events: the total and, under «Alle», each of the
   five sources; with a source chosen only that source, in its hue; «Ereignisse: nur Maschinen- und

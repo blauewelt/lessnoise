@@ -25,8 +25,9 @@ import java.time.format.DateTimeFormatter
 /**
  * «Laut! Melden» (app 0.6.0, Karten editions): what was loud, as one of these categories. The ids
  * are the server's (`POST /v1/devices/{id}/reports`, server/DESIGN.md §4); the labels are the
- * buttons («Töff», «Auto», …). Since 0.9.1 the dialog offers only [OFFERED] (four); the other two
- * stay for reports made with older versions.
+ * buttons («Töff», «Auto», …). Since 0.9.1 the dialog offers only [OFFERED] (four; 0.9.4.5 eight); the other two
+ * stay for reports made with older versions. 0.9.4.5 (Labor·Karte first): the category is optional — a report
+ * without one has `category` null ([PendingReport.category]) and is sent without the field.
  */
 enum class ReportCategory(val id: String, val label: String, val offered: Boolean = true) {
     MOTORRAD("motorrad", "Töff"),
@@ -41,11 +42,33 @@ enum class ReportCategory(val id: String, val label: String, val offered: Boolea
      */
     POSER("poser", "Poser", offered = false),
     /** 0.6.4: label «anderes Fahrzeug» (was «anderes»); the id stays «andere» (server, reports.json). 0.9.1: not offered (as POSER). */
-    ANDERE("andere", "anderes Fahrzeug", offered = false);
+    ANDERE("andere", "anderes Fahrzeug", offered = false),
+
+    /** 0.9.4.5 (Labor·Karte first): honking; server schema v9. */
+    HUPEN("hupen", "Hupen"),
+
+    /** 0.9.4.5: a construction site (machines, compressors, jackhammers); server schema v9. */
+    BAUSTELLE("baustelle", "Baustelle"),
+
+    /** 0.9.4.5: motorised garden tools — leaf blowers, mowers, trimmers; server schema v9. */
+    GARTEN("garten", "Gartengeräte"),
+
+    /** 0.9.4.5: trains and trams; server schema v9. */
+    BAHN("bahn", "Bahn");
 
     companion object {
-        /** 0.9.1: the categories the «Laut! Melden» dialog offers, in this order: Töff, Auto, Lastwagen, Flugzeug. */
-        val OFFERED: List<ReportCategory> = entries.filter { it.offered }
+        /**
+         * 0.9.1: the categories the «Laut! Melden» dialog offers, in the dialog's order: Töff, Auto, then in «Andere»
+         * (0.9.4.5) Lastwagen, Flugzeug, Bahn, Baustelle, Gartengeräte, Hupen. Not the enum's order, which is the
+         * server's (REPORT_CATEGORIES, appended to).
+         */
+        val OFFERED: List<ReportCategory> = listOf(MOTORRAD, AUTO, LASTWAGEN, FLUGZEUG, BAHN, BAUSTELLE, GARTEN, HUPEN)
+
+        /** 0.9.4.5: how many vehicles one report can count («Anzahl»; the server's `count` 1–9). */
+        const val MAX_COUNT = 9
+
+        /** 0.9.4.5: what «Meldungen» shows for a report without a category. */
+        const val NONE_LABEL = "Ohne Angabe"
 
         fun fromId(id: String): ReportCategory? = entries.firstOrNull { it.id == id }
     }
@@ -160,7 +183,8 @@ data class PendingReport(
     val lat: Double,
     val lon: Double,
     val accuracyM: Double,
-    val category: String,
+    /** The category's id; 0.9.4.5 (Labor·Karte first): null when none was chosen (sent without `category`). */
+    val category: String?,
     /** The 100 m cell of the place, kept after sending (the coordinates are not). */
     val cell: String?,
     /** App 0.6.7: where the vehicle drove, if the reporter gave it; dropped after sending. */
@@ -181,8 +205,14 @@ data class PendingReport(
      * this package opens no file.
      */
     val media: String? = null,
+    /** 0.9.4.5: how many vehicles («Anzahl», 1–[ReportCategory.MAX_COUNT]); sent as `count` only when above 1. */
+    val count: Int = 1,
 ) {
-    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb, media)
+    init {
+        require(count in 1..ReportCategory.MAX_COUNT) { "count $count" }
+    }
+
+    fun toSent(): SentReport = SentReport(epochMs, category, cell, plate, level?.laeqDb, level?.lafMaxDb, media, count)
 
     companion object {
         private val ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx")
@@ -200,13 +230,16 @@ data class PendingReport(
  */
 data class SentReport(
     val epochMs: Long,
-    val category: String,
+    /** 0.9.4.5: null for a report without a category. */
+    val category: String?,
     val cell: String?,
     val plate: String? = null,
     val laeqDb: Double? = null,
     val lafMaxDb: Double? = null,
     /** 0.8.5–0.9.4.2 `photo`; 0.9.4.3: `media`, a photo («….jpg») or a video («….mp4»). */
     val media: String? = null,
+    /** 0.9.4.5: how many vehicles («Anzahl»); 1 for every report of older versions. */
+    val count: Int = 1,
 )
 
 data class ReportSnapshot(
@@ -279,6 +312,17 @@ object ReportQueue {
     }
 
     /**
+     * 0.9.4.5: a server from before schema v9 refuses the unknown field `count` (server/DESIGN.md §4.7): [reports]
+     * stay in the queue as ONE vehicle and go out again, like [dropDirection]. (A report without a category cannot
+     * be made fit for such a server: Uploader keeps it queued unchanged until the server is updated.)
+     */
+    fun dropCount(store: ReportStore, reports: List<PendingReport>) {
+        if (reports.isEmpty()) return
+        val strip = reports.toSet()
+        store.update { s -> s.copy(pending = s.pending.map { if (it in strip) it.copy(count = 1) else it }) }
+    }
+
+    /**
      * App 0.8.5: «Foto löschen» on a sent report's photo (0.9.4.3: also «Video löschen» on its video): the
      * sent entry of [epochMs] forgets its [media]. The file itself is deleted by ui/ReportPhotos.kt (this
      * package opens no file).
@@ -335,7 +379,9 @@ object ReportJson {
         list.forEach { r ->
             add(buildJsonObject {
                 put("t", r.epochMs); put("iso", r.timeIso); put("lat", r.lat); put("lon", r.lon)
-                put("acc", r.accuracyM); put("cat", r.category); r.cell?.let { put("cell", it) }
+                // 0.9.4.5: `cat` only when a category was chosen; `n` only above 1.
+                put("acc", r.accuracyM); r.category?.let { put("cat", it) }; r.cell?.let { put("cell", it) }
+                if (r.count > 1) put("n", r.count)
                 r.direction?.let { d ->
                     put("dir", buildJsonObject { put("deg", d.bearingDeg); put("n", d.north.id); put("a", d.accuracy.id) })
                 }
@@ -353,7 +399,8 @@ object ReportJson {
     fun sent(list: List<SentReport>): String = buildJsonArray {
         list.forEach { r ->
             add(buildJsonObject {
-                put("t", r.epochMs); put("cat", r.category); r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) }
+                put("t", r.epochMs); r.category?.let { put("cat", it) }; r.cell?.let { put("cell", it) }; r.plate?.let { put("plate", it) }
+                if (r.count > 1) put("n", r.count)
                 r.laeqDb?.let { put("eq", it) }; r.lafMaxDb?.let { put("max", it) }; r.media?.let { put("media", it) }
             })
         }
@@ -364,12 +411,13 @@ object ReportJson {
             val o = it.jsonObject
             PendingReport(
                 o["t"]!!.jsonPrimitive.long, o["iso"]!!.jsonPrimitive.content, o["lat"]!!.jsonPrimitive.double,
-                o["lon"]!!.jsonPrimitive.double, o["acc"]!!.jsonPrimitive.double, o["cat"]!!.jsonPrimitive.content,
+                o["lon"]!!.jsonPrimitive.double, o["acc"]!!.jsonPrimitive.double, string(o, "cat"),
                 o["cell"]?.jsonPrimitive?.content,
                 direction(o["dir"] as? JsonObject),
                 plate(o),
                 level(o["lvl"] as? JsonObject),
                 media(o),
+                count(o),
             )
         }
     } catch (_: Exception) {
@@ -407,6 +455,10 @@ object ReportJson {
     /** 0.9.4.3: the photo's or video's file name: `media`, or `photo` as written by 0.8.5–0.9.4.2. */
     private fun media(o: JsonObject): String? = string(o, "media") ?: string(o, "photo")
 
+    /** 0.9.4.5: `n`, 1–9; absent (every entry of older versions, and a report of one) or unreadable = 1. */
+    private fun count(o: JsonObject): Int =
+        number(o, "n")?.takeIf { it == Math.floor(it) }?.toInt()?.takeIf { it in 1..ReportCategory.MAX_COUNT } ?: 1
+
     private fun string(o: JsonObject, key: String): String? = (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
     private fun number(o: JsonObject, key: String): Double? = (o[key] as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull
@@ -415,8 +467,8 @@ object ReportJson {
         if (s == null) emptyList() else Json.parseToJsonElement(s).jsonArray.map {
             val o = it.jsonObject
             SentReport(
-                o["t"]!!.jsonPrimitive.long, o["cat"]!!.jsonPrimitive.content, o["cell"]?.jsonPrimitive?.content, plate(o),
-                number(o, "eq"), number(o, "max"), media(o),
+                o["t"]!!.jsonPrimitive.long, string(o, "cat"), o["cell"]?.jsonPrimitive?.content, plate(o),
+                number(o, "eq"), number(o, "max"), media(o), count(o),
             )
         }
     } catch (_: Exception) {

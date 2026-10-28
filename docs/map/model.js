@@ -322,19 +322,56 @@
   var HIGHLIGHT = "loud_vehicle";   // the app's default highlight
 
   // Manual reports (server: reports.json). The letter is the marker's identity; the colour
-  // only helps (three hues that pass the all-pairs colour-vision checks, three neutral).
+  // only helps (three hues that pass the all-pairs colour-vision checks, three neutral; since 0.9.4.5
+  // four more, each also told apart by its letter, see karte.css).
   var REPORT_CATEGORIES = [
     { id: "motorrad", name: "Motorrad", letter: "M" },
     { id: "poser", name: "Poser", letter: "P" },
     { id: "lastwagen", name: "Lastwagen", letter: "L" },
     { id: "flugzeug", name: "Flugzeug", letter: "F" },   // app 0.7.7
     { id: "auto", name: "Auto", letter: "A" },
+    { id: "bahn", name: "Bahn", letter: "Z" },            // 0.9.4.5: Z for «Zug» (B is Baustelle)
+    { id: "baustelle", name: "Baustelle", letter: "B" }, // 0.9.4.5
+    { id: "garten", name: "Gartengeräte", letter: "G" }, // 0.9.4.5: leaf blowers, mowers, trimmers
+    { id: "hupen", name: "Hupen", letter: "H" },         // 0.9.4.5
     { id: "andere", name: "Andere", letter: "+" },
   ];
+  // 0.9.4.5 (Labor·Karte first): a report without a category (reports.json `category: null`): a plain grey
+  // point with a small dot instead of a letter — not «Andere» («+», an id the app sent until 0.9.0).
+  var REPORT_NONE = { id: "none", name: "Ohne Angabe", letter: "" };
 
+  /** The category of a report's id: null or absent -> REPORT_NONE; an id this page does not know
+   *  (a newer server) -> «Andere». */
   function reportCategory(id) {
+    if (id === null || id === undefined) return REPORT_NONE;
     for (var i = 0; i < REPORT_CATEGORIES.length; i++) if (REPORT_CATEGORIES[i].id === id) return REPORT_CATEGORIES[i];
     return REPORT_CATEGORIES[REPORT_CATEGORIES.length - 1];
+  }
+
+  /** How many vehicles a report counts (reports.json `count`, 0.9.4.5): a whole number 1–9; 1 when
+   *  absent (older files) or out of range. */
+  function reportCount(r) {
+    var n = r ? r.count : null;
+    return typeof n === "number" && isFinite(n) && n >= 1 && n <= 9 && Math.round(n) === n ? n : 1;
+  }
+
+  // A convoy (0.9.4.5): the reported marker at the front, the others behind it, against the direction of
+  // travel, in screen pixels (so the spacing is the same at every zoom): the first one 13 px behind the
+  // front's centre (front 18 px, followers 14 px across), then every 11 px.
+  var CONVOY_FIRST_PX = 13;
+  var CONVOY_STEP_PX = 11;
+
+  /** The screen offsets (x right, y down, px) of the n − 1 markers behind the front one of a report of
+   *  `n` vehicles driving towards `deg` (0 = north, clockwise). Empty for n ≤ 1. */
+  function convoyOffsets(deg, n) {
+    var out = [];
+    var a = (deg * Math.PI) / 180;
+    for (var k = 1; k < n; k++) {
+      var d = CONVOY_FIRST_PX + (k - 1) * CONVOY_STEP_PX;
+      // Travel points (sin a, −cos a) on the screen; behind is the opposite.
+      out.push({ x: Math.round(-Math.sin(a) * d * 10) / 10 + 0, y: Math.round(Math.cos(a) * d * 10) / 10 + 0 });
+    }
+    return out;
   }
 
   /** A report's direction of travel (reports.json `direction`, app 0.6.7): whole degrees 0–359
@@ -357,10 +394,84 @@
     return typeof v === "number" && isFinite(v) && v >= 0 && v <= 140 ? Math.round(v) : null;
   }
 
-  /** The text of a report's tooltip: «Töff · 14–15 Uhr · Richtung Ost · 84 dB» (the parts it has). */
-  function reportText(categoryName, hour, deg, level) {
-    return categoryName + " · " + hour + (deg === null ? "" : " · " + directionLabel(deg)) +
-      (level === null ? "" : " · " + level + " dB");
+  /** The text of a report's tooltip: «Töff · 14–15 Uhr · Richtung Ost · 84 dB» (the parts it has);
+   *  0.9.4.5: «Auto · 3 Fahrzeuge · …» for a `count` above 1 (1 is never shown). */
+  function reportText(categoryName, hour, deg, level, count) {
+    return categoryName + (count > 1 ? " · " + count + " Fahrzeuge" : "") + " · " + hour +
+      (deg === null ? "" : " · " + directionLabel(deg)) + (level === null ? "" : " · " + level + " dB");
+  }
+
+  /* The marker of a report, built with the page's `el(tag, attrs, children)` (karte.js; a stand-in in the
+   * unit tests), so that the page, the render harness and the tests share one composition. */
+
+  /** The letter of a category, or for a report without one (0.9.4.5) a small dot. */
+  function reportMark(cat, el) {
+    return cat.letter ? el("b", { text: cat.letter }) : el("i", { class: "report-dot", "aria-hidden": "true" });
+  }
+
+  /** 0.9.4.5: the n − 1 smaller markers behind the front one of a convoy driving towards `dir`, each a
+   *  teardrop turned like the front one, with its letter (or dot), translated by convoyOffsets; the
+   *  farthest first, so that the front one is drawn on top. */
+  function reportConvoy(cat, dir, n, el) {
+    return convoyOffsets(dir, n).reverse().map(function (o) {
+      var tail = el("i", { class: "report-tail-shape" });
+      tail.style.transform = "rotate(" + headingShapeRotation(dir) + "deg)";
+      var t = el("i", { class: "report-tail", "aria-hidden": "true" }, [tail, reportMark(cat, el)]);
+      t.style.transform = "translate(" + o.x + "px, " + o.y + "px)";
+      return t;
+    });
+  }
+
+  /** A report's marker: { className, html, text } for an 18 × 18 px Leaflet divIcon anchored at its centre.
+   *  App 0.6.7: with a direction the round marker gets one pointed corner (a teardrop; the corner of the
+   *  unrotated shape points south-west, see headingShapeRotation). 0.9.4.5: a report of several vehicles
+   *  with a direction is a convoy (reportConvoy); without one it carries a badge «×n». */
+  function reportMarker(r, el) {
+    var cat = reportCategory(r.category);
+    var dir = reportDirection(r);
+    var n = reportCount(r);
+    var text = reportText(cat.name, hourLabel(r.time), dir, reportLevel(r), n);
+    var parts = n > 1 && dir !== null ? reportConvoy(cat, dir, n, el) : [];
+    if (dir !== null) {
+      var shape = el("i", { class: "report-shape", "aria-hidden": "true", "data-direction": String(dir) });
+      shape.style.transform = "rotate(" + headingShapeRotation(dir) + "deg)";
+      parts.push(shape);
+    }
+    parts.push(reportMark(cat, el));
+    if (n > 1 && dir === null) parts.push(el("i", { class: "report-count", "aria-hidden": "true", text: "×" + n }));
+    return {
+      className: "report report-" + cat.id + (dir !== null ? " report-heading" : "") + (n > 1 ? " report-many" : ""),
+      html: el("span", { "aria-label": text, "data-category": cat.id, "data-count": String(n) }, parts),
+      text: text,
+    };
+  }
+
+  /** The report entries of the map's legend, as `li` elements: each category with its marker, then
+   *  «Ohne Angabe» (0.9.4.5), the pointed corner (app 0.6.7) and several vehicles (0.9.4.5: a convoy
+   *  driving east and the badge of one without a direction). */
+  function reportLegendItems(el) {
+    var items = REPORT_CATEGORIES.concat([REPORT_NONE]).map(function (c) {
+      return el("li", null, [
+        el("span", { class: "report report-" + c.id, "aria-hidden": "true" }, [el("span", null, [reportMark(c, el)])]),
+        c.name,
+      ]);
+    });
+    var sample = el("i", { class: "report-shape" });
+    sample.style.transform = "rotate(" + headingShapeRotation(90) + "deg)";
+    items.push(el("li", { class: "legend-heading" }, [
+      el("span", { class: "report report-heading", "aria-hidden": "true" }, [sample]),
+      "Spitze = Fahrtrichtung",
+    ]));
+    var lead = el("i", { class: "report-shape" });
+    lead.style.transform = "rotate(" + headingShapeRotation(90) + "deg)";
+    items.push(el("li", { class: "legend-many" }, [
+      el("span", { class: "report report-none report-heading report-many", "aria-hidden": "true" },
+        [el("span", null, reportConvoy(REPORT_NONE, 90, 3, el).concat([lead, reportMark(REPORT_NONE, el)]))]),
+      el("span", { class: "report report-none report-many", "aria-hidden": "true" },
+        [el("span", null, [reportMark(REPORT_NONE, el), el("i", { class: "report-count", text: "×3" })])]),
+      "= 3 Fahrzeuge",
+    ]));
+    return items;
   }
 
   var COMPASS_8 = ["Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest"];
@@ -522,7 +633,8 @@
     SOURCES: SOURCES, SOURCE_BREAKS: SOURCE_BREAKS, ALL_SOURCES: ALL_SOURCES, source: source,
     sourceMetric: sourceMetric, metricFor: metricFor,
     parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
-    REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    REPORT_CATEGORIES: REPORT_CATEGORIES, REPORT_NONE: REPORT_NONE, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    reportCount: reportCount, convoyOffsets: convoyOffsets, reportMark: reportMark, reportConvoy: reportConvoy, reportMarker: reportMarker, reportLegendItems: reportLegendItems, CONVOY_FIRST_PX: CONVOY_FIRST_PX, CONVOY_STEP_PX: CONVOY_STEP_PX,
     reportDirection: reportDirection, headingShapeRotation: headingShapeRotation, directionLabel: directionLabel, reportLevel: reportLevel, reportText: reportText,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };

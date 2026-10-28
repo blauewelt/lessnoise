@@ -112,7 +112,7 @@ class LoudAlertIsolationTest {
         // 0.8.1 (same build): the place moved under the dot; the stand-in has no disc, so no drag.
         // 0.9.2: with onDraggable (the hint «Karte verschiebbar»), which the stand-in never calls.
         // 0.9.4.2: with the disc's size and the dialog's measuring pass.
-        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onDraggable: (Boolean) -> Unit = {}, discSize: Dp = REPORT_DISC_MAX_DP.dp, measureOnly: Boolean = false, onMove: (Pair<Double, Double>) -> Boolean) = Unit"))
+        assertTrue(stub.contains("fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onDraggable: (Boolean) -> Unit = {}, discSize: Dp = REPORT_DISC_MAX_DP.dp, measureOnly: Boolean = false, directionOn: Boolean = true, onDirectionOn: ((Boolean) -> Unit)? = null, onMove: (Pair<Double, Double>) -> Boolean) = Unit"))
         assertFalse(stub.contains("pointerInput"))
     }
 

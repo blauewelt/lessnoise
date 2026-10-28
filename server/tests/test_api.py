@@ -334,7 +334,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(8,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(9,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx
@@ -524,6 +524,55 @@ def test_every_report_category_is_accepted(client, settings):
     assert r == {"accepted": len(REPORT_CATEGORIES), "duplicates": 0, "rejected": [], "dropped_by_category": 0}
     assert [c for (c,) in rows(settings, "SELECT category FROM reports ORDER BY time_utc")] == list(REPORT_CATEGORIES)
     assert "flugzeug" in REPORT_CATEGORIES
+
+
+def test_report_needs_only_place_and_time_and_may_count_several(client, settings, tmp_path):
+    """Schema v9 (Labor·Karte 0.9.4.5, DESIGN.md §4.7): the category may be absent or null («not said»), an
+    unknown id is still refused; `count` 1–9 (absent or null = 1) says how many passed. Old apps (always a
+    category, never a count) are unaffected."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    no_key = {k: v for k, v in report(recent(30)).items() if k != "category"}
+    null = {**report(recent(29)), "category": None}
+    old_app = report(recent(28), category="lastwagen")
+    three = {**report(recent(27), category="auto"), "count": 3, "direction": direction(90)}
+    nine = {**no_key, "time": recent(26).isoformat(timespec="seconds"), "count": 9}
+    count_null = {**report(recent(25), category="bahn"), "count": None}
+    one = {**report(recent(24), category="garten"), "count": 1}
+    body = client.post(url, json=[no_key, null, old_app, three, nine, count_null, one], headers=auth).json()
+    assert body == {"accepted": 7, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(settings, "SELECT category, count, direction_deg FROM reports ORDER BY time_utc") == [
+        (None, 1, None), (None, 1, None), ("lastwagen", 1, None), ("auto", 3, 90), (None, 9, None),
+        ("bahn", 1, None), ("garten", 1, None),
+    ]  # fmt: skip
+
+    cases = {
+        "unknown": report(recent(20), category="velo"),
+        "empty": report(recent(19), category=""),
+        "zero": {**report(recent(18)), "count": 0},
+        "ten": {**report(recent(17)), "count": 10},
+        "negative": {**report(recent(16)), "count": -1},
+        "fraction": {**report(recent(15)), "count": 2.5},
+        "string": {**report(recent(14)), "count": "3"},
+        "bool": {**report(recent(13)), "count": True},
+        "no_place": {k: v for k, v in report(recent(12)).items() if k not in ("lat", "lon")},
+    }
+    body = client.post(url, json=list(cases.values()), headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["unknown"] == fields["empty"] == "category"
+    assert {fields[k] for k in ("zero", "ten", "negative", "fraction", "string", "bool")} == {"count"}
+    assert fields["no_place"] in ("lat", "lon")
+
+    # Published: category null for «not said», count always (1 when absent).
+    from stadtlaerm_server import publish as pub
+
+    with sqlite3.connect(settings.db_path) as c:
+        out = pub.reports_from_db(c, datetime.now(ZONE))
+    got = sorted((r["category"] or "", r["count"]) for r in out["reports"])
+    assert got == sorted([("", 1), ("", 1), ("lastwagen", 1), ("auto", 3), ("", 9), ("bahn", 1), ("garten", 1)])
+    assert all(set(r) == {"time", "lat", "lon", "category", "direction", "lafmax_db", "count"} for r in out["reports"])
+    assert out["categories"][-4:] == ["hupen", "baustelle", "garten", "bahn"]
 
 
 def test_reports_count_against_the_device_rate_limit(make_client):

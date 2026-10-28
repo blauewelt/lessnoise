@@ -34,7 +34,23 @@ class ClarityTextsTest {
         assertTrue(panel.contains("REPORT_WHERE, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,"), panel)
         assertTrue(panel.indexOf("REPORT_WHERE") < panel.indexOf("liveLabel(") && panel.indexOf("liveLabel(") < panel.indexOf("POINT_HINT") && panel.indexOf("POINT_HINT") < panel.indexOf("disc()"))
         assertTrue(body.indexOf("ReportCategoryRows(rows") < body.indexOf("disc(discSize, measureOnly)"))
-        assertTrue(body.contains("Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))"))
+        // 0.9.4.5: the heading in a column with «Erkannt um …» under it, «Anzahl» at the right of the row.
+        assertTrue(body.contains("Text(REPORT_WHAT, style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant)"))
+        assertTrue(body.indexOf("Text(REPORT_WHAT") < body.indexOf("ReportCountStepper(count, onCount") &&
+            body.indexOf("ReportCountStepper(count, onCount") < body.indexOf("ReportCategoryRows(rows"))
+        // 0.9.4.5: while the direction is off the heading says so instead of the bearing, and the hint line too.
+        assertTrue(panel.contains("if (!directionOn) DIRECTION_NONE else if (r == null) \"…\" else liveLabel(r.magneticDeg)"), panel)
+        assertTrue(panel.contains("if (directionOn) POINT_HINT else POINT_HINT_OFF"), panel)
+        // (Read from the source: the Offline and Labor builds have only the stand-in, without these texts.)
+        val karte = src("src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt")
+        for (c in listOf(
+            "const val DIRECTION_OFF = \"Richtung weglassen\"", "const val DIRECTION_NONE = \"Ohne Richtung\"",
+            "const val DIRECTION_ON = \"Richtung angeben\"", "const val POINT_HINT_OFF = \"Es wird keine Fahrtrichtung gesendet.\"",
+        )) assertTrue(karte.contains(c), c)
+        // The «×» is a 40 dp IconButton at the disc's top-right, spoken as DIRECTION_OFF.
+        assertTrue(karte.contains("IconButton(onClick = { onDirectionOn(false) }, modifier = Modifier.align(Alignment.TopEnd).size(40.dp))"))
+        assertTrue(karte.contains("Icon(Icons.Filled.Close, contentDescription = DIRECTION_OFF"))
+        assertEquals("Anzahl", REPORT_COUNT)
         // 0.9.4.2: «Mikrofon läuft» is the microphone icon at the start of the status line (its alternate text, and
         // in the line's spoken sentence), shown whenever the level is.
         val level = src("src/main/kotlin/ch/lessnoise/app/ui/ReportLevel.kt").substringAfter("fun ReportStatusLine(").substringBefore("\n}\n")

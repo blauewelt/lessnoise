@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.9.4.5 — Labor·Karte first (branch labor-0.9.1): only the place is required; direction can be switched off; Anzahl; Hupen and Baustelle (versionCode 50)
+
+In short (owner's decisions of 2026-10-28): a report needs only its place. The kind is optional, the direction
+can be left out, several vehicles can be counted, and «Andere» offers four more kinds. The code is in `src/main`
+and `src/karte`, so the Online-Version gets it with its next release (0.9.5). Server schema v9 and the website's
+map change with it (server/DESIGN.md §4.7, §5, §6.4, §7).
+
+- **Category optional:** «Senden» is enabled as soon as the fix is there (or waits for it, as before) — with or
+  without a category; a tap on the chosen one deselects it (`reportSelectAfter`). None chosen = no `category`
+  field. `reportNext`/`reportSendEnabled` no longer take the category; `ReportNext.CHOOSE` is gone.
+- **Direction optional:** «×» (40 dp, «Richtung weglassen») at the compass disc's top-right; then the disc is faint
+  without the arrow, the heading says «Ohne Richtung», the hint «Es wird keine Fahrtrichtung gesendet.», and
+  «Richtung angeben» turns it back on. Off = no `direction` sent. The map under the dot can still be dragged.
+- **Anzahl:** «− 1 +» (1–9, default 1) at the right of «Was war es?» («Erkannt um …» under the heading); sent as
+  `count` only when above 1; kept in «Meldungen» («Auto · 3 Fahrzeuge»).
+- **New kinds in «Andere»** (two rows of three): Lastwagen · Flugzeug · **Bahn** (`bahn`, trains and trams) /
+  **Baustelle** (`baustelle`) · **Gartengeräte** (`garten`: leaf blowers, mowers, trimmers) · **Hupen** (`hupen`). Icons:
+  Material «train» and «volume_up», a drawn traffic cone and grass. Labor·Karte's «Sehr laut» suggestion maps
+  `construction` → Baustelle and `rail_tram` → Bahn (the alert still fires only for loud vehicles and road traffic).
+  The folded-out rows are 40 dp high (the first row stays 56 dp) and the groups move closer while they are open,
+  so that the dialog fits 412 × 915 and 360 × 740 dp with the disc at its 140 dp minimum.
+- **Queue and older servers:** `PendingReport.category` / `SentReport.category` nullable, `count` (stored as `n`
+  only above 1; entries of older versions read as one vehicle). A server before schema v9 refuses `count` → the
+  report is sent again as one vehicle in the same run (`ReportQueue.dropCount`); it refuses a missing category →
+  the report stays queued unchanged and «Meldungen» says «Server zu alt – wird später gesendet»
+  (`Uploader.serverTooOld`, `SERVER_TOO_OLD_TEXT`; the status chip of the measurements is not affected).
+- **Labor manifest:** the `report` line's `cat` is `null` when none was chosen.
+- **Map (website):** a report without a kind is a grey point with a dot («Ohne Angabe»); new letters Z Bahn, B
+  Baustelle, G Gartengeräte, H Hupen; several vehicles as a convoy in one marker (or «×3» without a direction);
+  legend entries. Also fixed: report markers were shifted by their place in the pane (b0e2672, on main).
+- Tests: `ReportOptionalTest` (payload, queue, «Meldungen» line, a v9 server, an older server with FakeServer
+  `beforeV9`), `ReportFlowTest`, `ReportsTest`, `ClarityTextsTest`, `LoudAlertTest`, `ReportMapTilesTest`; renders
+  in `ReportDialog*Screenshots` (nothing chosen, direction off, Anzahl 3, «Andere» with Hupen / Gartengeräte, all at once).
+
 ## 0.9.4.4 — Labor·Karte first (branch labor-0.9.1): «Laut! Melden» as the main surface, also while measuring; «Melden» in the measurement notification (versionCode 49)
 
 In short: the owner's rule «the main UI flow is to report someone». Opening the app, or tapping the measurement

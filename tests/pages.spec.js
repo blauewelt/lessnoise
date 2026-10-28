@@ -390,7 +390,7 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 25. Oktober 2026",
+    "Stand: 28. Oktober 2026",           // 0.9.4.5: reports — everything but the place optional, Anzahl
     "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
     "Art, Zeit, den ungefähren Ort",   // what the phone keeps of a sent report
   ]) {

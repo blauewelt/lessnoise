@@ -154,7 +154,7 @@ object EditionDiagnostics {
      * Labor code does not see the upload package (UploadSourceIsolationTest).
      */
     fun report(
-        context: Context, reportMs: Long, category: String, media: String?,
+        context: Context, reportMs: Long, category: String?, media: String?,
         bearingDeg: Int?, north: String?, accuracy: String?,
     ) {
         try {

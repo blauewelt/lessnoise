@@ -207,6 +207,8 @@ path.cell:focus { outline: none; }
 .legend-reports li { display: inline-flex; align-items: center; gap: 0.35rem; }
 .legend-reports .reports-head { flex: 1 0 100%; color: var(--ink); }
 .legend-reports .report { width: 1.05rem; height: 1.05rem; }
+.legend-reports .legend-many .report-heading { margin-left: 24px; }   /* room for the convoy behind it */
+.legend-reports .legend-many .report-many:not(.report-heading) { margin-right: 0.6rem; }
 
 /* ---------- report markers (Leaflet divIcon; letter = category, colour only helps) ---------- */
 
@@ -226,7 +228,10 @@ path.cell:focus { outline: none; }
   color: var(--rt);
   font: 700 10px/1 var(--sans);
 }
-.leaflet-marker-icon.report { width: 18px; height: 18px; }
+/* On the map the marker is Leaflet's: absolutely placed (leaflet.css), which `.report`'s `position: relative`
+   (needed by the legend's samples) must not override — with it every marker was shifted by its place in the
+   pane's flow (b0e2672, fixed in 0.9.4.5). */
+.leaflet-marker-icon.report { position: absolute; width: 18px; height: 18px; }
 .report span { pointer-events: none; display: contents; }
 .report b { position: relative; font: inherit; }
 /* Direction of travel (app 0.6.7): the round marker becomes a teardrop whose one pointed corner
@@ -243,6 +248,49 @@ path.cell:focus { outline: none; }
   box-shadow: 0 0 0 1px rgba(23, 32, 46, 0.55);
   pointer-events: none;
 }
+/* 0.9.4.5: several vehicles. With a direction, a convoy: smaller copies (14 px) behind the reported
+   marker, against the direction of travel, each translated in karte.js (model.js convoyOffsets) from the
+   centre of the 18 px icon; the farthest first in the DOM, so the front one is drawn on top. */
+.report-tail {
+  position: absolute;
+  left: 0.5px; top: 0.5px;   /* the 14 px box centred on the 18 px icon's border box (1.5 px border) */
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 8px;
+  font-style: normal;
+  pointer-events: none;
+}
+.report-tail-shape {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50% 50% 50% 0;
+  border: 1.5px solid var(--rb);
+  background: var(--rc);
+  box-shadow: 0 0 0 1px rgba(23, 32, 46, 0.55);
+}
+/* Without a direction: one marker with a small badge «×3» at its upper right. */
+.report-count {
+  position: absolute;
+  left: 11px; top: -9px;
+  padding: 1px 3px;
+  border-radius: 6px;
+  background: #17202e;
+  color: #ffffff;
+  font: 700 9px/1 var(--sans);
+  font-style: normal;
+  box-shadow: 0 0 0 1px #ffffff;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* 0.9.4.5: a report without a category: a grey point with a small dot — not «Andere» (white with «+»). */
+.report-dot {
+  position: relative;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--rt);
+}
+.report-tail .report-dot { width: 4px; height: 4px; }
 .report-motorrad { --rc: #c2410c; }
 .report-poser { --rc: #7e22ce; }
 .report-lastwagen { --rc: #0f766e; }
@@ -250,6 +298,14 @@ path.cell:focus { outline: none; }
 .report-flugzeug { --rc: #17202e; }
 .report-andere { --rc: #ffffff; --rb: #17202e; --rt: #17202e; box-shadow: none; }
 .report-andere .report-shape { box-shadow: none; }
+.report-andere .report-tail-shape { box-shadow: none; }
+/* 0.9.4.5: four more. Hues not used above (blue, yellow, green, pink), each with its own letter; Baustelle
+   is a yellow sign with a dark letter. Ohne Angabe: a light grey, lighter than Auto's slate, with a dot. */
+.report-bahn { --rc: #1d4ed8; }
+.report-baustelle { --rc: #facc15; --rt: #17202e; }
+.report-garten { --rc: #4d7c0f; }
+.report-hupen { --rc: #be185d; }
+.report-none { --rc: #8b949e; }
 
 /* ---------- card (after earth's pixel inspector) ---------- */
 

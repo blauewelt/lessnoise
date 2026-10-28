@@ -262,14 +262,19 @@ def report_record(
     at: datetime,
     lat: float,
     lon: float,
-    category: str,
+    category: str | None,
     accuracy_m: float = 8.0,
     direction: dict | None = None,
     level: dict | None = None,
+    count: int | None = None,
 ) -> dict:
-    """A manual report in the upload format of §4.7 (`at` naive local); `direction` (app 0.6.7) and
-    `level` (app 0.8.5) only if given."""
-    r = {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m, "category": category}
+    """A manual report in the upload format of §4.7 (`at` naive local); `direction` (app 0.6.7),
+    `level` (app 0.8.5) and `count` (v9) only if given; no `category` key when it is None (v9)."""
+    r = {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m}
+    if category is not None:
+        r["category"] = category
+    if count is not None:
+        r["count"] = count
     if direction is not None:
         r["direction"] = direction
     if level is not None:

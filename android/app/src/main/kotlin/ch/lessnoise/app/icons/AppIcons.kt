@@ -123,6 +123,47 @@ object AppIcons {
         )
     }
 
+    /** 0.9.4.5: «remove» (Material, a minus): «Anzahl» one less. */
+    val Remove: ImageVector by lazy { icon("Remove", "M19 13H5v-2h14v2z") }
+
+    /** 0.9.4.5: «volume_up» (Material): Hupen. */
+    val VolumeUp: ImageVector by lazy {
+        icon(
+            "VolumeUp",
+            "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z",
+        )
+    }
+
+    /** 0.9.4.5: a traffic cone (drawn for this app, not a Material path): Baustelle. */
+    val Cone: ImageVector by lazy {
+        icon(
+            "Cone",
+            "M10.5 2h3l1.06 4H9.44z",
+            "M8.78 8.5h6.44l.93 3.5H7.85z",
+            "M7.19 14.5h9.62L18 19H6z",
+            "M3 20h18v2H3z",
+        )
+    }
+
+    /** 0.9.4.5: three blades of grass (drawn for this app): Gartengeräte (leaf blowers, mowers, trimmers). */
+    val Grass: ImageVector by lazy {
+        icon(
+            "Grass",
+            "M2 20h20v2H2z",
+            "M5 20c-.2-4.6 1-8.6 3.4-11.8-.6 4 .1 8 1.9 11.8z",
+            "M10.6 20c-.3-6 1.3-11.4 4.6-16-.9 5.3-.5 10.6 1.3 16z",
+            "M16.9 20c.4-3.6 2-6.6 4.6-8.6-1.1 2.8-1.6 5.6-1.6 8.6z",
+        )
+    }
+
+    /** 0.9.4.5: «train» (Material): Bahn. */
+    val Train: ImageVector by lazy {
+        icon(
+            "Train",
+            "M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+        )
+    }
+
     /** «more_horiz»: anderes Fahrzeug. */
     val MoreHoriz: ImageVector by lazy {
         icon(

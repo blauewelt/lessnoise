@@ -67,6 +67,10 @@ object LoudAlertRule {
         "road_traffic" -> listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN)
         // 0.7.7: only reached if the alert ever fires for aircraft; CATEGORIES does not include it.
         "aircraft" -> listOf(ReportCategory.FLUGZEUG)
+        // 0.9.4.5: the new categories of the detector's classes; like aircraft only reached if the alert ever fires
+        // for them (CATEGORIES is unchanged: loud_vehicle, road_traffic).
+        "construction" -> listOf(ReportCategory.BAUSTELLE)
+        "rail_tram" -> listOf(ReportCategory.BAHN)
         else -> emptyList()
     }
 }

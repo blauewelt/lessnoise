@@ -100,7 +100,12 @@ class LoudAlertTest {
         // 0.7.7: aircraft would suggest «Flugzeug» (the alert itself still never fires for it, above).
         assertEquals(listOf(ReportCategory.FLUGZEUG), LoudAlertRule.suggested("aircraft"))
         assertEquals("Flugzeug", LoudAlertRule.categoryLabel("aircraft"))
-        assertEquals(emptyList<ReportCategory>(), LoudAlertRule.suggested("rail_tram"))
+        // 0.9.4.5: the detector's construction and rail_tram suggest the new Baustelle and Bahn (reached only if the
+        // alert ever fires for them: CATEGORIES stays loud_vehicle, road_traffic).
+        assertEquals(listOf(ReportCategory.BAHN), LoudAlertRule.suggested("rail_tram"))
+        assertEquals(listOf(ReportCategory.BAUSTELLE), LoudAlertRule.suggested("construction"))
+        assertEquals(setOf("loud_vehicle", "road_traffic"), LoudAlertRule.CATEGORIES)
+        assertEquals(emptyList<ReportCategory>(), LoudAlertRule.suggested("voices"))
         // Marked «erkannt» where they stand, all four offered still there: nothing is picked silently.
         // 0.9.4.2: the order is fixed (Töff · Auto · «Andere» › Lastwagen · Flugzeug); a suggested Lastwagen or
         // Flugzeug opens the second row at the start, so its «erkannt» is seen.
@@ -112,14 +117,14 @@ class LoudAlertTest {
         val roadRows = reportCategoryButtons(road, null, reportMoreOpenAtStart(road, null))
         assertTrue(roadRows.expanded)
         assertEquals(listOf(false, true, false), roadRows.main.map { it.suggested })
-        assertEquals(listOf(true, false), roadRows.more.map { it.suggested })
+        assertEquals(listOf(true, false, false, false, false, false), roadRows.more.map { it.suggested })
         assertTrue(reportMoreOpenAtStart(LoudAlertRule.suggested("aircraft"), null))
         for (s in listOf(p.suggested, road, LoudAlertRule.suggested("aircraft"), emptyList())) {
             val r = reportCategoryButtons(s, null, false)
             assertEquals(ReportCategory.OFFERED, (r.main + r.more).mapNotNull { it.category })
         }
         // 0.9.1: every suggestion is one the dialog offers (never «Poser» or «anderes Fahrzeug»).
-        for (c in listOf("loud_vehicle", "road_traffic", "aircraft", "rail_tram", null)) {
+        for (c in listOf("loud_vehicle", "road_traffic", "aircraft", "rail_tram", "construction", null)) {
             assertTrue(LoudAlertRule.suggested(c).all { it.offered }, "$c")
         }
         // Any other intent (the launcher, the measurement's notification): no report.

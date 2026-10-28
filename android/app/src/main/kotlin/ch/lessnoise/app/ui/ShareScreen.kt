@@ -214,7 +214,8 @@ fun ShareContent(
         }
 
         // 2. The reports on the road («Laut! Melden»): exact place, sent only by the tap «Senden».
-        ReportsCard(reports, mediaPreview)
+        // 0.9.4.5: reports without a category wait while the server is older than schema v9 (Uploader.serverTooOld).
+        ReportsCard(reports, mediaPreview, waitingForServer = s.lastError == Uploader.SERVER_TOO_OLD_TEXT)
 
         // 3. What is sent, what never, where, when, how to delete — for both kinds; folded away, unchanged in substance.
         SectionCard(rows = true) {
@@ -359,10 +360,12 @@ private fun SigmaSetting(current: Int, onChange: (Int) -> Unit, enabled: Boolean
 
 /**
  * «12.10. 16:05 · Töff»; 0.8.5: with the report's peak level in whole dB «… · Töff · 81 dB»; with a
- * licence plate (0.7.6–0.8.4, on the phone only) «… · Töff · ZH 123».
+ * licence plate (0.7.6–0.8.4, on the phone only) «… · Töff · ZH 123». 0.9.4.5: «… · Ohne Angabe» without a
+ * category, «… · Auto · 3 Fahrzeuge» for several.
  */
 internal fun sentReportLine(time: String, s: SentReport): String =
-    "$time · ${ReportCategory.fromId(s.category)?.label ?: s.category}" +
+    "$time · ${s.category?.let { ReportCategory.fromId(it)?.label ?: it } ?: ReportCategory.NONE_LABEL}" +
+        (if (s.count > 1) " · ${s.count} Fahrzeuge" else "") +
         (s.lafMaxDb?.takeIf { it.isFinite() }?.let { " · ${Math.round(it)} dB" } ?: "") +
         (s.plate?.let { " · $it" } ?: "")
 
@@ -373,7 +376,7 @@ internal fun sentReportLine(time: String, s: SentReport): String =
  * with «Video löschen» for the video alone (ReportVideos.kt). Old photos keep showing as photos.
  */
 @Composable
-internal fun ReportsCard(r: ReportSnapshot, mediaPreview: Map<String, ReportVideoThumb> = emptyMap()) {
+internal fun ReportsCard(r: ReportSnapshot, mediaPreview: Map<String, ReportVideoThumb> = emptyMap(), waitingForServer: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var viewing by remember { mutableStateOf<SentReport?>(null) }
@@ -383,11 +386,15 @@ internal fun ReportsCard(r: ReportSnapshot, mediaPreview: Map<String, ReportVide
         CardHeader(AppIcons.Campaign, REPORTS_SECTION_TITLE, REPORTS_SECTION_SUBTITLE)
         CardBlock {
             if (r.pending.isNotEmpty()) StatRow(PENDING_LABEL, r.pending.size.toString())
+            // 0.9.4.5: a report without a category waits for a server of schema v9 (the server deploys from main).
+            if (r.pending.isNotEmpty() && waitingForServer) {
+                Text(Uploader.SERVER_TOO_OLD_TEXT, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (r.sent.isEmpty() && r.pending.isEmpty()) HelperText(REPORTS_NONE) else StatRow("Gesendet", r.sent.size.toString())
         }
         r.sent.takeLast(5).reversed().forEach { s ->
             val media = ReportPhotos.file(context, s.media)
-            val cat = ReportCategory.fromId(s.category)
+            val cat = s.category?.let(ReportCategory::fromId)
             ListItem(
                 headlineContent = { Text(sentReportLine(Fmt.dateTime(s.epochMs), s), style = MaterialTheme.typography.bodyMedium) },
                 leadingContent = cat?.let { c -> { Icon(reportCategoryIcon(c), contentDescription = null) } },

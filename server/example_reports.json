@@ -8,7 +8,11 @@
     "lastwagen",
     "flugzeug",
     "poser",
-    "andere"
+    "andere",
+    "hupen",
+    "baustelle",
+    "garten",
+    "bahn"
   ],
   "reports": [
     {
@@ -17,15 +21,17 @@
       "lon": 8.52678,
       "category": "poser",
       "direction": 226,
-      "lafmax_db": 72
+      "lafmax_db": 72,
+      "count": 1
     },
     {
       "time": "2026-09-09T19:00:00+02:00",
       "lat": 47.38177,
       "lon": 8.52665,
-      "category": "poser",
+      "category": "bahn",
       "direction": 57,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 1
     },
     {
       "time": "2026-09-09T21:00:00+02:00",
@@ -33,7 +39,8 @@
       "lon": 8.52387,
       "category": "lastwagen",
       "direction": 234,
-      "lafmax_db": 92
+      "lafmax_db": 92,
+      "count": 1
     },
     {
       "time": "2026-09-09T21:00:00+02:00",
@@ -41,7 +48,8 @@
       "lon": 8.55844,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-09-10T07:00:00+02:00",
@@ -49,7 +57,8 @@
       "lon": 8.53761,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 1
     },
     {
       "time": "2026-09-11T07:00:00+02:00",
@@ -57,15 +66,17 @@
       "lon": 8.52536,
       "category": "auto",
       "direction": 227,
-      "lafmax_db": 88
+      "lafmax_db": 88,
+      "count": 1
     },
     {
       "time": "2026-09-11T08:00:00+02:00",
       "lat": 47.36111,
       "lon": 8.58536,
-      "category": "andere",
+      "category": "bahn",
       "direction": null,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 1
     },
     {
       "time": "2026-09-11T19:00:00+02:00",
@@ -73,7 +84,8 @@
       "lon": 8.52435,
       "category": "andere",
       "direction": 340,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-11T20:00:00+02:00",
@@ -81,23 +93,26 @@
       "lon": 8.52824,
       "category": "lastwagen",
       "direction": 354,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-11T22:00:00+02:00",
       "lat": 47.35173,
       "lon": 8.52645,
-      "category": "motorrad",
+      "category": null,
       "direction": 156,
-      "lafmax_db": 86
+      "lafmax_db": 86,
+      "count": 1
     },
     {
       "time": "2026-09-11T22:00:00+02:00",
       "lat": 47.35194,
       "lon": 8.528,
-      "category": "lastwagen",
+      "category": "baustelle",
       "direction": 156,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 3
     },
     {
       "time": "2026-09-11T22:00:00+02:00",
@@ -105,7 +120,8 @@
       "lon": 8.53413,
       "category": "motorrad",
       "direction": 63,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-12T08:00:00+02:00",
@@ -113,15 +129,17 @@
       "lon": 8.5356,
       "category": "auto",
       "direction": 64,
-      "lafmax_db": 79
+      "lafmax_db": 79,
+      "count": 1
     },
     {
       "time": "2026-09-12T12:00:00+02:00",
       "lat": 47.37771,
       "lon": 8.52532,
-      "category": "andere",
+      "category": null,
       "direction": null,
-      "lafmax_db": 76
+      "lafmax_db": 76,
+      "count": 1
     },
     {
       "time": "2026-09-12T17:00:00+02:00",
@@ -129,7 +147,8 @@
       "lon": 8.53876,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 4
     },
     {
       "time": "2026-09-12T18:00:00+02:00",
@@ -137,23 +156,26 @@
       "lon": 8.5292,
       "category": "auto",
       "direction": 145,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-12T19:00:00+02:00",
       "lat": 47.3596,
       "lon": 8.53406,
-      "category": "auto",
+      "category": null,
       "direction": 79,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 3
     },
     {
       "time": "2026-09-12T22:00:00+02:00",
       "lat": 47.38044,
       "lon": 8.52562,
-      "category": "andere",
+      "category": "garten",
       "direction": 37,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 2
     },
     {
       "time": "2026-09-13T07:00:00+02:00",
@@ -161,7 +183,8 @@
       "lon": 8.53412,
       "category": "auto",
       "direction": 358,
-      "lafmax_db": 85
+      "lafmax_db": 85,
+      "count": 1
     },
     {
       "time": "2026-09-13T07:00:00+02:00",
@@ -169,7 +192,8 @@
       "lon": 8.52793,
       "category": "poser",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-13T08:00:00+02:00",
@@ -177,7 +201,8 @@
       "lon": 8.52764,
       "category": "poser",
       "direction": 20,
-      "lafmax_db": 86
+      "lafmax_db": 86,
+      "count": 1
     },
     {
       "time": "2026-09-14T07:00:00+02:00",
@@ -185,7 +210,8 @@
       "lon": 8.5343,
       "category": "poser",
       "direction": 350,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-14T12:00:00+02:00",
@@ -193,7 +219,8 @@
       "lon": 8.53219,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": 69
+      "lafmax_db": 69,
+      "count": 3
     },
     {
       "time": "2026-09-14T12:00:00+02:00",
@@ -201,7 +228,8 @@
       "lon": 8.52702,
       "category": "poser",
       "direction": 4,
-      "lafmax_db": 73
+      "lafmax_db": 73,
+      "count": 1
     },
     {
       "time": "2026-09-14T18:00:00+02:00",
@@ -209,7 +237,8 @@
       "lon": 8.52684,
       "category": "auto",
       "direction": 298,
-      "lafmax_db": 70
+      "lafmax_db": 70,
+      "count": 1
     },
     {
       "time": "2026-09-15T08:00:00+02:00",
@@ -217,7 +246,8 @@
       "lon": 8.53807,
       "category": "auto",
       "direction": 47,
-      "lafmax_db": 87
+      "lafmax_db": 87,
+      "count": 1
     },
     {
       "time": "2026-09-15T21:00:00+02:00",
@@ -225,7 +255,8 @@
       "lon": 8.55607,
       "category": "motorrad",
       "direction": 86,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-15T23:00:00+02:00",
@@ -233,7 +264,8 @@
       "lon": 8.529,
       "category": "poser",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-16T07:00:00+02:00",
@@ -241,7 +273,8 @@
       "lon": 8.52663,
       "category": "poser",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-16T23:00:00+02:00",
@@ -249,7 +282,8 @@
       "lon": 8.52828,
       "category": "poser",
       "direction": 308,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-17T08:00:00+02:00",
@@ -257,7 +291,8 @@
       "lon": 8.53768,
       "category": "motorrad",
       "direction": 100,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-17T17:00:00+02:00",
@@ -265,7 +300,8 @@
       "lon": 8.53148,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-17T18:00:00+02:00",
@@ -273,7 +309,8 @@
       "lon": 8.52686,
       "category": "auto",
       "direction": 215,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-18T12:00:00+02:00",
@@ -281,7 +318,8 @@
       "lon": 8.52839,
       "category": "poser",
       "direction": null,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 1
     },
     {
       "time": "2026-09-18T21:00:00+02:00",
@@ -289,7 +327,8 @@
       "lon": 8.53093,
       "category": "motorrad",
       "direction": 183,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-19T12:00:00+02:00",
@@ -297,7 +336,8 @@
       "lon": 8.52964,
       "category": "motorrad",
       "direction": 321,
-      "lafmax_db": 71
+      "lafmax_db": 71,
+      "count": 1
     },
     {
       "time": "2026-09-19T12:00:00+02:00",
@@ -305,7 +345,8 @@
       "lon": 8.52353,
       "category": "auto",
       "direction": 88,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-19T19:00:00+02:00",
@@ -313,7 +354,8 @@
       "lon": 8.57099,
       "category": "motorrad",
       "direction": 24,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-19T20:00:00+02:00",
@@ -321,7 +363,8 @@
       "lon": 8.52449,
       "category": "lastwagen",
       "direction": 68,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-19T20:00:00+02:00",
@@ -329,7 +372,8 @@
       "lon": 8.52815,
       "category": "andere",
       "direction": 294,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-09-19T21:00:00+02:00",
@@ -337,15 +381,17 @@
       "lon": 8.52585,
       "category": "lastwagen",
       "direction": 322,
-      "lafmax_db": 73
+      "lafmax_db": 73,
+      "count": 1
     },
     {
       "time": "2026-09-19T22:00:00+02:00",
       "lat": 47.35623,
       "lon": 8.53304,
-      "category": "motorrad",
+      "category": "hupen",
       "direction": 73,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 1
     },
     {
       "time": "2026-09-20T07:00:00+02:00",
@@ -353,7 +399,8 @@
       "lon": 8.52164,
       "category": "poser",
       "direction": 82,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-20T08:00:00+02:00",
@@ -361,7 +408,8 @@
       "lon": 8.52268,
       "category": "lastwagen",
       "direction": 246,
-      "lafmax_db": 76
+      "lafmax_db": 76,
+      "count": 1
     },
     {
       "time": "2026-09-20T18:00:00+02:00",
@@ -369,7 +417,8 @@
       "lon": 8.53969,
       "category": "poser",
       "direction": 212,
-      "lafmax_db": 79
+      "lafmax_db": 79,
+      "count": 1
     },
     {
       "time": "2026-09-20T22:00:00+02:00",
@@ -377,7 +426,8 @@
       "lon": 8.52458,
       "category": "motorrad",
       "direction": 237,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 1
     },
     {
       "time": "2026-09-21T08:00:00+02:00",
@@ -385,7 +435,8 @@
       "lon": 8.52581,
       "category": "auto",
       "direction": 52,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-21T18:00:00+02:00",
@@ -393,15 +444,17 @@
       "lon": 8.53466,
       "category": "motorrad",
       "direction": 248,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-21T18:00:00+02:00",
       "lat": 47.36055,
       "lon": 8.53166,
-      "category": "motorrad",
+      "category": "bahn",
       "direction": 3,
-      "lafmax_db": 87
+      "lafmax_db": 87,
+      "count": 1
     },
     {
       "time": "2026-09-21T21:00:00+02:00",
@@ -409,15 +462,17 @@
       "lon": 8.55992,
       "category": "motorrad",
       "direction": 209,
-      "lafmax_db": 87
+      "lafmax_db": 87,
+      "count": 1
     },
     {
       "time": "2026-09-21T21:00:00+02:00",
       "lat": 47.38047,
       "lon": 8.52529,
-      "category": "auto",
+      "category": null,
       "direction": 52,
-      "lafmax_db": 75
+      "lafmax_db": 75,
+      "count": 1
     },
     {
       "time": "2026-09-21T22:00:00+02:00",
@@ -425,7 +480,8 @@
       "lon": 8.53509,
       "category": "poser",
       "direction": 262,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 3
     },
     {
       "time": "2026-09-22T07:00:00+02:00",
@@ -433,7 +489,8 @@
       "lon": 8.52432,
       "category": "auto",
       "direction": 157,
-      "lafmax_db": 90
+      "lafmax_db": 90,
+      "count": 3
     },
     {
       "time": "2026-09-22T08:00:00+02:00",
@@ -441,7 +498,8 @@
       "lon": 8.5246,
       "category": "andere",
       "direction": 142,
-      "lafmax_db": 90
+      "lafmax_db": 90,
+      "count": 1
     },
     {
       "time": "2026-09-22T20:00:00+02:00",
@@ -449,7 +507,8 @@
       "lon": 8.52578,
       "category": "andere",
       "direction": 123,
-      "lafmax_db": 70
+      "lafmax_db": 70,
+      "count": 1
     },
     {
       "time": "2026-09-23T20:00:00+02:00",
@@ -457,7 +516,8 @@
       "lon": 8.53323,
       "category": "andere",
       "direction": 247,
-      "lafmax_db": 87
+      "lafmax_db": 87,
+      "count": 1
     },
     {
       "time": "2026-09-23T23:00:00+02:00",
@@ -465,23 +525,26 @@
       "lon": 8.52175,
       "category": "lastwagen",
       "direction": 93,
-      "lafmax_db": 82
+      "lafmax_db": 82,
+      "count": 1
     },
     {
       "time": "2026-09-24T08:00:00+02:00",
       "lat": 47.37665,
       "lon": 8.52905,
-      "category": "poser",
+      "category": null,
       "direction": null,
-      "lafmax_db": 90
+      "lafmax_db": 90,
+      "count": 1
     },
     {
       "time": "2026-09-24T12:00:00+02:00",
       "lat": 47.35401,
       "lon": 8.52498,
-      "category": "motorrad",
+      "category": "bahn",
       "direction": 312,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 1
     },
     {
       "time": "2026-09-24T17:00:00+02:00",
@@ -489,7 +552,8 @@
       "lon": 8.5259,
       "category": "lastwagen",
       "direction": 172,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-24T17:00:00+02:00",
@@ -497,7 +561,8 @@
       "lon": 8.52285,
       "category": "poser",
       "direction": 266,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-24T19:00:00+02:00",
@@ -505,7 +570,8 @@
       "lon": 8.52364,
       "category": "lastwagen",
       "direction": 131,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 1
     },
     {
       "time": "2026-09-24T20:00:00+02:00",
@@ -513,7 +579,8 @@
       "lon": 8.53662,
       "category": "motorrad",
       "direction": 228,
-      "lafmax_db": 86
+      "lafmax_db": 86,
+      "count": 3
     },
     {
       "time": "2026-09-24T20:00:00+02:00",
@@ -521,15 +588,17 @@
       "lon": 8.5862,
       "category": "andere",
       "direction": null,
-      "lafmax_db": 69
+      "lafmax_db": 69,
+      "count": 4
     },
     {
       "time": "2026-09-24T20:00:00+02:00",
       "lat": 47.37803,
       "lon": 8.52587,
-      "category": "poser",
+      "category": "bahn",
       "direction": 106,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 4
     },
     {
       "time": "2026-09-24T23:00:00+02:00",
@@ -537,15 +606,17 @@
       "lon": 8.53486,
       "category": "motorrad",
       "direction": 2,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-25T07:00:00+02:00",
       "lat": 47.38,
       "lon": 8.52887,
-      "category": "poser",
+      "category": null,
       "direction": 20,
-      "lafmax_db": 76
+      "lafmax_db": 76,
+      "count": 1
     },
     {
       "time": "2026-09-25T19:00:00+02:00",
@@ -553,7 +624,8 @@
       "lon": 8.52208,
       "category": "lastwagen",
       "direction": 263,
-      "lafmax_db": 81
+      "lafmax_db": 81,
+      "count": 1
     },
     {
       "time": "2026-09-25T19:00:00+02:00",
@@ -561,7 +633,8 @@
       "lon": 8.52634,
       "category": "lastwagen",
       "direction": 161,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-25T20:00:00+02:00",
@@ -569,7 +642,8 @@
       "lon": 8.53159,
       "category": "auto",
       "direction": 9,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-25T22:00:00+02:00",
@@ -577,7 +651,8 @@
       "lon": 8.52992,
       "category": "lastwagen",
       "direction": 1,
-      "lafmax_db": 84
+      "lafmax_db": 84,
+      "count": 1
     },
     {
       "time": "2026-09-26T07:00:00+02:00",
@@ -585,15 +660,17 @@
       "lon": 8.5281,
       "category": "andere",
       "direction": 6,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-26T20:00:00+02:00",
       "lat": 47.37507,
       "lon": 8.52777,
-      "category": "andere",
+      "category": "garten",
       "direction": 163,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 1
     },
     {
       "time": "2026-09-26T21:00:00+02:00",
@@ -601,7 +678,8 @@
       "lon": 8.52567,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 91
+      "lafmax_db": 91,
+      "count": 2
     },
     {
       "time": "2026-09-27T07:00:00+02:00",
@@ -609,7 +687,8 @@
       "lon": 8.52721,
       "category": "auto",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-27T08:00:00+02:00",
@@ -617,7 +696,8 @@
       "lon": 8.52562,
       "category": "motorrad",
       "direction": 126,
-      "lafmax_db": 75
+      "lafmax_db": 75,
+      "count": 1
     },
     {
       "time": "2026-09-27T12:00:00+02:00",
@@ -625,15 +705,17 @@
       "lon": 8.51974,
       "category": "motorrad",
       "direction": 269,
-      "lafmax_db": 76
+      "lafmax_db": 76,
+      "count": 4
     },
     {
       "time": "2026-09-27T12:00:00+02:00",
       "lat": 47.36412,
       "lon": 8.56878,
-      "category": "andere",
+      "category": "garten",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-27T23:00:00+02:00",
@@ -641,15 +723,17 @@
       "lon": 8.52336,
       "category": "auto",
       "direction": 77,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 1
     },
     {
       "time": "2026-09-28T07:00:00+02:00",
       "lat": 47.35549,
       "lon": 8.53522,
-      "category": "auto",
+      "category": null,
       "direction": 5,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-09-28T08:00:00+02:00",
@@ -657,7 +741,8 @@
       "lon": 8.53106,
       "category": "motorrad",
       "direction": 136,
-      "lafmax_db": 80
+      "lafmax_db": 80,
+      "count": 1
     },
     {
       "time": "2026-09-28T08:00:00+02:00",
@@ -665,23 +750,26 @@
       "lon": 8.52295,
       "category": "andere",
       "direction": 268,
-      "lafmax_db": 82
+      "lafmax_db": 82,
+      "count": 1
     },
     {
       "time": "2026-09-28T08:00:00+02:00",
       "lat": 47.37886,
       "lon": 8.52753,
-      "category": "poser",
+      "category": null,
       "direction": 302,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 2
     },
     {
       "time": "2026-09-28T12:00:00+02:00",
       "lat": 47.34652,
       "lon": 8.53844,
-      "category": "motorrad",
+      "category": "baustelle",
       "direction": null,
-      "lafmax_db": 92
+      "lafmax_db": 92,
+      "count": 1
     },
     {
       "time": "2026-09-28T12:00:00+02:00",
@@ -689,7 +777,8 @@
       "lon": 8.52186,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": 88
+      "lafmax_db": 88,
+      "count": 2
     },
     {
       "time": "2026-09-28T12:00:00+02:00",
@@ -697,7 +786,8 @@
       "lon": 8.56813,
       "category": "motorrad",
       "direction": 294,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 4
     },
     {
       "time": "2026-09-28T19:00:00+02:00",
@@ -705,15 +795,17 @@
       "lon": 8.53957,
       "category": "auto",
       "direction": 284,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 2
     },
     {
       "time": "2026-09-28T20:00:00+02:00",
       "lat": 47.37716,
       "lon": 8.52626,
-      "category": "auto",
+      "category": "garten",
       "direction": 156,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-09-29T08:00:00+02:00",
@@ -721,15 +813,17 @@
       "lon": 8.52432,
       "category": "lastwagen",
       "direction": 242,
-      "lafmax_db": 72
+      "lafmax_db": 72,
+      "count": 1
     },
     {
       "time": "2026-09-29T22:00:00+02:00",
       "lat": 47.35519,
       "lon": 8.5232,
-      "category": "lastwagen",
+      "category": null,
       "direction": null,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 1
     },
     {
       "time": "2026-09-29T22:00:00+02:00",
@@ -737,15 +831,17 @@
       "lon": 8.52646,
       "category": "poser",
       "direction": 302,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 2
     },
     {
       "time": "2026-09-30T07:00:00+02:00",
       "lat": 47.37036,
       "lon": 8.55977,
-      "category": "andere",
+      "category": "baustelle",
       "direction": 59,
-      "lafmax_db": 81
+      "lafmax_db": 81,
+      "count": 2
     },
     {
       "time": "2026-09-30T07:00:00+02:00",
@@ -753,7 +849,8 @@
       "lon": 8.52507,
       "category": "poser",
       "direction": 341,
-      "lafmax_db": 88
+      "lafmax_db": 88,
+      "count": 3
     },
     {
       "time": "2026-09-30T19:00:00+02:00",
@@ -761,7 +858,8 @@
       "lon": 8.52678,
       "category": "lastwagen",
       "direction": 160,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-09-30T20:00:00+02:00",
@@ -769,7 +867,8 @@
       "lon": 8.52724,
       "category": "andere",
       "direction": 289,
-      "lafmax_db": 81
+      "lafmax_db": 81,
+      "count": 1
     },
     {
       "time": "2026-09-30T22:00:00+02:00",
@@ -777,7 +876,8 @@
       "lon": 8.52468,
       "category": "motorrad",
       "direction": 53,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 3
     },
     {
       "time": "2026-10-01T07:00:00+02:00",
@@ -785,7 +885,8 @@
       "lon": 8.53945,
       "category": "motorrad",
       "direction": 291,
-      "lafmax_db": 70
+      "lafmax_db": 70,
+      "count": 1
     },
     {
       "time": "2026-10-01T12:00:00+02:00",
@@ -793,7 +894,8 @@
       "lon": 8.57249,
       "category": "andere",
       "direction": 12,
-      "lafmax_db": 90
+      "lafmax_db": 90,
+      "count": 1
     },
     {
       "time": "2026-10-01T18:00:00+02:00",
@@ -801,7 +903,8 @@
       "lon": 8.52685,
       "category": "motorrad",
       "direction": 215,
-      "lafmax_db": 70
+      "lafmax_db": 70,
+      "count": 1
     },
     {
       "time": "2026-10-01T21:00:00+02:00",
@@ -809,15 +912,17 @@
       "lon": 8.52634,
       "category": "lastwagen",
       "direction": null,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 1
     },
     {
       "time": "2026-10-01T23:00:00+02:00",
       "lat": 47.38033,
       "lon": 8.52732,
-      "category": "auto",
+      "category": "baustelle",
       "direction": 18,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 1
     },
     {
       "time": "2026-10-02T12:00:00+02:00",
@@ -825,7 +930,8 @@
       "lon": 8.52551,
       "category": "poser",
       "direction": 307,
-      "lafmax_db": 71
+      "lafmax_db": 71,
+      "count": 1
     },
     {
       "time": "2026-10-02T18:00:00+02:00",
@@ -833,7 +939,8 @@
       "lon": 8.52323,
       "category": "andere",
       "direction": 92,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-02T23:00:00+02:00",
@@ -841,7 +948,8 @@
       "lon": 8.53838,
       "category": "motorrad",
       "direction": 214,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-02T23:00:00+02:00",
@@ -849,7 +957,8 @@
       "lon": 8.52843,
       "category": "lastwagen",
       "direction": 229,
-      "lafmax_db": 89
+      "lafmax_db": 89,
+      "count": 3
     },
     {
       "time": "2026-10-03T19:00:00+02:00",
@@ -857,7 +966,8 @@
       "lon": 8.52664,
       "category": "andere",
       "direction": 335,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-03T22:00:00+02:00",
@@ -865,7 +975,8 @@
       "lon": 8.52554,
       "category": "andere",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 2
     },
     {
       "time": "2026-10-03T23:00:00+02:00",
@@ -873,15 +984,17 @@
       "lon": 8.52781,
       "category": "andere",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-04T07:00:00+02:00",
       "lat": 47.35084,
       "lon": 8.52475,
-      "category": "lastwagen",
+      "category": "baustelle",
       "direction": 56,
-      "lafmax_db": 78
+      "lafmax_db": 78,
+      "count": 1
     },
     {
       "time": "2026-10-04T07:00:00+02:00",
@@ -889,7 +1002,8 @@
       "lon": 8.52744,
       "category": "auto",
       "direction": 328,
-      "lafmax_db": 69
+      "lafmax_db": 69,
+      "count": 1
     },
     {
       "time": "2026-10-04T08:00:00+02:00",
@@ -897,7 +1011,8 @@
       "lon": 8.52662,
       "category": "motorrad",
       "direction": 165,
-      "lafmax_db": 75
+      "lafmax_db": 75,
+      "count": 1
     },
     {
       "time": "2026-10-04T20:00:00+02:00",
@@ -905,7 +1020,8 @@
       "lon": 8.52162,
       "category": "poser",
       "direction": 263,
-      "lafmax_db": 81
+      "lafmax_db": 81,
+      "count": 1
     },
     {
       "time": "2026-10-04T22:00:00+02:00",
@@ -913,7 +1029,8 @@
       "lon": 8.52669,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 84
+      "lafmax_db": 84,
+      "count": 1
     },
     {
       "time": "2026-10-04T23:00:00+02:00",
@@ -921,7 +1038,8 @@
       "lon": 8.53771,
       "category": "auto",
       "direction": 117,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-04T23:00:00+02:00",
@@ -929,7 +1047,8 @@
       "lon": 8.53414,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": 69
+      "lafmax_db": 69,
+      "count": 1
     },
     {
       "time": "2026-10-04T23:00:00+02:00",
@@ -937,7 +1056,8 @@
       "lon": 8.52902,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 74
+      "lafmax_db": 74,
+      "count": 1
     },
     {
       "time": "2026-10-05T07:00:00+02:00",
@@ -945,7 +1065,8 @@
       "lon": 8.52053,
       "category": "lastwagen",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-05T08:00:00+02:00",
@@ -953,15 +1074,17 @@
       "lon": 8.56014,
       "category": "andere",
       "direction": 56,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-05T08:00:00+02:00",
       "lat": 47.38183,
       "lon": 8.52626,
-      "category": "auto",
+      "category": "hupen",
       "direction": 239,
-      "lafmax_db": 89
+      "lafmax_db": 89,
+      "count": 1
     },
     {
       "time": "2026-10-05T19:00:00+02:00",
@@ -969,15 +1092,17 @@
       "lon": 8.53769,
       "category": "poser",
       "direction": 207,
-      "lafmax_db": 74
+      "lafmax_db": 74,
+      "count": 1
     },
     {
       "time": "2026-10-05T20:00:00+02:00",
       "lat": 47.37995,
       "lon": 8.52951,
-      "category": "poser",
+      "category": null,
       "direction": 3,
-      "lafmax_db": 70
+      "lafmax_db": 70,
+      "count": 1
     },
     {
       "time": "2026-10-05T23:00:00+02:00",
@@ -985,7 +1110,8 @@
       "lon": 8.5344,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 80
+      "lafmax_db": 80,
+      "count": 1
     },
     {
       "time": "2026-10-06T07:00:00+02:00",
@@ -993,15 +1119,17 @@
       "lon": 8.55975,
       "category": "motorrad",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-06T08:00:00+02:00",
       "lat": 47.35913,
       "lon": 8.53451,
-      "category": "poser",
+      "category": "garten",
       "direction": 64,
-      "lafmax_db": 90
+      "lafmax_db": 90,
+      "count": 1
     },
     {
       "time": "2026-10-06T20:00:00+02:00",
@@ -1009,7 +1137,8 @@
       "lon": 8.52811,
       "category": "andere",
       "direction": null,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-06T21:00:00+02:00",
@@ -1017,7 +1146,8 @@
       "lon": 8.52476,
       "category": "poser",
       "direction": 334,
-      "lafmax_db": 80
+      "lafmax_db": 80,
+      "count": 1
     },
     {
       "time": "2026-10-07T07:00:00+02:00",
@@ -1025,7 +1155,8 @@
       "lon": 8.52554,
       "category": "auto",
       "direction": 346,
-      "lafmax_db": 75
+      "lafmax_db": 75,
+      "count": 1
     },
     {
       "time": "2026-10-07T12:00:00+02:00",
@@ -1033,7 +1164,8 @@
       "lon": 8.52651,
       "category": "auto",
       "direction": 127,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-10-07T18:00:00+02:00",
@@ -1041,7 +1173,8 @@
       "lon": 8.51985,
       "category": "motorrad",
       "direction": 272,
-      "lafmax_db": 89
+      "lafmax_db": 89,
+      "count": 1
     },
     {
       "time": "2026-10-07T18:00:00+02:00",
@@ -1049,7 +1182,8 @@
       "lon": 8.52643,
       "category": "poser",
       "direction": 118,
-      "lafmax_db": 79
+      "lafmax_db": 79,
+      "count": 1
     },
     {
       "time": "2026-10-07T19:00:00+02:00",
@@ -1057,23 +1191,26 @@
       "lon": 8.52158,
       "category": "lastwagen",
       "direction": 267,
-      "lafmax_db": 88
+      "lafmax_db": 88,
+      "count": 1
     },
     {
       "time": "2026-10-07T20:00:00+02:00",
       "lat": 47.37684,
       "lon": 8.52536,
-      "category": "poser",
+      "category": "hupen",
       "direction": 344,
-      "lafmax_db": 88
+      "lafmax_db": 88,
+      "count": 1
     },
     {
       "time": "2026-10-07T21:00:00+02:00",
       "lat": 47.35492,
       "lon": 8.52624,
-      "category": "lastwagen",
+      "category": "baustelle",
       "direction": 319,
-      "lafmax_db": 83
+      "lafmax_db": 83,
+      "count": 4
     },
     {
       "time": "2026-10-07T21:00:00+02:00",
@@ -1081,15 +1218,17 @@
       "lon": 8.52778,
       "category": "auto",
       "direction": null,
-      "lafmax_db": 77
+      "lafmax_db": 77,
+      "count": 1
     },
     {
       "time": "2026-10-07T22:00:00+02:00",
       "lat": 47.37494,
       "lon": 8.52507,
-      "category": "poser",
+      "category": "baustelle",
       "direction": 168,
-      "lafmax_db": 85
+      "lafmax_db": 85,
+      "count": 1
     },
     {
       "time": "2026-10-07T22:00:00+02:00",
@@ -1097,7 +1236,8 @@
       "lon": 8.52265,
       "category": "andere",
       "direction": 266,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     },
     {
       "time": "2026-10-08T17:00:00+02:00",
@@ -1105,7 +1245,8 @@
       "lon": 8.52762,
       "category": "auto",
       "direction": 221,
-      "lafmax_db": null
+      "lafmax_db": null,
+      "count": 1
     }
   ]
 }
