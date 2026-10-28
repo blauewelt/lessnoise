@@ -321,16 +321,18 @@
       var dir = M.reportDirection(r);
       // App 0.8.5: the peak level while the report dialog was open, whole dB, after the direction.
       var text = M.reportText(cat.name, M.hourLabel(r.time), dir, M.reportLevel(r));
-      // App 0.6.7: a small arrowhead on the rim points where the vehicle drove. Rotated through
-      // CSSOM (allowed by the page's CSP, unlike a style attribute).
-      var arrow = null;
+      // App 0.6.7: with a direction the round marker gets one pointed corner (a teardrop) that
+      // points where the vehicle drove. The shape is its own layer under the upright letter and is
+      // rotated through CSSOM (allowed by the page's CSP, unlike a style attribute); the corner of
+      // the unrotated shape points south-west (225°), hence the offset.
+      var shape = null;
       if (dir !== null) {
-        arrow = el("i", { class: "report-dir", "aria-hidden": "true", "data-direction": String(dir) });
-        arrow.style.transform = "rotate(" + dir + "deg)";
+        shape = el("i", { class: "report-shape", "aria-hidden": "true", "data-direction": String(dir) });
+        shape.style.transform = "rotate(" + M.headingShapeRotation(dir) + "deg)";
       }
       var icon = L.divIcon({
-        className: "report report-" + cat.id,
-        html: el("span", { "aria-label": text, "data-category": cat.id, text: cat.letter }, [arrow]),
+        className: "report report-" + cat.id + (dir !== null ? " report-heading" : ""),
+        html: el("span", { "aria-label": text, "data-category": cat.id }, [shape, el("b", { text: cat.letter })]),
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
@@ -355,6 +357,13 @@
         c.name,
       ]));
     });
+    // The pointed corner of a marker (app 0.6.7) is the reported direction of travel.
+    var sample = el("i", { class: "report-shape" });
+    sample.style.transform = "rotate(" + M.headingShapeRotation(90) + "deg)";
+    ul.appendChild(el("li", { class: "legend-heading" }, [
+      el("span", { class: "report report-heading", "aria-hidden": "true" }, [sample]),
+      "Spitze = Fahrtrichtung",
+    ]));
     ul.hidden = !state.showReports;
   }
 

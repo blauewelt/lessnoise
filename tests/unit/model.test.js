@@ -203,3 +203,16 @@ test("no word «Nacht» / «night» in the map's scripts and page", () => {
     assert.doesNotMatch(text, /nacht|night|nächt/i, f);
   }
 });
+
+test("headingShapeRotation turns the teardrop's south-west corner to the bearing", () => {
+  assert.equal(M.headingShapeRotation(225), 0);
+  assert.equal(M.headingShapeRotation(0), 135);
+  assert.equal(M.headingShapeRotation(90), 225);
+  assert.equal(M.headingShapeRotation(180), 315);
+  assert.equal(M.headingShapeRotation(270), 45);
+  for (let d = 0; d < 360; d += 7) {
+    const r = M.headingShapeRotation(d);
+    assert.ok(r >= 0 && r < 360);
+    assert.equal((225 + r) % 360, d);
+  }
+});

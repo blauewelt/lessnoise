@@ -168,6 +168,8 @@ class Labeller:
                 f.write(json.dumps(row, ensure_ascii=False) + '\n')
 
     def work(self, job):
+        if self.stop:
+            return 0
         stage, set_name, c, out = job
         key = common.clip_key(self.prefix[set_name], c['eventId'])
         try:
@@ -200,10 +202,26 @@ class Labeller:
             except Exception as e:
                 err = f'{type(e).__name__}: {self.redact(e)[:160]}'
                 print(f'{key} {stage} attempt {attempt}: {err}', flush=True)
+                if self.fatal_quota(e):
+                    # A spending cap or an exhausted quota does not recover within a run: stop the
+                    # whole run at once instead of retrying for hours (2026-10-24: three runs retried
+                    # against «monthly spending cap» until the 5 h timeout). Rows written so far stay
+                    # in the output and a later run resumes from them.
+                    print(f'::error::Gemini quota or spending cap reached ({err}); stopping the run. '
+                          f'Raise the cap in AI Studio and dispatch again with resume_run_id.', flush=True)
+                    self.stop = True
+                    break
                 time.sleep(5 * (attempt + 1))
         self.append(self.out_dir / 'errors.jsonl', dict(key=key, set=set_name, file=c['file'], stage=stage,
                                                       model=self.a.model, error=err))
         return 0
+
+    stop = False
+
+    @staticmethod
+    def fatal_quota(e):
+        t = str(e)
+        return ('spending cap' in t) or ('RESOURCE_EXHAUSTED' in t and ('quota' in t.lower() or 'cap' in t.lower()))
 
     # -- stages ------------------------------------------------------------------------------------
     def run(self, stage):
@@ -218,6 +236,8 @@ class Labeller:
             ok = sum(ex.map(self.work, jobs))
         dt = time.time() - t0
         print(f'stage {stage}: {ok}/{len(jobs)} ok in {dt / 60:.1f} min', flush=True)
+        if self.stop:
+            sys.exit(75)  # EX_TEMPFAIL: quota or spending cap; the rows so far are in the output files
         return ok, len(jobs)
 
     def dry_run(self):

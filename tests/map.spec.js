@@ -371,7 +371,7 @@ test("reports layer: on by default, one lettered marker per report of the period
   await expect(page.locator("#reports-toggle")).toBeChecked();
   await expect(markers).toHaveCount(in7.length);
   await expect(page.locator("#reports-count")).toHaveText(`${in7.length} Meldungen in diesem Zeitraum`);
-  const legend = await page.locator("#legend-reports li:not(.reports-head)").allTextContents();
+  const legend = await page.locator("#legend-reports li:not(.reports-head):not(.legend-heading)").allTextContents();
   expect(legend.map((t) => t.slice(1))).toEqual(["Motorrad", "Poser", "Lastwagen", "Flugzeug", "Auto", "Andere"]);
   // the marker carries category and hour, nothing else
   const labels = await markers.locator("span").evaluateAll((s) => s.map((x) => x.getAttribute("aria-label")));
@@ -382,14 +382,15 @@ test("reports layer: on by default, one lettered marker per report of the period
   const firstDir = M.reportDirection(first);
   expect(labels).toContain(
     `${M.reportCategory(first.category).name} · ${M.hourLabel(first.time)}` + (firstDir === null ? "" : ` · ${M.directionLabel(firstDir)}`));
-  // app 0.6.7: an arrowhead per report with a direction, rotated by its bearing; none without one
+  // app 0.6.7: a teardrop shape per report with a direction, its corner rotated to the bearing; none without one
   const withDir = in7.filter((r) => M.reportDirection(r) !== null);
   expect(withDir.length).toBeGreaterThan(0);
   expect(withDir.length).toBeLessThan(in7.length);
-  const arrows = markers.locator(".report-dir");
+  const arrows = markers.locator(".report-shape");
   await expect(arrows).toHaveCount(withDir.length);
+  await expect(page.locator(".leaflet-marker-icon.report-heading")).toHaveCount(withDir.length);
   const rot = await arrows.evaluateAll((a) => a.map((x) => [x.getAttribute("data-direction"), x.style.transform]));
-  for (const [d, t] of rot) expect(t).toBe(`rotate(${d}deg)`);
+  for (const [d, t] of rot) expect(t).toBe(`rotate(${M.headingShapeRotation(Number(d))}deg)`);
   expect(rot.map(([d]) => Number(d)).sort((a, b) => a - b)).toEqual(withDir.map((r) => r.direction).sort((a, b) => a - b));
   if (!isMobile) {
     await page.locator("#karte").scrollIntoViewIfNeeded();

@@ -48,6 +48,10 @@ on:
         required: false
         default: "0"
         type: string
+      resume_run_id:
+        description: "Optional: run id of an earlier labelling run of the same set; its labels artifact is downloaded first and already-labelled clips are skipped"
+        required: false
+        default: ""
       only_gist:
         description: "Optional https URL of a JSON list of clip keys (e.g. a raw gist); empty = all clips"
         required: false
@@ -56,6 +60,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   label:
@@ -128,6 +133,19 @@ jobs:
           curl -sS -L --fail --retry 3 "$ONLY_URL" -o "$RUNNER_TEMP/only.json"
           python -I -c "import json,sys; x=json.load(open(sys.argv[1])); assert isinstance(x, list), 'not a JSON list'; print(len(x), 'entries')" "$RUNNER_TEMP/only.json"
           echo "ONLY_ARGS=--only $RUNNER_TEMP/only.json" >> "$GITHUB_ENV"
+
+      - name: Resume from an earlier run's labels
+        if: inputs.resume_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESUME: ${{ inputs.resume_run_id }}
+        run: |
+          set -eu
+          mkdir -p labels
+          gh run download "$RESUME" -R "$GITHUB_REPOSITORY" -D "$RUNNER_TEMP/resume"
+          find "$RUNNER_TEMP/resume" -name '*.jsonl' -exec cp -v {} labels/ \;
+          rm -f labels/errors.jsonl
+          wc -l labels/*.jsonl || true
 
       - name: Dry run (what will be sent)
         run: python -I tools/labelling/label.py --set "$SET_NAME" --model "$MODEL" --stage "$STAGE" --max-clips "$MAX_CLIPS" --out-dir labels --dry-run ${ONLY_ARGS:-}

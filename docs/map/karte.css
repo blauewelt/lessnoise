@@ -211,38 +211,45 @@ path.cell:focus { outline: none; }
 /* ---------- report markers (Leaflet divIcon; letter = category, colour only helps) ---------- */
 
 .report {
+  --rc: #4a5668;          /* category colour */
+  --rb: #ffffff;          /* rim */
+  --rt: #ffffff;          /* letter */
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   border-radius: 50%;
-  border: 1.5px solid #ffffff;
+  border: 1.5px solid var(--rb);
   box-shadow: 0 0 0 1px rgba(23, 32, 46, 0.55);
-  color: #ffffff;
+  background: var(--rc);
+  color: var(--rt);
   font: 700 10px/1 var(--sans);
 }
 .leaflet-marker-icon.report { width: 18px; height: 18px; }
-.report span { pointer-events: none; }
-/* Direction of travel (app 0.6.7): the box covers the marker and is rotated by the bearing (karte.js);
-   its arrowhead sits just outside the rim, at «north» before the rotation. */
-.report-dir { position: absolute; inset: 0; pointer-events: none; }
-.report-dir::before {
-  content: "";
+.report span { pointer-events: none; display: contents; }
+.report b { position: relative; font: inherit; }
+/* Direction of travel (app 0.6.7): the round marker becomes a teardrop whose one pointed corner
+   points where the vehicle drove. The shape is a layer of its own (rotated in karte.js, see
+   model.js headingShapeRotation); the letter on top stays upright. */
+.report-heading { background: transparent; border-color: transparent; box-shadow: none; }
+.report-shape {
   position: absolute;
-  left: 50%;
-  top: -8px;
-  margin-left: -4px;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-bottom: 7px solid #17202e;
-  filter: drop-shadow(0 0 1px #ffffff);
+  inset: -1.5px;
+  box-sizing: border-box;
+  border-radius: 50% 50% 50% 0;
+  border: 1.5px solid var(--rb);
+  background: var(--rc);
+  box-shadow: 0 0 0 1px rgba(23, 32, 46, 0.55);
+  pointer-events: none;
 }
-.report-motorrad { background: #c2410c; }
-.report-poser { background: #7e22ce; }
-.report-lastwagen { background: #0f766e; }
-.report-auto { background: #4a5668; }
-.report-flugzeug { background: #17202e; }
-.report-andere { background: #ffffff; color: #17202e; border-color: #17202e; box-shadow: none; }
+.report-motorrad { --rc: #c2410c; }
+.report-poser { --rc: #7e22ce; }
+.report-lastwagen { --rc: #0f766e; }
+.report-auto { --rc: #4a5668; }
+.report-flugzeug { --rc: #17202e; }
+.report-andere { --rc: #ffffff; --rb: #17202e; --rt: #17202e; box-shadow: none; }
+.report-andere .report-shape { box-shadow: none; }
 
 /* ---------- card (after earth's pixel inspector) ---------- */
 
