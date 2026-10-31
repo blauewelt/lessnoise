@@ -183,30 +183,32 @@ class LoudAlertTest {
         assertEquals(ReportTap.BUTTON, MeasurementNotification.ALERT_BUTTON)
     }
 
-    /**
-     * 0.9.4.6 (brief A.5): an «Unterwegs messen» run alerts at a road_traffic event of 76 dB, not at 74 dB; a window
-     * run with the phone lying still never alerts, however loud. Through the same call the watcher makes
-     * (LoudAlertWatcher: shouldAlert with unterwegsNow(LiveState.unterwegs, LiveState.moving)). Runs in testPublic too.
-     */
+    /** Through the same call the watcher makes (LoudAlertWatcher: shouldAlert with unterwegsNow(LiveState.unterwegs, LiveState.moving)). */
+    private fun alertsIn(run: ch.lessnoise.app.service.LiveState, e: LiveEvent, last: Long? = null) =
+        LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(run.unterwegs, run.moving), run.running, last, e.startEpochMs + 3_000)
+
+    /** 0.9.4.6 (brief A.5): an «Unterwegs messen» run alerts at a road_traffic event of 76 dB, not at 74 dB. Runs in testPublic too. */
     @Test
-    fun anUnterwegsRunAlertsAt76NotAt74AndAStillWindowRunNever() {
-        fun alertsIn(run: ch.lessnoise.app.service.LiveState, e: LiveEvent, last: Long? = null) =
-            LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(run.unterwegs, run.moving), run.running, last, e.startEpochMs + 3_000)
+    fun anUnterwegsRunAlertsAt76DbNotAt74Db() {
         val unterwegs = ch.lessnoise.app.service.LiveState(running = true, unterwegs = true)
         assertTrue(alertsIn(unterwegs, ev(76.0, "road_traffic")), "76 dB road_traffic, unterwegs")
         assertFalse(alertsIn(unterwegs, ev(74.0, "road_traffic")), "74 dB road_traffic, unterwegs")
-        val window = ch.lessnoise.app.service.LiveState(running = true, unterwegs = false, moving = false)
-        for (db in listOf(74.0, 76.0, 84.0, 110.0)) {
-            for (c in listOf("road_traffic", "loud_vehicle")) assertFalse(alertsIn(window, ev(db, c)), "window, still: $db $c")
-        }
-        // The same window run while carried («Unterwegs erkannt») alerts like «Unterwegs messen».
-        assertTrue(alertsIn(window.copy(moving = true), ev(76.0, "road_traffic")))
-        assertFalse(alertsIn(window.copy(moving = true), ev(74.0, "road_traffic")))
         // Not without a run, not twice within 2 minutes.
         assertFalse(alertsIn(unterwegs.copy(running = false), ev(84.0, "road_traffic")))
         assertFalse(alertsIn(unterwegs, ev(84.0, "road_traffic"), last = t0))
         // This is the code the Online-Version runs too (0.9.4.6): the real facade, not a stand-in.
         assertTrue(LoudAlerts.AVAILABLE)
+    }
+
+    /** 0.9.4.6 (brief A.5): a window run with the phone lying still never alerts, however loud; carried («Unterwegs erkannt») it does. */
+    @Test
+    fun aWindowRunWithThePhoneStillNeverAlerts() {
+        val window = ch.lessnoise.app.service.LiveState(running = true, unterwegs = false, moving = false)
+        for (db in listOf(74.0, 76.0, 84.0, 110.0)) {
+            for (c in listOf("road_traffic", "loud_vehicle")) assertFalse(alertsIn(window, ev(db, c)), "window, still: $db $c")
+        }
+        assertTrue(alertsIn(window.copy(moving = true), ev(76.0, "road_traffic")))
+        assertFalse(alertsIn(window.copy(moving = true), ev(74.0, "road_traffic")))
     }
 
     private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }

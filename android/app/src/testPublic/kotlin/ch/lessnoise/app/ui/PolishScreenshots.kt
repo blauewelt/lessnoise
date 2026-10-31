@@ -307,7 +307,8 @@ class PolishScreenshots {
         MeasureContent(
             live = LiveState(), events = emptyList(), calibrating = false, categoryName = { names[it] ?: "Sonstiges" },
             onStart = {}, onStop = {}, onReport = {}, modifier = m, shareStatus = idleStatus,
-            onUnterwegs = if (labor) ({}) else null,
+            // 0.9.4.6: «Unterwegs messen» in both editions with the map (until 0.9.4.5 Labor·Karte's «Unterwegs aufnehmen»).
+            onUnterwegs = {},
         )
     }
 
@@ -462,7 +463,8 @@ class MessenIdleSmallScreenshots {
                 MeasureContent(
                     live = LiveState(), events = emptyList(), calibrating = false, categoryName = { "Sonstiges" },
                     onStart = {}, onStop = {}, onReport = {}, modifier = Modifier.padding(padding).fillMaxSize(),
-                    shareStatus = status, onUnterwegs = if (labor) ({}) else null,
+                    // 0.9.4.6: «Unterwegs messen» in both editions with the map.
+                    shareStatus = status, onUnterwegs = {},
                 )
             }
         }

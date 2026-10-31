@@ -88,7 +88,8 @@ class ShareScreenshots {
         name: String,
         live: LiveState,
         status: ShareStatus?,
-        unterwegsButton: Boolean = false,
+        // 0.9.4.6: «Unterwegs messen» in both editions with the map, so on by default (until 0.9.4.5 Labor·Karte only).
+        unterwegsButton: Boolean = true,
         dark: Boolean = false,
         events: List<EventEntity> = emptyList(),
         moreOpen: Boolean = false,

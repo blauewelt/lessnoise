@@ -30,7 +30,7 @@ import kotlin.math.sqrt
  * silent), so that a dead sensor cannot keep the state MOVING for ever.
  */
 class MotionDetector(
-    /** The levels (0.6.9): the Online-Version uses [Thresholds.ONLINE] (as 0.6.7), Labor·Karte [Thresholds.LABOR]. */
+    /** The levels (0.6.9): [Thresholds.ONLINE] (as 0.6.7; since 0.9.4.6 both editions); Labor·Karte used [Thresholds.LABOR] 0.6.9–0.9.4.5. */
     val thresholds: Thresholds = Thresholds.ONLINE,
     /**
      * 0.6.9 (Labor·Karte readout and minute log): called with the start (monotonic ms) and the deviation
