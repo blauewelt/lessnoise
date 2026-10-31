@@ -72,7 +72,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.6-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.5-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -91,8 +91,9 @@ class EditionTextTest {
         // switched off, «Anzahl», Hupen · Baustelle · Gartengeräte · Bahn.
         // 0.9.4.6 (versionCode 51; Labor·Karte first, branch labor-0.9.1): three ways to use the app («Unterwegs messen»);
         // Labor = Online-Version + «Audio speichern».
-        assertEquals(51, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.6"), BuildConfig.VERSION_NAME)
+        // 0.9.5 (versionCode 52; published: Offline-Version and Online-Version): the code of 0.9.4.6.
+        assertEquals(52, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.5"), BuildConfig.VERSION_NAME)
     }
 
     @Test
