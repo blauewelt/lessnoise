@@ -2,6 +2,7 @@ package ch.lessnoise.app.labor
 
 import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.edition.EditionUi
+import ch.lessnoise.app.upload.KotlinSource
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +19,8 @@ import kotlin.test.assertTrue
  */
 class LaborBannerTest {
     private val app: File = listOf(File("."), File("app")).first { File(it, "src/labor").isDirectory }
-    private val edition by lazy { File(app, "src/labor/kotlin/ch/lessnoise/app/edition/Edition.kt").readText() }
+    // Code and string literals, comments blanked (KotlinSource): the KDoc may name what was removed.
+    private val edition by lazy { KotlinSource.parse(File(app, "src/labor/kotlin/ch/lessnoise/app/edition/Edition.kt").readText()).code }
 
     @Test
     fun noBannerAnyMore() {
@@ -35,11 +37,13 @@ class LaborBannerTest {
         assertEquals("Labor", LaborCardTexts.TITLE)
         assertEquals("Audio speichern", LaborCardTexts.SWITCH)
         // The card's only switch; the old sub-settings are not in the UI any more.
-        val card = File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborCardUi.kt").readText()
+        val card = KotlinSource.parse(File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborCardUi.kt").readText()).code
         assertEquals(1, Regex("""\bSwitchRow\(""").findAll(card).count())
         for (gone in listOf(
             "Audio während der Messung aufzeichnen", "Ereignis-Clips", "Durchgehend (AAC", "Clip-Rate", "Maximaler Speicher",
-            "Stundendateien\")", "Klassifikator-Protokolle\")", "StatRow(\"Mikrofon\"", "StatRow(\"Bewegung\"", "Wo sind die Dateien?",
+            // The statistics rows (0.9.4.5: StatRow «Belegt», «Clips», «Stundendateien», «Klassifikator-Protokolle»,
+            // «Mikrofon», «Bewegung»); the ZIP dialog may still count the files it packs.
+            "StatRow(", "Wo sind die Dateien?", "exportInfo",
         )) {
             assertFalse(card.contains(gone) || edition.contains(gone), gone)
         }
@@ -50,7 +54,7 @@ class LaborBannerTest {
         }
         assertTrue(card.indexOf("if (!showFiles) return@SectionCard") in 0 until card.indexOf("ExportScopeControls("))
         // The same SharedPreferences key as 0.9.4.5's «Audio während der Messung aufzeichnen»: an updated phone keeps recording.
-        val state = File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborState.kt").readText()
+        val state = KotlinSource.parse(File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborState.kt").readText()).code
         assertTrue(state.contains("recordAudio = p.getBoolean(\"record_audio\", false)"))
         assertTrue(state.contains(".putBoolean(\"record_audio\", n.recordAudio)"))
         // New installs: off; and the stored defaults of what is no longer shown (clips, continuous, every clip, 5 GB).
@@ -89,10 +93,10 @@ class LaborBannerTest {
         assertNull(RecordingNote.text(active = true, audioOn = true, recordAudio = false, clips = true, continuous = true), "switched off")
         assertNull(RecordingNote.text(active = true, audioOn = true, recordAudio = true, clips = false, continuous = false), "no audio kind")
         // The recorder hands it to the notification (MeasurementNotification.text appends « · …»).
-        val recorder = File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborRecorder.kt").readText()
+        val recorder = KotlinSource.parse(File(app, "src/labor/kotlin/ch/lessnoise/app/labor/LaborRecorder.kt").readText()).code
         assertTrue(recorder.contains("override val notificationNote: String?\n        get() = RecordingNote.text(active, audioOn, Labor.settings.value.recordAudio, settings.clips, settings.continuous)"))
         // «Messen» shows the line only while a run records.
-        val note = edition.substring(edition.indexOf("fun RecordingNote()"), edition.indexOf("/**", edition.indexOf("fun RecordingNote()")))
+        val note = edition.substring(edition.indexOf("fun RecordingNote()"), edition.indexOf("fun SettingsSection()"))
         assertTrue(note.contains("if (live.running && st.recording && s.recordAudio)"))
         assertTrue(note.contains("ch.lessnoise.app.labor.RecordingNote.TEXT"))
     }

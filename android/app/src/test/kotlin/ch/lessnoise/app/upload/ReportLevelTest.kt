@@ -260,7 +260,8 @@ class ReportLevelTest {
         }
         val uiDirs = File(app, "src").listFiles().orEmpty().filter { !it.name.startsWith("test") }
             .map { File(it, "kotlin/ch/lessnoise/app/ui") }.filter { it.isDirectory }
-        assertTrue(uiDirs.size >= 4, uiDirs.toString())
+        // 0.9.4.6: main, karte, nomap (src/laborKarte and src/nounterwegs had ui/ files until 0.9.4.5).
+        assertTrue(uiDirs.size >= 3, uiDirs.toString())
         val forbidden = Regex("""\b(LaborRecorder|AudioTapProvider|AudioTap|NoAudioTap|AudioTapSession)\b|\bch\.lessnoise\.app\.labor\b""")
         val hits = uiDirs.flatMap { d -> d.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
             .filter { f -> forbidden.containsMatchIn(KotlinSource.parse(f.readText()).code) }

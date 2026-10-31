@@ -17,7 +17,7 @@ import ch.lessnoise.app.ui.ReportPreset
  * category in the intent. The report's time is the moment the app receives the tap ([preset]), not the
  * notification's creation; no category is suggested.
  *
- * Until 0.9.4.5 a flag (BuildConfig.LABOR_UNTERWEGS) chose between this rule (Labor·Karte) and 0.6.8's (a fixed
+ * Until 0.9.4.5 a build flag (true in Labor·Karte only) chose between this rule (Labor·Karte) and 0.6.8's (a fixed
  * text «Antippen zum Melden» and no button while «unterwegs»), which no edition used after 0.8.3; both are gone.
  */
 object ReportTap {

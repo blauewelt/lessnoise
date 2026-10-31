@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Release checks of an APK of Weniger Lärm (android/README.md → «Release checklist», PRIVACY.md →
 «How to verify» and «Labor-Build»). One script since 0.9.0: the release checks of 0.8.0 (signer,
-version, exact permission sets, no Labor code) merged with the edition rules of 0.8.4 (alert code
-Labor·Karte-only, shortcut and widget in the editions with the map).
+version, exact permission sets, no Labor code) merged with the edition rules of 0.8.4 (shortcut and
+widget in the editions with the map). 0.9.4.6: «Unterwegs messen» and the «Sehr laut» alert are in
+both editions with the map again (0.8.4–0.9.4.5 Labor·Karte only), and no edition has
+FOREGROUND_SERVICE_LOCATION (Labor·Karte's position signal is gone).
 
     python3 tools/check_release_apk.py <offline|public|labor|laborKarte> <apk> \
         [--version 0.9.0 --code 41] [--build-tools $ANDROID_SDK_ROOT/build-tools/35.0.0] [--cert-sha256 a3d5…]
@@ -19,18 +21,18 @@ Checks:
     builds), versionName, versionCode;
   * permissions: for the two published editions exactly the set of PRIVACY.md «How to verify»
     (offline: no INTERNET / ACCESS_NETWORK_STATE / location; public: those four too) — so in
-    particular **no CAMERA** (the photo of «Laut! Melden» — 0.9.4.3 in laborKarte the short video — is taken by
-    the phone's camera app), no
-    ACCESS_BACKGROUND_LOCATION, no FOREGROUND_SERVICE_LOCATION; for the Labor builds the network and
-    location rules of their edition; FOREGROUND_SERVICE_DATA_SYNC (0.9.4.1, the export service) in
-    both Labor builds and in neither published edition;
+    particular **no CAMERA** (the photo of «Laut! Melden» is taken by the phone's camera app), no
+    ACCESS_BACKGROUND_LOCATION; FOREGROUND_SERVICE_LOCATION in no edition (0.9.4.6; until 0.9.4.5 in
+    laborKarte for its position signal); for the Labor builds the network and location rules of their
+    edition; FOREGROUND_SERVICE_DATA_SYNC (0.9.4.1, the export service) in both Labor builds and in
+    neither published edition;
   * manifest: the widget ReportWidget and the app shortcut (android.app.shortcuts) only in the
     editions with the map (public, laborKarte);
   * dex (dexdump): no Labor code in the published editions (ch/lessnoise/app/labor, class names
     matching labor|recorder|wav|aac|muxer|clipassembler, MediaMuxer/MediaCodec/RIFF/WAVE/
     manifest.jsonl strings); no ML Kit / Google Play services / Firebase classes in any edition;
-    «Sehr laut» / «Unterwegs» (ch/lessnoise/app/alert/*, the channel id string "loud_alert") only in
-    laborKarte — the Online-Version has none since 0.9.0 (0.8.4 in Labor·Karte); map tab (MapScreen*),
+    «Sehr laut» / «Unterwegs messen» (ch/lessnoise/app/alert/*, the channel id string "loud_alert") in
+    public and laborKarte and in neither offline nor labor (0.9.4.6; 0.9.0–0.9.4.5 laborKarte only); map tab (MapScreen*),
     WebView and SensorManager referrers, motion detector, the swisstopo tiles of «Laut! Melden»
     (ReportMapTiles*/ReportTileFetcher*) and the shortcut/widget classes (ch/lessnoise/app/report/*)
     only in public and laborKarte; the report dialog's level meter (ReportLevel*) and photos
@@ -92,8 +94,12 @@ DEX_RULES = [
     ("ch/lessnoise classes referring to android.hardware.SensorManager", "ref", "Landroid/hardware/SensorManager;", MAP),
     ("swisstopo tile classes ReportMapTiles*/ReportTileFetcher*", "class", r"^Lch/lessnoise/app/ui/Report(MapTiles|TileFetcher)", MAP),
     ("shortcut/widget classes ch/lessnoise/app/report/*", "class", r"^Lch/lessnoise/app/report/", MAP),
-    ("«Sehr laut» / «Unterwegs» classes ch/lessnoise/app/alert/*", "class", r"^Lch/lessnoise/app/alert/", {"laborKarte"}),
-    ("string \"loud_alert\" (the «Sehr laut» channel)", "string", b"loud_alert", {"laborKarte"}),
+    # 0.9.4.6: «Unterwegs messen» and «Sehr laut» in both editions with the map (0.8.4–0.9.4.5 laborKarte only).
+    ("«Sehr laut» / «Unterwegs messen» classes ch/lessnoise/app/alert/*", "class", r"^Lch/lessnoise/app/alert/", MAP),
+    ("string \"loud_alert\" (the «Sehr laut» channel)", "string", b"loud_alert", MAP),
+    # 0.9.4.6: Labor·Karte's position signal (src/laborKarte/…/position/PositionRule*) is gone; the stand-in
+    # PositionWatch (src/noposition) is in both editions with the map and reads nothing.
+    ("position rule classes ch/lessnoise/app/position/PositionRule*", "class", r"^Lch/lessnoise/app/position/PositionRule", set()),
     ("Labor classes ch/lessnoise/app/labor/*", "class", r"^Lch/lessnoise/app/labor/", LABOR),
     ("audio encoding (string Landroid/media/MediaMuxer;)", "string", b"Landroid/media/MediaMuxer;", LABOR),
     ("ML Kit / Play services / Firebase classes", "class", GOOGLE_SDK.pattern, set()),
@@ -203,7 +209,8 @@ def check_apk(bt, edition, apk, version, code, cert):
         check((p in uses) == has_net, f"{'has' if has_net else 'lacks'} {p}")
     for p in sorted(NEVER):
         check(p not in uses, f"lacks {p}")
-    check((FGS_LOCATION in uses) == (edition == "laborKarte"), f"{FGS_LOCATION} only in laborKarte")
+    # 0.9.4.6: in no edition (0.6.9–0.9.4.5 laborKarte's position signal).
+    check(FGS_LOCATION not in uses, f"lacks {FGS_LOCATION}")
     check((FGS_DATA_SYNC in uses) == (edition in LABOR), f"{FGS_DATA_SYNC} {'present (Labor export service)' if edition in LABOR else 'absent'}")
 
     xml = run(bt / "aapt2", "dump", "xmltree", "--file", "AndroidManifest.xml", apk)

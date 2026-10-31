@@ -161,12 +161,16 @@ class ReportVideoTest {
         assertEquals(setOf("1.jpg"), dir.list()!!.toSet())
     }
 
-    /** The video exists in the Labor editions only (laborKarte is the one with reports); the published ones keep the photo. */
+    /**
+     * The video's code exists in the Labor editions only (laborKarte is the one with reports); the published ones keep
+     * the photo. 0.9.4.6: switched off in Labor too (EditionReportVideo.AVAILABLE false: Labor·Karte offers the photo like
+     * the Online-Version); the texts and the copy stay so that it can be switched back.
+     */
     @Test
-    fun onlyTheLaborEditionsHaveTheVideo() {
-        val expected = BuildConfig.FLAVOR == "labor" || BuildConfig.FLAVOR == "laborKarte"
-        assertEquals(expected, ReportVideos.enabled, BuildConfig.FLAVOR)
-        assertEquals(if (expected) "Video" else "Foto", reportMediaButton(ReportVideos.enabled, has = false))
+    fun noEditionOffersTheVideoTheCodeStaysInLabor() {
+        assertEquals(false, ReportVideos.enabled, BuildConfig.FLAVOR)
+        assertEquals("Foto", reportMediaButton(ReportVideos.enabled, has = false))
+        assertEquals("Video", reportMediaButton(video = true, has = false))
         assertEquals("Neues Video", reportMediaButton(video = true, has = true))
         assertEquals("Kurzes Video vom Fahrzeug (optional)", reportMediaSpoken(video = true))
         assertEquals("Video entfernen", reportMediaRemove(video = true))

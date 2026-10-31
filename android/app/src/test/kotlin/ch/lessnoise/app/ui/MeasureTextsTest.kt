@@ -93,7 +93,7 @@ class MeasureTextsTest {
         // 0.9.4.6: the minor way stays visually below the other two: outlined (not filled, not tonal), with the walk icon.
         val third = idle.substring(idle.indexOf("if (onUnterwegs != null) {"), roadHint)
         assertTrue(third.contains("OutlinedButton(onClick = onUnterwegs, enabled = startEnabled") && third.contains("Icon(AppIcons.Walk"))
-        assertFalse(third.contains("FilledTonalButton") || third.contains("Button(onClick = onUnterwegs"))
+        assertFalse(third.contains("FilledTonalButton") || Regex("""(?<![A-Za-z])Button\(onClick = onUnterwegs""").containsMatchIn(third))
     }
 
     @Test

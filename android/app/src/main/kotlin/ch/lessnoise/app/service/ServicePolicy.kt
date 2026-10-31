@@ -71,7 +71,7 @@ object MeasurementNotification {
 
 /**
  * Editions with the map: the measurement notification's report parts, built by ui/LoudAlerts.reportTap
- * (src/karte, alert/ReportTap.forState). 0.9.4.6, both editions alike (the rule Labor·Karte had since 0.6.9):
+ * (src/karte, the rule in its alert package). 0.9.4.6, both editions alike (the rule Labor·Karte had since 0.6.9):
  * [button] adds an action [buttonLabel] («Melden») next to «Stopp» during every run; [intent] is the tap on the
  * notification itself while the run is «unterwegs» (it opens «Laut! Melden»), null otherwise (the usual tap
  * opens the app on «Messen»); [text] is null (the level text, posted every 2 s as usual). 0.6.8–0.8.3 a

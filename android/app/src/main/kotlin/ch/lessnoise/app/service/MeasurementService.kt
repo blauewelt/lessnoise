@@ -850,7 +850,7 @@ class MeasurementService : Service() {
     }
 
     /**
-     * Editions with the map (0.9.4.6 both alike, src/karte alert/ReportTap): a «Melden» button during the whole
+     * Editions with the map (0.9.4.6 both alike, the rule in src/karte's alert package): a «Melden» button during the whole
      * run and the level text in every state; while the run is «unterwegs» — started with «Unterwegs messen», or
      * LiveState.moving in a window run — the notification's own tap opens «Laut! Melden» too (0.6.8), otherwise
      * «Messen». Re-posted when the tap's target changes ([NotificationCadence.tapChanged]). Null (nothing) in
@@ -882,7 +882,7 @@ class MeasurementService : Service() {
     }
 
     /**
-     * 0.7.6 (editions with the map, src/karte's LoudAlertNotifier the only sender; 0.8.4–0.9.4.5 Labor·Karte only): ACTION_LOUD_ALERT. While a measurement runs, the notification
+     * 0.7.6 (editions with the map, src/karte's alert notifier the only sender; 0.8.4–0.9.4.5 Labor·Karte only): ACTION_LOUD_ALERT. While a measurement runs, the notification
      * (id [NOTIFICATION_ID], the foreground service's own) is posted ONCE with the alert: on the
      * alert's channel (importance HIGH, so this one post makes the heads-up with sound and
      * vibration), its title, «Antippen zum Melden», the tap as content intent and as a «Melden»

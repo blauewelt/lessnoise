@@ -20,11 +20,15 @@ class EditionTextTest {
     fun aboutAudioMatchesTheEdition() {
         val text = EditionUi.ABOUT_AUDIO
         if (BuildConfig.FLAVOR == "labor") {
-            // Labor can store clips and hour files locally; it has no internet permission.
+            // Labor can store clips and hour files locally; it has no internet permission. It must not make the public
+            // promise «nie Audio gespeichert»; 0.9.4.6: it says plainly that audio is stored only with «Audio speichern»
+            // and never sent (true: no network at all).
             assertTrue(text.contains("Weniger Lärm Labor"), text)
             assertTrue(text.contains("keine Internet-Berechtigung"), text)
-            assertFalse(text.contains("nie Audio"), text)
-            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
+            assertFalse(text.contains("nie Audio gespeichert"), text)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio gespeichert"), EditionUi.MIC_LINE)
+            assertTrue(text.contains("«Audio speichern»") && EditionUi.MIC_LINE.contains("«Audio speichern»"), EditionUi.MIC_LINE)
+            assertTrue(EditionUi.MIC_LINE.contains("nie Audio gesendet"), EditionUi.MIC_LINE)
         } else if (BuildConfig.FLAVOR == "laborKarte") {
             // Labor with «Messwerte teilen»: must not claim «no internet», must say audio is never sent.
             // 0.9.4.6: names the one switch «Audio speichern».
@@ -35,7 +39,8 @@ class EditionTextTest {
                 text,
             )
             assertFalse(text.contains("keine Internet-Berechtigung"), text)
-            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio gespeichert"), EditionUi.MIC_LINE)
+            assertEquals("Labor: speichert Audio nur, wenn «Audio speichern» an ist. Es wird nie Audio gesendet.", EditionUi.MIC_LINE)
         } else {
             // Public editions: the one plain audio promise, in Datenschutz and at the microphone line on «Messen».
             assertEquals("Es wird nie Audio gespeichert oder gesendet.", text)
