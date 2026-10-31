@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.5 — 2026-10-31 (versionCode 52; published: Offline-Version and Online-Version on the website)
+
+In short: the owner's go-ahead of 2026-10-31 brings the Labor·Karte builds 0.9.1–0.9.4.6 to the two published
+editions; the code is that of 0.9.4.6 (commit ab669e1), only the version changes. **Online-Version:** «Messen»
+offers three ways: the big «Laut! Melden» (also while a measurement runs, and «Melden» in the measurement
+notification), «Langzeitmessung starten» at the window, and «Unterwegs messen» with the «Sehr laut» notification
+when a vehicle is very loud (≥ 75 dB(A), at most one every 2 minutes; 0.9.0 had none). «Laut! Melden» needs only
+the place: the kind (Töff · Auto · Andere with Lastwagen, Flugzeug, Bahn, Baustelle, Gartengeräte and Hupen) and
+the direction are optional, «Anzahl» counts up to 9 vehicles, and the photo stays on the phone as before. Reports
+without a kind and with «Anzahl» need server schema v9, live on api.lessnoise.ch before this release (main =
+ab669e1). **Offline-Version:** the detector's «Töff & Poser» is called «Lautes Fahrzeug», and a tap on the
+measurement notification opens «Messen». Both editions ask for exactly the permissions of 0.9.0 (`aapt2 dump
+permissions`, compared with the 0.9.0 APKs). The privacy page (datenschutz.html), PRIVACY.md and server/DESIGN.md
+§2 and §4.7 say what changed.
+
 ## 0.9.4.6 — Labor·Karte first (branch labor-0.9.1): three ways to use the app; Labor = Online-Version + «Audio speichern» (versionCode 51)
 
 In short (owner, 2026-10-31): «still not easy enough» — «Messen» offers three ways: at the window overnight,
