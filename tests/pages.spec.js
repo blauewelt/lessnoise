@@ -390,7 +390,7 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 28. Oktober 2026",           // 0.9.4.5: reports — everything but the place optional, Anzahl
+    "Stand: 31. Oktober 2026",           // 0.9.4.6 (for 0.9.5): «Unterwegs messen», the local «Sehr laut» notification
     "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
     "Art, Zeit, den ungefähren Ort",   // what the phone keeps of a sent report
   ]) {
@@ -399,19 +399,21 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
   await expect(page.locator('a[href="https://api.lessnoise.ch/v1/map/stats.json"]')).toHaveCount(1);
 });
 
-test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shared nothing (gone in 0.9.0); «anderes Fahrzeug»", async ({ page }) => {
+test("0.6.4: only machine and motor noise leaves the phone; «Unterwegs» shares nothing (0.9.0–0.9.4 gone, 0.9.5 «Unterwegs messen»); «anderes Fahrzeug»", async ({ page }) => {
   await page.goto("/datenschutz.html");
   const text = await allText(page);
   for (const fact of [
     "Ab Version 0.6.4 sendet die App nur laute Ereignisse von Maschinen- und Motorenlärm",
     "Stimmen, Musik, Sonstiges und Wind verlassen das Telefon nie",
     "mindestens 0,5", "6,5",
-    "gestartete Messung nie geteilt",
+    "gestartete Messung wird nie geteilt",   // 0.9.5 «Unterwegs messen» (0.6.4–0.8.0 «Unterwegs»: «… gestartete Messung nie geteilt»)
   ]) expect(text, fact).toContain(fact);
   await page.goto("/anleitung.html");
   const guide = await allText(page);
   for (const fact of ["anderes Fahrzeug", "keine Messung «Unterwegs»", "Stimmen und Musik nie"]) expect(guide, fact).toContain(fact);
-  expect(guide).not.toContain("zwei Knöpfe zum Starten");   // 0.9.0: no «Unterwegs» start any more
+  expect(guide).not.toContain("zwei Knöpfe zum Starten");   // 0.9.0: no «Unterwegs» start button pair any more
+  // 0.9.5 (Labor·Karte 0.9.4.6): the three ways, «Unterwegs messen» never on the map.
+  for (const fact of ["Drei Arten, die Online-Version zu nutzen", "Unterwegs messen", "Diese Messung kommt nie auf die Karte"]) expect(guide, fact).toContain(fact);
 });
 
 test("0.9.1: «Laut! Melden» offers Töff, Auto, Lastwagen, Flugzeug", async ({ page }) => {
@@ -438,10 +440,13 @@ test("0.6.3: the one question at «Starten», the cadence and the tab «Karte» 
     "Auf die Lärmkarte?", "Ja, auf die Karte", "Nur auf dem Telefon",   // the consent dialog
     "30 Sekunden nach ihrem Ende", "alle 2 Minuten", "mobile Daten",  // cadence, network
     "etwa alle 30 Sekunden neu berechnet", "auf etwa eine Minute genau", // DESIGN §2 rule 8, the live map
-    "keine Messung «Unterwegs» und keine Mitteilung «Sehr laut»",   // 0.9.0: no measurement on the road
+    "keine Messung «Unterwegs» und keine Mitteilung «Sehr laut»",   // 0.9.0–0.9.4: no measurement on the road
+    "«Unterwegs messen» (ab 0.9.5)", "gestartete Messung wird nie geteilt und kommt nie auf die Karte",   // 0.9.5: back, never shared
+    "sie entsteht auf dem Telefon und sendet nichts",
     "Die Karte in der App", "Tab «Karte»", "nach einem #", "Safe Browsing", // the map tab
   ]) expect(text, fact).toContain(fact);
   expect(text).not.toContain("nach der Erklärung «Auf die Karte senden»");   // the 0.6.2 gate is gone
+  expect(text).not.toContain("«Messen» (solange keine Messung läuft)");   // 0.9.4.4/0.9.5: reports also while measuring
   await expect(page.locator("#karte-in-der-app")).toHaveCount(1);
   await page.goto("/anleitung.html");
   const guide = await allText(page);
