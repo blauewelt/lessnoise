@@ -10,7 +10,6 @@ import android.os.HandlerThread
 import android.os.SystemClock
 import android.util.Log
 import ch.lessnoise.app.AppContainer
-import ch.lessnoise.app.BuildConfig
 import ch.lessnoise.app.edition.EditionDiagnostics
 import ch.lessnoise.app.position.PositionWatch
 import kotlinx.coroutines.flow.update
@@ -18,20 +17,20 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * «Unterwegs erkannt» (0.6.7, editions with the map only; the Offline and Labor builds get the
- * stand-in src/nomap/.../motion/MotionWatch.kt): while a measurement started with «Messen» runs, the
- * measuring foreground service reads the accelerometer and feeds [MotionDetector]. While it says
- * MOVING, LiveState.moving is true: the status chip says «Unterwegs erkannt · nichts auf die Karte»,
- * in Labor·Karte (0.8.4; until 0.8.3 also the Online-Version) the «Sehr laut» notification works as in
- * «Unterwegs» (the alert rule, src/laborKarte/…/alert/), and the time span is stored as a moving span (MovingSpanEntity, only
- * start and end), whose minutes and events are never sent (upload/PlaceIndex). No permission is
- * needed; no location is read; no sensor value is stored or sent (the Labor·Karte build writes the
- * transitions with their feature values to its local manifest.jsonl, EditionDiagnostics).
+ * stand-in src/nomap/.../motion/MotionWatch.kt): while a window measurement («Langzeitmessung starten»)
+ * runs, the measuring foreground service reads the accelerometer and feeds [MotionDetector]. While it
+ * says MOVING, LiveState.moving is true: the status chip says «Unterwegs erkannt · nichts auf die Karte»,
+ * the «Sehr laut» notification works as in «Unterwegs messen» (the alert rule, src/karte/…/alert/), and
+ * the time span is stored as a moving span (MovingSpanEntity, only start and end), whose minutes and
+ * events are never sent (upload/PlaceIndex). No permission is needed; no location is read; no sensor
+ * value is stored or sent (the Labor·Karte build writes the transitions with their feature values, and
+ * one `motion_minute` line per minute, to its local manifest.jsonl, EditionDiagnostics).
  *
- * 0.6.9, Labor·Karte only (BuildConfig.LABOR_UNTERWEGS; the Online-Version runs exactly as 0.6.7):
- * the detector uses [MotionDetector.Thresholds.LABOR] (trams and trains), the position is a second
- * signal ([PositionWatch], src/laborKarte; a stand-in that does nothing in the Online-Version), and
- * the run is «unterwegs» if either says so ([UnterwegsCombiner]); a readout line in LiveState and one
- * `motion_minute` line per minute in manifest.jsonl (no coordinates).
+ * 0.9.4.6: the same in both editions with the map — [MotionDetector.Thresholds.ONLINE] (0.6.9–0.9.4.5
+ * Labor·Karte used [MotionDetector.Thresholds.LABOR], for trams and trains), no readout line on «Messen»,
+ * and no position signal: [PositionWatch] is the stand-in of src/noposition in both (AVAILABLE false),
+ * so the plumbing below for it (0.6.9, [UnterwegsCombiner]) never runs. Only the invisible minute log
+ * differs ([EditionDiagnostics.ENABLED]: Labor·Karte).
  */
 object MotionWatch {
     const val AVAILABLE = true
@@ -67,23 +66,23 @@ object MotionWatch {
     @Volatile private var current: (Long) -> Long = { 0L }
 
     /**
-     * 0.6.9 (Labor·Karte): the foreground-service type the measuring service adds for the position
-     * signal, or null (Online-Version: always null; Labor·Karte: null without a location permission).
+     * 0.6.9: the foreground-service type the measuring service adds for the position signal, or null.
+     * 0.9.4.6: always null (no edition has the signal; PositionWatch.AVAILABLE is false).
      */
     fun positionForegroundType(context: Context): Int? =
-        if (BuildConfig.LABOR_UNTERWEGS) PositionWatch.foregroundType(context) else null
+        if (PositionWatch.AVAILABLE) PositionWatch.foregroundType(context) else null
 
     /**
-     * 0.6.9 (Labor·Karte): how long the upload must hold records at [nowMs] beyond the motion hold, so
-     * that a span the position signal decides minutes later still covers them (0 in the Online-Version).
+     * 0.6.9: how long the upload must hold records at [nowMs] beyond the motion hold, so that a span the
+     * position signal decides minutes later still covers them. 0.9.4.6: always 0 (no position signal).
      */
     fun extraHoldMs(nowMs: Long): Long = current(nowMs)
 
     /**
      * Starts watching for the running «Messen» measurement. Null if the phone has no accelerometer or
      * the listener could not be registered (then the measurement behaves as before 0.6.7).
-     * [position] (0.6.9, Labor·Karte): the service runs with the foreground type «location», so the
-     * position signal may run too.
+     * [position] (0.6.9): the service runs with the foreground type «location», so the position signal
+     * may run too (0.9.4.6: never — no edition adds that type).
      */
     fun start(context: Context, container: AppContainer, position: Boolean = false): Handle? {
         val app = context.applicationContext
@@ -91,16 +90,18 @@ object MotionWatch {
         val sensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return null
         val thread = HandlerThread("lessnoise-motion").apply { start() }
         val handler = Handler(thread.looper)
-        val labor = BuildConfig.LABOR_UNTERWEGS
+        // 0.9.4.6: the Labor manifest's minute line (Labor·Karte); the Online-Version computes no per-second values.
+        val log = EditionDiagnostics.ENABLED
+        // 0.9.4.6: never true (PositionWatch is the src/noposition stand-in in both editions with the map).
+        val positionSignal = position && PositionWatch.AVAILABLE
         // Everything below runs on [thread]: the detector, the combiner, the minute summary, the span writes.
         val combiner = UnterwegsCombiner()
         val minutes = MinuteSummary()
-        val recent = RecentMotion()
         var positionWatch: PositionWatch.Handle? = null
-        // 0.7.5, Labor·Karte: wall ms of the latest second the detector saw movement (≥ its enter level, or
-        // while it says MOVING). The position may only switch to MOVING within 3 minutes of it (PositionRule).
+        // 0.7.5: wall ms of the latest second the detector saw movement (≥ its enter level, or while it says
+        // MOVING). The position may only switch to MOVING within 3 minutes of it (0.6.9–0.9.4.5 PositionRule).
         var lastMovementWall: Long? = null
-        val enterStd = (if (labor) MotionDetector.Thresholds.LABOR else MotionDetector.Thresholds.ONLINE).enterStdMs2
+        val enterStd = MotionDetector.Thresholds.ONLINE.enterStdMs2
 
         fun writeSpan(change: UnterwegsCombiner.Change?) {
             change ?: return
@@ -116,12 +117,6 @@ object MotionWatch {
             }.onFailure { Log.w(TAG, "span write failed: ${it.javaClass.simpleName}") }
         }
 
-        fun readout() {
-            if (!labor) return
-            val line = Readout.line(recent.medianMs2, positionWatch?.distanceM, combiner.moving)
-            container.live.update { if (it.running && !it.unterwegs && it.unterwegsReadout != line) it.copy(unterwegsReadout = line) else it }
-        }
-
         fun logMinute(m: MinuteSummary.Minute?) {
             m ?: return
             EditionDiagnostics.motionMinute(
@@ -130,14 +125,12 @@ object MotionWatch {
             )
         }
 
-        val onSecond: ((Long, Double) -> Unit)? = if (!labor) null else { startMs, std ->
-            recent.add(std)
+        val onSecond: ((Long, Double) -> Unit)? = if (!log && !positionSignal) null else { startMs, std ->
             val wall = MotionClock.wallMs(startMs, SystemClock.elapsedRealtime(), System.currentTimeMillis())
             if (combiner.motion || (!std.isNaN() && std >= enterStd)) lastMovementWall = wall
-            logMinute(minutes.add(wall, std))
-            readout()
+            if (log) logMinute(minutes.add(wall, std))
         }
-        val detector = MotionDetector(if (labor) MotionDetector.Thresholds.LABOR else MotionDetector.Thresholds.ONLINE, onSecond)
+        val detector = MotionDetector(MotionDetector.Thresholds.ONLINE, onSecond)
 
         fun apply(transitions: List<MotionDetector.Transition>) {
             for (t in transitions) {
@@ -145,10 +138,9 @@ object MotionWatch {
                 val nowWall = System.currentTimeMillis()
                 val atWall = MotionClock.wallMs(t.atMs, nowElapsed, nowWall)
                 val moving = t.to == MotionDetector.State.MOVING
-                // 0.6.9: the run is «unterwegs» if motion or position says so (the Online-Version has motion only).
+                // 0.6.9: the run is «unterwegs» if motion or position says so (0.9.4.6: motion only, every edition).
                 writeSpan(combiner.onMotion(moving, atWall, MotionClock.wallMs(t.spanStartMs, nowElapsed, nowWall)))
                 EditionDiagnostics.motionTransition(app, atWall, t.to.name, MotionClock.wallMs(t.spanStartMs, nowElapsed, nowWall), t.features())
-                readout()
             }
         }
 
@@ -173,8 +165,8 @@ object MotionWatch {
             return null
         }
         handler.postDelayed(tick, TICK_MS)
-        // 0.6.9, Labor·Karte: the position signal, on the same thread (silently none without permission).
-        if (labor && position) {
+        // 0.6.9: the position signal, on the same thread (silently none without permission). 0.9.4.6: never.
+        if (positionSignal) {
             handler.post {
                 positionWatch = PositionWatch.start(app, handler, lastMovementMs = { lastMovementWall }) { t ->
                     writeSpan(combiner.onPosition(t.moving, t.atMs, t.spanStartMs))
@@ -182,13 +174,11 @@ object MotionWatch {
                         app, t.atMs, if (t.moving) "MOVING" else "STILL", t.spanStartMs,
                         linkedMapOf("position" to 1.0, "distanceM" to (Distance.rounded(t.distanceM) ?: 0).toDouble(), "thresholdM" to t.thresholdM),
                     )
-                    readout()
                 }
                 val w = positionWatch
                 if (w != null) current = { now -> w.holdMs(now) }
             }
         }
-        readout()
         return object : Handle {
             override fun stop() {
                 runCatching { sm.unregisterListener(listener) }
@@ -201,13 +191,13 @@ object MotionWatch {
                     if (pendingSince != null && !combiner.moving) {
                         writeSpan(combiner.onPosition(true, now, pendingSince))
                     }
-                    if (labor) logMinute(minutes.flush())
+                    if (log) logMinute(minutes.flush())
                     // The measurement ends: so does a moving span (its end is the stop).
                     if (combiner.moving) {
                         runCatching { runBlocking { container.measurements.endMovingSpans(now) } }
                         EditionDiagnostics.motionTransition(app, now, "STOP", now, emptyMap())
                     }
-                    container.live.update { it.copy(moving = false, unterwegsReadout = null) }
+                    container.live.update { it.copy(moving = false) }
                     thread.quitSafely()
                 }
             }

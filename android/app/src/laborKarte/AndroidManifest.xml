@@ -16,15 +16,11 @@
      moved at random on the phone; only that point is sent) and for «Laut! Melden» (exact place sent with the report, then deleted
      from the phone); only while the app is open, never in the
      background). The plain Labor build has neither (src/labor/AndroidManifest.xml).
-     0.6.9 (Labor·Karte only, the owner's test phone): the position as a second «unterwegs» signal in a
-     «Messen» run (src/laborKarte/kotlin/.../position/): about once a minute at low power (fused provider
-     with balanced accuracy, or the network provider), only while the run goes, read by the measuring
-     foreground service, which for that is started from the app's screen with the additional type
-     «location» (FOREGROUND_SERVICE_LOCATION) — only if location is granted. Never ACCESS_BACKGROUND_LOCATION
-     (src/main removes it). Only the run's first fix and the latest distance stay in memory; nothing is
-     stored or sent. -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+     0.9.4.6: no FOREGROUND_SERVICE_LOCATION and no service type «location» any more (0.6.9–0.9.4.5 the
+     position was a second «unterwegs» signal in a window run, Labor·Karte only): the measuring service has
+     the Online-Version's types (src/main: microphone|shortService). Never ACCESS_BACKGROUND_LOCATION
+     (src/main removes it). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.location.network" android:required="false" />
@@ -33,7 +29,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- 0.9.4.1: the export service (below). Labor editions only; tools/check_release_apk.py fails if a
          published edition has it. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -56,10 +51,6 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/report_widget_info" />
         </receiver>
-        <service
-            android:name=".service.MeasurementService"
-            android:foregroundServiceType="microphone|shortService|location"
-            tools:replace="android:foregroundServiceType" />
         <!-- 0.9.4.1 (Labor editions only): «In Ordner exportieren» and «Als ZIP teilen» run in this
              foreground service of type dataSync (FOREGROUND_SERVICE_DATA_SYNC above), with a
              notification showing the progress and «Abbrechen», so that a big export goes on when the

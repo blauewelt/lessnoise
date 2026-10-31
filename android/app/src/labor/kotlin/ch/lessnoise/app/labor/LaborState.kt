@@ -11,19 +11,88 @@ import java.util.zip.ZipOutputStream
 
 // LABOR BUILD ONLY (app/src/labor/). See PRIVACY.md → «Labor-Build».
 
+/**
+ * The Labor recording settings (SharedPreferences «labor»). 0.9.4.6 (owner: «like the production version, plus
+ * the one thing you can turn on where the audio gets saved»): the UI has ONE switch, «Audio speichern» =
+ * [recordAudio] (the same key `record_audio` as 0.9.4.5's «Audio während der Messung aufzeichnen», so an updated
+ * phone keeps recording exactly as before). [clips], [continuous], [clipEvery] and [maxGb] are no longer shown;
+ * the recorder keeps using whatever is stored — a new install: clips on, continuous on, every clip, 5 GB.
+ */
 data class LaborSettings(
-    /** «Audio während der Messung aufzeichnen» (off by default). */
+    /** «Audio speichern» (until 0.9.4.5 «Audio während der Messung aufzeichnen»; off by default). */
     val recordAudio: Boolean = false,
-    /** «Ereignis-Clips (±5 s, WAV 16 kHz)». */
+    /** Event clips (±5 s, WAV 16 kHz); until 0.9.4.5 its own switch. */
     val clips: Boolean = true,
-    /** «Durchgehend (AAC 64 kbit/s, Stundendateien)». */
+    /** Continuous AAC 64 kbit/s in hour files; until 0.9.4.5 its own switch. */
     val continuous: Boolean = true,
-    /** «Clip-Rate»: every n-th event (1, 2, 5). */
+    /** Every n-th event gets a clip (1, 2, 5); until 0.9.4.5 «Clip-Rate». */
     val clipEvery: Int = 1,
-    /** «Maximaler Speicher» in GB. */
+    /** The audio budget in GB; until 0.9.4.5 «Maximaler Speicher». */
     val maxGb: Double = StorageBudget.DEFAULT_GB,
 ) {
     val maxBytes: Long get() = (maxGb * StorageBudget.GB).toLong()
+}
+
+/**
+ * 0.9.4.6: what the Labor build shows while it stores audio — one small line on the running «Messen»
+ * (EditionUi.RecordingNote) and the same words after the measurement notification's text
+ * (LaborRecorder.notificationNote → MeasurementNotification.text: «Letzte Minute: 54,2 dB(A) · Audio wird gespeichert»).
+ */
+object RecordingNote {
+    const val TEXT = "Audio wird gespeichert"
+
+    /**
+     * The note while the recorder is [active] (not stopped, «Audio speichern» not switched off since: [recordAudio]),
+     * its audio budget not used up ([audioOn]) and it records clips or hour files; null otherwise (then only the
+     * classifier log and the manifest are written, no audio).
+     */
+    fun text(active: Boolean, audioOn: Boolean, recordAudio: Boolean, clips: Boolean, continuous: Boolean): String? =
+        if (active && audioOn && recordAudio && (clips || continuous)) TEXT else null
+}
+
+/** 0.9.4.6: the texts of the «Labor» card in «Einstellungen» (EditionUi.SettingsSection). Pure, tested on the JVM. */
+object LaborCardTexts {
+    const val TITLE = "Labor"
+    const val SWITCH = "Audio speichern"
+    const val SWITCH_SUPPORTING = "Nur auf diesem Telefon, nie gesendet."
+    /** Under the switch while a run goes that started without it: the recorder starts with the next run. */
+    const val NEXT_RUN = "Gilt ab der nächsten Messung."
+    const val CONFIRM_TITLE = "Audio speichern?"
+    const val CONFIRM_TEXT = "Speichert Audio auf diesem Telefon, auch Stimmen in der Nähe. Es bleibt dort, bis du es löschst."
+    const val CONFIRM_BUTTON = "Speichern"
+    const val CLIPS = "Clips anhören"
+    const val EXPORT_FOLDER = "In Ordner exportieren"
+    const val EXPORT_ZIP = "Als ZIP teilen"
+    const val PICK_FOLDER = "Ordner wählen"
+    const val DELETE_EXPORTED = "Exportierte Aufnahmen löschen"
+    const val DELETE_ALL = "Alle Aufnahmen löschen"
+
+    /** «1,2 GB von 5 GB belegt», «350 MB von 5 GB belegt» (GB with one decimal from 1 GB on). */
+    fun used(usedBytes: Long, maxBytes: Long): String {
+        val u = if (usedBytes >= StorageBudget.GB) {
+            String.format(java.util.Locale.GERMANY, "%.1f GB", usedBytes / StorageBudget.GB.toDouble())
+        } else {
+            "${(usedBytes + 500_000L) / 1_000_000L} MB"
+        }
+        return "$u von ${StoragePolicy.gbLabel(maxBytes)} belegt"
+    }
+
+    /**
+     * Whether the card shows more than the switch: while «Audio speichern» is on, or while recordings are on the
+     * phone — clips, hour files or classifier logs (the logs are written only by the recorder) — so that the
+     * export and the two deletes stay reachable as long as there is something of them. The manifest alone does
+     * not count: Labor·Karte writes its `motion`, `motion_minute` and `report` lines also with the switch off.
+     */
+    fun showsFiles(recordAudio: Boolean, clips: Int, hourFiles: Int, classifierFiles: Int): Boolean =
+        recordAudio || clips > 0 || hourFiles > 0 || classifierFiles > 0
+
+    /**
+     * «Audio speichern» switched on (after the confirmation): [LaborSettings.recordAudio] on, the other stored values
+     * kept — except that a 0.9.4.5 setting with neither clips nor hour files (which recorded no audio at all) gets
+     * both back, since the one switch now says «Audio speichern» and its sub-switches are gone.
+     */
+    fun switchedOn(s: LaborSettings): LaborSettings =
+        if (s.clips || s.continuous) s.copy(recordAudio = true) else s.copy(recordAudio = true, clips = true, continuous = true)
 }
 
 /** What the recorder is doing right now (for the banner and the settings section). */

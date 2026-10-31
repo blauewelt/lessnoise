@@ -103,13 +103,14 @@ class PoliciesAndManifestTest {
         assertEquals(StoragePolicy.Level.NONE, level(5 * gb, 5 * gb, on = false))
         assertEquals(null, StoragePolicy.message(5 * gb, 5 * gb, false))
         // The texts.
+        // 0.9.4.6: without «Limit erhöhen» (the «Maximaler Speicher» buttons left the card) and with the switch's name.
         assertEquals(
-            "Speicher fast voll: 312 MB frei von 5 GB – Aufnahme würde bald stoppen. Exportieren und löschen, oder Limit erhöhen.",
+            "Speicher fast voll: 312 MB frei von 5 GB – Aufnahme würde bald stoppen. Exportieren und löschen.",
             StoragePolicy.message(5 * gb - 312_000_000L, 5 * gb, true),
         )
         assertEquals(
             "Speicher voll: 0 MB frei von 2 GB – Messen startet nicht ohne Platz für die Aufnahme. " +
-                "Exportieren und löschen, Limit erhöhen oder Aufnahme ausschalten.",
+                "Exportieren und löschen oder «Audio speichern» ausschalten.",
             StoragePolicy.message(2 * gb + 5, 2 * gb, true),
         )
         assertEquals("0,5 GB", StoragePolicy.gbLabel(500_000_000L))

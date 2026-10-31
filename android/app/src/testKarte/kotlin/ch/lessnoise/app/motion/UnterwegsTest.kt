@@ -63,11 +63,6 @@ class UnterwegsTest {
         assertEquals(450, Distance.rounded(425.0))
         assertEquals(0, Distance.rounded(20.0))
         assertNull(Distance.rounded(null))
-        assertEquals("Bewegung 0,12 m/s² · 400 m · unterwegs", Readout.line(0.123, 420.0, true))
-        assertEquals("Bewegung 0,01 m/s² · – · ruhig", Readout.line(0.01, null, false))
-        assertEquals("Bewegung – m/s² · – · ruhig", Readout.line(null, null, false))
-        val r = RecentMotion(3)
-        listOf(0.1, Double.NaN, 0.3, 0.2, 0.5).forEach { r.add(it) }
-        assertEquals(0.3, r.medianMs2)
+        // 0.9.4.6: the readout line on «Messen» (Readout, RecentMotion; Labor·Karte 0.6.9–0.9.4.5) is gone.
     }
 }

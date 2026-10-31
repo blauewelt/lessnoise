@@ -5,9 +5,9 @@ import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.upload.ReportCategory
 import kotlin.math.roundToInt
 
-// «Unterwegs» and the «Sehr laut» notification (0.6.3). Since 0.8.4 compiled only into Labor·Karte
-// (src/laborKarte; until 0.8.3 src/karte, also the Online-Version); pure, so that LoudAlertTest
-// (src/testLaborKarte) checks the rules on the JVM.
+// «Unterwegs messen» and the «Sehr laut» notification (0.6.3). Compiled into both editions with the map
+// (src/karte; 0.8.4–0.9.4.5 Labor·Karte only, src/laborKarte); pure, so that LoudAlertTest (src/testKarte, run
+// for public and laborKarte) checks the rules on the JVM. The rule itself is unchanged since 0.6.7.
 
 /** When a detected event alerts, and what the notification says. */
 object LoudAlertRule {
@@ -31,19 +31,19 @@ object LoudAlertRule {
     const val CHANNEL_NAME = "Sehr laut"
 
     /**
-     * Whether [e] alerts now ([nowMs]): the running measurement started as «Unterwegs» (0.6.4; in
-     * 0.6.3 a switch), a measurement running, not wind, one of
-     * [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown: calibrated if the phone is, else
-     * with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
+     * Whether [e] alerts now ([nowMs]): the running measurement is «unterwegs» ([unterwegs]: started with
+     * «Unterwegs messen», or a window run while the phone is carried, [unterwegsNow]; 0.6.3 a switch), a
+     * measurement running, not wind, one of [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown:
+     * calibrated if the phone is, else with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
      */
     fun shouldAlert(e: LiveEvent, unterwegs: Boolean, running: Boolean, lastAlertAtMs: Long?, nowMs: Long): Boolean =
         unterwegs && running && !e.wind && e.category in CATEGORIES && e.lafMaxDb >= THRESHOLD_DB &&
             (lastAlertAtMs == null || nowMs - lastAlertAtMs >= MIN_GAP_MS)
 
     /**
-     * Whether the running measurement counts as «Unterwegs» for the alert: started with «Unterwegs»
-     * (0.6.4), or (0.6.7, «Unterwegs erkannt») started with «Messen» while the motion detector says
-     * the phone is being carried ([moving], LiveState.moving). Everything else of the rule is the same.
+     * Whether the running measurement counts as «unterwegs» for the alert: started with «Unterwegs messen»
+     * (0.6.4), or (0.6.7, «Unterwegs erkannt») a window run while the motion detector says the phone is being
+     * carried ([moving], LiveState.moving). Everything else of the rule is the same.
      */
     fun unterwegsNow(unterwegs: Boolean, moving: Boolean): Boolean = unterwegs || moving
 

@@ -5,7 +5,7 @@ import ch.lessnoise.app.service.MeasurementNotification
 import ch.lessnoise.app.service.MeasurementService
 import ch.lessnoise.app.ui.LoudAlerts
 import ch.lessnoise.app.ui.UNTERWEGS_BUTTON
-import ch.lessnoise.app.ui.UNTERWEGS_LABOR_HINT
+import ch.lessnoise.app.ui.UNTERWEGS_HINT
 import ch.lessnoise.app.ui.REPORT_SUGGESTED_MARK
 import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.ui.reportCategoryButtons
@@ -18,7 +18,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 0.6.3: «Unterwegs» and the «Sehr laut» notification (since 0.8.4 Labor·Karte only: src/laborKarte, tested in src/testLaborKarte). */
+/**
+ * 0.6.3: «Unterwegs» and the «Sehr laut» notification. 0.8.4–0.9.4.5 Labor·Karte only (src/laborKarte, tested in
+ * src/testLaborKarte); 0.9.4.6 «Unterwegs messen» in both editions with the map (src/karte, tested here in
+ * src/testKarte, which runs for public and laborKarte).
+ */
 class LoudAlertTest {
     private val min = 60_000L
     private val t0 = 1_760_000_000_000L
@@ -55,7 +59,7 @@ class LoudAlertTest {
     fun onlyInAnUnterwegsMeasurementWhileMeasuring() {
         // 0.6.4: «unterwegs» is LiveState.unterwegs (the start mode), which the watcher passes; a
         // measurement started with «Messen» never alerts while the phone lies still.
-        val watcher = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val watcher = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         // 0.6.7: or a «Messen» measurement while the phone is being carried (MotionDetectorTest).
         assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)"))
         assertFalse(watcher.contains("SharedPreferences"), "no remembered switch any more")
@@ -82,13 +86,13 @@ class LoudAlertTest {
         // The category names are the app's (categories.json name_de).
         val names = File(repo(), "android/app/src/main/assets/categories.json").readText()
         assertTrue(names.contains("\"name_de\": \"Lautes Fahrzeug\"") && names.contains("\"name_de\": \"Strassenverkehr\""))
-        // 0.6.4: «Unterwegs» is a start mode; 0.8.3 a segment of the mode switch; since 0.8.4 the
-        // Labor·Karte button «Unterwegs aufnehmen» with one Labor line (MeasureTextsTest).
-        assertEquals("Unterwegs aufnehmen", UNTERWEGS_BUTTON)
-        assertEquals("Labor: nimmt Audio auf, teilt nichts.", UNTERWEGS_LABOR_HINT)
-        // Only here the start with EXTRA_UNTERWEGS exists: the facade says AVAILABLE, the flag is on.
+        // 0.6.4: «Unterwegs» is a start mode; 0.8.3 a segment of the mode switch; 0.8.4–0.9.4.5 the Labor·Karte
+        // button «Unterwegs aufnehmen»; 0.9.4.6 «Unterwegs messen» in both editions with the map (MeasureTextsTest).
+        assertEquals("Unterwegs messen", UNTERWEGS_BUTTON)
+        assertEquals("Mikrofon an. Mitteilung, wenn ein Fahrzeug sehr laut ist.", UNTERWEGS_HINT)
+        // Only in the editions with the map the start with EXTRA_UNTERWEGS exists (the facade says AVAILABLE).
         assertTrue(LoudAlerts.AVAILABLE)
-        assertTrue(ch.lessnoise.app.BuildConfig.LABOR_UNTERWEGS)
+        assertTrue(ch.lessnoise.app.BuildConfig.FLAVOR in setOf("public", "laborKarte"))
     }
 
     @Test
@@ -132,7 +136,7 @@ class LoudAlertTest {
         assertNull(LoudAlertIntent.preset("android.intent.action.MAIN", t0, "loud_vehicle"))
         assertNull(LoudAlertIntent.preset(LoudAlertIntent.ACTION, 0, "loud_vehicle"))
         // The notifier puts the event's START into the intent (the report's time), not the tap.
-        val notifier = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         assertTrue(notifier.contains(".putExtra(LoudAlertIntent.EXTRA_EVENT_MS, e.startEpochMs)"))
         assertTrue(notifier.contains("NotificationManager.IMPORTANCE_HIGH"))
         assertFalse(notifier.contains("setDeleteIntent"), "swiping it away does nothing")
@@ -142,7 +146,7 @@ class LoudAlertTest {
     fun oneNotificationTheAlertReplacesTheMeasurementsOwnFor30s() {
         // 0.7.6: no second notification (id 7501 until 0.7.5); the notifier hands the alert to the
         // running service, which posts notification 1 once on the HIGH channel, then the level text.
-        val notifier = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val notifier = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         val code = notifier.lines().filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("//") }.joinToString("\n")
         assertFalse(code.contains(".notify("), "the notifier posts nothing itself")
         assertFalse(code.contains("7501"))
@@ -177,6 +181,32 @@ class LoudAlertTest {
         // The texts in src/main agree with the rule's and the report button's.
         assertEquals(LoudAlertRule.TEXT, MeasurementNotification.ALERT_TEXT)
         assertEquals(ReportTap.BUTTON, MeasurementNotification.ALERT_BUTTON)
+    }
+
+    /**
+     * 0.9.4.6 (brief A.5): an «Unterwegs messen» run alerts at a road_traffic event of 76 dB, not at 74 dB; a window
+     * run with the phone lying still never alerts, however loud. Through the same call the watcher makes
+     * (LoudAlertWatcher: shouldAlert with unterwegsNow(LiveState.unterwegs, LiveState.moving)). Runs in testPublic too.
+     */
+    @Test
+    fun anUnterwegsRunAlertsAt76NotAt74AndAStillWindowRunNever() {
+        fun alertsIn(run: ch.lessnoise.app.service.LiveState, e: LiveEvent, last: Long? = null) =
+            LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(run.unterwegs, run.moving), run.running, last, e.startEpochMs + 3_000)
+        val unterwegs = ch.lessnoise.app.service.LiveState(running = true, unterwegs = true)
+        assertTrue(alertsIn(unterwegs, ev(76.0, "road_traffic")), "76 dB road_traffic, unterwegs")
+        assertFalse(alertsIn(unterwegs, ev(74.0, "road_traffic")), "74 dB road_traffic, unterwegs")
+        val window = ch.lessnoise.app.service.LiveState(running = true, unterwegs = false, moving = false)
+        for (db in listOf(74.0, 76.0, 84.0, 110.0)) {
+            for (c in listOf("road_traffic", "loud_vehicle")) assertFalse(alertsIn(window, ev(db, c)), "window, still: $db $c")
+        }
+        // The same window run while carried («Unterwegs erkannt») alerts like «Unterwegs messen».
+        assertTrue(alertsIn(window.copy(moving = true), ev(76.0, "road_traffic")))
+        assertFalse(alertsIn(window.copy(moving = true), ev(74.0, "road_traffic")))
+        // Not without a run, not twice within 2 minutes.
+        assertFalse(alertsIn(unterwegs.copy(running = false), ev(84.0, "road_traffic")))
+        assertFalse(alertsIn(unterwegs, ev(84.0, "road_traffic"), last = t0))
+        // This is the code the Online-Version runs too (0.9.4.6): the real facade, not a stand-in.
+        assertTrue(LoudAlerts.AVAILABLE)
     }
 
     private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }

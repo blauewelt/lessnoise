@@ -85,14 +85,14 @@ class LocationIsolationTest {
                 .forEach { problems += "location/${f.name}: project import $it (only $allowedLocationImports)" }
         }
 
-        // 2. android.location is used only by LocationFetcher (and, 0.6.9, by the Labor·Karte position
-        //    signal src/laborKarte/.../position/PositionWatch.kt); the upload never sees a Location.
+        // 2. android.location is used only by LocationFetcher (0.6.9–0.9.4.5 also by Labor·Karte's position signal,
+        //    src/laborKarte/.../position/, gone in 0.9.4.6); the upload never sees a Location.
         val all = kotlinFiles(File(appDir, "src")).filter { f -> f.path.split(File.separatorChar).none { it.startsWith("test") } }
         assertTrue(all.size > 30, "sources not found")
-        val positionWatch = File(appDir, "src/laborKarte/kotlin/ch/lessnoise/app/position/PositionWatch.kt")
+        assertTrue(!File(appDir, "src/laborKarte/kotlin").exists(), "0.9.4.6: no Labor·Karte-only Kotlin (no position signal)")
         for (f in all) {
             val src = KotlinSource.parse(f.readText())
-            if (f.name != "LocationFetcher.kt" && f.absoluteFile != positionWatch.absoluteFile &&
+            if (f.name != "LocationFetcher.kt" &&
                 Regex("""\bandroid\.location\b|\bLocationManager\b""").containsMatchIn(src.code)
             ) {
                 problems += "${f.relativeTo(appDir)}: uses android.location outside location/LocationFetcher.kt"
@@ -110,8 +110,8 @@ class LocationIsolationTest {
                 problems += "upload/${f.name}: refers to the location code"
             }
         }
-        // 4. 0.6.9: the Labor·Karte position signal stores, logs and sends nothing either.
-        for (f in kotlinFiles(File(appDir, "src/laborKarte/kotlin/ch/lessnoise/app/position"))) {
+        // 4. The position stand-in (src/noposition, both editions with the map since 0.9.4.6) stores, logs and sends nothing.
+        for (f in kotlinFiles(File(appDir, "src/noposition/kotlin/ch/lessnoise/app/position"))) {
             val src = KotlinSource.parse(f.readText())
             for ((what, re) in forbidden) {
                 re.findAll(src.code).forEach { m -> problems += "position/${f.name}:${src.lineOf(m.range.first)}: $what («${m.value}»)" }

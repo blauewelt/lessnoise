@@ -9,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** Both editions: behaviour when the app is swiped away, and the notification texts. */
 class ServicePolicyTest {
@@ -36,10 +37,20 @@ class ServicePolicyTest {
         // «unkalibriert» is no longer shown (0.6.1: «Richtwerte» is said once, in Datenschutz).
         assertEquals("Letzte Minute: 42,3 dB(A)", MeasurementNotification.text(42.26, calibrated = false, silenced = false))
         assertEquals(MeasurementNotification.SILENCED, MeasurementNotification.text(42.0, calibrated = true, silenced = true))
+        // 0.9.4.6: the Labor builds' note while audio is stored (LaborRecorder.notificationNote; until 0.9.4.5 nothing set one).
         assertEquals(
-            "Letzte Minute: 42,3 dB(A) · Aufnahme läuft",
-            MeasurementNotification.text(42.26, calibrated = true, silenced = false, note = "Aufnahme läuft"),
+            "Letzte Minute: 42,3 dB(A) · Audio wird gespeichert",
+            MeasurementNotification.text(42.26, calibrated = true, silenced = false, note = "Audio wird gespeichert"),
         )
+        // 0.9.4.6: the title says when the run is «Unterwegs messen»; window runs keep theirs.
+        assertEquals("Mikrofon aktiv – unterwegs", MeasurementNotification.TITLE_UNTERWEGS)
+        assertEquals(MeasurementNotification.TITLE_UNTERWEGS, MeasurementNotification.title(unterwegs = true))
+        assertEquals(MeasurementNotification.TITLE, MeasurementNotification.title(unterwegs = false))
+        val service = java.io.File(listOf(java.io.File("."), java.io.File("app")).first { java.io.File(it, "src/main").isDirectory },
+            "src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
+        assertTrue(service.contains(".setContentTitle(title)"))
+        assertTrue(service.contains("title: String = MeasurementNotification.title(container.live.value.unterwegs),"))
+        assertTrue(service.contains("val title = MeasurementNotification.title(if (busy) container.live.value.unterwegs else unterwegs)"))
     }
 
     @Test

@@ -17,10 +17,15 @@ import java.nio.ByteBuffer
  * Android's MP4 writer, `MediaMuxer`, and `tools/check_release_apk.py` proves that the published APKs contain
  * no reference to it (their «no audio encoding» rule). Nothing here encodes anything: the camera app's
  * compressed samples are copied as they are.
+ *
+ * 0.9.4.6 (owner: Labor·Karte = the Online-Version plus «Audio speichern»): switched off — [AVAILABLE] false, so
+ * «Laut! Melden» offers the photo as in the Online-Version. The code stays so that it can be switched back by
+ * setting [AVAILABLE] to true; videos already kept with sent reports still show and play in «Teilen» › «Meldungen»
+ * (ShareScreen.ReportsCard decides by the file's extension, not by this flag).
  */
 object EditionReportVideo {
-    /** Whether «Laut! Melden» offers a video (Labor·Karte) instead of a photo (Online-Version). */
-    const val AVAILABLE = true
+    /** Whether «Laut! Melden» offers a video instead of a photo. 0.9.4.6: false (0.9.4.3–0.9.4.5 true in Labor·Karte). */
+    const val AVAILABLE = false
 
     private const val TAG = "ReportVideo"
 

@@ -215,7 +215,8 @@ class MotionDetectorTest {
     @Test
     fun thresholdsAreThoseDocumented() {
         assertEquals(0.25, MotionDetector.ACTIVE_STD_MS2)
-        // 0.6.9: the Online-Version keeps 0.6.7's level; Labor·Karte enters at 0.07 and stays from 0.05.
+        // 0.6.9: the Online-Version keeps 0.6.7's level; Labor·Karte entered at 0.07 and stayed from 0.05 until 0.9.4.5
+        // (Thresholds.LABOR, still in the detector, used by no edition since 0.9.4.6: both use ONLINE).
         assertEquals(MotionDetector.Thresholds(0.25, 0.25), MotionDetector.Thresholds.ONLINE)
         assertEquals(MotionDetector.Thresholds(0.07, 0.05), MotionDetector.Thresholds.LABOR)
         assertEquals(MotionDetector.Thresholds.ONLINE, MotionDetector().thresholds)
@@ -238,7 +239,7 @@ class MotionDetectorTest {
         assertEquals(1_700_000_000_000L - 2_000L, MotionClock.wallMs(98_000L, 100_000L, 1_700_000_000_000L))
     }
 
-    // ---- 0.6.9, Labor·Karte thresholds: trams and trains ------------------------------------------
+    // ---- 0.6.9–0.9.4.5, Labor·Karte thresholds: trams and trains (0.9.4.6: no edition uses them) ----------
 
     private fun labor() = Run(MotionDetector(MotionDetector.Thresholds.LABOR))
 
@@ -340,11 +341,14 @@ class MotionDetectorTest {
         assertEquals(1_000_000L, seen[0].first)
     }
 
-    // ---- The alert while MOVING: since 0.8.4 Labor·Karte only, src/testLaborKarte/…/motion/MotionAlertTest.kt ----
+    // ---- The alert while MOVING: src/testKarte/…/motion/MotionAlertTest.kt (0.8.4–0.9.4.5 Labor·Karte only) ----
 
-    /** 0.8.4: the Online-Version has the detector without any alert: «moving» only pauses sharing (status chip). */
+    /**
+     * The detector itself raises no alert: «moving» pauses sharing (status chip) and, through the live state, lets
+     * the «Sehr laut» watcher alert (alert/, src/karte). 0.9.4.6: both editions use the Online-Version's thresholds.
+     */
     @Test
-    fun theDetectorRaisesNoAlertInTheOnlineVersion() {
+    fun theDetectorRaisesNoAlertItself() {
         val watch = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/motion/MotionWatch.kt").readText()
         assertTrue(watch.contains("if (it.running && !it.unterwegs) it.copy(moving = combiner.moving) else it"))
         assertFalse(watch.contains("ch.lessnoise.app.alert"), "the watch never imports the alert code")
@@ -352,6 +356,9 @@ class MotionDetectorTest {
         val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
         assertTrue(service.contains("if (!unterwegs && MotionWatch.AVAILABLE) motion = MotionWatch.start(this@MeasurementService, container, position = positionAllowed)"))
         assertTrue(service.contains("motion?.stop()"))
+        // 0.9.4.6: one detector setting for both editions, no Labor flag, no readout line.
+        assertTrue(watch.contains("val detector = MotionDetector(MotionDetector.Thresholds.ONLINE, onSecond)"))
+        assertFalse(watch.contains("Thresholds.LABOR)") || watch.contains("LABOR_UNTERWEGS") || watch.contains("unterwegsReadout"))
     }
 
     private fun repo(): File = listOf(File("../.."), File(".."), File(".")).first { File(it, "server/stadtlaerm_server").isDirectory }

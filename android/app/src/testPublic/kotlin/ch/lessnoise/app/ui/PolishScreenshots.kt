@@ -312,7 +312,7 @@ class PolishScreenshots {
     }
 
     // 0.8.7: the logo in the middle, the actions at the bottom. The Labor·Karte variant here has the Online-Version's
-    // logo (testPublic resources); MessenIdleLaborKarteScreenshots (testLaborKarte) renders it with the red one.
+    // logo (testPublic resources); MessenMain*Screenshots (src/testKarte, run in testLaborKarte) render it with the red one.
     @Test fun messenIdle() = messenIdle("messen-idle", dark = false, labor = false)
     @Test fun messenIdleDark() = messenIdle("messen-idle-dark", dark = true, labor = false)
     @Test fun messenIdleLaborKarte() = messenIdle("messen-idle-labor-karte", dark = false, labor = true)

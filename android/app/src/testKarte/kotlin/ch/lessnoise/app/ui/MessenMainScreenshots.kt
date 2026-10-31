@@ -1,17 +1,9 @@
 package ch.lessnoise.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import app.cash.paparazzi.Snapshot
@@ -34,10 +26,13 @@ import java.time.ZoneId
 /**
  * 0.9.4.4: «Messen» with «Laut! Melden» as the main surface, idle and while measuring, in both editions with the
  * map (src/testKarte runs for public and laborKarte, each with its own resources: the Labor·Karte render has the
- * red logo, the «Unterwegs aufnehmen» button and a stand-in of the red Labor banner — EditionUi.Banner needs the
- * app container). [widthDp] × [heightDp] at 480 dpi (3 px per dp) and [fontScale]; no system bars (a phone has
- * about 24 dp status bar and 24–48 dp navigation more). Synthetic values only. Written to
- * $stadtlaerm.screenshotDir/0.9.4.4-messen as messen-<edition>-<state>-<suffix>.png, for review only.
+ * red logo). 0.9.4.6: the three ways idle («Laut! Melden», «Langzeitmessung starten», «Unterwegs messen» — the same
+ * in both editions, no Labor banner any more), and three running states: a window run on the map, an «Unterwegs
+ * messen» run, and (Labor·Karte) a window run while audio is stored («Audio wird gespeichert», drawn with
+ * [AudioNoteLine], the composable EditionUi.RecordingNote calls — that one needs the app container). [widthDp] × [heightDp]
+ * at 480 dpi (3 px per dp) and [fontScale]; no system bars (a phone has about 24 dp status bar and 24–48 dp
+ * navigation more). Synthetic values only. Written to $stadtlaerm.screenshotDir/0.9.4.6-messen as
+ * messen-<edition>-<state>-<suffix>.png, for review only.
  */
 abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScale: Float, private val suffix: String) {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -60,7 +55,7 @@ abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScal
             screenWidth = widthDp * 3, screenHeight = heightDp * 3, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = fontScale,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4.4-messen")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4.6-messen")),
         useDeviceResolution = true,
     )
 
@@ -89,44 +84,54 @@ abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScal
         running = true, startedAtMs = ms(25, 18, 30), measurementStartMs = ms(25, 18, 30), lafDb = 58.2, backgroundDb = 46.2,
         dominantCategory = "road_traffic", dominantScore = 0.5f, classifierEnabled = true, sharedPoint = point,
     )
+    // 0.9.4.6: an «Unterwegs messen» run (never shared: no point; the chip «Unterwegs · nichts auf die Karte»).
+    private val unterwegsLive = runningLive.copy(sharedPoint = null, unterwegs = true, lafDb = 71.4, dominantCategory = "loud_vehicle")
+    private val unterwegsStatus = shareStatus(on, true, ms(25, 18, 30), false, LocateState.Idle, true, unterwegs = true) { "18:42" }!!
     private val events = listOf(
         event(3, ms(25, 18, 52, 10), 71.3, "loud_vehicle"), event(2, ms(25, 18, 41, 5), 74.0, "loud_vehicle"),
         event(1, ms(25, 18, 36, 40), 66.5, "rail_tram"),
     )
 
-    private fun render(state: String, dark: Boolean, running: Boolean) =
+    private enum class Run { IDLE, WINDOW, UNTERWEGS, WINDOW_RECORDING }
+
+    private fun render(state: String, dark: Boolean, run: Run) =
         paparazzi.snapshot("messen-$edition-$state-$suffix") {
             LessNoiseTheme(dark = dark) {
-                Scaffold(
-                    topBar = {
-                        if (labor) {
-                            Column(Modifier.fillMaxWidth().background(Color(0xFFB3261E)).padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                Text(
-                                    "WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen", color = Color.White,
-                                    style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
-                                )
-                            }
-                        }
-                    },
-                    bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} },
-                ) { padding ->
+                // 0.9.4.6: no Labor banner (topBar empty in both editions, as EditionUi.Banner draws nothing).
+                Scaffold(bottomBar = { AppBottomBar(bar, bar.indexOf(Screen.MEASURE)) {} }) { padding ->
                     MeasureContent(
-                        live = if (running) runningLive else LiveState(),
-                        events = if (running) events else emptyList(),
+                        live = when (run) {
+                            Run.IDLE -> LiveState()
+                            Run.WINDOW, Run.WINDOW_RECORDING -> runningLive
+                            Run.UNTERWEGS -> unterwegsLive
+                        },
+                        events = if (run == Run.IDLE) emptyList() else events,
                         calibrating = false, categoryName = { names[it] ?: "Sonstiges" },
                         onStart = {}, onStop = {}, onReport = {},
                         modifier = Modifier.padding(padding).fillMaxSize(),
-                        shareStatus = if (running) runningStatus else idleStatus,
-                        onUnterwegs = if (labor) ({}) else null,
+                        shareStatus = when (run) {
+                            Run.IDLE -> idleStatus
+                            Run.UNTERWEGS -> unterwegsStatus
+                            else -> runningStatus
+                        },
+                        // 0.9.4.6: «Unterwegs messen» in both editions with the map (MeasureScreen: LoudAlerts.AVAILABLE).
+                        onUnterwegs = {},
+                        // Labor's EditionUi.RecordingNote draws exactly this line while audio is stored (it needs the app
+                        // container itself); the public editions never draw it.
+                        recordingNote = { if (run == Run.WINDOW_RECORDING) AudioNoteLine("Audio wird gespeichert") },
                     )
                 }
             }
         }
 
-    @Test fun idle() = render("idle", dark = false, running = false)
-    @Test fun idleDark() = render("idle-dark", dark = true, running = false)
-    @Test fun running() = render("running", dark = false, running = true)
-    @Test fun runningDark() = render("running-dark", dark = true, running = true)
+    @Test fun idle() = render("idle", dark = false, run = Run.IDLE)
+    @Test fun idleDark() = render("idle-dark", dark = true, run = Run.IDLE)
+    @Test fun running() = render("running", dark = false, run = Run.WINDOW)
+    @Test fun runningDark() = render("running-dark", dark = true, run = Run.WINDOW)
+    @Test fun runningUnterwegs() = render("running-unterwegs", dark = false, run = Run.UNTERWEGS)
+    @Test fun runningUnterwegsDark() = render("running-unterwegs-dark", dark = true, run = Run.UNTERWEGS)
+    // Labor·Karte only: the window run while «Audio speichern» stores audio (the one Labor line on «Messen»).
+    @Test fun runningRecording() { if (labor) render("running-audio", dark = false, run = Run.WINDOW_RECORDING) }
 }
 
 /** The owner's phone, approximately (412 × 915 dp), font 1.0. */

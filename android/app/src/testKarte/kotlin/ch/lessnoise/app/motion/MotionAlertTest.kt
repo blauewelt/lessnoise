@@ -8,9 +8,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * 0.6.7: the «Sehr laut» alert while the motion detector says MOVING in a window measurement. Since
- * 0.8.4 the alert exists in Labor·Karte only (src/laborKarte), so this part of MotionDetectorTest
- * moved here (src/testLaborKarte).
+ * 0.6.7: the «Sehr laut» alert while the motion detector says MOVING in a window measurement. 0.8.4–0.9.4.5 the
+ * alert existed in Labor·Karte only (src/laborKarte, this test in src/testLaborKarte); 0.9.4.6 in both editions
+ * with the map again (src/karte, this test in src/testKarte).
  */
 class MotionAlertTest {
     private fun ev(db: Double = 84.0) = LiveEvent(
@@ -30,7 +30,7 @@ class MotionAlertTest {
         assertFalse(alerts(unterwegs = false, moving = true, last = 10_000L - 60_000L))
         assertTrue(alerts(unterwegs = false, moving = true, last = 10_000L - 120_000L))
         // The watcher passes the live state's «moving».
-        val watcher = File(repo(), "android/app/src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
+        val watcher = File(repo(), "android/app/src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText()
         assertTrue(watcher.contains("LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)"))
         // The service starts the watch only for «Messen», and stops it with the measurement.
         val service = File(repo(), "android/app/src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt").readText()
@@ -41,8 +41,9 @@ class MotionAlertTest {
         assertTrue(watch.contains("if (it.running && !it.unterwegs) it.copy(moving = combiner.moving) else it"))
         assertTrue(watch.contains("registerListener(listener, sensor, SAMPLING_PERIOD_US, MAX_REPORT_LATENCY_US, handler)"))
         assertTrue(watch.contains("Sensor.TYPE_ACCELEROMETER"))
-        // 0.6.9: the position signal is behind PositionWatch (src/laborKarte; stand-in in the Online-Version);
+        // 0.6.9: the position signal is behind PositionWatch (0.9.4.6: the src/noposition stand-in in both editions);
         // the watch itself reads no location and sees no coordinate.
+        assertFalse(ch.lessnoise.app.position.PositionWatch.AVAILABLE)
         for (bad in listOf("LocationManager", "android.location", "latitude", "longitude", "TYPE_SIGNIFICANT_MOTION", "ActivityRecognition", "gms", "UploadModule", "upload.")) {
             assertFalse(watch.contains(bad), bad)
         }

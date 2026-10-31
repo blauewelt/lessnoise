@@ -96,9 +96,9 @@ fun MeasureScreen(
     val scope = rememberCoroutineScope()
     // Karten editions: «Auf die Lärmkarte?» once, and the fix while measuring (ShareFlow.kt, 0.6.3).
     val share = LocalShareController.current
-    // «Unterwegs» (0.6.4): a measurement that shares nothing, with the «Sehr laut» notification. Since
-    // 0.8.4 Labor·Karte only (LoudAlerts.AVAILABLE; the button «Unterwegs aufnehmen»); the Online-Version
-    // has no measurement on the road (0.8.3's mode switch is gone): measuring means the window.
+    // «Unterwegs messen» (0.6.4 «Unterwegs»): a measurement that shares nothing, with the «Sehr laut»
+    // notification. 0.9.4.6: in both editions with the map (LoudAlerts.AVAILABLE; 0.8.4–0.9.4.5 Labor·Karte's
+    // «Unterwegs aufnehmen» only); the Offline and Labor builds have no measurement on the road.
     val askUnterwegs = LoudAlerts.rememberUnterwegsPermission()
     var pendingUnterwegs by remember { mutableStateOf(false) }
     fun startMeasurement(unterwegs: Boolean) {
@@ -133,7 +133,7 @@ fun MeasureScreen(
         live = live, events = events, calibrating = calibrating, modifier = modifier,
         noiseFloor = noiseFloor,
         categoryName = { categoryName(context, it) },
-        // «Messung starten»: the window measurement (shared if sharing is on), as «Messen» always did.
+        // «Langzeitmessung starten»: the window measurement (shared if sharing is on), as «Messen» always did.
         onStart = { onStart(unterwegs = false) },
         onStop = { MeasurementService.stop(context) },
         onReport = report,
@@ -141,9 +141,11 @@ fun MeasureScreen(
         eventMarker = { EditionUi.EventMarker(it) },
         shareStatus = status,
         onShareStatus = { a -> handleShareAction(a, share, onOpen) },
-        // Labor·Karte only: «Unterwegs aufnehmen» starts with EXTRA_UNTERWEGS, as 0.8.3's «Unterwegs» did.
+        // 0.9.4.6, editions with the map: «Unterwegs messen» starts with EXTRA_UNTERWEGS (0.8.4–0.9.4.5 Labor·Karte's
+        // «Unterwegs aufnehmen»).
         onUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,
         storageNotice = { EditionUi.StorageNotice() },
+        recordingNote = { EditionUi.RecordingNote() },
     )
 }
 
@@ -260,14 +262,15 @@ fun StatusChip(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modi
  * «Messen» without the app container (also rendered on the JVM for the screenshots). Since 0.8.4 no
  * mode switch. Idle ([IdleMeasure], 0.8.7): the title, the app's logo with its name, one line and the
  * status chip in the middle of the free space, the actions at the bottom within thumb reach — editions
- * with the map ([onReport] set): the big «Laut! Melden» ([BigReportButton], 0.9.4.4) with its line,
- * «Langzeitmessung starten» (tonal) with one line, (Labor·Karte, [onUnterwegs] set) «Unterwegs
- * aufnehmen» (outlined) with its Labor line, «Mehr dazu» (a bottom sheet). Without reports (Offline,
- * Labor): «Langzeitmessung starten» filled, the 0.9.0 layout. While measuring, editions with reports
- * (0.9.4.4, owner: «the main UI flow is to report someone»; until 0.9.4.3 no «Laut! Melden» here): the
- * compact level card ([CompactLevelCard]), the big «Laut! Melden» with its line, «Stoppen» (outlined,
- * error colour), «Läuft seit …», the status chip, the last Lärmspitzen. Without reports: the 0.9.0 level
- * card and «Stoppen» filled in the error colour.
+ * with the map ([onReport] set), 0.9.4.6 the three ways: the big «Laut! Melden» ([BigReportButton], 0.9.4.4)
+ * with its line, «Langzeitmessung starten» (tonal) with one line, «Unterwegs messen» ([onUnterwegs],
+ * outlined, the minor way) with one line, «Mehr dazu» (a bottom sheet). Without reports (Offline, Labor):
+ * «Langzeitmessung starten» filled, the 0.9.0 layout. While measuring, editions with reports (0.9.4.4,
+ * owner: «the main UI flow is to report someone»; until 0.9.4.3 no «Laut! Melden» here): the compact level
+ * card ([CompactLevelCard]), the big «Laut! Melden» with its line, «Stoppen» (outlined, error colour),
+ * «Läuft seit …» (0.9.4.6, an «unterwegs» run: «Unterwegs seit … · Mitteilung bei sehr lauten Fahrzeugen.»),
+ * the status chip, the last Lärmspitzen. Without reports: the 0.9.0 level card and «Stoppen» filled in the
+ * error colour.
  */
 @Composable
 fun MeasureContent(
@@ -283,12 +286,14 @@ fun MeasureContent(
     eventMarker: @Composable (Long) -> Unit = {},
     shareStatus: ShareStatus? = null,
     onShareStatus: (ShareAction) -> Unit = {},
-    /** 0.8.4, Labor·Karte only: «Unterwegs aufnehmen» (EXTRA_UNTERWEGS); null: no such button (every other edition). */
+    /** 0.9.4.6, editions with the map: «Unterwegs messen» (EXTRA_UNTERWEGS); null: no such button (Offline, Labor). */
     onUnterwegs: (() -> Unit)? = null,
     /** 0.6.5: the phone's noise floor; «Grundrauschen» shows «≤ …» at it. Null: no floor yet. */
     noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
     /** 0.7.5, Labor editions: the red storage line («Speicher fast voll …»); nothing in the public editions. */
     storageNotice: @Composable () -> Unit = {},
+    /** 0.9.4.6, Labor editions: «Audio wird gespeichert» while the recorder stores audio; nothing in the public editions. */
+    recordingNote: @Composable () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
 
@@ -370,7 +375,10 @@ fun MeasureContent(
                         )
                     }
                     Spacer(Modifier.height(4.dp))
-                    HelperText(runningLine(Fmt.hm(live.startedAtMs)))
+                    // 0.9.4.6: an «unterwegs» run says plainly that it is the road mode with the notification on.
+                    HelperText(if (live.unterwegs) unterwegsLine(Fmt.hm(live.startedAtMs)) else runningLine(Fmt.hm(live.startedAtMs)))
+                    // 0.9.4.6, Labor editions: «Audio wird gespeichert» while audio is stored (nothing elsewhere).
+                    recordingNote()
                     // 0.7.2: which microphone, unless it is the plain default (built-in, nothing chosen).
                     microphoneNote(live)?.let { HelperText(it) }
                     storageNotice()
@@ -378,8 +386,6 @@ fun MeasureContent(
                         Spacer(Modifier.height(16.dp))
                         StatusChip(it, onShareStatus)
                     }
-                    // 0.6.9, Labor·Karte only (null elsewhere): motion value, distance from the start, state.
-                    live.unterwegsReadout?.let { Text(it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp)) }
                     live.error?.let { Text(it, color = cs.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp)) }
                 }
             }
@@ -412,6 +418,21 @@ private fun LevelCard(live: LiveState, noiseFloor: ch.lessnoise.dsp.NoiseFloor.L
             Text("Klingt nach", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             CategoryChip(live.dominantCategory, categoryName(live.dominantCategory))
         }
+    }
+}
+
+/**
+ * 0.9.4.6, Labor builds only (EditionUi.RecordingNote, src/labor): the one small line on the running «Messen» while
+ * audio is stored, e.g. «Audio wird gespeichert», after a dot in the error colour (the usual «recording» sign).
+ * Stateless, so the JVM renders draw it too; the public editions never call it.
+ */
+@Composable
+fun AudioNoteLine(text: String) {
+    val cs = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(cs.error))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
     }
 }
 
@@ -581,7 +602,8 @@ fun IdleMeasure(
                 }
                 Spacer(Modifier.height(STACK_HINT_GAP))
                 StackHint(START_HINT)
-                // Labor·Karte only: the road recording, to compare the «Sehr laut» prompt with manual taps.
+                // 0.9.4.6, editions with the map: the minor third way, on the road with the microphone on (the
+                // «Sehr laut» notification). Outlined and last, so it stays below the other two.
                 if (onUnterwegs != null) {
                     Spacer(Modifier.height(STACK_GROUP_GAP))
                     OutlinedButton(onClick = onUnterwegs, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT)) {
@@ -590,7 +612,7 @@ fun IdleMeasure(
                         Text(UNTERWEGS_BUTTON, style = stackButtonLabel())
                     }
                     Spacer(Modifier.height(STACK_HINT_GAP))
-                    StackHint(UNTERWEGS_LABOR_HINT)
+                    StackHint(UNTERWEGS_HINT)
                 }
                 if (calibrating) HelperText("Erst nach dem Kalibrieren möglich.", Modifier.padding(top = 4.dp))
                 storageNotice()
@@ -613,7 +635,7 @@ fun IdleMeasure(
     }
     if (more) {
         ModalBottomSheet(onDismissRequest = { more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            MoreSheetContent()
+            MoreSheetContent(threeWays = onUnterwegs != null)
         }
     }
 }
@@ -622,15 +644,20 @@ fun IdleMeasure(
 const val IDLE_WEIGHT_ABOVE = 1f
 const val IDLE_WEIGHT_BELOW = 1.2f
 
-/** 0.8.7: the content of the «Mehr dazu» bottom sheet (the texts that folded out under the buttons until 0.8.6). */
+/**
+ * 0.8.7: the content of the «Mehr dazu» bottom sheet (the texts that folded out under the buttons until 0.8.6).
+ * 0.9.4.6: [threeWays] (editions with the map): the three ways, one short sentence each ([THREE_WAYS]),
+ * instead of the placement hint; then the microphone line and the guide link as before.
+ */
 @Composable
-fun MoreSheetContent() {
+fun MoreSheetContent(threeWays: Boolean = LoudAlerts.AVAILABLE) {
     Column(
         Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(MORE_LABEL, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
+        if (threeWays) THREE_WAYS.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        else Text(PLACEMENT_HINT, style = MaterialTheme.typography.bodyMedium)
         Text(EditionUi.MIC_LINE, style = MaterialTheme.typography.bodyMedium)
         MoreLink(Links.MEASURE, GUIDE_LINK)
     }

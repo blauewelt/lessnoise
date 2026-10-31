@@ -44,8 +44,8 @@ class LessNoiseApp : Application() {
         // Started off the main thread (the token is read through the Android Keystore).
         if (BuildConfig.UPLOAD_AVAILABLE) {
             container.appScope.launch { container.upload.start(container.appScope, container.live, container.recalibrator) }
-            // «Unterwegs» (0.6.3): the «Sehr laut» notification; since 0.8.4 only Labor·Karte has it
-            // (src/laborKarte); the stand-ins in src/nounterwegs (Online-Version) and src/nomap do nothing.
+            // «Unterwegs messen» (0.6.3): the «Sehr laut» notification, both editions with the map (src/karte;
+            // 0.8.4–0.9.4.5 Labor·Karte only); the stand-in in src/nomap (Offline, Labor) does nothing.
             ch.lessnoise.app.ui.LoudAlerts.start(this, container)
         } else {
             // An edition without upload installed over one with sharing on (Offline-Version over
@@ -90,7 +90,7 @@ class AppContainer(context: Context) {
             // 0.6.7 («Unterwegs erkannt», editions with the map): while a «Messen» measurement runs,
             // its newest records wait until the motion detector could have marked them as moving.
             val l = live.value
-            // 0.6.9 (Labor·Karte): longer while the position signal could still decide that the phone left.
+            // 0.6.9: longer while the position signal could still decide that the phone left (0.9.4.6: no edition has it, 0).
             if (ch.lessnoise.app.motion.MotionWatch.AVAILABLE && l.running && !l.unterwegs) {
                 maxOf(ch.lessnoise.app.upload.Uploader.MOTION_HOLD_MS, ch.lessnoise.app.motion.MotionWatch.extraHoldMs(System.currentTimeMillis()))
             } else 0L

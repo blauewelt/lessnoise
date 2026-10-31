@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 50
-        versionName = "0.9.4.5"
+        versionCode = 51
+        versionName = "0.9.4.6"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -60,14 +60,9 @@ android {
         // below). Shown in Einstellungen → Über die App; the two published editions send it to
         // update.html as #…&e=<edition> (EditionInfo.updateEdition).
         buildConfigField("String", "EDITION", "\"karte\"")
-        // 0.6.9 Labor iteration of «unterwegs» (true only in laborKarte, the owner's test phone): the
-        // «Melden» button on the measurement notification in every state, the motion detector's
-        // thresholds for trams and trains, and the position as a second signal (src/laborKarte/kotlin).
-        // The Online-Version keeps the 0.6.8 behaviour until this is released there.
-        // 0.8.4: «Unterwegs aufnehmen» and the «Sehr laut» notification are Labor·Karte-only code
-        // (src/laborKarte/kotlin/…/alert, …/ui/LoudAlerts.kt); the Online-Version has no measurement on
-        // the road at all (src/nounterwegs stand-in), so this flag no longer gates anything public.
-        buildConfigField("boolean", "LABOR_UNTERWEGS", "false")
+        // 0.9.4.6: the flag LABOR_UNTERWEGS (0.6.9–0.9.4.5, true only in laborKarte: the position signal, the
+        // Labor motion thresholds, the readout line) is gone. Both editions with the map compile the same
+        // «Unterwegs messen» and «Sehr laut» code (src/karte) and behave the same.
     }
 
     signingConfigs {
@@ -105,6 +100,9 @@ android {
     //            Labor install and keeps its measurements and recordings. Audio is never uploaded:
     //            the upload code is the Karte edition's (src/main/.../upload/), which reads only the
     //            Room tables; UploadSourceIsolationTest fails if it touches files or the Labor code.
+    //            0.9.4.6 (owner: «like the production version, plus the one thing where the audio gets
+    //            saved»): the Online-Version's code (src/karte, src/noposition) plus src/labor, whose
+    //            visible part is one switch «Audio speichern» in «Einstellungen».
     flavorDimensions += "edition"
     productFlavors {
         create("offline") {
@@ -134,7 +132,6 @@ android {
             versionNameSuffix = "-labor-karte"
             // UPLOAD_AVAILABLE stays true (defaultConfig): «Messwerte teilen», off until switched on.
             buildConfigField("String", "EDITION", "\"labor-karte\"")
-            buildConfigField("boolean", "LABOR_UNTERWEGS", "true")
         }
     }
 
@@ -152,26 +149,29 @@ android {
         // 0.8.4: src/karte/res (the widget «Laut! Melden», the shortcut's icon and labels) goes with
         // src/karte/kotlin into both editions with the map; each has its own res/xml/shortcuts.xml
         // (the shortcut's targetPackage is the literal application id).
+        // 0.9.4.6: src/karte also holds «Unterwegs messen» and the «Sehr laut» notification (alert/ and the real
+        // ui/LoudAlerts.kt; 0.8.4–0.9.4.5 in src/laborKarte only, with the stand-in src/nounterwegs in public), so
+        // the Online-Version and Labor·Karte compile the same code. The Offline and Labor builds keep the
+        // src/nomap stand-in (no alerts, no reports).
         named("public") {
             kotlin.srcDir("src/karte/kotlin")
             res.srcDir("src/karte/res")
-            // 0.6.9: the stand-in of the position signal, which only laborKarte has (src/laborKarte/kotlin);
-            // the editions without the map never reach it (their MotionWatch is the src/nomap stand-in).
+            // 0.6.9: the stand-in of the position signal (it reads nothing, adds no service type). 0.9.4.6: in
+            // laborKarte too; the real signal (src/laborKarte/…/position, 0.6.9–0.9.4.5) is gone.
             kotlin.srcDir("src/noposition/kotlin")
-            // 0.8.4: the stand-in of «Unterwegs» / «Sehr laut» (ui/LoudAlerts.kt): no measurement on the
-            // road in the Online-Version; the real facade and alert/ are in src/laborKarte/kotlin.
-            kotlin.srcDir("src/nounterwegs/kotlin")
         }
         named("labor") {
             kotlin.srcDir("src/nomap/kotlin")
         }
         // laborKarte compiles the Labor edition's Kotlin and resources (recorder, clip player, red
-        // icon, «Stadtlärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
+        // icon, «Weniger Lärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
         // Its own manifest is src/laborKarte/AndroidManifest.xml. The Labor JVM tests run too.
         // src/labor/ has no other folders (no assets, java, resources); add them here if it gets any.
+        // 0.9.4.6: besides that and its manifest the Online-Version's sources (src/karte, src/noposition).
         named("laborKarte") {
             kotlin.srcDir("src/labor/kotlin")
             kotlin.srcDir("src/karte/kotlin")
+            kotlin.srcDir("src/noposition/kotlin")
             res.srcDir("src/labor/res")
             res.srcDir("src/karte/res")
         }
@@ -179,9 +179,9 @@ android {
             kotlin.srcDir("src/testLabor/kotlin")
             kotlin.srcDir("src/testKarte/kotlin")
         }
-        // JVM tests of src/karte (map, compass, motion detector, 0.8.4 shortcut and widget), run for both
-        // editions with the map. Since 0.8.4 the «Sehr laut» / «Unterwegs» tests (LoudAlertTest,
-        // ReportTapTest, MotionAlertTest) are in src/testLaborKarte, with the code they test.
+        // JVM tests of src/karte (map, compass, motion detector, 0.8.4 shortcut and widget, 0.9.4.6 again the
+        // «Sehr laut» / «Unterwegs messen» tests LoudAlertTest, ReportTapTest, MotionAlertTest), run for both
+        // editions with the map.
         named("testPublic") {
             kotlin.srcDir("src/testKarte/kotlin")
         }

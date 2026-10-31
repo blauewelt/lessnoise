@@ -27,6 +27,12 @@ object TaskRemovedPolicy {
 /** Texts of the foreground notification shown while measuring. */
 object MeasurementNotification {
     const val TITLE = "Mikrofon aktiv – Messung läuft"
+
+    /** 0.9.4.6: the title during an «unterwegs» run («Unterwegs messen»); window runs keep [TITLE]. */
+    const val TITLE_UNTERWEGS = "Mikrofon aktiv – unterwegs"
+
+    /** The title for a run started as «unterwegs» ([unterwegs]) or at the window. */
+    fun title(unterwegs: Boolean): String = if (unterwegs) TITLE_UNTERWEGS else TITLE
     const val STARTING = "Messung startet …"
     const val NO_PERMISSION = "Mikrofon-Berechtigung fehlt"
     const val SILENCED = "Mikrofon stumm (z. B. Anruf) – zählt nicht"
@@ -53,7 +59,8 @@ object MeasurementNotification {
     fun showsMeasure(action: String?): Boolean = action == ACTION_SHOW_MEASURE
 
     /**
-     * Content text: the running 1-min LAeq as «Letzte Minute»; [note] is appended (Labor build).
+     * Content text: the running 1-min LAeq as «Letzte Minute»; [note] is appended (0.9.4.6, Labor builds:
+     * «Audio wird gespeichert» while the recorder stores audio, AudioTap.notificationNote).
      * [calibrated] is no longer shown (0.6.1: «Richtwerte» is said once, under Einstellungen › Datenschutz).
      */
     fun text(laeqDb: Double, @Suppress("UNUSED_PARAMETER") calibrated: Boolean, silenced: Boolean, note: String? = null): String {
@@ -63,13 +70,13 @@ object MeasurementNotification {
 }
 
 /**
- * 0.6.8, editions with the map: the measurement notification while the run is «unterwegs» — its
- * [text] («Antippen zum Melden») and the [intent] its tap fires («Laut! Melden»). Built by
- * ui/LoudAlerts.reportTap — since 0.8.4 the text and content tap only in Labor·Karte (src/laborKarte);
- * 0.9.4.4: the Online-Version (src/nounterwegs → ReportNow.notificationTap) has the «Melden» [button] during
- * every run, no text and no content tap; the Offline and the Labor builds never have one.
- * 0.6.9 (Labor·Karte): [text] null keeps the level text (posted every 2 s as usual), [intent] null
- * keeps the usual tap (open the app), [button] adds an action [buttonLabel] («Melden») next to «Stopp».
+ * Editions with the map: the measurement notification's report parts, built by ui/LoudAlerts.reportTap
+ * (src/karte, alert/ReportTap.forState). 0.9.4.6, both editions alike (the rule Labor·Karte had since 0.6.9):
+ * [button] adds an action [buttonLabel] («Melden») next to «Stopp» during every run; [intent] is the tap on the
+ * notification itself while the run is «unterwegs» (it opens «Laut! Melden»), null otherwise (the usual tap
+ * opens the app on «Messen»); [text] is null (the level text, posted every 2 s as usual). 0.6.8–0.8.3 a
+ * non-null [text] («Antippen zum Melden») replaced the level text while «unterwegs»; no edition uses that any
+ * more. The Offline and the Labor builds never have one.
  */
 class NotificationTap(
     val text: String?,

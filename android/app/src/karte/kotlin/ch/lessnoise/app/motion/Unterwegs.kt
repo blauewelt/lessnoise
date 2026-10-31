@@ -2,10 +2,11 @@ package ch.lessnoise.app.motion
 
 import kotlin.math.roundToInt
 
-// 0.6.9: the run's «unterwegs» state from two signals, and the numbers of the Labor·Karte readout and
-// minute log. Pure (no Android types), src/karte; tested in src/testKarte (MotionDetectorTest,
-// UnterwegsTest). In the Online-Version only the motion signal ever reports, so [UnterwegsCombiner]
-// gives exactly the 0.6.7 spans; [MinuteSummary] and [Readout] are used by Labor·Karte only.
+// 0.6.9: the run's «unterwegs» state from two signals, and the numbers of the Labor·Karte minute log.
+// Pure (no Android types), src/karte; tested in src/testKarte (MotionDetectorTest, UnterwegsTest). Since
+// 0.9.4.6 only the motion signal ever reports (no edition has the position signal), so [UnterwegsCombiner]
+// gives exactly the 0.6.7 spans; [MinuteSummary] is used by Labor·Karte's log only. (0.6.9–0.9.4.5 also the
+// readout line on «Messen», `Readout` and `RecentMotion`, removed in 0.9.4.6.)
 
 /**
  * «Unterwegs» = motion OR position (0.6.9). Each signal reports its own changes; the combined state
@@ -97,31 +98,9 @@ class MinuteSummary {
     }
 }
 
-/** Labor·Karte (0.6.9): the readout's motion value — the median of the last [n] seconds with enough samples. */
-class RecentMotion(private val n: Int = 10) {
-    private val last = ArrayDeque<Double>(n)
-
-    fun add(stdMs2: Double) {
-        if (stdMs2.isNaN()) return
-        if (last.size == n) last.removeFirst()
-        last.addLast(stdMs2)
-    }
-
-    val medianMs2: Double? get() = MinuteSummary.median(last.toList())
-}
-
-/** Distances shown and logged (0.6.9): rounded to 50 m, never a coordinate. */
+/** Distances logged (0.6.9): rounded to 50 m, never a coordinate. */
 object Distance {
     const val STEP_M = 50
 
     fun rounded(m: Double?): Int? = m?.takeUnless { it.isNaN() }?.let { (it / STEP_M).roundToInt() * STEP_M }
-}
-
-/** Labor·Karte (0.6.9): the readout line on «Messen», e.g. «Bewegung 0,12 m/s² · 400 m · unterwegs». */
-object Readout {
-    fun line(motionMs2: Double?, distanceM: Double?, moving: Boolean): String {
-        val m = motionMs2?.takeUnless { it.isNaN() }?.let { String.format(java.util.Locale.GERMANY, "%.2f m/s²", it) } ?: "– m/s²"
-        val d = Distance.rounded(distanceM)?.let { "$it m" } ?: "–"
-        return "Bewegung $m · $d · ${if (moving) "unterwegs" else "ruhig"}"
-    }
 }

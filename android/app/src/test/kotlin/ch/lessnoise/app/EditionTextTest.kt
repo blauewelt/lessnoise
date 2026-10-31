@@ -27,10 +27,11 @@ class EditionTextTest {
             assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
         } else if (BuildConfig.FLAVOR == "laborKarte") {
             // Labor with «Messwerte teilen»: must not claim «no internet», must say audio is never sent.
+            // 0.9.4.6: names the one switch «Audio speichern».
             assertEquals(
-                "Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
-                    "gespeichert werden, dazu ein Protokoll der Erkennung. " +
-                    "Nichts davon wird gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
+                "Weniger Lärm Labor: speichert Audio nur, wenn «Audio speichern» an ist – als Clips und Stundendateien auf diesem " +
+                    "Telefon, dazu ein Protokoll der Erkennung. " +
+                    "Es wird nie Audio gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
                 text,
             )
             assertFalse(text.contains("keine Internet-Berechtigung"), text)
@@ -66,7 +67,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.4.5-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.4.6-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -83,8 +84,10 @@ class EditionTextTest {
         // states, «Melden» in the measurement notification.
         // 0.9.4.5 (versionCode 50; Labor·Karte first, branch labor-0.9.1): only the place is required, direction can be
         // switched off, «Anzahl», Hupen · Baustelle · Gartengeräte · Bahn.
-        assertEquals(50, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.5"), BuildConfig.VERSION_NAME)
+        // 0.9.4.6 (versionCode 51; Labor·Karte first, branch labor-0.9.1): three ways to use the app («Unterwegs messen»);
+        // Labor = Online-Version + «Audio speichern».
+        assertEquals(51, BuildConfig.VERSION_CODE)
+        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.4.6"), BuildConfig.VERSION_NAME)
     }
 
     @Test

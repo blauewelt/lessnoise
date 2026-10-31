@@ -77,8 +77,8 @@ object LoudAlertWatcher {
                 if (e == null) return@collect
                 val now = System.currentTimeMillis()
                 val l = live.value
-                // «Unterwegs» is the mode of the running measurement (0.6.4), not a setting; since
-                // 0.6.7 also a «Messen» measurement while the phone is being carried (LiveState.moving).
+                // «Unterwegs» is the mode of the running measurement (0.6.4; «Unterwegs messen»), not a setting;
+                // since 0.6.7 also a window measurement while the phone is being carried (LiveState.moving).
                 if (LoudAlertRule.shouldAlert(e, LoudAlertRule.unterwegsNow(l.unterwegs, l.moving), l.running, lastAlertAtMs, now)) {
                     lastAlertAtMs = now
                     notifier.show(e)

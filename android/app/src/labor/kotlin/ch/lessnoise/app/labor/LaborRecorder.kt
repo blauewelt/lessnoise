@@ -133,6 +133,14 @@ class LaborRecorder(context: Context, private val settings: LaborSettings) : Aud
         )
     }
 
+    /**
+     * 0.9.4.6: « · Audio wird gespeichert» after the measurement notification's text while this recorder stores
+     * audio (read with every level post, every 2 s); null once it stopped, «Audio speichern» was switched off,
+     * the budget is used up, or it records neither clips nor hour files.
+     */
+    override val notificationNote: String?
+        get() = RecordingNote.text(active, audioOn, Labor.settings.value.recordAudio, settings.clips, settings.continuous)
+
     /** Status updates only while this is the newest session (an old one may still be finishing). */
     private fun status(f: (RecorderStatus) -> RecorderStatus) {
         if (Labor.currentSession == sessionId) Labor.status.update(f)

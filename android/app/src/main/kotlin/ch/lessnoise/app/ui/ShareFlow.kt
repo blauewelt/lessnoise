@@ -110,8 +110,8 @@ class ShareController internal constructor(
 
     /**
      * «Messen» (the microphone is allowed): the question once, then the measurement at once.
-     * [unterwegs] (0.6.4, the button «Unterwegs»): the measurement starts at once and is never
-     * shared — no question, no location, no point; only the «Sehr laut» notification and «Laut!
+     * [unterwegs] (0.6.4, the button «Unterwegs»; 0.9.4.6 «Unterwegs messen»): the measurement starts at once
+     * and is never shared — no question, no location, no point; only the «Sehr laut» notification and «Laut!
      * Melden» (its own consent) are possible.
      */
     fun start(unterwegs: Boolean = false) {

@@ -8,9 +8,10 @@ import kotlin.test.assertTrue
 
 /**
  * 0.8.4 (was MeasureModeTest, 0.8.3): «Messen» without a mode switch. «Laut! Melden» first while idle
- * (editions with the map), «Langzeitmessung starten» under it, one line; Labor·Karte's «Unterwegs aufnehmen»
- * as a third button (MeasureTexts.kt, MeasureScreen.kt). 0.9.4.4: «Laut! Melden» is the big main surface in
- * both states (BigReportButton), also while a measurement runs.
+ * (editions with the map), «Langzeitmessung starten» under it, one line; 0.9.4.6 «Unterwegs messen» as the third,
+ * minor button in both editions with the map (0.8.4–0.9.4.5 Labor·Karte's «Unterwegs aufnehmen»; MeasureTexts.kt,
+ * MeasureScreen.kt). 0.9.4.4: «Laut! Melden» is the big main surface in both states (BigReportButton), also while
+ * a measurement runs.
  */
 class MeasureTextsTest {
     private val app: File = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
@@ -27,10 +28,16 @@ class MeasureTextsTest {
         // 0.9.4.4: also under the button while measuring, so without «Unterwegs:».
         assertEquals("Lauten Verkehr sofort melden.", REPORT_HINT)
         assertTrue(REPORT_HINT.length <= 45 && START_HINT.length <= 45)
-        assertEquals("Unterwegs aufnehmen", UNTERWEGS_BUTTON)
-        assertEquals("Labor: nimmt Audio auf, teilt nichts.", UNTERWEGS_LABOR_HINT)
+        // 0.9.4.6: the third way (0.8.4–0.9.4.5 «Unterwegs aufnehmen» / «Labor: nimmt Audio auf, teilt nichts.»).
+        assertEquals("Unterwegs messen", UNTERWEGS_BUTTON)
+        assertEquals("Mikrofon an. Mitteilung, wenn ein Fahrzeug sehr laut ist.", UNTERWEGS_HINT)
         assertEquals("Läuft seit 18:30 · Bildschirm darf aus sein.", runningLine("18:30"))
-        for (t in listOf(START_HINT, REPORT_HINT, UNTERWEGS_LABOR_HINT, runningLine("18:30"), PLACEMENT_HINT, GUIDE_LINK)) {
+        // 0.9.4.6: an «unterwegs» run says plainly that it is the road mode with the notification on.
+        assertEquals("Unterwegs seit 18:30 · Mitteilung bei sehr lauten Fahrzeugen.", unterwegsLine("18:30"))
+        // «Mehr dazu» names the three ways in at most three short sentences (the brief: «at most three»).
+        assertEquals(3, THREE_WAYS.size)
+        assertTrue(THREE_WAYS[0].contains(START_BUTTON) && THREE_WAYS[1].contains(REPORT_BUTTON) && THREE_WAYS[2].contains(UNTERWEGS_BUTTON), THREE_WAYS.toString())
+        for (t in listOf(START_HINT, REPORT_HINT, UNTERWEGS_HINT, runningLine("18:30"), unterwegsLine("18:30"), PLACEMENT_HINT, GUIDE_LINK) + THREE_WAYS) {
             assertTrue(t.length <= 80, "one line: $t")
             assertFalse(t.contains('ß') || Regex("\\b(Sie|Ihre?n?)\\b").containsMatchIn(t), t)
         }
@@ -49,32 +56,32 @@ class MeasureTextsTest {
     @Test
     fun idleReportFirstThenStartTonal() {
         // Order in the idle branch: the big «Laut! Melden» (0.9.4.4: BigReportButton, 120 dp; was a 56 dp stacked
-        // button), then the tonal «Langzeitmessung starten», the line, Labor·Karte's outlined «Unterwegs aufnehmen»
-        // with its line. 0.8.6: the stacked buttons 56 dp (STACK_BUTTON_HEIGHT) with one label style (stackButtonLabel).
+        // button), then the tonal «Langzeitmessung starten», the line, the outlined «Unterwegs messen» (0.9.4.6, both
+        // editions with the map) with its line. 0.8.6: the stacked buttons 56 dp (STACK_BUTTON_HEIGHT) with one label style.
         val idle = screen.substring(screen.indexOf("// Editions with the map: «Laut! Melden» is the first action"))
         val report = idle.indexOf("BigReportButton(onClick = onReport, enabled = !live.starting)")
         val reportHint = idle.indexOf("StackHint(REPORT_HINT)")
         val tonal = idle.indexOf("FilledTonalButton(onClick = onStart")
         val hint = idle.indexOf("StackHint(START_HINT)")
         val road = idle.indexOf("Text(UNTERWEGS_BUTTON, style = stackButtonLabel())")
-        val roadHint = idle.indexOf("StackHint(UNTERWEGS_LABOR_HINT)")
+        val roadHint = idle.indexOf("StackHint(UNTERWEGS_HINT)")
         assertTrue(report in 0 until reportHint && reportHint < tonal && tonal < hint && hint < road && road < roadHint, "$report $reportHint $tonal $hint $road $roadHint")
         // 0.8.8: the same helper style for all three buttons, and the report line only where «Laut! Melden»
         // exists (inside `if (onReport != null)`). 0.9.0 (owner): centred over the full width (StackHint),
         // 8 dp under its button (was 4), 20 dp between the groups (was 16).
         assertTrue(idle.contains("BigReportButton(onClick = onReport, enabled = !live.starting)\n                    Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(REPORT_HINT)\n                    Spacer(Modifier.height(STACK_GROUP_GAP))"))
         assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                StackHint(START_HINT)"))
-        assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(UNTERWEGS_LABOR_HINT)"))
+        assertTrue(idle.contains("Spacer(Modifier.height(STACK_HINT_GAP))\n                    StackHint(UNTERWEGS_HINT)"))
         assertEquals(8, STACK_HINT_GAP.value.toInt())
         assertEquals(20, STACK_GROUP_GAP.value.toInt())
         assertTrue(screen.contains("HelperText(text, Modifier.fillMaxWidth(), textAlign = TextAlign.Center)"), "the helper lines are centred, full width")
-        assertFalse(Regex("""HelperText\((REPORT_HINT|START_HINT|UNTERWEGS_LABOR_HINT)""").containsMatchIn(screen), "every stack hint goes through StackHint")
+        assertFalse(Regex("""HelperText\((REPORT_HINT|START_HINT|UNTERWEGS_HINT)""").containsMatchIn(screen), "every stack hint goes through StackHint")
         assertTrue(idle.substring(idle.indexOf("if (onReport != null) {"), reportHint).contains("BigReportButton(onClick = onReport"))
         assertEquals(56, STACK_BUTTON_HEIGHT.value.toInt())
         // One height for every stacked button: no other height literal in the idle and running branches.
         val stack = screen.substring(screen.indexOf("// 0.8.6: one button height"), screen.indexOf("if (calibrating) HelperText("))
         assertFalse(Regex("""fillMaxWidth\(\)\.height\(\d+\.dp\)""").containsMatchIn(stack) || stack.contains("fontSize ="), "one height, one label style")
-        assertEquals(3, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Langzeitmessung starten (two variants), Unterwegs aufnehmen")
+        assertEquals(3, Regex("""height\(STACK_BUTTON_HEIGHT\)""").findAll(stack).count(), "Langzeitmessung starten (two variants), Unterwegs messen")
         // 0.8.7: «Stoppen» is in the running branch (MeasureContent), the idle stack in IdleMeasure; the same height.
         // 0.9.4.4: two variants (outlined with reports, filled without).
         val running = screen.substring(screen.indexOf("// Running: «Stoppen»"), screen.indexOf("item { SectionHeading(\"Letzte Lärmspitzen\") }"))
@@ -83,6 +90,10 @@ class MeasureTextsTest {
         // Without reports «Messung starten» stays the primary button.
         assertTrue(idle.contains("Button(onClick = onStart, enabled = startEnabled, modifier = Modifier.fillMaxWidth().height(STACK_BUTTON_HEIGHT), content = startContent)"))
         assertTrue(idle.contains("if (onUnterwegs != null) {\n                    Spacer(Modifier.height(STACK_GROUP_GAP))\n                    OutlinedButton(onClick = onUnterwegs"))
+        // 0.9.4.6: the minor way stays visually below the other two: outlined (not filled, not tonal), with the walk icon.
+        val third = idle.substring(idle.indexOf("if (onUnterwegs != null) {"), roadHint)
+        assertTrue(third.contains("OutlinedButton(onClick = onUnterwegs, enabled = startEnabled") && third.contains("Icon(AppIcons.Walk"))
+        assertFalse(third.contains("FilledTonalButton") || third.contains("Button(onClick = onUnterwegs"))
     }
 
     @Test
@@ -107,6 +118,11 @@ class MeasureTextsTest {
         assertTrue(stopBlock.contains("border = BorderStroke(1.dp, cs.error),"))
         assertTrue(stopBlock.contains("colors = ButtonDefaults.buttonColors(containerColor = cs.error, contentColor = cs.onError),"))
         assertTrue(content.contains("if (!live.running) {\n            IdleMeasure("))
+        // 0.9.4.6: the same layout for an «unterwegs» run; only its line differs, and the Labor builds' recording line.
+        assertTrue(stopBlock.contains("HelperText(if (live.unterwegs) unterwegsLine(Fmt.hm(live.startedAtMs)) else runningLine(Fmt.hm(live.startedAtMs)))"))
+        assertTrue(stopBlock.indexOf("unterwegsLine(") < stopBlock.indexOf("recordingNote()"))
+        assertTrue(screen.contains("recordingNote = { EditionUi.RecordingNote() },"))
+        assertFalse(screen.contains("unterwegsReadout"), "0.9.4.6: no Labor readout line")
         assertTrue(screen.contains("preset = reportPreset, onPresetUsed = onReportPresetUsed,"))
         // The big button: 120 dp, the megaphone 40 dp above the label (headlineSmall), the full width.
         assertEquals(120, BIG_REPORT_HEIGHT.value.toInt())
@@ -122,9 +138,10 @@ class MeasureTextsTest {
     }
 
     @Test
-    fun startingIsTheWindowExceptLaborKartesUnterwegsButton() {
-        // «Messung starten» is the window measurement; only the Labor·Karte button starts with EXTRA_UNTERWEGS
-        // (ShareController.start(true) / MeasurementService.start(unterwegs = true)) and asks for notifications.
+    fun startingIsTheWindowExceptUnterwegsMessen() {
+        // «Langzeitmessung starten» is the window measurement; only «Unterwegs messen» (0.9.4.6 both editions with the
+        // map) starts with EXTRA_UNTERWEGS (ShareController.start(true) / MeasurementService.start(unterwegs = true))
+        // and asks for the notification permission (Android 13+, LoudAlerts.rememberUnterwegsPermission).
         assertTrue(screen.contains("onStart = { onStart(unterwegs = false) },"))
         assertTrue(screen.contains("onUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,"))
         assertTrue(screen.contains("val road = unterwegs && LoudAlerts.AVAILABLE"))

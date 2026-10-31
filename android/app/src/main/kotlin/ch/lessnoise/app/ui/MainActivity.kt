@@ -46,8 +46,8 @@ import ch.lessnoise.chart.LessNoiseTheme
 class MainActivity : ComponentActivity() {
     // «Laut! Melden» opened from outside the app (always null in the Offline and Labor builds): since
     // 0.8.4 the app shortcut and the home-screen widget (editions with the map, src/karte/…/report/):
-    // the time of the tap (now), nothing preselected. Labor·Karte also: the «Sehr laut» notification
-    // (the event's time and suggested categories) and the notification's «Melden» (the time of the tap).
+    // the time of the tap (now), nothing preselected. Also (0.9.4.6 both editions with the map): the «Sehr
+    // laut» notification (the event's time and suggested categories) and the notification's «Melden» (the time of the tap).
     // Read in onCreate (a cold start from the shortcut or the widget) and in onNewIntent (app open).
     private var alertPreset by mutableStateOf<ReportPreset?>(null)
     // 0.9.4.4: the measurement notification's own tap (MeasurementNotification.ACTION_SHOW_MEASURE): «Messen»
@@ -163,7 +163,7 @@ fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {
     var mapOpened by remember { mutableStateOf(false) }
     SideEffect { if (current == Screen.MAP) mapOpened = true }
     Scaffold(
-        // Public: emits nothing (same as Scaffold's default). Labor: the red warning banner.
+        // Emits nothing in every edition (0.9.4.6; until 0.9.4.5 the Labor builds' red warning banner).
         topBar = { EditionUi.Banner() },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = { AppBottomBar(screens, screens.indexOf(current)) { i -> open(screens[i]) } },

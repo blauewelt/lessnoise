@@ -119,12 +119,14 @@ object StoragePolicy {
     /** The red line for [level], or null for [Level.NONE]. */
     fun message(usedBytes: Long, maxBytes: Long, recordAudio: Boolean): String? = when (level(usedBytes, maxBytes, recordAudio)) {
         Level.NONE -> null
+        // 0.9.4.6: without «Limit erhöhen» (the «Maximaler Speicher» buttons are gone from the card); «Audio
+        // speichern» is the switch's new name.
         Level.WARN ->
             "Speicher fast voll: ${mbLabel(freeBytes(usedBytes, maxBytes))} frei von ${gbLabel(maxBytes)} – Aufnahme würde bald stoppen. " +
-                "Exportieren und löschen, oder Limit erhöhen."
+                "Exportieren und löschen."
         Level.BLOCK ->
             "Speicher voll: ${mbLabel(freeBytes(usedBytes, maxBytes))} frei von ${gbLabel(maxBytes)} – Messen startet nicht ohne Platz für die Aufnahme. " +
-                "Exportieren und löschen, Limit erhöhen oder Aufnahme ausschalten."
+                "Exportieren und löschen oder «Audio speichern» ausschalten."
     }
 
     fun mbLabel(bytes: Long): String = "${(bytes + 500_000L) / 1_000_000L} MB"

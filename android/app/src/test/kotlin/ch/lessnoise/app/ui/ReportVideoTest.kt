@@ -194,8 +194,10 @@ class ReportVideoTest {
         }
         assertFalse(Regex("""\bIntent\(""").containsMatchIn(videos), "builds no intent of its own (only the contract's)")
         // The copy: Labor editions only; first video + first audio track, orientation carried, never a location, no codec.
+        // 0.9.4.6: switched off there too (AVAILABLE false, the photo as in the Online-Version); the code stays.
         val labor = KotlinSource.parse(File(app, "src/labor/kotlin/ch/lessnoise/app/edition/ReportVideoEdition.kt").readText()).code
-        assertTrue(labor.contains("const val AVAILABLE = true"))
+        assertTrue(labor.contains("const val AVAILABLE = false"))
+        assertFalse(ReportVideos.enabled, "no edition offers the video in «Laut! Melden» (0.9.4.6)")
         assertTrue(labor.contains("ReportVideos.tracksToCopy(formats.map { it.getString(MediaFormat.KEY_MIME) })"))
         assertTrue(labor.contains("MediaMuxer(dst.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)"))
         assertTrue(labor.contains("m.setOrientationHint(ReportVideos.orientationHint(rotation))"))
@@ -204,7 +206,7 @@ class ReportVideoTest {
         val public = KotlinSource.parse(File(app, "src/public/kotlin/ch/lessnoise/app/edition/ReportVideoEdition.kt").readText()).code
         assertTrue(public.contains("const val AVAILABLE = false") && public.contains("fun strip(src: File, dst: File): Boolean = false"))
         // No MP4 writer in what the published editions compile (src/main, src/public, src/karte, src/nomap …).
-        val published = listOf("main", "public", "karte", "nomap", "noposition", "nounterwegs").flatMap { d ->
+        val published = listOf("main", "public", "karte", "nomap", "noposition").flatMap { d ->
             File(app, "src/$d").walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
         }
         assertTrue(published.size > 30)
@@ -218,7 +220,8 @@ class ReportVideoTest {
         val level = File(app, "src/main/kotlin/ch/lessnoise/app/ui/ReportLevel.kt").readText()
         assertTrue(level.contains("val onScreen = lifecycle.isAtLeast(Lifecycle.State.STARTED)"))
         assertTrue(level.contains("DisposableEffect(measuring, micAllowed, onScreen) {\n        if (measuring || !micAllowed || !onScreen) return@DisposableEffect onDispose {}"))
-        // «Meldungen»: a video plays, a photo shows; «Video löschen» deletes the video alone.
+        // «Meldungen»: a video plays, a photo shows; «Video löschen» deletes the video alone. 0.9.4.6: by the file's name, not
+        // by the edition's flag, so the videos kept with 0.9.4.3–0.9.4.5 reports still show and play.
         val share = File(app, "src/main/kotlin/ch/lessnoise/app/ui/ShareScreen.kt").readText()
         assertTrue(share.contains("if (ReportPhotos.isVideo(file.name)) ReportVideoViewer(file, muted = measuring, onDelete = delete, onDismiss = { viewing = null })"))
         assertTrue(share.contains("ReportPhotos.deleteSentMedia(context, context.container.upload.reports, v.epochMs, name)"))

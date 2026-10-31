@@ -9,29 +9,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ch.lessnoise.app.BuildConfig
@@ -59,14 +44,11 @@ import ch.lessnoise.app.container
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.labor.ClipLibrary
 import ch.lessnoise.app.labor.ClipPlayerSheet
-import ch.lessnoise.app.labor.ClipRateSampler
 import ch.lessnoise.app.labor.ClipsListDialog
 import ch.lessnoise.app.labor.ExportEstimate
-import ch.lessnoise.app.labor.ExportJobPanel
 import ch.lessnoise.app.labor.ExportJobState
 import ch.lessnoise.app.labor.ExportRequest
 import ch.lessnoise.app.labor.ExportScope
-import ch.lessnoise.app.labor.ExportScopeControls
 import ch.lessnoise.app.labor.ExportScopes
 import ch.lessnoise.app.labor.ExportSource
 import ch.lessnoise.app.labor.ExportTarget
@@ -80,16 +62,16 @@ import ch.lessnoise.app.labor.LaborZipShare
 import ch.lessnoise.app.labor.Labor
 import ch.lessnoise.app.labor.ManifestFile
 import ch.lessnoise.app.labor.ManifestLines
+import ch.lessnoise.app.labor.LaborCardContent
+import ch.lessnoise.app.labor.LaborCardTexts
 import ch.lessnoise.app.labor.LaborDirs
+import ch.lessnoise.app.labor.LaborExportBlock
 import ch.lessnoise.app.labor.LaborPlayer
 import ch.lessnoise.app.labor.LaborRecorder
 import ch.lessnoise.app.labor.RecorderStatus
-import ch.lessnoise.app.labor.StorageBudget
 import ch.lessnoise.app.labor.StoragePolicy
 import ch.lessnoise.app.labor.toastClipNotFound
-import ch.lessnoise.app.ui.SectionCard
-import ch.lessnoise.app.ui.StatRow
-import ch.lessnoise.app.ui.SwissLocale
+import ch.lessnoise.app.ui.AudioNoteLine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -103,10 +85,13 @@ import java.time.ZoneId
 // classifier. Never published on the website. See PRIVACY.md → «Labor-Build».
 // Compiled into two flavours: `labor` (no internet) and `laborKarte` (internal: the same plus the
 // opt-in «Messwerte teilen», BuildConfig.UPLOAD_AVAILABLE = true). The texts below branch on that.
+// 0.9.4.6 (owner: «like the production version, plus the one thing you can turn on where the audio gets
+// saved»): what the owner sees of it is one card «Labor» with one switch «Audio speichern» (SettingsSection),
+// the line «Audio wird gespeichert» while it records (RecordingNote; also in the notification), the storage
+// notice while recording, and the clip dots/player where clips exist. No red banner any more.
 
 private val LaborRed = Color(0xFFB3261E)
 
-/** Labor: the recorder if «Audio während der Messung aufzeichnen» is on, else nothing. */
 /**
  * Local diagnostics of the Labor builds (0.6.7). Labor·Karte: each change of the motion detector
  * («Unterwegs erkannt», src/karte/.../motion/) as one `motion` line in manifest.jsonl, so the owner can
@@ -114,6 +99,9 @@ private val LaborRed = Color(0xFFB3261E)
  * calls it. Written on the caller's thread (the motion thread), a few lines per measurement.
  */
 object EditionDiagnostics {
+    /** 0.9.4.6: the Labor builds write them (Labor·Karte: the motion watch's `motion` and `motion_minute` lines). */
+    const val ENABLED = true
+
     fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) {
         try {
             val line = ManifestLines.motion(
@@ -185,6 +173,7 @@ object EditionEventHead {
     }
 }
 
+/** Labor: the recorder if «Audio speichern» is on, else nothing (no audio, no classifier log, no manifest of the session). */
 object AudioTapProvider {
     fun create(context: Context): AudioTap {
         Labor.init(context)
@@ -228,23 +217,18 @@ object EditionUi {
     /**
      * First line of Einstellungen › «Datenschutz»: what this edition does with audio. The public
      * text («Es wird nie Audio gespeichert oder gesendet.») would be false here. The internet line
-     * that follows it comes from the shared card (BuildConfig.UPLOAD_AVAILABLE).
+     * that follows it comes from the shared card (BuildConfig.UPLOAD_AVAILABLE). 0.9.4.6: names the one switch.
      */
     val ABOUT_AUDIO: String =
-        "Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
-            "gespeichert werden, dazu ein Protokoll der Erkennung. " +
+        "Weniger Lärm Labor: speichert Audio nur, wenn «Audio speichern» an ist – als Clips und Stundendateien auf diesem " +
+            "Telefon, dazu ein Protokoll der Erkennung. " +
             if (BuildConfig.UPLOAD_AVAILABLE)
-                "Nichts davon wird gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
+                "Es wird nie Audio gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle."
             else
-                "Nichts davon wird gesendet: diese Version hat keine Internet-Berechtigung."
+                "Es wird nie Audio gesendet: diese Version hat keine Internet-Berechtigung."
 
-    /** The microphone line on «Messen»: the public «nie Audio» promise would be false here. */
-    const val MIC_LINE = "Die App braucht das Mikrofon. Labor: Audio wird nur gespeichert, wenn du es einschaltest."
-
-    /** Text of the red banner: the Labor edition with the map says that it can share. */
-    val BANNER_TEXT: String =
-        if (BuildConfig.UPLOAD_AVAILABLE) "WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen"
-        else "WENIGER LÄRM LABOR – kann Audio aufzeichnen"
+    /** The microphone line in «Mehr dazu» on «Messen»: the public «nie Audio gespeichert» promise would be false here. */
+    const val MIC_LINE = "Labor: speichert Audio nur, wenn «Audio speichern» an ist. Es wird nie Audio gesendet."
 
     /**
      * Hosted once at the app root: the clip player sheet. It is closed (and its MediaPlayer
@@ -307,40 +291,37 @@ object EditionUi {
         if (text != null) Text(text, color = LaborRed, style = MaterialTheme.typography.bodySmall)
     }
 
-    /** The permanent red banner above every screen. */
+    /**
+     * 0.9.4.6: no banner (0.3.x–0.9.4.5 a permanent red one, «WENIGER LÄRM LABOR – kann Audio aufzeichnen»,
+     * with «Aufnahme läuft» and «Speicher voll …»): Labor·Karte looks like the Online-Version. The app name
+     * «Weniger Lärm Labor», the red launcher icon and logo still tell the two installed apps apart; while audio is
+     * stored, [RecordingNote] says so on «Messen» and in the notification.
+     */
     @Composable
-    fun Banner() {
+    fun Banner() {}
+
+    /**
+     * 0.9.4.6: one small line «Audio wird gespeichert» on the running «Messen» while the recorder stores audio
+     * (the same as the notification's note, LaborRecorder.notificationNote): «Audio speichern» on, the run going,
+     * the budget not used up. Nothing otherwise.
+     */
+    @Composable
+    fun RecordingNote() {
         val context = LocalContext.current
         remember { Labor.init(context) }
         val st by Labor.status.collectAsStateWithLifecycle()
+        val s by Labor.settings.collectAsStateWithLifecycle()
         val live by context.container.live.collectAsStateWithLifecycle()
-        Column(
-            Modifier.fillMaxWidth().background(LaborRed)
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-        ) {
-            Text(
-                BANNER_TEXT, color = Color.White,
-                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold,
-            )
-            if (st.recording && live.running) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(Color.White))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Aufnahme läuft", color = Color.White, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-            if (st.storageFull) {
-                Text(
-                    "Speicher voll: Aufnahme gestoppt; Messung und Protokoll laufen weiter.",
-                    color = Color.White, style = MaterialTheme.typography.labelMedium,
-                )
-            }
-        }
+        if (live.running && st.recording && s.recordAudio) AudioNoteLine(ch.lessnoise.app.labor.RecordingNote.TEXT)
     }
 
-    /** Einstellungen → «Labor». */
-    @OptIn(ExperimentalMaterial3Api::class)
+    /**
+     * Einstellungen → «Labor» (0.9.4.6: one switch «Audio speichern»; [LaborCardContent]). Only while it is on or
+     * recordings exist ([LaborCardTexts.showsFiles]) the card also shows the space used, «Clips anhören», the
+     * export (scope, «In Ordner exportieren», «Als ZIP teilen», «Ordner wählen», the progress) and the two
+     * deletes. Gone from the UI (the stored values stay in force): the clips/continuous switches, «Clip-Rate»,
+     * «Maximaler Speicher», the statistics rows and «Wo sind die Dateien?».
+     */
     @Composable
     fun SettingsSection() {
         val context = LocalContext.current
@@ -352,7 +333,6 @@ object EditionUi {
         val dirs = remember { Labor.dirs(context) }
         val scope = rememberCoroutineScope()
         var confirmOn by remember { mutableStateOf(false) }
-        var exportInfo by remember { mutableStateOf(false) }
         // 0.9.4.1: both exports run in LaborExportService (foreground, type dataSync); this is its live state.
         val job by LaborExportJobs.state.collectAsStateWithLifecycle()
         val exporting = job is ExportJobState.Running
@@ -431,112 +411,61 @@ object EditionUi {
             }
         }
 
-        SectionCard("Labor") {
-            LaborSwitch("Audio während der Messung aufzeichnen", s.recordAudio) { v ->
-                if (v) confirmOn = true else Labor.update(context) { it.copy(recordAudio = false) }
-            }
-            LaborSwitch("Ereignis-Clips (±5 s, WAV 16 kHz)", s.clips, enabled = s.recordAudio) { v ->
-                Labor.update(context) { it.copy(clips = v) }
-            }
-            LaborSwitch("Durchgehend (AAC 64 kbit/s, Stundendateien)", s.continuous, enabled = s.recordAudio) { v ->
-                Labor.update(context) { it.copy(continuous = v) }
-            }
-            Text("Clip-Rate", style = MaterialTheme.typography.bodyMedium)
-            val rates = ClipRateSampler.CHOICES
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                rates.forEachIndexed { i, n ->
-                    SegmentedButton(
-                        selected = s.clipEvery == n,
-                        onClick = { Labor.update(context) { it.copy(clipEvery = n) } },
-                        shape = SegmentedButtonDefaults.itemShape(i, rates.size),
-                        enabled = s.recordAudio && s.clips,
-                    ) { Text(if (n == 1) "jedes" else "jedes $n.", maxLines = 1) }
-                }
-            }
-            Text("Maximaler Speicher", style = MaterialTheme.typography.bodyMedium)
-            val caps = StorageBudget.CHOICES_GB
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                caps.forEachIndexed { i, gb ->
-                    SegmentedButton(
-                        selected = s.maxGb == gb,
-                        onClick = { Labor.update(context) { it.copy(maxGb = gb) } },
-                        shape = SegmentedButtonDefaults.itemShape(i, caps.size),
-                        enabled = s.recordAudio,
-                    ) { Text(gbLabel(gb), maxLines = 1) }
-                }
-            }
-            Text(
-                "Pro 8 h Messung: durchgehend etwa 230 MB (ca. 30 MB pro Stunde), dazu die Clips mit je etwa 0.4 MB " +
-                    "(höchstens 2 MB) und das Klassifikator-Protokoll (jede Sekunde die erkannten Geräusche, ca. 1 MB pro Stunde). " +
-                    "Ist der Speicher voll, stoppt nur die Aufnahme; Messung und Protokoll laufen weiter. " +
-                    "Änderungen gelten ab dem nächsten Start der Messung; Ausschalten stoppt eine laufende Aufnahme sofort.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            val sts = stats
-            StatRow("Belegt", if (sts == null) "…" else "${mb(sts.usedBytes)} von ${gbLabel(s.maxGb)}")
-            StorageNotice()
-            StatRow("Clips", sts?.clipCount?.toString() ?: "…")
-            StatRow("Stundendateien", sts?.hourFiles?.toString() ?: "…")
-            StatRow("Klassifikator-Protokolle", sts?.classifierFiles?.toString() ?: "…")
-            // 0.6.6: which input delivers the audio (the app measures only with the built-in microphone).
-            if (live.running) StatRow("Mikrofon", live.inputDevice ?: "unbekannt")
-            // 0.6.7, Labor·Karte: the motion detector's state (its changes are in manifest.jsonl, type «motion»).
-            if (live.running && BuildConfig.FLAVOR == "laborKarte" && !live.unterwegs) StatRow("Bewegung", if (live.moving) "unterwegs erkannt" else "ruhig")
-            if (st.storageFull) {
-                Text("Speicher voll: Die Aufnahme wurde gestoppt; Messung und Protokoll laufen weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
-            }
-            if (recordingNow && st.droppedThisSession > 0) {
-                Text("Verworfen (Schreiben zu langsam oder Speicher voll): ${st.droppedThisSession}", style = MaterialTheme.typography.bodySmall)
-            }
-            OutlinedButton(onClick = { showClips = true }, enabled = (sts?.clipCount ?: 0) > 0) { Text("Clips anhören") }
-            ExportScopeControls(
-                scope = exportScope,
-                onScope = { exportScope = it; LaborExportStore.setScope(context, it) },
-                withoutHourFiles = withoutHours,
-                onWithoutHourFiles = { withoutHours = it; LaborExportStore.setWithoutHourFiles(context, it) },
-                estimate = estimate?.line,
-                folderNote = estimate?.folderNote,
-                enabled = !exporting,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 0.9.4.1: both stay tappable; while an export runs a second one is refused with a short message.
-                OutlinedButton(onClick = { exportOrPick() }) { Text("In Ordner exportieren") }
-                OutlinedButton(
-                    onClick = {
-                        if (LaborExportJobs.busy) { message = LaborExportJobs.BUSY; return@OutlinedButton }
-                        val sc = exportScope
-                        val noHours = withoutHours
-                        scope.launch {
-                            val p = withContext(Dispatchers.IO) {
-                                try {
-                                    val plan = planZip(context, dirs, sc, noHours)
-                                    plan to LaborZipFiles.spaceRefusal(context, plan.files)
-                                } catch (e: Exception) { null }
-                            }
-                            when {
-                                p == null -> message = "ZIP nicht möglich (Dateien nicht lesbar)."
-                                p.second != null -> lowSpace = p.second
-                                else -> zipPlan = p.first
-                            }
+        val sts = stats
+        val exportBlock = LaborExportBlock(
+            scope = exportScope,
+            onScope = { exportScope = it; LaborExportStore.setScope(context, it) },
+            withoutHourFiles = withoutHours,
+            onWithoutHourFiles = { withoutHours = it; LaborExportStore.setWithoutHourFiles(context, it) },
+            estimate = estimate?.line,
+            folderNote = estimate?.folderNote,
+            job = job,
+            onFolder = { exportOrPick() },
+            onZip = {
+                if (LaborExportJobs.busy) { message = LaborExportJobs.BUSY } else {
+                    val sc = exportScope
+                    val noHours = withoutHours
+                    scope.launch {
+                        val p = withContext(Dispatchers.IO) {
+                            try {
+                                val plan = planZip(context, dirs, sc, noHours)
+                                plan to LaborZipFiles.spaceRefusal(context, plan.files)
+                            } catch (e: Exception) { null }
                         }
-                    },
-                ) { Text("Als ZIP teilen") }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = {
-                    if (LaborExportJobs.busy) { message = LaborExportJobs.BUSY; return@TextButton }
+                        when {
+                            p == null -> message = "ZIP nicht möglich (Dateien nicht lesbar)."
+                            p.second != null -> lowSpace = p.second
+                            else -> zipPlan = p.first
+                        }
+                    }
+                }
+            },
+            onPickFolder = {
+                if (LaborExportJobs.busy) { message = LaborExportJobs.BUSY } else {
                     try { pickFolder.launch(null) } catch (e: Exception) { message = "Kein Ordner-Dialog verfügbar: ${e.javaClass.simpleName}" }
-                }) { Text("Ordner wählen") }
-                TextButton(onClick = { exportInfo = true }) { Text("Wo sind die Dateien?") }
-            }
-            ExportJobPanel(
-                state = job,
-                onCancel = { LaborExportService.cancel() },
-                onShareZip = { (job as? ExportJobState.Done)?.zip?.let(::shareZip) },
-                onFolderExport = { exportOrPick() },
-            )
-            OutlinedButton(enabled = !recordingNow && !exporting, onClick = {
+                }
+            },
+            onCancel = { LaborExportService.cancel() },
+            onShareZip = { (job as? ExportJobState.Done)?.zip?.let(::shareZip) },
+        )
+        LaborCardContent(
+            recordAudio = s.recordAudio,
+            onRecordAudio = { v -> if (v) confirmOn = true else Labor.update(context) { it.copy(recordAudio = false) } },
+            // Switched on while a run goes: the recorder starts with the next run (AudioTapProvider at the start).
+            switchSupporting = if (live.running && StoragePolicy.recordsAudio(s) && !st.recording && !st.storageFull) LaborCardTexts.NEXT_RUN
+            else LaborCardTexts.SWITCH_SUPPORTING,
+            showFiles = LaborCardTexts.showsFiles(s.recordAudio, sts?.clipCount ?: 0, sts?.hourFiles ?: 0, sts?.classifierFiles ?: 0),
+            used = sts?.let { LaborCardTexts.used(it.usedBytes, s.maxBytes) },
+            clips = sts?.clipCount ?: 0,
+            onClips = { showClips = true },
+            export = exportBlock,
+            deleteEnabled = !recordingNow && !exporting,
+            deleteNote = when {
+                recordingNow -> "Löschen ist während einer Aufnahme nicht möglich."
+                exporting -> "Löschen ist während eines Exports nicht möglich."
+                else -> null
+            },
+            onDeleteExported = {
                 scope.launch {
                     val p = withContext(Dispatchers.IO) {
                         ExportScopes.exportedForDeletion(IncrementalExport.sources(dirs, Labor.openContinuousFile), LaborExportStore.loadLedger(context))
@@ -544,54 +473,34 @@ object EditionUi {
                     if (p.isEmpty()) message = "Nichts zu löschen: Keine Aufnahme ist schon exportiert (oder sie hat sich seither verändert)."
                     else deletePlan = p
                 }
-            }) { Text("Exportierte Aufnahmen löschen") }
-            OutlinedButton(enabled = !recordingNow && !exporting, onClick = { confirmDelete = true }) { Text("Alle Aufnahmen löschen") }
-            if (recordingNow) Text("Löschen ist während einer Aufnahme nicht möglich.", style = MaterialTheme.typography.bodySmall)
-            else if (exporting) Text("Löschen ist während eines Exports nicht möglich.", style = MaterialTheme.typography.bodySmall)
-            message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        }
+            },
+            onDeleteAll = { confirmDelete = true },
+            message = message,
+            notices = {
+                // The storage lines (only while «Audio speichern» is on and the budget is nearly or fully used up).
+                StorageNotice()
+                if (st.storageFull) {
+                    Text("Speicher voll: Die Aufnahme wurde gestoppt; Messung und Protokoll laufen weiter.", color = LaborRed, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+        )
 
         if (showClips) ClipsListDialog(onDismiss = { showClips = false })
 
         if (confirmOn) {
             AlertDialog(
                 onDismissRequest = { confirmOn = false },
-                text = {
-                    Text(
-                        "Weniger Lärm Labor speichert dann Roh-Audio auf diesem Telefon, auch Stimmen in der Nähe. " +
-                            "Die Dateien bleiben auf dem Telefon, bis du sie löschst."
-                    )
-                },
+                title = { Text(LaborCardTexts.CONFIRM_TITLE) },
+                text = { Text(LaborCardTexts.CONFIRM_TEXT) },
                 confirmButton = {
-                    TextButton(onClick = { confirmOn = false; Labor.update(context) { it.copy(recordAudio = true) } }) { Text("Aufzeichnen") }
+                    TextButton(onClick = {
+                        confirmOn = false
+                        // 0.9.4.6: with one switch «on» must store audio: clips and hour files back on if a 0.9.4.5 setting
+                        // had both off (then nothing but the logs was recorded). Otherwise the stored values stay.
+                        Labor.update(context) { LaborCardTexts.switchedOn(it) }
+                    }) { Text(LaborCardTexts.CONFIRM_BUTTON) }
                 },
                 dismissButton = { TextButton(onClick = { confirmOn = false }) { Text("Abbrechen") } },
-            )
-        }
-
-        if (exportInfo) {
-            val rel = "Android/data/${context.packageName}/files/audio"
-            val tree = LaborExportStore.treeUri(context)
-            AlertDialog(
-                onDismissRequest = { exportInfo = false },
-                title = { Text("Aufnahme-Ordner") },
-                text = {
-                    Text(
-                        "Die Aufnahmen liegen im internen Speicher unter $rel. Dateimanager auf dem Telefon dürfen Android/data " +
-                            "ab Android 11 nicht mehr öffnen; am Computer (USB, Dateiübertragung) ist der Ordner sichtbar.\n\n" +
-                            "«In Ordner exportieren» kopiert alles, was noch fehlt, in einen Ordner deiner Wahl – Downloads, ein USB-Stick " +
-                            "oder die Google-Drive-App (sie erscheint im Ordner-Dialog als Ziel). Die Unterordner clips, classifier und " +
-                            "continuous bleiben erhalten; das Manifest wird jedes Mal neu kopiert, die laufende Stundendatei erst nach dem " +
-                            "Stopp der Messung. Ein neuer Ordner lässt sich mit «Ordner wählen» setzen.\n\n" +
-                            "«Export» gilt für beide Knöpfe: «Alles», «Seit letztem Export» (was noch in keinem Ordner und keinem ZIP war) " +
-                            "oder «Letzte 24 h» (Clips, Protokolle und Stundendateien dieser 24 h und ein Manifest nur mit ihren Zeilen; " +
-                            "das Manifest auf dem Telefon bleibt vollständig, im Export-Ordner ersetzt es bis zum nächsten «Alles» ein " +
-                            "früher kopiertes ganzes). «Ohne Stundendateien» lässt die grossen continuous-Dateien weg. " +
-                            "«Exportierte Aufnahmen löschen» löscht nur, was schon in einem Ordner oder ZIP ist." +
-                            if (tree != null) "\n\nAktueller Export-Ordner: ${LaborExportStore.treeName(context, tree)}" else "\n\nNoch kein Export-Ordner gewählt."
-                    )
-                },
-                confirmButton = { TextButton(onClick = { exportInfo = false }) { Text("Schliessen") } },
             )
         }
 
@@ -736,17 +645,6 @@ object EditionUi {
         }
     }
 }
-
-@Composable
-private fun LaborSwitch(label: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
-    }
-}
-
-private fun gbLabel(gb: Double): String =
-    if (gb < 1) String.format(Locale.GERMANY, "%.1f GB", gb) else String.format(SwissLocale, "%.0f GB", gb)
 
 private fun mb(bytes: Long): String = when {
     bytes >= 1_000_000_000L -> String.format(Locale.GERMANY, "%.2f GB", bytes / 1e9)

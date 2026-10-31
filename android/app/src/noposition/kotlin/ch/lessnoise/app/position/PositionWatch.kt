@@ -4,9 +4,11 @@ import android.content.Context
 import android.os.Handler
 
 /**
- * The Online-Version (and, never reached, the Offline and Labor builds): no position signal for
- * «unterwegs» (0.6.9 is a Labor·Karte iteration, src/laborKarte/kotlin/.../position/). This stand-in
- * is all they contain of it: it reads nothing and adds no foreground-service type.
+ * Both editions with the map (the Online-Version and, since 0.9.4.6, Labor·Karte): no position signal for
+ * «unterwegs». 0.6.9–0.9.4.5 Labor·Karte had one (src/laborKarte/kotlin/…/position/, about one fix a minute
+ * while a window run went, with FOREGROUND_SERVICE_LOCATION); removed in 0.9.4.6 so that Labor·Karte behaves
+ * like the Online-Version. This stand-in is all they contain of it: it reads nothing and adds no
+ * foreground-service type.
  */
 object PositionWatch {
     const val AVAILABLE = false

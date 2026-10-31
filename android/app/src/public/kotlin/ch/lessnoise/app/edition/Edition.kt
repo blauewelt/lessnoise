@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.flowOf
 
 /** Local diagnostics of the Labor builds (0.6.7: the motion detector's changes). Public: none, nothing is written. */
 object EditionDiagnostics {
+    /** 0.9.4.6: whether this edition writes them at all (the motion watch then computes its minute values). */
+    const val ENABLED = false
+
     @Suppress("UNUSED_PARAMETER")
     fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) = Unit
 
@@ -71,9 +74,13 @@ object EditionUi {
     @Composable
     fun Overlay() {}
 
-    /** Shown above every screen (Labor: the red warning banner). */
+    /** Shown above every screen. Public: nothing. (0.9.4.6: Labor neither; until 0.9.4.5 its red warning banner.) */
     @Composable
     fun Banner() {}
+
+    /** 0.9.4.6: a line on the running «Messen» while audio is stored (Labor: «Audio wird gespeichert»). Public: never. */
+    @Composable
+    fun RecordingNote() {}
 
     /** Extra section at the end of Einstellungen (Labor: recording settings). */
     @Composable

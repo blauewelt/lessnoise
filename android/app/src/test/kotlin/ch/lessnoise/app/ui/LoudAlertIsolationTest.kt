@@ -7,54 +7,62 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * 0.6.3: «Unterwegs» and the «Sehr laut» notification existed in the editions with the map; since
- * 0.8.4 only in Labor·Karte (src/laborKarte: alert/ and the real ui/LoudAlerts.kt). Runs in every
- * flavour: [LoudAlerts] is the stand-in of src/nounterwegs in public (the shortcut's and widget's
- * intent only) and of src/nomap in offline and labor. The dex of the APKs is checked as well
- * (android/tools/check_release_apk.py; android/README.md release checklist).
+ * 0.6.3: «Unterwegs» and the «Sehr laut» notification existed in the editions with the map; 0.8.4–0.9.4.5 only in
+ * Labor·Karte (src/laborKarte); 0.9.4.6 («Unterwegs messen») again in both editions with the map: alert/ and the
+ * real ui/LoudAlerts.kt are in src/karte (compiled into public and laborKarte). Runs in every flavour: [LoudAlerts]
+ * is the real facade in public and laborKarte and the stand-in of src/nomap in offline and labor. The dex of the
+ * APKs is checked as well (android/tools/check_release_apk.py; android/README.md release checklist).
  */
 class LoudAlertIsolationTest {
     private val app: File = listOf(File("."), File("app")).first { File(it, "src/karte").isDirectory }
 
     @Test
-    fun onlyLaborKarteHasIt() {
-        assertEquals(ch.lessnoise.app.BuildConfig.FLAVOR == "laborKarte", LoudAlerts.AVAILABLE)
-        assertEquals(ch.lessnoise.app.BuildConfig.LABOR_UNTERWEGS, LoudAlerts.AVAILABLE)
+    fun theEditionsWithTheMapHaveIt() {
+        assertEquals(ch.lessnoise.app.BuildConfig.FLAVOR in setOf("public", "laborKarte"), LoudAlerts.AVAILABLE)
+        assertEquals(MapTab.AVAILABLE, LoudAlerts.AVAILABLE)
     }
 
-    /** 0.8.4: the alert code lives in src/laborKarte only; src/karte (shared with the Online-Version) has none of it. */
+    /** 0.9.4.6: the alert code lives in src/karte (both editions with the map); no Labor-only copy, no Online stand-in. */
     @Test
-    fun theAlertCodeIsInLaborKarteOnly() {
-        assertTrue(File(app, "src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").isFile)
-        assertTrue(File(app, "src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").isFile)
-        assertFalse(File(app, "src/karte/kotlin/ch/lessnoise/app/alert").exists())
-        assertFalse(File(app, "src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").exists())
-        for (d in listOf("src/karte", "src/nounterwegs", "src/public", "src/noposition")) {
+    fun theAlertCodeIsInSrcKarte() {
+        for (f in listOf("alert/LoudAlertNotifier.kt", "alert/LoudAlertRule.kt", "alert/ReportTap.kt", "ui/LoudAlerts.kt")) {
+            assertTrue(File(app, "src/karte/kotlin/ch/lessnoise/app/$f").isFile, f)
+        }
+        assertFalse(File(app, "src/laborKarte/kotlin/ch/lessnoise/app/alert").exists())
+        assertFalse(File(app, "src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").exists())
+        assertFalse(File(app, "src/nounterwegs").exists(), "0.8.4–0.9.4.5 the Online-Version's stand-in; gone")
+        // Nothing of it in the published edition's own source sets or the position stand-in; src/laborKarte has only its
+        // manifest and resources.
+        for (d in listOf("src/public", "src/noposition", "src/offline", "src/labor", "src/laborKarte")) {
             val hits = File(app, d).walkTopDown().filter { f ->
                 f.isFile && (f.extension == "kt" || f.extension == "xml") && f.readText().let { t ->
                     t.contains("ch.lessnoise.app.alert") || t.contains("LoudAlertRule") || t.contains("LoudAlertNotifier") ||
-                        t.contains("\"loud_alert\"") || t.contains("IMPORTANCE_HIGH") || t.contains("EXTRA_UNTERWEGS") || t.contains("REPORT_LOUD")
+                        t.contains("\"loud_alert\"") || t.contains("IMPORTANCE_HIGH") || t.contains("REPORT_LOUD")
                 }
             }.map { it.path }.toList()
             assertEquals(emptyList(), hits, d)
         }
-        // The Online-Version's stand-in: no channel, no notification, no permission prompt, no start on the road.
-        val stub = File(app, "src/nounterwegs/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").readText()
-        assertTrue(stub.contains("const val AVAILABLE = false"))
-        assertTrue(stub.contains("fun start(context: Context, container: AppContainer) = Unit"))
-        assertTrue(stub.contains("fun rememberUnterwegsPermission(): () -> Unit = {}"))
-        // Its jobs: the shortcut's and the widget's intent opens the report at the tap's time; 0.9.4.4 (until 0.9.4.3
-        // `= null`): the measurement notification's «Melden» button, built in src/karte (report/ReportNow.kt, no alert
-        // code), whatever unterwegs/moving say (the Online-Version has no «Unterwegs» run).
-        assertTrue(stub.contains("ReportNow.preset(intent?.action, tapMs)"))
-        assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? =\n        ReportNow.notificationTap(context, running)"))
-        val stubCode = stub.replace("NotificationTap", "")
-        for (bad in listOf("Notification", "notify", "PendingIntent", "SharedPreferences", "alert.", "Manifest.permission")) assertFalse(stubCode.contains(bad), bad)
-        // Gradle: the stand-in is compiled into public only, the real facade into laborKarte only (its default source set).
+        assertEquals(emptyList(), File(app, "src/laborKarte").walkTopDown().filter { it.isFile && it.extension == "kt" }.map { it.path }.toList())
+        // Gradle: src/karte in exactly the two editions with the map; no stand-in folder, no edition flag.
         val gradle = File(app, "build.gradle.kts").readText()
-        assertEquals(1, Regex("""kotlin\.srcDir\("src/nounterwegs/kotlin"\)""").findAll(gradle).count())
-        val pub = gradle.substring(gradle.indexOf("named(\"public\")"), gradle.indexOf("named(\"labor\")"))
-        assertTrue(pub.contains("kotlin.srcDir(\"src/nounterwegs/kotlin\")"))
+        assertEquals(2, Regex("""kotlin\.srcDir\("src/karte/kotlin"\)""").findAll(gradle).count())
+        assertFalse(gradle.contains("src/nounterwegs/kotlin\")"))
+        assertFalse(Regex("""buildConfigField\("boolean", "LABOR_UNTERWEGS"""").containsMatchIn(gradle))
+        // One `named("…") { … }` block of sourceSets, up to its closing brace (the comments between blocks are not in it).
+        fun block(name: String): String {
+            val start = gradle.indexOf("named(\"$name\") {")
+            assertTrue(start >= 0, name)
+            return gradle.substring(start, gradle.indexOf("\n        }", start))
+        }
+        for (block in listOf(block("public"), block("laborKarte"))) {
+            assertTrue(block.contains("kotlin.srcDir(\"src/karte/kotlin\")"), block)
+            assertTrue(block.contains("kotlin.srcDir(\"src/noposition/kotlin\")"), block)
+        }
+        // The Offline and Labor builds: the src/nomap stand-in only.
+        for (block in listOf(block("offline"), block("labor"))) {
+            assertTrue(block.contains("kotlin.srcDir(\"src/nomap/kotlin\")"), block)
+            assertFalse(block.contains("src/karte"), block)
+        }
     }
 
     @Test
@@ -73,12 +81,12 @@ class LoudAlertIsolationTest {
         // (0.6.8: it names the shared type NotificationTap in its signature, nothing that posts one.)
         val stubCode = stub.replace("NotificationTap", "")
         for (bad in listOf("Notification", "notify", "onCheckedChange", "SharedPreferences", "alert.", "PendingIntent", "REPORT_NOW")) assertFalse(stubCode.contains(bad), bad)
-        // 0.6.8: no «Antippen zum Melden» on the measurement notification in the Offline and Labor builds.
+        // 0.6.8: no «Melden» and no report tap on the measurement notification in the Offline and Labor builds.
         assertTrue(stub.contains("fun reportTap(context: Context, running: Boolean, unterwegs: Boolean, moving: Boolean): NotificationTap? = null"))
         assertTrue(stub.contains("fun presetFrom(intent: Intent?, tapMs: Long = 0L): ReportPreset? = null"))
-        // 0.7.6: the alert goes into the measurement's own notification (MeasurementService.ACTION_LOUD_ALERT);
-        // since 0.8.4 only src/laborKarte sends that action, so no other edition ever posts an alert.
-        for (d in listOf("src/main", "src/nomap", "src/public", "src/offline", "src/labor", "src/karte", "src/nounterwegs", "src/noposition")) {
+        // 0.7.6: the alert goes into the measurement's own notification (MeasurementService.ACTION_LOUD_ALERT); only
+        // src/karte's notifier sends that action, so the Offline and Labor builds never post an alert.
+        for (d in listOf("src/main", "src/nomap", "src/public", "src/offline", "src/labor", "src/laborKarte", "src/noposition")) {
             val senders = File(app, d).walkTopDown()
                 .filter { it.isFile && it.extension == "kt" && it.readText().contains(".setAction(MeasurementService.ACTION_LOUD_ALERT)") }
                 .map { it.name }.toList()
@@ -91,7 +99,7 @@ class LoudAlertIsolationTest {
             val t = File(app, m).takeIf { it.isFile }?.readText() ?: continue
             assertFalse(t.contains("loud_alert") || t.contains("REPORT_LOUD"), m)
         }
-        assertTrue(File(app, "src/laborKarte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText().contains(".setAction(MeasurementService.ACTION_LOUD_ALERT)"))
+        assertTrue(File(app, "src/karte/kotlin/ch/lessnoise/app/alert/LoudAlertNotifier.kt").readText().contains(".setAction(MeasurementService.ACTION_LOUD_ALERT)"))
     }
 
     /** 0.6.7: the direction step of «Laut! Melden» (compass) exists only where the map and the reports do. */

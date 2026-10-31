@@ -28,14 +28,13 @@ class ShortcutAndWidgetTest {
         assertNull(ReportNow.preset(null, t0))
         assertNull(ReportNow.preset("android.intent.action.MAIN", t0))
         assertNull(ReportNow.preset(ReportNow.ACTION, 0))
-        // Through the facade MainActivity calls, in both editions with the map (the stand-in of
-        // src/nounterwegs in public, the real one of src/laborKarte in laborKarte). The facade takes
-        // the action only; no Android intent is built on the JVM here.
-        val nounterwegs = read("src/nounterwegs/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt")
-        assertTrue(nounterwegs.contains("ReportNow.preset(intent?.action, tapMs)"))
-        val labor = read("src/laborKarte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt")
-        assertTrue(labor.contains("ReportTap.preset(intent.action, tapMs)?.let { return it }"))
-        assertTrue(read("src/laborKarte/kotlin/ch/lessnoise/app/alert/ReportTap.kt").contains("fun preset(action: String?, tapMs: Long): ReportPreset? = ReportNow.preset(action, tapMs)"))
+        // Through the facade MainActivity calls, the same in both editions with the map (0.9.4.6: src/karte's;
+        // 0.8.4–0.9.4.5 a stand-in in src/nounterwegs for public). The facade takes the action only; no Android
+        // intent is built on the JVM here.
+        assertFalse(File(app, "src/nounterwegs").exists())
+        val facade = read("src/karte/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt")
+        assertTrue(facade.contains("ReportTap.preset(intent.action, tapMs)?.let { return it }"))
+        assertTrue(read("src/karte/kotlin/ch/lessnoise/app/alert/ReportTap.kt").contains("fun preset(action: String?, tapMs: Long): ReportPreset? = ReportNow.preset(action, tapMs)"))
         // No intent (a plain launch): no report.
         assertNull(LoudAlerts.presetFrom(null, t0))
     }
@@ -43,27 +42,29 @@ class ShortcutAndWidgetTest {
     /**
      * 0.9.4.4 (owner: «the main UI flow is to report someone»): «Melden» on the measurement notification in both
      * editions with the map (Labor·Karte since 0.6.9), the same intent as the shortcut and the widget; the
-     * notification's own tap opens the app on «Messen».
+     * notification's own tap opens the app on «Messen» (0.9.4.6: «Laut! Melden» while the run is «unterwegs»,
+     * ReportTapTest).
      */
     @Test
     fun theMeasurementNotificationHasMeldenDuringEveryRun() {
-        assertTrue(ReportNow.notificationButton(running = true))
-        assertFalse(ReportNow.notificationButton(running = false))
         assertEquals("Melden", ReportNow.NOTIFICATION_BUTTON)
         assertEquals(3, ReportNow.NOTIFICATION_REQUEST)
-        // Request codes: service 0 (open) and 1 (Stopp), «Sehr laut» 2 (Labor·Karte), «Melden» 3, the widget 4.
+        // Request codes: service 0 (open) and 1 (Stopp), «Sehr laut» 2, «Melden» 3, the widget 4.
         assertTrue(ReportNow.NOTIFICATION_REQUEST !in setOf(0, 1, 2, ReportNow.WIDGET_REQUEST))
         val now = read("src/karte/kotlin/ch/lessnoise/app/report/ReportNow.kt")
-        // The same intent as the widget (no time, no category), its own request code; no text, no content tap.
-        assertTrue(now.contains("context, NOTIFICATION_REQUEST, intent(context), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,"))
-        assertTrue(now.contains("NotificationTap(text = null, intent = null, button = notificationPendingIntent(context), buttonLabel = NOTIFICATION_BUTTON)"))
-        for (bad in listOf("ch.lessnoise.app.alert", "LoudAlertRule", "LoudAlertNotifier", "LoudAlertIntent", "loud_alert", "IMPORTANCE_HIGH")) assertFalse(now.contains(bad), bad)
-        // The Online-Version's stand-in returns it; Labor·Karte's rule uses the same code and label.
-        assertTrue(read("src/nounterwegs/kotlin/ch/lessnoise/app/ui/LoudAlerts.kt").contains("ReportNow.notificationTap(context, running)"))
-        val tap = read("src/laborKarte/kotlin/ch/lessnoise/app/alert/ReportTap.kt")
+        for (bad in listOf("ch.lessnoise.app.alert", "LoudAlertRule", "LoudAlertNotifier", "LoudAlertIntent", "loud_alert", "IMPORTANCE_HIGH", "fun notificationTap(")) {
+            assertFalse(now.contains(bad), bad)
+        }
+        // 0.9.4.6: one rule for both editions (alert/ReportTap, src/karte), with ReportNow's code and label and the widget's
+        // intent (action REPORT_NOW, single-top, no time, no category; ReportTapTest).
+        assertFalse(File(app, "src/nounterwegs").exists())
+        val tap = read("src/karte/kotlin/ch/lessnoise/app/alert/ReportTap.kt")
         assertTrue(tap.contains("const val REQUEST = ReportNow.NOTIFICATION_REQUEST"))
         assertTrue(tap.contains("const val BUTTON = ReportNow.NOTIFICATION_BUTTON"))
-        // The service adds the button from the tap (every level post keeps it, ReportButtonTest) and its usual tap
+        assertTrue(tap.contains("const val ACTION = ReportNow.ACTION"))
+        assertEquals(ReportNow.ACTION, ch.lessnoise.app.alert.ReportTap.forState(running = true, unterwegs = false, moving = false)!!.action)
+        assertNull(ch.lessnoise.app.alert.ReportTap.forState(running = false, unterwegs = false, moving = false))
+        // The service adds the button from the tap (every level post keeps it, ReportTapTest) and its usual tap
         // asks MainActivity for «Messen».
         val service = read("src/main/kotlin/ch/lessnoise/app/service/MeasurementService.kt")
         assertTrue(service.contains(".apply { reportTap?.button?.let { addAction(0, reportTap.buttonLabel, it) } }"))
