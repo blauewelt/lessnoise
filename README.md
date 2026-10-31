@@ -20,8 +20,10 @@ sie nur, solange er offen ist, wie ein Browser (Seite, Kartenbilder von swisstop
 sendet dabei keine Messwerte und keinen Standort. Ab 0.8.0 lädt «Laut! Melden», solange es offen ist, die
 Kartenbilder der Umgebung des genauen Standorts von swisstopo (ab 0.9.0 auch die des Orts, an den
 man die Karte verschiebt, bis 2 km), damit man die Strassen unter dem Pfeil sieht; swisstopo erfährt
-dabei die IP-Adresse und die Gegend, wie bei der Karte. Ab 0.9.0 misst die Online-Version unterwegs
-nicht mehr (keine Messung «Unterwegs», keine Mitteilung «Sehr laut»); unterwegs meldet man nur. Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
+dabei die IP-Adresse und die Gegend, wie bei der Karte. Ab 0.9.5 gibt es drei Arten, die App zu nutzen:
+am Fenster lange messen, unterwegs «Laut! Melden» tippen, oder «Unterwegs messen» – das Mikrofon läuft, und
+bei einem sehr lauten Fahrzeug erscheint eine Mitteilung auf dem Telefon; diese Messung wird nie gesendet und
+kommt nie auf die Karte (0.9.0–0.9.4 gab es keine Messung unterwegs). Wer noch mehr Privatsphäre möchte, nimmt die Offline-Version: Sie hat gar
 keine Internet- und keine Standort-Berechtigung, dafür keine Karte und keine Meldungen. Ein fest
 montierter Fenstersensor ist in Entwicklung. Download und Anleitung:
 [wenigerlaerm.ch](https://wenigerlaerm.ch).
@@ -180,7 +182,14 @@ What the project counts, and who counts it — totals over the whole project, al
   LE Audio) can be chosen under «Einstellungen → Erweitert → Mikrofon»; the app then uses it
   whenever it is connected. Calibration is per microphone; a minute measured with another
   microphone sends that microphone's kind with its audio source.
-- **Next (in the internal Labor·Karte test build 0.9.4.5, not published yet; the public app will be 0.9.5):**
+- **Next (in the internal Labor·Karte test build 0.9.4.6, not published yet; the public app will be 0.9.5):**
+  three ways to use the app — at the window for hours («Langzeitmessung starten»), on the road with the
+  microphone off («Laut! Melden», the big button), and, below them, **«Unterwegs messen»**: the microphone
+  runs and the phone shows a local notification «Sehr laut» when a very loud vehicle passes (≥ 75 dB(A),
+  at most one every 2 minutes); a tap opens «Laut! Melden». That measurement is never shared and never
+  comes on the map; the notification sends nothing. The Labor build becomes the Online-Version plus one
+  switch «Audio speichern» (no red banner, no video, no position signal).
+- **Before that (Labor·Karte 0.9.4.5):**
   in «Laut! Melden» only the place is required — the kind of vehicle is optional (none chosen = none sent), the
   direction can be switched off («×» on the compass, «Ohne Richtung»), and «Anzahl» (1–9) counts several
   vehicles (sent only above 1). «Andere» folds out six choices: Lastwagen, Flugzeug, Bahn, Baustelle,

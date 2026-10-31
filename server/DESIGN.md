@@ -400,7 +400,8 @@ upload includes and which ones start an events-only upload: category one of the 
 wind, `threshold_db` ≥ 6.5, `lafmax_db` ≥ max(`min_level_db`, 30) and `duration_s` ≥ 0.5 (the
 server's checks of §4.4 and §6). Voices, music, unclassified and wind never leave the phone; no
 field was added to the bodies. A measurement started as «Unterwegs» (app 0.6.4, a start mode next
-to «Messen») is never shared: it gets no point, so none of its minutes and events is sent. Since app
+to «Messen»; app 0.9.5 / Labor·Karte 0.9.4.6 «Unterwegs messen», with a local «Sehr laut» notification
+that sends nothing) is never shared: it gets no point, so none of its minutes and events is sent. Since app
 0.7.0 a measurement started with «Messen» also sends nothing of a time span in which the phone's
 motion sensor showed it was being carried («Unterwegs erkannt»); no field was added.
 
@@ -507,7 +508,7 @@ construction site), `garten` (motorised garden tools: leaf blowers, mowers, trim
 trams). The dialog offers Töff · Auto · «Andere ▾», and «Andere» folds out Lastwagen · Flugzeug · Bahn /
 Baustelle · Gartengeräte · Hupen. `direction` was already optional; the dialog can now switch it off
 («×» on the compass, «Ohne Richtung»). `count` («Anzahl», 1–9) is sent only when more than one vehicle
-passed. In Labor·Karte the «Sehr laut» suggestion maps the detector's `construction` to `baustelle` and
+passed. The «Sehr laut» suggestion (Labor·Karte; app 0.9.5 / Labor·Karte 0.9.4.6 both editions with the map) maps the detector's `construction` to `baustelle` and
 `rail_tram` to `bahn` (the alert itself still fires only for `loud_vehicle` and `road_traffic`). Nothing
 about the person is added: one small number, and fewer fields when something is left out.
 

@@ -259,11 +259,12 @@ so a better model can be swapped in without touching the measurement code.
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
 | Tab «Karte» (0.6.3, WebView, `src/karte/`) | yes | no (`src/nomap/`) | no (`src/nomap/`) | yes |
-| «Unterwegs» measurement, «Sehr laut» notification (`alert/`) | no since 0.8.4 (`src/nounterwegs/` stand-in; 0.6.3–0.8.3 yes) | no (`src/nomap/`) | no (`src/nomap/`) | yes (`src/laborKarte/`, button «Unterwegs aufnehmen») |
+| «Unterwegs messen», «Sehr laut» notification (`src/karte/…/alert/`) | yes since 0.9.4.6 (released with 0.9.5; 0.6.3–0.8.3 yes, 0.8.4–0.9.4.5 no: `src/nounterwegs/` stand-in, removed) | no (`src/nomap/`) | no (`src/nomap/`) | yes, the same code (0.8.4–0.9.4.5 its own copy in `src/laborKarte/`, button «Unterwegs aufnehmen») |
+| «Audio speichern» (`src/labor/`, the one Labor switch, 0.9.4.6) | no | no | yes | yes |
 | Shortcut and widget «Laut! Melden» (0.8.4, `src/karte/…/report/`) | yes | no | no | yes |
 | `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
 | `BuildConfig.UPLOAD_AVAILABLE` | true | false | false | true |
-| Sources | `src/main` + `src/public` | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
+| Sources | `src/main` + `src/public` + `src/karte` + `src/noposition` | `src/main` + `src/public/kotlin` + `src/nomap` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` + `src/nomap` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/karte` + `src/noposition` + `src/laborKarte/AndroidManifest.xml` and `res/xml/shortcuts.xml` |
 | Published as | `docs/download/lessnoise-karte.apk` on wenigerlaerm.ch | `docs/download/lessnoise.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
 
 The two published editions share the app id and the release key, so installing one over the other
@@ -628,7 +629,32 @@ are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureText
   itself. Tests: `ShortcutAndWidgetTest` (src/testKarte). Not verified on a phone yet (launcher,
   widget picker, cold start).
 
-## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only since 0.8.4, so not in the published Online-Version since 0.9.0)
+## Three ways to use the app; «Unterwegs messen» (0.9.4.6, Labor·Karte first; the Online-Version with 0.9.5)
+
+Owner (2026-10-31): «It is still not easy enough to use.» «Messen» in both editions with the map now offers,
+top to bottom: the big **«Laut! Melden»** («Lauten Verkehr sofort melden.»: on the road with the microphone
+off), the tonal **«Langzeitmessung starten»** («Für Stunden am offenen Fenster, am Ladegerät.»: overnight at the
+window, unchanged), and the outlined **«Unterwegs messen»** with the walk icon («Mikrofon an. Mitteilung, wenn ein
+Fahrzeug sehr laut ist.»: the minor way, so it stays below the other two), then «Mehr dazu», whose sheet names the
+three ways in three short sentences (`THREE_WAYS`). «Unterwegs messen» starts an «unterwegs» run
+(`MeasurementService.EXTRA_UNTERWEGS`, `LiveState.unterwegs`): never shared (no location, no point), the «Sehr
+laut» alert below, and on Android 13+ the notification permission is asked first
+(`LoudAlerts.rememberUnterwegsPermission`). Running, it looks like a window run (compact level card, big «Laut!
+Melden», «Stoppen», «Letzte Lärmspitzen»), with the line «Unterwegs seit 18:30 · Mitteilung bei sehr lauten
+Fahrzeugen.» (`unterwegsLine`) and the chip «Unterwegs · nichts auf die Karte»; the notification's title is
+«Mikrofon aktiv – unterwegs» (`MeasurementNotification.title`). The alert code is in `src/karte` again
+(`alert/`, the real `ui/LoudAlerts.kt`), compiled into `public` and `laborKarte` alike; the flag
+`LABOR_UNTERWEGS` is gone. The notification's «Melden» button is there in every run of both editions; a tap on the
+notification itself opens «Laut! Melden» while the run is «unterwegs» (started so, or «Unterwegs erkannt»),
+otherwise «Messen» (`alert/ReportTap.forState`). The alert rule is unchanged (below). Tests:
+`src/testKarte/…/alert/LoudAlertTest.kt` (incl. 76 dB alerts, 74 dB not, a still window run never),
+`ReportTapTest`, `motion/MotionAlertTest`, `LoudAlertIsolationTest`, `MeasureTextsTest`; renders
+`src/testKarte/…/ui/MessenMainScreenshots.kt` (folder `0.9.4.6-messen`).
+
+## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only 0.8.4–0.9.4.5; both editions with the map again since 0.9.4.6, above)
+
+*The rest of this section is the history up to 0.9.4.5; the rule itself (75 dB(A), the categories, the 2-minute
+gap, one notification for 30 s) is still the one in force.*
 
 Since 0.8.4 **laborKarte only** (`app/src/laborKarte/kotlin/ch/lessnoise/app/alert/`, the facade
 `ui/LoudAlerts.kt` next to it; started with the Labor button «Unterwegs aufnehmen», above). The
@@ -1341,8 +1367,10 @@ classifier with real sound — e.g. why highway passes of cars and motorbikes (3
 a quiet background) are not recognised: each clip comes with the classifier's per-second results
 (top-5 labels and scores, category decision, the input gain applied to the model, LAF), so you can
 listen to what the model heard and see what it scored. It is installed next to the public app (own app id, own data, red
-icon, a red banner «WENIGER LÄRM LABOR – kann Audio aufzeichnen» on every screen) and is signed with
-the release key so that it can be updated. It is **never published**: not in `docs/`, not linked
+icon and logo, the name «Weniger Lärm Labor»; until 0.9.4.5 also a red banner «WENIGER LÄRM LABOR – kann Audio
+aufzeichnen» on every screen) and is signed with the release key so that it can be updated. Since 0.9.4.6 (owner:
+«like the production version … plus this one thing you can turn on where the audio gets saved») it looks like the
+Offline-Version plus one card «Labor» in «Einstellungen» (below). It is **never published**: not in `docs/`, not linked
 from the website. The public app contains none of its code (how to check: PRIVACY.md →
 «Labor-Build»).
 
@@ -1360,8 +1388,12 @@ for reports, the Online-Version's upload code; audio is never sent, checked by
 `src/labor/res` but not `src/labor/AndroidManifest.xml`; its own manifest is
 `src/laborKarte/AndroidManifest.xml`. Same app id as Labor, so it installs over a Labor install and
 keeps measurements and recordings; installing the plain Labor build over it switches sharing off.
-Banner «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen». Use the plain Labor build for any phone
-that measures in someone else's home.
+Since 0.9.4.6 it compiles the Online-Version's sources (`src/karte`, `src/noposition`) besides `src/labor`, so it
+behaves like the Online-Version (three ways on «Messen», «Unterwegs messen», the photo in «Laut! Melden», the
+Online motion thresholds, no position signal and no `FOREGROUND_SERVICE_LOCATION`), plus the «Labor» card;
+until 0.9.4.5 it had the banner «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen», «Unterwegs aufnehmen», a
+short video instead of the photo, Labor motion thresholds, the position as a second «unterwegs» signal and the
+line «Bewegung …» on «Messen». Use the plain Labor build for any phone that measures in someone else's home.
 
 ```sh
 ./gradlew testLaborKarteDebugUnitTest assembleLaborKarteDebug
@@ -1369,8 +1401,17 @@ that measures in someone else's home.
 # APK: app/build/outputs/apk/laborKarte/release/app-laborKarte-release.apk (android/dist/, git-ignored)
 ```
 
-**Settings → Labor.** «Audio während der Messung aufzeichnen» (off by default; switching it on
-asks once), and below it:
+**Settings → Labor (0.9.4.6: one switch).** **«Audio speichern»** (off by default; switching it on asks once:
+«Audio speichern? Speichert Audio auf diesem Telefon, auch Stimmen in der Nähe. Es bleibt dort, bis du es
+löschst.»; the same stored preference `record_audio` as the earlier «Audio während der Messung aufzeichnen», so an
+updated phone keeps recording). Only while it is on, or while clips, hour files or classifier logs exist
+(`LaborCardTexts.showsFiles`), the card also shows «1,2 GB von 5 GB belegt», the storage lines (while recording),
+«Clips anhören», the export block («Export» scope, «Ohne Stundendateien», the size line, «In Ordner exportieren»,
+«Als ZIP teilen», «Ordner wählen», the progress panel) and «Exportierte Aufnahmen löschen» / «Alle Aufnahmen
+löschen» (`labor/LaborCardUi.kt`, stateless; rendered by `LaborCardScreenshots`). While audio is stored, the
+running «Messen» shows «Audio wird gespeichert» and the notification text ends with « · Audio wird gespeichert»
+(`RecordingNote`, `LaborRecorder.notificationNote`). The settings below are **no longer shown** (0.9.4.6); the
+recorder keeps using what is stored — on a new install clips on, continuous on, every clip, 5 GB:
 
 - «Ereignis-Clips (±5 s, WAV 16 kHz)» (on): for every event, 5 s before its start to 5 s after its
   end, at most 60 s (longer events: the first 60 s, flagged `truncated`). A 6 s ring buffer of the
@@ -1381,25 +1422,24 @@ asks once), and below it:
   measurement stops; if the app is killed, at most the current hour's file is lost.
 - «Clip-Rate»: a clip for every event, every 2nd or every 5th (the 1st is always kept).
 - «Maximaler Speicher» (default 5 GB since 0.7.5; 0.5/1/2/5/10 GB; a stored choice is kept): an
-  **audio** budget. When the audio folder would exceed it, clips and hour files stop and the banner
-  says so; **measuring and logging continue** — `event` and `clock` lines and the classifier log go
+  **audio** budget. When the audio folder would exceed it, clips and hour files stop and the «Labor» card says
+  «Speicher voll: …» (until 0.9.4.5 the banner); **measuring and logging continue** — `event` and `clock` lines and the classifier log go
   on up to 200 MB beyond the cap (`StorageBudget.LOG_MARGIN_BYTES`; then a `logs_full` line and
   only session lines). `storage_full` is written once when it happens and once per session start
   while still full; `session_stop` counts `clipsSkipped` (events without a clip because of the
   cap) and `linesDropped`. Below max(10 % of the cap, 200 MB) free, a red line «Speicher fast voll
   …» shows on «Messen» and in this section; at the cap, with recording on, «Messen» does not start
-  until recording is switched off, the limit raised, or the files exported and deleted
+  until «Audio speichern» is switched off or the files are exported and deleted (0.9.4.5: or the limit raised)
   (`StoragePolicy` in `labor/Policies.kt`, tested in `PoliciesAndManifestTest`). Before 0.7.5 a full
   cap also stopped the manifest.
 
 In addition, while recording is on, every classifier run (once per second) is logged to
 `classifier/<yyyyMMdd_HH>.jsonl`, also where no clip exists, so missed events stay visible.
 
-Settings apply from the next start of a measurement; switching recording off stops it at once.
-The section also shows the space used and the number of clips and hour files, and has the
-«Export» row with «Ohne Stundendateien» and the size line (0.9.4, below), «In Ordner exportieren»
-(with «Ordner wählen» and «Wo sind die Dateien?»), «Als ZIP teilen», «Exportierte Aufnahmen
-löschen» (0.9.4) and «Alle Aufnahmen löschen».
+Settings apply from the next start of a measurement («Gilt ab der nächsten Messung.» under the switch when it is
+switched on during a run); switching recording off stops it at once. Until 0.9.4.5 the section also showed the
+number of clips, hour files and classifier logs, the microphone and (Labor·Karte) «Bewegung», and «Wo sind die
+Dateien?» next to «Ordner wählen».
 
 **Folder export (branch labor-export, Labor editions only).** «In Ordner exportieren» copies the
 recording folder into a folder the owner picks once through Android's folder picker (the Storage
@@ -1694,7 +1734,8 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `ch/lessnoise/` that refers to `Landroid/webkit/WebView;` (`dexdump -d`; the only reference in it
    is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
-   and no string `loud_alert`; **since 0.9.0 (0.8.4 in `laborKarte`) the public one has none either** (only `laborKarte` has them);
+   and no string `loud_alert`; **from 0.9.5 (0.9.4.6 in `laborKarte`) the public one has them again** («Unterwegs
+   messen»; 0.9.0–0.9.4 it had none); since 0.9.4.6 no edition has `FOREGROUND_SERVICE_LOCATION`;
    (0.8.4) the public dex has the shortcut and widget classes `ch/lessnoise/app/report/*` and its manifest
    the widget receiver and `android.app.shortcuts`; the offline one has neither.
    (0.6.7) the offline dex contains no class `ch/lessnoise/app/motion/MotionDetector*` and no class
@@ -1757,19 +1798,21 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
   src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
                 ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading since 0.8.0 in `public` too), compiled
                 into `public` and `laborKarte` only; also the motion detector, the compass, and (0.8.4)
-                report/: the shortcut's intent and the widget «Laut! Melden», res/: the widget and the icons
-  src/nounterwegs/ (0.8.4) LoudAlerts.kt stand-in for `public`: no «Unterwegs», no «Sehr laut»
+                report/: the shortcut's intent and the widget «Laut! Melden», res/: the widget and the icons;
+                (0.9.4.6) alert/ + ui/LoudAlerts.kt: «Unterwegs messen» and the «Sehr laut» notification
+                (0.8.4–0.9.4.5 in src/laborKarte, with the stand-in src/nounterwegs for `public`, both removed)
+  src/noposition/ (0.6.9) PositionWatch stand-in (reads nothing), compiled into `public` and (0.9.4.6) `laborKarte`
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
                 (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
   src/laborKarte/ AndroidManifest.xml: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»;
-                kotlin/: the position signal (0.6.9) and (0.8.4) alert/ + ui/LoudAlerts.kt («Unterwegs», «Sehr laut»);
-                res/xml/shortcuts.xml
+                res/xml/shortcuts.xml (0.9.4.6: no Kotlin of its own any more; until 0.9.4.5 the position signal,
+                0.6.9, and alert/ + ui/LoudAlerts.kt, 0.8.4)
   src/testLabor/ JVM tests of the Labor recorder and clip-player parts (run for `labor` and `laborKarte`)
 tools/verify_yamnet.py    model I/O + Kotlin-vs-Python preprocessing check
 tools/csp_hash.py         CSP script hashes for the website's inline script (docs/update.html)
-tools/check_release_apk.py (0.8.4) permission, manifest and dex rules of an APK per edition
+tools/check_release_apk.py (0.8.4) permission, manifest and dex rules of an APK per edition (0.9.4.6: alert/* in public and laborKarte)
 ```
 
 ## Roadmap

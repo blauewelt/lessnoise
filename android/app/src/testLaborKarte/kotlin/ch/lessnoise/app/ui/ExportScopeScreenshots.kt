@@ -1,28 +1,23 @@
 package ch.lessnoise.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import app.cash.paparazzi.Snapshot
 import app.cash.paparazzi.SnapshotHandler
 import ch.lessnoise.app.labor.ExportEstimate
-import ch.lessnoise.app.labor.ExportJobPanel
 import ch.lessnoise.app.labor.ExportJobState
 import ch.lessnoise.app.labor.ExportKind
 import ch.lessnoise.app.labor.ExportProgress
 import ch.lessnoise.app.labor.ExportScope
 import ch.lessnoise.app.labor.ExportScopes
-import ch.lessnoise.app.labor.ExportScopeControls
+import ch.lessnoise.app.labor.LaborCardContent
+import ch.lessnoise.app.labor.LaborCardTexts
+import ch.lessnoise.app.labor.LaborExportBlock
 import ch.lessnoise.chart.LessNoiseTheme
 import com.android.resources.Density
 import org.junit.Rule
@@ -31,9 +26,9 @@ import java.io.File
 import java.lang.reflect.Proxy
 
 /**
- * 0.9.4: the «Export» row, «Ohne Stundendateien» and the size line above the export buttons, in a
- * stand-in of the end of the Labor section (the section itself needs the app container and an
- * activity-result registry, which the JVM render does not have; same card, same buttons and texts).
+ * 0.9.4: the «Export» row, «Ohne Stundendateien» and the size line above the export buttons. 0.9.4.6: in the real
+ * «Labor» card (LaborCardContent, stateless; until 0.9.4.5 a stand-in of the old section, which needed the app
+ * container and an activity-result registry), switch on.
  * 360 dp wide (a small phone) and 411 dp. Written to $stadtlaerm.screenshotDir/0.9.4-export (default
  * app/build/screenshots/0.9.4-export), for review only.
  */
@@ -54,8 +49,8 @@ class ExportScopeScreenshots {
 
     @get:Rule
     val paparazzi = Paparazzi(
-        // 720 px at 320 dpi = 360 dp.
-        deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 720, screenHeight = 1400, xdpi = 320, ydpi = 320, density = Density.XHIGH),
+        // 720 px at 320 dpi = 360 dp. 0.9.4.6: 1000 dp high (was 700), so the whole «Labor» card fits (switch to the deletes).
+        deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 720, screenHeight = 2000, xdpi = 320, ydpi = 320, density = Density.XHIGH),
         theme = "android:Theme.Material.Light.NoActionBar",
         snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4-export")),
         useDeviceResolution = true,
@@ -68,22 +63,15 @@ class ExportScopeScreenshots {
         paparazzi.snapshot(name) {
             LessNoiseTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                    SectionCard("Labor") {
-                        Text("…", style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = {}) { Text("Clips anhören") }
-                        ExportScopeControls(scope, {}, withoutHours, {}, estimate, folderNote, enabled = job !is ExportJobState.Running)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = {}) { Text("In Ordner exportieren") }
-                            OutlinedButton(onClick = {}) { Text("Als ZIP teilen") }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = {}) { Text("Ordner wählen") }
-                            TextButton(onClick = {}) { Text("Wo sind die Dateien?") }
-                        }
-                        ExportJobPanel(job, {}, {}, {})
-                        OutlinedButton(onClick = {}) { Text("Exportierte Aufnahmen löschen") }
-                        OutlinedButton(onClick = {}) { Text("Alle Aufnahmen löschen") }
-                    }
+                    // 0.9.4.6: the real card (LaborCardContent), switch on (until 0.9.4.5 a stand-in of the old section).
+                    LaborCardContent(
+                        recordAudio = true, onRecordAudio = {}, switchSupporting = LaborCardTexts.SWITCH_SUPPORTING, showFiles = true,
+                        used = LaborCardTexts.used(2_480_000_000, 5_000_000_000), clips = 6000, onClips = {},
+                        export = LaborExportBlock(scope, {}, withoutHours, {}, estimate, folderNote, job, {}, {}, {}, {}, {}),
+                        deleteEnabled = job !is ExportJobState.Running,
+                        deleteNote = if (job is ExportJobState.Running) "Löschen ist während eines Exports nicht möglich." else null,
+                        onDeleteExported = {}, onDeleteAll = {}, message = null,
+                    )
                 }
             }
         }

@@ -82,7 +82,7 @@ object EditionUi {
     @Composable
     fun RecordingNote() {}
 
-    /** Extra section at the end of Einstellungen (Labor: recording settings). */
+    /** Extra section near the end of Einstellungen (Labor: the card «Labor» with «Audio speichern», 0.9.4.6). */
     @Composable
     fun SettingsSection() {}
 

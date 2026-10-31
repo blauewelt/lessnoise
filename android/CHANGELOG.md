@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.9.4.6 — Labor·Karte first (branch labor-0.9.1): three ways to use the app; Labor = Online-Version + «Audio speichern» (versionCode 51)
+
+In short (owner, 2026-10-31): «still not easy enough» — «Messen» offers three ways: at the window overnight,
+on the road with «Laut! Melden», and, below them, «Unterwegs messen» with a notification when a vehicle is very
+loud. And the Labor build is the Online-Version plus one switch that also stores the audio. The code is in
+`src/main` and `src/karte`, so the Online-Version gets it with its next release (0.9.5).
+
+- **«Unterwegs messen»** (outlined, walk icon, «Mikrofon an. Mitteilung, wenn ein Fahrzeug sehr laut ist.») under
+  «Langzeitmessung starten»: a run that is never shared, with the «Sehr laut» notification (≥ 75 dB(A), «Lautes
+  Fahrzeug» or «Strassenverkehr», not wind, at most one every 2 minutes — the rule of 0.6.7, unchanged). Running, it
+  says «Unterwegs seit … · Mitteilung bei sehr lauten Fahrzeugen.»; the notification title is «Mikrofon aktiv –
+  unterwegs». «Mehr dazu» names the three ways. The alert code moved back from `src/laborKarte` to `src/karte`
+  (`src/nounterwegs` removed, flag `LABOR_UNTERWEGS` removed).
+- **Notification tap:** «Melden» in every run of both editions; a tap on the notification opens «Laut! Melden» while
+  the run is «unterwegs» (also «Unterwegs erkannt»), otherwise «Messen».
+- **Labor (both Labor builds):** no red banner; the card «Labor» has one switch **«Audio speichern»** (the same stored
+  setting as «Audio während der Messung aufzeichnen», so a recording phone keeps recording); space used, «Clips
+  anhören», the export and the two deletes only while it is on or recordings exist. Gone from the card: the
+  clips/continuous switches, «Clip-Rate», «Maximaler Speicher», the statistics rows, «Wo sind die Dateien?» (the
+  stored values stay in force). While audio is stored: «Audio wird gespeichert» on «Messen» and in the notification.
+- **Labor·Karte like the Online-Version:** «Unterwegs aufnehmen» replaced by «Unterwegs messen»; the photo again in
+  «Laut! Melden» (the video is switched off, `EditionReportVideo.AVAILABLE = false`; kept videos still play); no
+  position signal and no `FOREGROUND_SERVICE_LOCATION`; the Online motion thresholds; no «Bewegung …» line.
+- `tools/check_release_apk.py`: alert/* and `loud_alert` in public and laborKarte, absent in offline and labor;
+  `FOREGROUND_SERVICE_LOCATION` in no edition. Tests: `LoudAlertTest` (76 dB alerts, 74 dB not, a still window run
+  never), `LaborBannerTest` (one switch, no banner, the recording line); renders `MessenMain*Screenshots`
+  (`0.9.4.6-messen`) and `LaborCardScreenshots` (`0.9.4.6-labor`).
+
 ## 0.9.4.5 — Labor·Karte first (branch labor-0.9.1): only the place is required; direction can be switched off; Anzahl; Hupen and Baustelle (versionCode 50)
 
 In short (owner's decisions of 2026-10-28): a report needs only its place. The kind is optional, the direction

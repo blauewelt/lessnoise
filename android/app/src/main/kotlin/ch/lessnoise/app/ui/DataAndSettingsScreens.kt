@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -95,7 +96,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         },
         onClear = { confirmClear = true },
         onAdvanced = { advanced = true },
-        // Labor: the recording settings (nothing in the public editions).
+        // Labor: the card «Labor» with «Audio speichern» (0.9.4.6; nothing in the public editions).
         editionSection = { EditionUi.SettingsSection() },
     )
 
@@ -140,8 +141,10 @@ fun SettingsContent(
     modifier: Modifier = Modifier,
     updateCard: @Composable () -> Unit = {},
     editionSection: @Composable () -> Unit = {},
+    /** 0.9.4.6: the screen's scroll state (a JVM render can scroll to the Labor card at the end). */
+    scroll: ScrollState = rememberScrollState(),
 ) {
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+    Column(modifier.fillMaxWidth().verticalScroll(scroll)) {
         ScreenTitle("Einstellungen")
         updateCard()
         SectionCard("Lange messen", rows = true) {
