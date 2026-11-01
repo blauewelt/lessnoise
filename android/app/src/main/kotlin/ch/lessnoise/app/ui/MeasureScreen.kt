@@ -85,10 +85,14 @@ fun MeasureScreen(
     onOpen: (Screen) -> Unit = {},
     reportPreset: ReportPreset? = null,
     onReportPresetUsed: () -> Unit = {},
+    /** 0.9.6: a tap on the calibration banner (AppRoot: Einstellungen › Erweitert at «Kalibrieren», [CalibrationLink]). */
+    onCalibrate: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val c = context.container
     val live by c.live.collectAsStateWithLifecycle()
+    // 0.9.6: calibrated or not, for the microphone in use (AppContainer.calibrationStatus).
+    val calibration by c.calibrationStatus.collectAsStateWithLifecycle()
     val events by remember { c.measurements.recentEvents(30) }.collectAsStateWithLifecycle(emptyList())
     val calibrating by c.calibrationActive.collectAsStateWithLifecycle()
     val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
@@ -146,6 +150,8 @@ fun MeasureScreen(
         onUnterwegs = if (LoudAlerts.AVAILABLE) ({ onStart(unterwegs = true) }) else null,
         storageNotice = { EditionUi.StorageNotice() },
         recordingNote = { EditionUi.RecordingNote() },
+        calibration = calibration,
+        onCalibrate = onCalibrate,
     )
 }
 
@@ -270,7 +276,9 @@ fun StatusChip(status: ShareStatus, onTap: (ShareAction) -> Unit, modifier: Modi
  * card ([CompactLevelCard]), the big «Laut! Melden» with its line, «Stoppen» (outlined, error colour),
  * «Läuft seit …» (0.9.4.6, an «unterwegs» run: «Unterwegs seit … · Mitteilung bei sehr lauten Fahrzeugen.»),
  * the status chip, the last Lärmspitzen. Without reports: the 0.9.0 level card and «Stoppen» filled in the
- * error colour.
+ * error colour. 0.9.6 (owner: «a very clear indicator on whether the phone is calibrated or not»), every edition and
+ * both states: the calibration banner ([CalibrationBanner], green «Telefon kalibriert: −2,3 dB · 01.11.2026» or red
+ * «Telefon nicht kalibriert – … Kalibrieren ›») right under the title; a tap calls [onCalibrate].
  */
 @Composable
 fun MeasureContent(
@@ -294,6 +302,10 @@ fun MeasureContent(
     storageNotice: @Composable () -> Unit = {},
     /** 0.9.4.6, Labor editions: «Audio wird gespeichert» while the recorder stores audio; nothing in the public editions. */
     recordingNote: @Composable () -> Unit = {},
+    /** 0.9.6: the calibration banner's status (AppContainer.calibrationStatus); null: not read yet, no banner. */
+    calibration: CalibrationStatus? = null,
+    /** 0.9.6: a tap on the banner opens «Kalibrieren». */
+    onCalibrate: () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
 
@@ -306,12 +318,15 @@ fun MeasureContent(
             IdleMeasure(
                 live = live, calibrating = calibrating, onStart = onStart, onReport = onReport, onUnterwegs = onUnterwegs,
                 shareStatus = shareStatus, onShareStatus = onShareStatus, updateLine = updateLine, storageNotice = storageNotice,
+                calibration = calibration, onCalibrate = onCalibrate,
                 modifier = Modifier.padding(inner),
             )
             return@Scaffold
         }
         LazyColumn(Modifier.padding(inner).fillMaxWidth()) {
             item { ScreenTitle("Messen") }
+            // 0.9.6: the calibration banner, right under the title, above the level card (12 dp to it, as between cards).
+            calibration?.let { status -> item { CalibrationBanner(status, Modifier.padding(bottom = 6.dp), onClick = onCalibrate) } }
 
             if (live.micSilenced || live.invalidAudio) {
                 item {
@@ -524,7 +539,8 @@ fun AppLogo(modifier: Modifier = Modifier, size: Dp = IDLE_LOGO_SIZE) {
  * the free space the logo, «Weniger Lärm», one line and the status chip; at the bottom (16 dp
  * margins, within thumb reach) the actions. The column is at least as tall as the screen, so the
  * weighted spacers share the free space; when the content is taller (small phone, large font) it
- * scrolls instead of clipping and the spacers shrink to their fixed minimum.
+ * scrolls instead of clipping and the spacers shrink to their fixed minimum. 0.9.6: the calibration
+ * banner ([CalibrationBanner], [calibration]) right under the title.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -539,6 +555,8 @@ fun IdleMeasure(
     onShareStatus: (ShareAction) -> Unit = {},
     updateLine: @Composable () -> Unit = {},
     storageNotice: @Composable () -> Unit = {},
+    calibration: CalibrationStatus? = null,
+    onCalibrate: () -> Unit = {},
 ) {
     var more by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
@@ -549,6 +567,9 @@ fun IdleMeasure(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             ScreenTitle("Messen", Modifier.align(Alignment.Start))
+            // 0.9.6: the calibration banner, right under the title (seen at once; the logo block and the actions move
+            // down by its height, and on a small phone the column scrolls a little earlier, «Laut! Melden» stays on screen).
+            calibration?.let { CalibrationBanner(it, onClick = onCalibrate) }
             Spacer(Modifier.height(16.dp))
             Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))
             // Middle: logo, name, line, chip. 0.9.4.4: smaller with reports (72 dp logo, titleLarge name), so the

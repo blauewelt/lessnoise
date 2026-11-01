@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.9.6 — 2026-11-01 (versionCode 54; published: Offline-Version and Online-Version on the website)
+
+In short: the owner's calibration changes of 2026-11-01 for both published editions (and both Labor builds; the
+code is in `src/main`). **Calibration in plain numbers (Labor·Karte 0.9.5.1):** «Kalibrieren» shows a calibration
+as its deviation from the standard («Kalibriert am 01.11.2026 15:45: Abweichung vom Standard −2,3 dB (Messgerät)»,
+signed, one decimal) instead of the conversion constant («132,42 dB», which read like an error of 132 dB); «Korrektur
+von Hand» takes that deviation; above 20 dB from the standard every method asks «Wirklich speichern?». **A very
+clear indicator on «Messen» (new, owner: «a green banner … when it's calibrated, and a red banner with a pointer to
+calibration if it isn't»):** right under the title, idle and while measuring, a green banner «Telefon kalibriert:
+−2,3 dB · 01.11.2026» (the same deviation and formatter as «Kalibrieren», the date of the active calibration) or a red
+one «Telefon nicht kalibriert – Werte sind Richtwerte (± 5 dB). Kalibrieren ›»; a tap opens Einstellungen › Erweitert
+at «Kalibrieren», which is headed by the same banner without the pointer. The banner follows the microphone in use
+(calibrations are per microphone since 0.7.2): idle the active calibration of the microphone a measurement would use
+now, while measuring the one that measurement uses. Unchanged: the stored offset, the database, the JSON export
+(`offset_db`), the Labor manifest and everything uploaded; the banner reads the phone's own calibration table and
+sends nothing. Both editions ask for exactly the permissions of the published 0.9.5 (`aapt2 dump permissions` of the
+0.9.6 debug APKs against docs/download of 0.9.5).
+
+- `ui/CalibrationBanner.kt`: `CalibrationStatus` (calibrated = an active calibration whose method is not
+  `reset_default`), `CalibrationBannerTexts` (no-break spaces in «−2,3 dB», «± 5 dB», «Kalibrieren ›»), `bannerColors`
+  (theme roles: tertiaryContainer green, errorContainer red; text ≥ 7:1 in light and dark; tick / warning icon so the
+  meaning is not in the colour alone), `CalibrationBanner` (min 48 dp, the whole banner is the tap target),
+  `CalibrationLink` (the tap: «Einstellungen» pushed on the tab history, «Erweitert» opened at `CALIBRATE_ITEM`).
+  `AppContainer.calibrationStatus` (started at app start, so the banner is there on the first frame);
+  `CalibrationRepository.byId`; `Fmt.date`.
+- Website: anleitung.html#kalibrieren explains the banner in two sentences (tests/pages.spec.js pins them);
+  docs/img/app-messen.png re-rendered with the red banner (not used by any page; app-messung*.png show «Messungen» and
+  did not change).
+- Tests: `CalibrationBannerTest` (texts, sign formatting, status, contrast, the tap's navigation and wiring),
+  `MeasureTextsTest` (the banner's place in both states), `EditionTextTest` (0.9.6 / 54, exact name per flavour).
+  Renders `MessenMain*Screenshots` (public, laborKarte) and the new `MessenOffline*Screenshots` (offline) in
+  `0.9.6-messen` — idle and running, calibrated and not, light and dark, 412 × 915, 360 × 740 and 360 × 640 at 130 %
+  font — and `CalibrationBanner*Screenshots` (top of «Kalibrieren») in `0.9.6-calibration`.
+
 ## 0.9.5.1 — Labor·Karte first (branch labor-0.9.5): calibration shows the deviation from the standard; «Wirklich speichern?» above 20 dB (versionCode 53)
 
 In short (owner, 2026-11-01): «Kalibriert am 01.11.2026 15:45: 132,42 dB» and «Korrektur 124,62 dB» read like

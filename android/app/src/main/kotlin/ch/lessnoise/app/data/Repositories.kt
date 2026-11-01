@@ -149,6 +149,8 @@ class CalibrationRepository(private val dao: CalibrationDao) {
     /** The active calibration of [source] and the microphone [mic] (MicChoice.key; default: the built-in one). */
     suspend fun active(source: String, mic: String = MicChoice.BUILTIN): Active = Active(dao.latest(deviceModel, source, mic))
     fun activeFlow(source: String, mic: String = MicChoice.BUILTIN): Flow<CalibrationEntity?> = dao.latestFlow(deviceModel, source, mic)
+    /** 0.9.6: one calibration (the running measurement's, LiveState.calibrationId), for the banner on «Messen». */
+    suspend fun byId(id: Long): CalibrationEntity? = dao.byId(id)
     fun history(): Flow<List<CalibrationEntity>> = dao.historyFlow()
 
     suspend fun save(

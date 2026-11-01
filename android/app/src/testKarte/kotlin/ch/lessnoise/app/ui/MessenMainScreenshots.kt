@@ -14,6 +14,7 @@ import ch.lessnoise.app.service.LiveState
 import ch.lessnoise.app.upload.ShareDecision
 import ch.lessnoise.app.upload.UploadSnapshot
 import ch.lessnoise.chart.LessNoiseTheme
+import ch.lessnoise.dsp.calibration.CalibrationMath
 import ch.lessnoise.dsp.geo.LocationNoise
 import com.android.resources.Density
 import org.junit.Rule
@@ -32,7 +33,9 @@ import java.time.ZoneId
  * [AudioNoteLine], the composable EditionUi.RecordingNote calls — that one needs the app container). [widthDp] × [heightDp]
  * at 480 dpi (3 px per dp) and [fontScale]; no system bars (a phone has about 24 dp status bar and 24–48 dp
  * navigation more). Synthetic values only. Written to $stadtlaerm.screenshotDir/0.9.4.6-messen as
- * messen-<edition>-<state>-<suffix>.png, for review only.
+ * messen-<edition>-<state>-<suffix>.png, for review only. 0.9.6: every state with the calibration banner — idle and
+ * running, calibrated (green, −2,3 dB on 01.11.2026) and not (red), light and dark; the «unterwegs» run calibrated, the
+ * Labor·Karte recording run not — written to 0.9.6-messen.
  */
 abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScale: Float, private val suffix: String) {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -55,7 +58,7 @@ abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScal
             screenWidth = widthDp * 3, screenHeight = heightDp * 3, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = fontScale,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4.6-messen")),
+        snapshotHandler = PngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.6-messen")),
         useDeviceResolution = true,
     )
 
@@ -94,7 +97,12 @@ abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScal
 
     private enum class Run { IDLE, WINDOW, UNTERWEGS, WINDOW_RECORDING }
 
-    private fun render(state: String, dark: Boolean, run: Run) =
+    // 0.9.6: the banner's two states — the owner's example (−2,3 dB from the standard, 01.11.2026) and the standard value.
+    private val calibrated = CalibrationStatus.Calibrated(
+        CalibrationMath.offsetFromDeviation(-2.3), LocalDateTime.of(2026, 11, 1, 15, 45).atZone(zone).toInstant().toEpochMilli(),
+    )
+
+    private fun render(state: String, dark: Boolean, run: Run, cal: Boolean) =
         paparazzi.snapshot("messen-$edition-$state-$suffix") {
             LessNoiseTheme(dark = dark) {
                 // 0.9.4.6: no Labor banner (topBar empty in both editions, as EditionUi.Banner draws nothing).
@@ -119,19 +127,24 @@ abstract class MessenMainDeviceScreenshots(widthDp: Int, heightDp: Int, fontScal
                         // Labor's EditionUi.RecordingNote draws exactly this line while audio is stored (it needs the app
                         // container itself); the public editions never draw it.
                         recordingNote = { if (run == Run.WINDOW_RECORDING) AudioNoteLine("Audio wird gespeichert") },
+                        calibration = if (cal) calibrated else CalibrationStatus.NotCalibrated,
                     )
                 }
             }
         }
 
-    @Test fun idle() = render("idle", dark = false, run = Run.IDLE)
-    @Test fun idleDark() = render("idle-dark", dark = true, run = Run.IDLE)
-    @Test fun running() = render("running", dark = false, run = Run.WINDOW)
-    @Test fun runningDark() = render("running-dark", dark = true, run = Run.WINDOW)
-    @Test fun runningUnterwegs() = render("running-unterwegs", dark = false, run = Run.UNTERWEGS)
-    @Test fun runningUnterwegsDark() = render("running-unterwegs-dark", dark = true, run = Run.UNTERWEGS)
+    @Test fun idle() = render("idle-uncalibrated", dark = false, run = Run.IDLE, cal = false)
+    @Test fun idleDark() = render("idle-uncalibrated-dark", dark = true, run = Run.IDLE, cal = false)
+    @Test fun idleCalibrated() = render("idle-calibrated", dark = false, run = Run.IDLE, cal = true)
+    @Test fun idleCalibratedDark() = render("idle-calibrated-dark", dark = true, run = Run.IDLE, cal = true)
+    @Test fun running() = render("running-uncalibrated", dark = false, run = Run.WINDOW, cal = false)
+    @Test fun runningDark() = render("running-uncalibrated-dark", dark = true, run = Run.WINDOW, cal = false)
+    @Test fun runningCalibrated() = render("running-calibrated", dark = false, run = Run.WINDOW, cal = true)
+    @Test fun runningCalibratedDark() = render("running-calibrated-dark", dark = true, run = Run.WINDOW, cal = true)
+    @Test fun runningUnterwegs() = render("running-unterwegs-calibrated", dark = false, run = Run.UNTERWEGS, cal = true)
+    @Test fun runningUnterwegsDark() = render("running-unterwegs-calibrated-dark", dark = true, run = Run.UNTERWEGS, cal = true)
     // Labor·Karte only: the window run while «Audio speichern» stores audio (the one Labor line on «Messen»).
-    @Test fun runningRecording() { if (labor) render("running-audio", dark = false, run = Run.WINDOW_RECORDING) }
+    @Test fun runningRecording() { if (labor) render("running-audio-uncalibrated", dark = false, run = Run.WINDOW_RECORDING, cal = false) }
 }
 
 /** The owner's phone, approximately (412 × 915 dp), font 1.0. */

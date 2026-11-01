@@ -426,6 +426,16 @@ a microphone that was never calibrated is uncalibrated. «Alte Messungen anpasse
 the minutes of the calibration's microphone, and the noise floor («Messgrenze») is that of the
 built-in microphone.
 
+**Calibration banner (0.9.6, every edition):** «Messen» shows right under its title, idle and while
+measuring, whether the phone is calibrated for the microphone in use — green «Telefon kalibriert:
+−2,3 dB · 01.11.2026» (the deviation from the standard as on «Kalibrieren», and the date of the active
+calibration) or red «Telefon nicht kalibriert – Werte sind Richtwerte (± 5 dB). Kalibrieren ›» (never
+calibrated, or «Zurücksetzen»). A tap opens Einstellungen → Erweitert at «Kalibrieren». While a
+measurement runs the banner describes the calibration that measurement uses (a calibration saved
+meanwhile counts from the next measurement); otherwise the active one of the microphone a measurement
+would use now. The same banner, without the pointer, heads «Kalibrieren» itself. It reads the phone's
+own calibration table only; nothing is sent.
+
 ### Method 1 — compare with a sound level meter (recommended)
 
 You need a Class 1 or Class 2 sound level meter that can show LAeq (borrow one: many

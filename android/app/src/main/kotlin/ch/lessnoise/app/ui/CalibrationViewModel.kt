@@ -64,10 +64,15 @@ class CalibrationViewModel(app: Application) : AndroidViewModel(app) {
     val microphone: StateFlow<MicChoice.Resolution> = c.microphones.resolution
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val active: StateFlow<CalibrationEntity?> =
-        c.microphones.resolution.map { it.key }.distinctUntilChanged()
-            .flatMapLatest { key -> c.calibrations.activeFlow(source, key) }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val activeOfMic = c.microphones.resolution.map { it.key }.distinctUntilChanged()
+        .flatMapLatest { key -> c.calibrations.activeFlow(source, key) }
+    val active: StateFlow<CalibrationEntity?> = activeOfMic.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    /**
+     * 0.9.6: the banner at the top of «Kalibrieren»: the [active] calibration as [CalibrationStatus] (also while a
+     * measurement runs: this screen shows what the next measurement uses). Null until the first read (no banner).
+     */
+    val bannerStatus: StateFlow<CalibrationStatus?> =
+        activeOfMic.map { CalibrationStatus.of(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val history: StateFlow<List<CalibrationEntity>> =
         c.calibrations.history().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 

@@ -103,13 +103,15 @@ class MeasureTextsTest {
         // colour; without reports (Offline, Labor) the 0.9.0 level card and the filled «Stoppen».
         val content = screen.substring(screen.indexOf("fun MeasureContent("), screen.indexOf("/** The level card of a running measurement"))
         val running = content.substring(content.indexOf("return@Scaffold"))
+        // 0.9.6: the calibration banner first, under the title (CalibrationBannerTest); then the 0.9.4.4 order.
+        val banner = running.indexOf("item { CalibrationBanner(status, Modifier.padding(bottom = 6.dp), onClick = onCalibrate) }")
         val card = running.indexOf("if (onReport != null) CompactLevelCard(live, noiseFloor, categoryName)")
         val big = running.indexOf("BigReportButton(onClick = onReport)")
         val hint = running.indexOf("StackHint(REPORT_HINT)")
         val stop = running.indexOf("// Running: «Stoppen»")
         val chip = running.indexOf("StatusChip(it, onShareStatus)")
         val peaks = running.indexOf("item { SectionHeading(\"Letzte Lärmspitzen\") }")
-        assertTrue(card in 0 until big && big < hint && hint < stop && stop < chip && chip < peaks, "$card $big $hint $stop $chip $peaks")
+        assertTrue(banner in 0 until card && card < big && big < hint && hint < stop && stop < chip && chip < peaks, "$banner $card $big $hint $stop $chip $peaks")
         assertTrue(running.contains("else LevelCard(live, noiseFloor, categoryName)"))
         assertTrue(running.substring(0, big).contains("if (onReport != null) {\n                item {"), "only in the editions with reports")
         val stopBlock = running.substring(stop, chip)
@@ -174,8 +176,9 @@ class MeasureTextsTest {
         }
         val idle = screen.substring(screen.indexOf("fun IdleMeasure("), screen.indexOf("fun MoreSheetContent("))
         assertTrue(idle.contains("Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport)"))
+        // 0.9.6: the calibration banner right under the title, before the logo block (CalibrationBannerTest).
         val order = listOf(
-            "ScreenTitle(\"Messen\"", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo(size = if (reports) IDLE_LOGO_SIZE_REPORTS else IDLE_LOGO_SIZE)",
+            "ScreenTitle(\"Messen\"", "calibration?.let { CalibrationBanner(it, onClick = onCalibrate) }", "Spacer(Modifier.weight(IDLE_WEIGHT_ABOVE))", "AppLogo(size = if (reports) IDLE_LOGO_SIZE_REPORTS else IDLE_LOGO_SIZE)",
             "APP_NAME, style = if (reports) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall",
             "idleTagline(reports = onReport != null)", "shareStatus?.takeIf(::showOnIdle)", "StatusChip(it, onShareStatus", "Spacer(Modifier.weight(IDLE_WEIGHT_BELOW))",
             "BigReportButton(onClick = onReport", "Text(MORE_LABEL)", "ModalBottomSheet(",

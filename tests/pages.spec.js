@@ -121,6 +121,19 @@ test("the Anleitung has the anchors the app and the other pages link to", async 
   await expect(page.locator("#daten")).toContainText("CSV");
 });
 
+test("0.9.6: the Anleitung explains the calibration banner on «Messen»", async ({ page }) => {
+  await page.goto("/anleitung.html");
+  const cal = (await page.locator("#kalibrieren").textContent()).replace(/\s+/g, " ");
+  for (const fact of [
+    "ab Version 0.9.6 ein Balken oben im Tab «Messen»",
+    "grün «Telefon kalibriert» mit der Abweichung vom Standard und dem Datum der Kalibrierung",
+    "rot «Telefon nicht kalibriert»",
+    "Ein Tippen auf den Balken öffnet «Kalibrieren».",
+  ]) expect(cal, fact).toContain(fact);
+  // The tolerance the red banner names is the one the Anleitung states.
+  expect(cal).toContain("Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB).");
+});
+
 test("footnotes: each marker links to its note right below, and the note links back", async ({ page }) => {
   for (const [p, n] of [["/", 1], ["/anleitung.html", 2]]) {
     await page.goto(p);

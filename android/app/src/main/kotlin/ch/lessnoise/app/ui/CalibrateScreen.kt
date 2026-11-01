@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Slider
 import androidx.compose.material3.ButtonDefaults
@@ -83,7 +84,13 @@ fun methodName(m: String): String = when (m) {
  * «Kalibrieren» (formerly its own tab), including «Alte Messungen anpassen» (formerly under «Daten»).
  */
 @Composable
-fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: CalibrationViewModel = viewModel()) {
+fun AdvancedScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** 0.9.6: opened by the calibration banner on «Messen»: the list starts at «Kalibrieren» ([CALIBRATE_ITEM]). */
+    atCalibration: Boolean = false,
+    vm: CalibrationViewModel = viewModel(),
+) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val c = context.container
@@ -95,6 +102,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
     val live by c.live.collectAsStateWithLifecycle()
     val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
     val mic by vm.microphone.collectAsStateWithLifecycle()
+    val banner by vm.bannerStatus.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
     // 0.9.5.1: «Wirklich speichern?» before a save more than 20 dB from the standard.
@@ -113,7 +121,10 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LazyColumn(modifier.fillMaxWidth()) {
+    // 0.9.6: from the banner on «Messen» the list starts at the heading «Kalibrieren» (the items before it: the title,
+    // «Lärmspitzen», «Mikrofon»; CalibrationBannerTest counts them).
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = if (atCalibration) CALIBRATE_ITEM else 0)
+    LazyColumn(modifier.fillMaxWidth(), state = list) {
         item {
             // 0.8.6: the back arrow instead of «‹», the shared screen title.
             TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp), contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) {
@@ -145,6 +156,9 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
 
         // Kalibrieren ---------------------------------------------------------------------------
         item { CalibrateIntro() }
+        // 0.9.6: the banner of «Messen» at the top of «Kalibrieren» (where its tap lands), without the pointer: green with the
+        // deviation and the date, or red «Telefon nicht kalibriert – …». The card below keeps the detail (time, method).
+        banner?.let { status -> item { CalibrationBanner(status, Modifier.padding(top = 12.dp, bottom = 2.dp)) } }
         item {
             SectionCard {
                 val a = active
@@ -432,6 +446,9 @@ fun CalibrateIntro() {
         MoreLink(Links.CALIBRATE)
     }
 }
+
+/** 0.9.6: the index of «Kalibrieren» ([CalibrateIntro]) in [AdvancedScreen]'s list, where the banner's tap lands. */
+const val CALIBRATE_ITEM = 3
 
 /** 0.9.2: what calibrating does, then when it is needed (until 0.9.1 «Nur nötig, wenn du ein Messgerät hast. …»). */
 const val CALIBRATE_INTRO = "Gleicht die Werte an ein Messgerät an. Nur nötig, wenn du eins hast; sonst sind die Werte Richtwerte."

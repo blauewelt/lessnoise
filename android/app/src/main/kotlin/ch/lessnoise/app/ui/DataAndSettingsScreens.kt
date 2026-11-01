@@ -27,6 +27,7 @@ import ch.lessnoise.app.icons.AppIcons
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,10 +53,24 @@ import java.io.File
  * defaults, see AppSettings.
  */
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
-    var advanced by rememberSaveable { mutableStateOf(false) }
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    /** 0.9.6: opened by the calibration banner on «Messen» ([CalibrationLink]): «Erweitert» at «Kalibrieren». */
+    atCalibration: Boolean = false,
+    onAtCalibration: () -> Unit = {},
+) {
+    var advanced by rememberSaveable { mutableStateOf(atCalibration) }
+    // 0.9.6: «Erweitert» from the banner starts at «Kalibrieren»; from the row «Erweitert» at the top, as before.
+    var advancedAtCalibration by rememberSaveable { mutableStateOf(atCalibration) }
+    LaunchedEffect(atCalibration) {
+        if (atCalibration) {
+            advanced = true
+            advancedAtCalibration = true
+            onAtCalibration()
+        }
+    }
     if (advanced) {
-        AdvancedScreen(onBack = { advanced = false }, modifier = modifier)
+        AdvancedScreen(onBack = { advanced = false; advancedAtCalibration = false }, modifier = modifier, atCalibration = advancedAtCalibration)
         return
     }
     val context = LocalContext.current

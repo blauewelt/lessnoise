@@ -22,7 +22,8 @@ import java.time.ZoneId
 /**
  * «Messen» while measuring, rendered on the JVM (Paparazzi) for wenigerlaerm.ch: synthetic values
  * only (no recording). Written to $STADTLAERM_SCREENSHOT_DIR/website (default
- * app/build/screenshots/website) as app-messen.png; copy it to docs/img/ by hand.
+ * app/build/screenshots/website) as app-messen.png; copy it to docs/img/ by hand. 0.9.6: with the calibration banner
+ * in its red state («Telefon nicht kalibriert …»), the state of a phone nobody calibrated.
  */
 class MeasureScreenshot {
     private class PngWriter(private val dir: File) : SnapshotHandler {
@@ -77,6 +78,7 @@ class MeasureScreenshot {
                     live = live, events = events, calibrating = false,
                     categoryName = { names[it] ?: "Sonstiges" }, onStart = {}, onStop = {},
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    calibration = CalibrationStatus.NotCalibrated,
                 )
             }
         }

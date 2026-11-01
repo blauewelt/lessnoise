@@ -47,7 +47,7 @@ import java.time.ZoneId
  * owner's phone (412 × 915 dp at 480 dpi), light. The owner's case of 2026-11-01: the phone shows 50,0 dB(A)
  * with the standard, the meter 70,1 dB(A) → +20,1 dB. Paparazzi draws no Dialog windows: the dialog is
  * drawn in a test-only frame of Material's AlertDialog look with the app's texts. Written to
- * $stadtlaerm.screenshotDir/0.9.5.1-calibration, for review only.
+ * $stadtlaerm.screenshotDir/0.9.5.1-calibration, for review only. (0.9.6: the banner renders, CalibrationBannerDeviceScreenshots, below.)
  */
 private class CalPngWriter(private val dir: File) : SnapshotHandler {
     init { dir.mkdirs() }
@@ -174,3 +174,53 @@ class Calibration412x915Screenshots {
         }
     }
 }
+
+/**
+ * 0.9.6: the top of «Kalibrieren» (where the banner's tap on «Messen» lands, AdvancedScreen at CALIBRATE_ITEM): the
+ * heading, the same banner without a pointer (green −2,3 dB on 01.11.2026, red «Telefon nicht kalibriert …»), then the
+ * status card with the detail, light and dark, at 412 × 915 and 360 × 740 dp. Written to
+ * $stadtlaerm.screenshotDir/0.9.6-calibration, for review only.
+ */
+abstract class CalibrationBannerDeviceScreenshots(widthDp: Int, heightDp: Int, private val suffix: String) {
+    @get:Rule
+    val paparazzi = Paparazzi(
+        deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = widthDp * 3, screenHeight = heightDp * 3, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = 1.0f),
+        theme = "android:Theme.Material.Light.NoActionBar",
+        snapshotHandler = CalPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.6-calibration")),
+        useDeviceResolution = true,
+    )
+
+    private val std = Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
+    private val at = LocalDateTime.of(2026, 11, 1, 15, 45).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun render(name: String, dark: Boolean, calibrated: Boolean) = paparazzi.snapshot("kalibrieren-top-$name-$suffix") {
+        LessNoiseTheme(dark = dark) {
+            Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
+                val offset = if (calibrated) std - 2.3 else std
+                CalibrateIntro()
+                // As AdvancedScreen draws it: no onClick, so no pointer.
+                CalibrationBanner(
+                    if (calibrated) CalibrationStatus.Calibrated(offset, at) else CalibrationStatus.NotCalibrated,
+                    Modifier.padding(top = 12.dp, bottom = 2.dp),
+                )
+                SectionCard {
+                    Text(
+                        if (calibrated) CalibrationDeviation.activeLine(true, at, CalibrationEntity.METHOD_REFERENCE, offset) else CalibrationDeviation.NOT_CALIBRATED,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    StatRow("Gerät", "Google Pixel 9")
+                    StatRow("Audioquelle", "Unbearbeitet")
+                    StatRow("Mikrofon", "eingebaut")
+                }
+            }
+        }
+    }
+
+    @Test fun calibrated() = render("calibrated", dark = false, calibrated = true)
+    @Test fun calibratedDark() = render("calibrated-dark", dark = true, calibrated = true)
+    @Test fun notCalibrated() = render("uncalibrated", dark = false, calibrated = false)
+    @Test fun notCalibratedDark() = render("uncalibrated-dark", dark = true, calibrated = false)
+}
+
+class CalibrationBanner412x915Screenshots : CalibrationBannerDeviceScreenshots(412, 915, "412x915")
+class CalibrationBanner360x740Screenshots : CalibrationBannerDeviceScreenshots(360, 740, "360x740")

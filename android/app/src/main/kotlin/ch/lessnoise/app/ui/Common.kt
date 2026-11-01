@@ -81,6 +81,11 @@ object Fmt {
     fun hm(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(hm)
     fun dateTime(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(dateTime)
 
+    private val date = DateTimeFormatter.ofPattern("dd.MM.yyyy", SwissLocale)
+
+    /** 0.9.6: «01.11.2026» (the calibration banner on «Messen»). */
+    fun date(ms: Long, zone: ZoneId = ZoneId.systemDefault()): String = Instant.ofEpochMilli(ms).atZone(zone).format(date)
+
     /**
      * 0.8.6: a past moment for the status chip «Auf der Karte · …»: «18:42» today, «gestern 18:42»,
      * «23.10. 18:42» earlier this year, «23.10.2025 18:42» before. Until 0.8.5 the chip showed only

@@ -153,6 +153,8 @@ fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {
     // its dialogs (ShareFlow.kt). Null in the Offline and Labor builds.
     val share = if (BuildConfig.UPLOAD_AVAILABLE) rememberShareController() else null
     val open: (Screen) -> Unit = { s -> if (s in screens) history = history.select(s) }
+    // 0.9.6: the calibration banner on «Messen» opens Einstellungen › Erweitert at «Kalibrieren».
+    val calibrationLink = remember { CalibrationLink() }
     BackHandler(enabled = history.canGoBack) { history = history.back() }
     // «Laut! Melden» from the notification runs on «Messen» (a tab switch like any other).
     LaunchedEffect(alertPreset) { if (alertPreset != null) open(Screen.MEASURE) }
@@ -176,11 +178,14 @@ fun AppRoot(alertPreset: ReportPreset? = null, onAlertPresetUsed: () -> Unit = {
                     MapTab.Content(m, visible = current == Screen.MAP, onOpen = open)
                 }
                 when (current) {
-                    Screen.MEASURE -> MeasureScreen(m, onOpen = open, reportPreset = alertPreset, onReportPresetUsed = onAlertPresetUsed)
+                    Screen.MEASURE -> MeasureScreen(
+                        m, onOpen = open, reportPreset = alertPreset, onReportPresetUsed = onAlertPresetUsed,
+                        onCalibrate = { history = calibrationLink.open(history) },
+                    )
                     Screen.MEASUREMENTS -> MeasurementsScreen(m)
                     Screen.MAP -> Unit
                     Screen.SHARE -> ShareScreen(m, onOpen = open)
-                    Screen.SETTINGS -> SettingsScreen(m)
+                    Screen.SETTINGS -> SettingsScreen(m, atCalibration = calibrationLink.requested, onAtCalibration = calibrationLink::taken)
                 }
             }
             share?.Dialogs()

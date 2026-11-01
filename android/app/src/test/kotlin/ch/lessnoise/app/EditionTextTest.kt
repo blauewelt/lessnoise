@@ -72,7 +72,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.9.5.1-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.6-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -93,8 +93,9 @@ class EditionTextTest {
         // Labor = Online-Version + «Audio speichern».
         // 0.9.5 (versionCode 52; published: Offline-Version and Online-Version): the code of 0.9.4.6.
         // 0.9.5.1 (versionCode 53; Labor·Karte first, branch labor-0.9.5): calibration shows the deviation from the standard.
-        assertEquals(53, BuildConfig.VERSION_CODE)
-        assertTrue(BuildConfig.VERSION_NAME.startsWith("0.9.5.1"), BuildConfig.VERSION_NAME)
+        // 0.9.6 (versionCode 54; published: Offline-Version and Online-Version): 0.9.5.1 and the calibration banner on «Messen».
+        assertEquals(54, BuildConfig.VERSION_CODE)
+        assertEquals(if (BuildConfig.FLAVOR == "labor") "0.9.6-labor" else if (BuildConfig.FLAVOR == "laborKarte") "0.9.6-labor-karte" else "0.9.6", BuildConfig.VERSION_NAME)
     }
 
     @Test

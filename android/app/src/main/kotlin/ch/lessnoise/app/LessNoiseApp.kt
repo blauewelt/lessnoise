@@ -9,6 +9,7 @@ import ch.lessnoise.app.data.NoiseFloorStore
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.data.SettingsStore
 import ch.lessnoise.app.service.LiveState
+import ch.lessnoise.app.ui.CalibrationStatus
 import ch.lessnoise.app.ui.LocateState
 import ch.lessnoise.app.update.UpdateReminderStore
 import ch.lessnoise.app.upload.UploadModule
@@ -16,7 +17,17 @@ import ch.lessnoise.dsp.classify.CategoryMapper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class LessNoiseApp : Application() {
@@ -38,6 +49,8 @@ class LessNoiseApp : Application() {
         }
         // The phone's noise floor («Messgrenze», 0.6.5): estimated once per app start, off the main thread.
         container.noiseFloor.refresh()
+        // 0.9.6: the calibration banner's status, read from now on (Room's own thread), so «Messen» has it at once.
+        container.calibrationStatus
         // «Messwerte teilen»: keeps the upload schedule in line with the setting and uploads after
         // a measurement stops. Does nothing (no network) while sharing is off, and nothing at all
         // in the Offline and Labor builds.
@@ -98,6 +111,28 @@ class AppContainer(context: Context) {
     }
     /** True while the calibration screen is using the microphone (blocks starting a measurement). */
     val calibrationActive = MutableStateFlow(false)
+    /**
+     * 0.9.6: what the calibration banner on «Messen» shows (ui/CalibrationBanner.kt). While a measurement runs, the
+     * calibration it measures with (LiveState.calibrationId: that of the microphone in use, renewed when the service
+     * switches microphones; a calibration saved meanwhile counts from the next measurement, «Gilt ab der nächsten
+     * Messung»); otherwise the active calibration of the microphone a measurement would use now (Microphones.resolution;
+     * calibrations are per microphone since 0.7.2). Null until the first database read (no banner drawn). Started in
+     * LessNoiseApp.onCreate, so the banner is there when «Messen» first draws and when the tab is shown again.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val calibrationStatus: StateFlow<CalibrationStatus?> by lazy {
+        val source = ch.lessnoise.app.audio.AudioSourceSelector.select(appContext)
+        combine(
+            live.map { it.running to it.calibrationId }.distinctUntilChanged(),
+            microphones.resolution.map { it.key }.distinctUntilChanged(),
+        ) { run, mic -> Triple(run.first, run.second, mic) }
+            .flatMapLatest { (running, calibrationId, mic) ->
+                if (running) flow { emit(CalibrationStatus.of(calibrationId?.let { calibrations.byId(it) })) }
+                else calibrations.activeFlow(source, mic).map { CalibrationStatus.of(it) }
+            }
+            .catch { e -> android.util.Log.w("AppContainer", "calibration status: ${e.javaClass.simpleName}") }
+            .stateIn(appScope, SharingStarted.Eagerly, null)
+    }
     /**
      * Karten editions (0.6.3): where the fix for the running measurement stands (ui/ShareFlow.kt).
      * Kept for the process so that «Messen» and «Teilen» show the same status line and a fix that
