@@ -414,7 +414,10 @@ sleep") may need an extra exemption in the maker's own battery settings.
 ## Calibration (step by step)
 
 Phones differ by several dB, so for data you want to show to anyone, calibrate (since 0.6.1 under
-**Einstellungen → Erweitert → Kalibrieren**; the screen calls the offset «Korrektur»). Calibrations are
+**Einstellungen → Erweitert → Kalibrieren**). Since 0.9.5.1 the screen shows a calibration as its
+**deviation from the standard** («Abweichung vom Standard +3,4 dB» = offset − 112.35 dB, one decimal);
+until 0.9.5 it showed the offset itself as «Korrektur» («132,42 dB»), which read like an error of
+that size. The stored value, the JSON export and the upload keep the offset. Calibrations are
 stored per **device model, audio source and microphone** (the microphone since 0.7.2: the built-in
 one, or one chosen under «Mikrofon», see «Measuring» → «Microphone») with a full history; every
 minute record carries the id of the calibration that was active. «Kalibrieren» calibrates the
@@ -436,11 +439,14 @@ environmental offices and universities lend them).
 4. Under «Mit Messgerät vergleichen» tap **Messen (30 s)** (fixed at 30 s since 0.6.1; 60 s is no
    longer offered), and at the same moment start an LAeq measurement of the same length on the meter.
 5. When the countdown ends, type the meter's LAeq into «Wert am Messgerät». The app shows the
-   phone's level and the new «Korrektur» (`reference − measured`).
+   phone's level and the new «Abweichung vom Standard» (`reference − measured − 112.35 dB`).
 6. Check the warnings: «Zu unruhig» (standard deviation of the 1 s levels > 2 dB: the noise was not
    steady enough); «Zu leise (unter 50 dB(A))» (too close to the phone's own noise floor). Repeat
    if warned.
-7. Tap **Übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB.
+7. Tap **Übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB. Above 20 dB
+   deviation (warning «Abweichung vom Standard über 20 dB – vermutlich ein Fehler.») the app asks
+   «Wirklich speichern?» first (since 0.9.5.1; the same for the calibrator and «Korrektur von
+   Hand»); within 20 dB it saves at once.
 
 ### Method 2 — acoustic calibrator
 
@@ -453,8 +459,10 @@ environmental offices and universities lend them).
 
 ### Method 3 — manual offset
 
-«Korrektur von Hand»: enter an offset determined elsewhere (e.g. another phone of the same model
-calibrated with method 1). Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
+«Korrektur von Hand»: enter the deviation from the standard determined elsewhere (e.g. another
+phone of the same model calibrated with method 1), e.g. «+3,4» or «−2,0»; the app stores
+112.35 dB + deviation. Since 0.9.5.1 the field takes the deviation (until 0.9.5 the offset itself)
+and is prefilled with the active calibration's deviation. Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
 uncalibrated CDD default.
 
 ### Noise floor («Messgrenze», estimated per phone since 0.6.5)

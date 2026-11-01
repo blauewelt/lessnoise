@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.5.1 — Labor·Karte first (branch labor-0.9.5): calibration shows the deviation from the standard; «Wirklich speichern?» above 20 dB (versionCode 53)
+
+In short (owner, 2026-11-01): «Kalibriert am 01.11.2026 15:45: 132,42 dB» and «Korrektur 124,62 dB» read like
+«the microphone is off by 124 dB». The numbers were the conversion constant offsetDb (dBFS → dB SPL), whose
+typical phone value is 112,35 dB. «Kalibrieren» now shows the **deviation from the standard** (offsetDb −
+112,35 dB, signed, one decimal): the active line («Kalibriert am …: Abweichung vom Standard +20,1 dB
+(Messgerät)»; uncalibrated «Nicht kalibriert (Standardwert).»), the result rows of «Mit Messgerät vergleichen»
+and «Mit Kalibrator», the «Verlauf» rows («Abweichung +20,1 dB») and the warning text. «Korrektur von Hand»
+takes the deviation («+3,4», «−2,0»; prefilled with the active one) and stores 112,35 dB + deviation. Above
+20 dB (the existing rule, now decided on the shown one-decimal value, so «+20,0» never warns and «+20,1»
+always does) every method asks «Wirklich speichern?» – «Speichern» / «Abbrechen»; within 20 dB it saves at
+once as before. Unchanged: the stored offsetDb, the database, the JSON export (`offset_db`,
+`default_offset_db`), the Labor manifest and everything uploaded (`calibration_offset_db`). Code in
+src/main: the Online- and Offline-Version get it with their next release.
+
 ## 0.9.5 — 2026-10-31 (versionCode 52; published: Offline-Version and Online-Version on the website)
 
 In short: the owner's go-ahead of 2026-10-31 brings the Labor·Karte builds 0.9.1–0.9.4.6 to the two published

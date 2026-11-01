@@ -65,7 +65,8 @@ fun warningText(w: CalibrationWarning): String = when (w) {
     CalibrationWarning.TOO_QUIET -> "Zu leise (unter 50 dB(A)). Nimm ein lauteres Geräusch."
     CalibrationWarning.FREQUENCY_OFF -> "Kein 1-kHz-Ton. Sitzt der Kalibrator richtig?"
     CalibrationWarning.NOT_TONAL -> "Signal ist kein sauberer Ton (Ankopplung prüfen, Umgebung leiser)."
-    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Korrektur über 20 dB – vermutlich ein Fehler."
+    // 0.9.5.1: the deviation from the standard, as everywhere on the screen (until 0.9.5 «Korrektur über 20 dB …»).
+    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Abweichung vom Standard über 20 dB – vermutlich ein Fehler."
     CalibrationWarning.CLIPPING -> "Zu laut für das Telefon. Nimm 94 statt 114 dB."
 }
 
@@ -96,6 +97,8 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
     val mic by vm.microphone.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
+    // 0.9.5.1: «Wirklich speichern?» before a save more than 20 dB from the standard.
+    val confirmation = remember { SaveConfirmation() }
     val requestPermission = rememberMicPermissionLauncher { granted -> if (granted) pendingMode?.let { vm.start(it) } }
     val startMode: (CalMode) -> Unit = { mode ->
         if (hasMicPermission(context)) vm.start(mode) else { pendingMode = mode; requestPermission() }
@@ -145,9 +148,10 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         item {
             SectionCard {
                 val a = active
+                // 0.9.5.1: the deviation from the standard (until 0.9.5 offsetDb itself, «132,42 dB»).
                 Text(
-                    if (a == null || !a.isCalibrated) "Nicht kalibriert (Standardwert ${Fmt.db(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, 2)} dB)."
-                    else "Kalibriert am ${Fmt.dateTime(a.createdEpochMs)}: ${Fmt.db(a.offsetDb, 2)} dB (${methodName(a.method)})",
+                    if (a == null) CalibrationDeviation.NOT_CALIBRATED
+                    else CalibrationDeviation.activeLine(a.isCalibrated, a.createdEpochMs, a.method, a.offsetDb),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 // 0.6.5: the phone's noise floor, estimated from the stored minutes (nothing without one);
@@ -222,30 +226,24 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         item {
             var reading by remember { mutableStateOf("") }
             var notes by remember { mutableStateOf("") }
-            SectionCard("Mit Messgerät vergleichen") {
-                Text(
-                    "Telefon neben das Messgerät halten, beide gleichzeitig ${state.referenceWindowSeconds} s messen, Wert unten eintragen.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Button(onClick = { startMode(CalMode.REFERENCE) }, enabled = !busy) { Text("Messen (${state.referenceWindowSeconds} s)") }
-                state.referenceResult?.let { r ->
-                    HorizontalDivider()
-                    StatRow("Telefon", "${Fmt.db(r.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB))} dB(A)")
-                    OutlinedTextField(
-                        value = reading, onValueChange = { reading = it },
-                        label = { Text("Wert am Messgerät (dB(A))") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                    val ref = parseDb(reading)
-                    if (ref != null) {
-                        StatRow("Korrektur", "${Fmt.db(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), 2)} dB")
+            val r = state.referenceResult
+            val ref = parseDb(reading)
+            ReferenceCard(
+                windowSeconds = state.referenceWindowSeconds, busy = busy,
+                phoneDb = r?.let { it.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB) },
+                reading = reading, onReading = { reading = it }, notes = notes, onNotes = { notes = it },
+                offsetDb = if (r != null && ref != null) CalibrationMath.referenceOffset(ref, r.rawLaeqDb) else null,
+                warnings = vm.referenceWarnings(ref),
+                onMeasure = { startMode(CalMode.REFERENCE) },
+                onSave = {
+                    if (r != null && ref != null) {
+                        val n = notes
+                        confirmation.request(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), CalibrationEntity.METHOD_REFERENCE) {
+                            vm.saveReference(ref, n); reading = ""; notes = ""
+                        }
                     }
-                    vm.referenceWarnings(ref).forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { ref?.let { vm.saveReference(it, notes); reading = ""; notes = "" } }, enabled = ref != null) { Text("Übernehmen") }
-                }
-            }
+                },
+            )
         }
 
         // 2. Acoustic calibrator -------------------------------------------------------------
@@ -262,33 +260,32 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                 state.calibratorResult?.let { r ->
                     HorizontalDivider()
                     StatRow("Frequenz", "${Fmt.db(r.toneFrequencyHz, 0)} Hz")
-                    StatRow("Korrektur", "${Fmt.db(CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb), 2)} dB")
+                    val offset = CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb)
+                    StatRow(CalibrationDeviation.LABEL, CalibrationDeviation.ofOffset(offset))
                     val warnings = vm.calibratorWarnings()
                     warnings.forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     val blocking = CalibrationWarning.FREQUENCY_OFF in warnings || CalibrationWarning.NOT_TONAL in warnings
                     OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { vm.saveCalibrator(notes); notes = "" }, enabled = !blocking) { Text("Übernehmen") }
+                    Button(onClick = {
+                        val n = notes
+                        confirmation.request(offset, CalibrationEntity.METHOD_CALIBRATOR) { vm.saveCalibrator(n); notes = "" }
+                    }, enabled = !blocking) { Text("Übernehmen") }
                 }
             }
         }
 
-        // 3. Manual -----------------------------------------------------------------------------
+        // 3. Manual (0.9.5.1: the person types the deviation from the standard) ----------------
         item {
-            var offset by remember { mutableStateOf("") }
+            val a = active
+            var deviation by remember(a?.id) { mutableStateOf(CalibrationDeviation.manualPrefill(a?.isCalibrated == true, a?.offsetDb)) }
             var notes by remember { mutableStateOf("") }
-            SectionCard("Korrektur von Hand") {
-                OutlinedTextField(
-                    value = offset, onValueChange = { offset = it }, label = { Text("Korrektur (dB)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                val v = parseDb(offset)
-                if (v != null && CalibrationMath.implausible(v)) {
-                    Text("⚠ " + warningText(CalibrationWarning.IMPLAUSIBLE_OFFSET), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                Button(onClick = { v?.let { vm.saveManual(it, notes); offset = ""; notes = "" } }, enabled = v != null && !busy) { Text("Speichern") }
-            }
+            ManualCard(
+                deviation = deviation, onDeviation = { deviation = it }, notes = notes, onNotes = { notes = it }, busy = busy,
+                onSave = { offset ->
+                    val n = notes
+                    confirmation.request(offset, CalibrationEntity.METHOD_MANUAL) { vm.saveManual(offset, n); notes = "" }
+                },
+            )
         }
 
         // History --------------------------------------------------------------------------------
@@ -306,7 +303,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         items(history, key = { it.id }) { h ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                 Text(
-                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${Fmt.db(h.offsetDb, 2)} dB · " +
+                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${CalibrationDeviation.historyPart(h.offsetDb)} · " +
                         AudioSourceSelector.labelDe(h.audioSource) + (h.micLabel?.let { " · $it" } ?: "") +
                         (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
                     style = MaterialTheme.typography.bodySmall,
@@ -316,11 +313,73 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         item { Spacer(Modifier.height(24.dp)) }
     }
 
+    confirmation.pending?.let { p ->
+        SaveConfirmDialog(p, onConfirm = { confirmation.confirm() }, onDismiss = { confirmation.cancel() })
+    }
     state.recalOffer?.let { offer ->
         RecalibrationDialog(
             minutes = offer.minutes, measuring = measuring,
             onConfirm = { vm.confirmRecalibration() }, onDismiss = { vm.dismissRecalibration() },
         )
+    }
+}
+
+/**
+ * «Mit Messgerät vergleichen» (pure since 0.9.5.1, so the JVM renders draw it). [phoneDb]: the phone's level
+ * of the last 30 s with the active calibration, null before a measurement; [offsetDb]: the calibration the
+ * typed reading gives, shown as its deviation from the standard (until 0.9.5 «Korrektur 124,62 dB»).
+ */
+@Composable
+fun ReferenceCard(
+    windowSeconds: Int, busy: Boolean, phoneDb: Double?,
+    reading: String, onReading: (String) -> Unit, notes: String, onNotes: (String) -> Unit,
+    offsetDb: Double?, warnings: List<CalibrationWarning>, onMeasure: () -> Unit, onSave: () -> Unit,
+) {
+    SectionCard("Mit Messgerät vergleichen") {
+        Text(
+            "Telefon neben das Messgerät halten, beide gleichzeitig $windowSeconds s messen, Wert unten eintragen.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Button(onClick = onMeasure, enabled = !busy) { Text("Messen ($windowSeconds s)") }
+        if (phoneDb != null) {
+            HorizontalDivider()
+            StatRow("Telefon", "${Fmt.db(phoneDb)} dB(A)")
+            OutlinedTextField(
+                value = reading, onValueChange = onReading,
+                label = { Text("Wert am Messgerät (dB(A))") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(value = notes, onValueChange = onNotes, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
+            if (offsetDb != null) StatRow(CalibrationDeviation.LABEL, CalibrationDeviation.ofOffset(offsetDb))
+            warnings.forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            Button(onClick = onSave, enabled = offsetDb != null) { Text("Übernehmen") }
+        }
+    }
+}
+
+/**
+ * «Korrektur von Hand» (pure since 0.9.5.1): the person types the deviation from the standard («+3,0»);
+ * [onSave] gets the offsetDb to store ([CalibrationDeviation.manualOffset]). Until 0.9.5 the field took
+ * offsetDb itself («Korrektur (dB)»).
+ */
+@Composable
+fun ManualCard(
+    deviation: String, onDeviation: (String) -> Unit, notes: String, onNotes: (String) -> Unit, busy: Boolean,
+    onSave: (Double) -> Unit,
+) {
+    SectionCard("Korrektur von Hand") {
+        OutlinedTextField(
+            value = deviation, onValueChange = onDeviation, label = { Text("${CalibrationDeviation.LABEL} (dB)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(value = notes, onValueChange = onNotes, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
+        val offset = CalibrationDeviation.manualOffset(deviation)
+        if (offset != null && CalibrationMath.implausible(offset)) {
+            Text("⚠ " + warningText(CalibrationWarning.IMPLAUSIBLE_OFFSET), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Button(onClick = { offset?.let(onSave) }, enabled = offset != null && !busy) { Text("Speichern") }
     }
 }
 
