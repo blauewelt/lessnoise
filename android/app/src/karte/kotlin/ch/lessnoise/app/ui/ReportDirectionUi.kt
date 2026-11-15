@@ -20,16 +20,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -41,13 +38,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,8 +74,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.draw.alpha
 import kotlin.math.roundToInt
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.layout.onSizeChanged
+import ch.lessnoise.app.icons.AppIcons
+import androidx.compose.ui.draw.alpha
 
 /**
  * The compass of «Laut! Melden» (0.6.7, editions with the map; the Offline and Labor builds get the
@@ -116,8 +126,19 @@ object ReportDirectionUi {
     /**
      * 0.8.1: the disc's size (0.7.8: 240 dp in its own dialog); it still shows 300 m across. 0.9.4.2: the
      * largest size; the dialog passes the size that fits the screen (`reportDiscDp`, [REPORT_DISC_MIN_DP]–[REPORT_DISC_MAX_DP]).
+     * 0.9.6.1 (Labor·Karte first): the map card's largest HEIGHT (its width is the dialog's), 300 dp.
      */
-    const val DISC_DP = REPORT_DISC_MAX_DP
+    const val CARD_DP = REPORT_DISC_MAX_DP
+
+    /** 0.9.6.1: the map card's corners (and its 1 dp outline in outlineVariant). */
+    const val CARD_CORNER_DP = 16
+
+    /**
+     * 0.9.6.1: the chip at the map card's bottom while the map can be dragged and has not been yet in this dialog
+     * (the pattern of ride-hailing and delivery apps: a fixed marker, the map moves under it). Replaces
+     * «· Karte verschiebbar» (0.9.2–0.9.6) at the end of the status line.
+     */
+    const val PAN_HINT = "Karte verschieben"
 
     /**
      * Magnetic declination (degrees, east positive) at the report's own place and time, from
@@ -140,7 +161,8 @@ object ReportDirectionUi {
         return ReportDirection(d, ReportDirection.North.MAGNETIC, ReportDirection.Accuracy.HIGH).label.removePrefix("Richtung ") + " · $d°"
     }
 
-    /** 0.7.8: the credit under the disc while swisstopo's tiles are drawn. */
+
+    /** 0.7.8: the credit under the disc while swisstopo's tiles are drawn; 0.9.6.1: inside the map card's bottom-right corner. */
     const val TILE_ATTRIBUTION = "© swisstopo"
 
     /**
@@ -190,6 +212,18 @@ object ReportDirectionUi {
      * null again. The drag is turned back by the disc's
      * rotation ([ReportMapTiles.screenDragToMapOffset]), the disc does not follow the compass while
      * the finger is down, and the map stops [ReportMapTiles.MAX_DRAG_M] from the fix.
+     *
+     * 0.9.6.1 (Labor·Karte first; owner: the arrow did not say «the vehicle», and nothing showed that the map can be
+     * dragged): the round disc is a **map card** — a rounded rectangle the full width of the dialog, [cardHeight]
+     * high, its width still [ReportMapTiles.VIEW_M] across — with a fixed marker at its centre and the map moving
+     * under it, the pattern of ride-hailing and delivery apps. The marker is a **car seen from above**, nose up the
+     * screen (where the phone points = where it drove), with two chevrons ahead of it ([MapCanvas], [drawCar]); its
+     * centre is the reported place. Over the map: no compass rose, a small north badge top-left ([NorthBadge]),
+     * «×» top-right, «© swisstopo» bottom-right and, until the first drag of this dialog, the chip [PAN_HINT]
+     * bottom-centre. Once moved, the reporter's own fix is the blue dot on the map. Without the map (no fix or
+     * reading yet, outside Switzerland, no tiles) the rose of 0.7.6 with the car at its centre. 0.9.2's
+     * `onDraggable` (for «· Karte verschiebbar» in the status line) is gone with that text: the chip says it at
+     * the map itself.
      */
     @Composable
     fun Panel(
@@ -198,20 +232,18 @@ object ReportDirectionUi {
         moved: Pair<Double, Double>?,
         /** 0.8.6, for the JVM renders only (ReportDialogDeviceScreenshots): tiles drawn instead of downloading any; null in the app. */
         previewTiles: Map<ReportMapTiles.Tile, ImageBitmap>? = null,
-        /** 0.9.2: told whether the map can be dragged now (streets drawn, a fix and a reading), for the hint in the location row. */
-        onDraggable: (Boolean) -> Unit = {},
-        /** 0.9.4.2: the disc's side, from the height the dialog has left (ReportDialogBody, `reportDiscDp`). */
-        discSize: Dp = DISC_DP.dp,
+        /** 0.9.4.2: the disc's side, from the height the dialog has left (ReportDialogBody, `reportDiscDp`); 0.9.6.1: the map card's height. */
+        cardHeight: Dp = CARD_DP.dp,
         /**
          * 0.9.4.2: true for the dialog's measuring pass only: the hint lines and the live label without the disc
          * (no canvas, no tiles requested, no effects), so the dialog learns how much height the rest needs.
          */
         measureOnly: Boolean = false,
         /**
-         * 0.9.4.5 (Labor·Karte first): whether a direction is given. «×» ([DIRECTION_OFF], a 40 dp button at the
-         * disc's top-right, outside the circle) calls [onDirectionOn] with false: the disc is then drawn faint without
-         * the arrow, with [DIRECTION_NONE] and the text button [DIRECTION_ON] over it, which calls it with true. The
-         * map under the dot can still be dragged (the place stays correctable); the caller sends no direction.
+         * 0.9.4.5 (Labor·Karte first): whether a direction is given. «×» ([DIRECTION_OFF], a 40 dp button; 0.9.6.1 inside
+         * the card's top-right corner on a round surface) calls [onDirectionOn] with false: the card is then drawn faint
+         * without the car, a place dot at its centre, with [DIRECTION_NONE] and the button [DIRECTION_ON] over it, which
+         * calls it with true. The map can still be dragged (the place stays correctable); the caller sends no direction.
          * Null: no «×» (the renders of older states).
          */
         directionOn: Boolean = true,
@@ -225,8 +257,14 @@ object ReportDirectionUi {
         // While the finger is down: the heading at touch-down (the disc is frozen), and no tile requests.
         var frozenDeg by remember(fix) { mutableStateOf<Double?>(null) }
         var dragging by remember(fix) { mutableStateOf(false) }
+        // 0.9.6.1: whether the map was dragged in this dialog — the chip [PAN_HINT] then goes and does not come back
+        // (also not after «Zurück zum Standort»). A place already moved when the panel appears counts as dragged.
+        var dragged by remember { mutableStateOf(moved != null) }
+        // 0.9.6.1: the card's size in pixels, for the tiles that cover it in every rotation (its half-diagonal).
+        var cardPx by remember { mutableStateOf(IntSize.Zero) }
         val centre = moved ?: fix
-        val tiles = previewTiles ?: rememberStreetTiles(fix, centre.takeUnless { dragging })
+        val cover = ReportMapTiles.coverRadiusM(cardPx.width.toDouble(), cardPx.height.toDouble())
+        val tiles = previewTiles ?: rememberStreetTiles(fix, centre.takeUnless { dragging || cardPx.width == 0 }, cover)
         // Map north is true north; the compass reads magnetic north. The tiles are turned by the
         // true heading (declination at the fix, Android's built-in model, no network).
         val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
@@ -235,8 +273,6 @@ object ReportDirectionUi {
         val movedNow by rememberUpdatedState(moved)
         val onMoveNow by rememberUpdatedState(onMove)
         val canDrag = fix != null && tiles.isNotEmpty() && r != null
-        val onDraggableNow by rememberUpdatedState(onDraggable)
-        LaunchedEffect(canDrag) { onDraggableNow(canDrag) }
         val drag = if (!canDrag) Modifier else Modifier
             // Touch-down to lift: the disc keeps the heading of the touch-down (else the map would
             // slide under the finger as the compass turns it) and no tiles are requested. Consumes nothing.
@@ -264,6 +300,7 @@ object ReportDirectionUi {
                 var off = 0.0 to 0.0
                 detectDragGestures(
                     onDragStart = {
+                        dragged = true
                         val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
                         off = movedNow?.let { ReportMapTiles.latLonToOffset(fix, it, ReportMapTiles.ZOOM, scale) } ?: (0.0 to 0.0)
                     },
@@ -277,40 +314,99 @@ object ReportDirectionUi {
                     if (onMoveNow(ReportMapTiles.offsetToLatLon(fix, next, ReportMapTiles.ZOOM, scale))) off = next
                 }
             }
-        // 0.8.6: the disc with the credit tucked into its bottom-right corner (outside the circle), the
-        // heading under it. 0.9.2: the hint lines ABOVE the disc, left-aligned under the
-        // dialog's heading «Wohin fuhr es?» (ReportDialogBody): on a short screen the disc fills the visible
-        // part, and the line saying what the arrow is for must not be the part that is scrolled away.
-        // 0.9.4.2: the disc's side is [discSize] (the dialog's height decides), at most the width.
+        val shownDeg = frozenDeg ?: r?.magneticDeg
+        // The streets are drawn once the fix, a reading and the first tiles are there (fading in).
+        val fade by animateFloatAsState(if (tiles.isNotEmpty() && shownDeg != null && fix != null) 1f else 0f, tween(400), label = "tiles")
+        val chip by animateFloatAsState(if (canDrag && !dragged) 1f else 0f, tween(250), label = "chip")
+        val cs = MaterialTheme.colorScheme
+        val shape = RoundedCornerShape(CARD_CORNER_DP.dp)
+        // 0.9.2: the hint lines ABOVE the card, left-aligned under the dialog's heading «Wohin fuhr es?»: on a short
+        // screen the card fills the visible part, and the line saying what it is for must not be scrolled away.
         PanelLines(r, directionOn) {
-            Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f)) {
-                DirectionArrow(
-                    frozenDeg ?: r?.magneticDeg, declination, centre, fix?.first, tiles, drag, arrow = directionOn,
-                    modifier = if (directionOn) Modifier else Modifier.alpha(OFF_ALPHA),
+            // 0.9.6.1: the drag is on the whole card, so that the overlays (chip, badge, credit) take no touch:
+            // a drag that starts on the chip drags the map. Only «×» / «Richtung angeben» are buttons.
+            Box(
+                Modifier.fillMaxWidth().height(cardHeight).clip(shape).border(1.dp, cs.outlineVariant, shape)
+                    .onSizeChanged { cardPx = it }.then(drag),
+            ) {
+                MapCanvas(
+                    shownDeg, declination, centre, fix, moved != null, tiles, fade, car = directionOn,
+                    dim = if (directionOn) 1f else OFF_ALPHA,
                 )
-                if (tiles.isNotEmpty() && r != null) {
+                if (fade > 0f && shownDeg != null) {
+                    NorthBadge(shownDeg + declination, Modifier.align(Alignment.TopStart).padding(6.dp).alpha(fade * (if (directionOn) 1f else OFF_ALPHA)))
                     Text(
-                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.align(Alignment.BottomEnd),
+                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = cs.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 4.dp).alpha(fade)
+                            .background(cs.surface.copy(alpha = 0.7f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
                     )
                 }
+                if (chip > 0f) PanChip(Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).alpha(chip))
                 if (onDirectionOn != null) {
                     if (directionOn) {
-                        // 0.9.4.5: «×» in the square's corner, outside the circle: the direction off.
+                        // 0.9.4.5: «×»: the direction off. 0.9.6.1: inside the card's top-right corner, on a round surface.
                         IconButton(onClick = { onDirectionOn(false) }, modifier = Modifier.align(Alignment.TopEnd).size(40.dp)) {
-                            Icon(Icons.Filled.Close, contentDescription = DIRECTION_OFF, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Box(Modifier.size(30.dp).background(cs.surface, CircleShape), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Close, contentDescription = DIRECTION_OFF, tint = cs.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
                         }
                     } else {
-                        // Over the faint disc, under its centre (the dot stays visible): the way back. «Ohne Richtung»
-                        // stands where the live bearing stood (PanelLines).
+                        // Over the faint card, the way back. «Ohne Richtung» stands where the live bearing stood
+                        // (PanelLines). 0.9.6.1: ABOVE the centre (was under it): the place dot stays visible and the
+                        // chip at the bottom is not covered, also on the 140 dp card.
                         FilledTonalButton(
                             onClick = { onDirectionOn(true) },
-                            // One line, also on the 140 dp disc: the button may reach past the disc's square sideways.
-                            modifier = Modifier.align(Alignment.Center).padding(top = 64.dp).wrapContentWidth(unbounded = true),
+                            modifier = Modifier.align(Alignment.Center).padding(bottom = 64.dp).wrapContentWidth(unbounded = true),
                             contentPadding = PaddingValues(horizontal = 14.dp),
                         ) { Text(DIRECTION_ON, maxLines = 1, softWrap = false) }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * 0.9.6.1: [PAN_HINT] as a pill at the map card's bottom: the four-arrows «move» icon (AppIcons.OpenWith) and the
+     * text, on the surface at 90 %. No click, no pointer input: touches go through to the card's drag.
+     */
+    @Composable
+    private fun PanChip(modifier: Modifier) {
+        val cs = MaterialTheme.colorScheme
+        Row(
+            modifier.background(cs.surface.copy(alpha = 0.9f), CircleShape).padding(start = 10.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(AppIcons.OpenWith, contentDescription = null, tint = cs.onSurface, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(PAN_HINT, style = MaterialTheme.typography.labelMedium, color = cs.onSurface, maxLines = 1, softWrap = false)
+        }
+    }
+
+    /**
+     * 0.9.6.1: map north over the map card, like the compass button of map apps (not a button here): a round 28 dp
+     * badge on the surface, a red tip on its rim and «N» inside, both turned by −[trueHeadingDeg] — the rotation the
+     * map is drawn with —, so they point to the map's north. Replaces the ring, ticks and letters over the map.
+     */
+    @Composable
+    private fun NorthBadge(trueHeadingDeg: Double, modifier: Modifier) {
+        val cs = MaterialTheme.colorScheme
+        val measurer = rememberTextMeasurer()
+        val style = MaterialTheme.typography.labelSmall.copy(color = cs.onSurface, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        Canvas(modifier.size(28.dp)) {
+            val c = Offset(size.width / 2, size.height / 2)
+            val u = 1.dp.toPx()
+            drawCircle(cs.surface, size.minDimension / 2, c)
+            drawCircle(cs.outlineVariant, size.minDimension / 2 - 0.5f * u, c, style = Stroke(1f * u))
+            rotate(-trueHeadingDeg.toFloat(), c) {
+                val tip = Path().apply {
+                    moveTo(c.x, c.y - 12.5f * u)
+                    lineTo(c.x + 4f * u, c.y - 7.5f * u)
+                    lineTo(c.x - 4f * u, c.y - 7.5f * u)
+                    close()
+                }
+                drawPath(tip, cs.error)
+                val n = measurer.measure("N", style)
+                drawText(n, topLeft = Offset(c.x - n.size.width / 2f, c.y + 1.5f * u - n.size.height / 2f))
             }
         }
     }
@@ -366,9 +462,13 @@ object ReportDirectionUi {
      * the finger is down: nothing is requested on the move events). Tiles already in memory or
      * already requested are not requested again; same host, same caps (4 at a time, 512 kB, only
      * a centre in Switzerland). At most [ReportMapTiles.CACHE_MAX] stay, the farthest dropped.
+     *
+     * 0.9.6.1 (Labor·Karte first): the tiles touching the circle of [radiusM] (the map card's half-diagonal,
+     * [ReportMapTiles.coverRadiusM], at most [ReportMapTiles.MAX_COVER_M]) instead of the 150 m circle, so that the
+     * turning rectangle is covered; a new radius (the card grows or shrinks) requests only the tiles not there yet.
      */
     @Composable
-    private fun rememberStreetTiles(fix: Pair<Double, Double>?, centre: Pair<Double, Double>?): Map<ReportMapTiles.Tile, ImageBitmap> {
+    private fun rememberStreetTiles(fix: Pair<Double, Double>?, centre: Pair<Double, Double>?, radiusM: Double): Map<ReportMapTiles.Tile, ImageBitmap> {
         val tiles = remember(fix) { mutableStateMapOf<ReportMapTiles.Tile, ImageBitmap>() }
         val fetcher = remember(fix) { ReportTileFetcher() }
         // Requested and not answered yet (touched on the main thread only).
@@ -377,13 +477,13 @@ object ReportDirectionUi {
         // The downloads outlive a new centre (a running one is not thrown away); they end with the dialog.
         val scope = rememberCoroutineScope()
         DisposableEffect(fetcher) { onDispose { fetcher.close() } }
-        LaunchedEffect(fetcher, centre) {
+        LaunchedEffect(fetcher, centre, radiusM) {
             val f = fix
             val c = centre
             if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect
             if (c != f) delay(TILE_DEBOUNCE_MS)
             val at = ReportMapTiles.tilePoint(c.first, c.second)
-            for (t in ReportMapTiles.tilesAround(c.first, c.second)) {
+            for (t in ReportMapTiles.tilesAround(c.first, c.second, radiusM)) {
                 if (t in tiles || t in pending) continue
                 pending += t
                 scope.launch {
@@ -409,118 +509,171 @@ object ReportDirectionUi {
      *
      * Under it (0.7.8; since 0.8.0 in the Online-Version too; once [fix] and the first tiles are there): the real streets,
      * swisstopo's grey map, turned by the true heading (magnetic + [declination]) so that the map
-     * lies like the ground in front of the reporter, the fix at the centre (a small dot), 300 m
-     * across, faint (60 %) and fading in, clipped to the disc; dark theme: inverted like the
-     * website's map. The 0.7.6 decorative street grid is gone in every edition. Before the first
-     * reading ([magneticDeg] null) only the ring and the ticks, faint, and a grey arrow.
+     * lies like the ground in front of the reporter, 300 m across, fading in; dark theme: inverted like the
+     * website's map. Before the first reading ([magneticDeg] null) only the ring and the ticks, faint.
      *
-     * 0.8.1 (same build): [fix] is the place at the centre — the fix, or the place the map was
-     * moved to under the dot; [scaleLat] the fix's own latitude, for the 300 m scale (the same one
-     * the drag converts with); [drag] is the panel's drag handler (or nothing).
+     * 0.9.6.1 (Labor·Karte first): the canvas of the map card (the card's Box clips it to the rounded rectangle).
+     * Ground: surfaceVariant. With the map ([fade] > 0): the tiles around [centre] (the fix, or the place moved
+     * to), at [ReportMapTiles.TILE_ALPHA], and **no rose** — the north badge of the Panel says where north is;
+     * once [moved], the reporter's own [fix] as the familiar blue dot with a white ring, wherever it lies on the
+     * turned map (outside the card it is clipped away). Without the map: the rose as before, inscribed in the
+     * card's height, fading out as the map fades in. At the centre — the reported place — the car ([drawCar]; [car]
+     * true: the direction is given), in the accent colour with its chevrons once there is a reading, faint grey
+     * without them before; with the direction off a place dot instead (0.9.4.5's dot under the arrow, a bit larger).
+     * [dim] (the direction off) makes the map and the rose faint, never the marker.
      */
     @Composable
-    private fun DirectionArrow(
+    private fun MapCanvas(
         magneticDeg: Double?,
         declination: Double,
+        centre: Pair<Double, Double>?,
         fix: Pair<Double, Double>?,
-        scaleLat: Double?,
+        moved: Boolean,
         tiles: Map<ReportMapTiles.Tile, ImageBitmap>,
-        drag: Modifier,
-        /** 0.9.4.5: false while the direction is off: no arrow (the rose, the map and the dot stay). */
-        arrow: Boolean = true,
-        modifier: Modifier = Modifier,
+        fade: Float,
+        car: Boolean,
+        dim: Float,
     ) {
-        val ink = MaterialTheme.colorScheme.onSurface
-        val accent = MaterialTheme.colorScheme.primary
-        val surface = MaterialTheme.colorScheme.surface
+        val cs = MaterialTheme.colorScheme
+        val ink = cs.onSurface
+        val accent = cs.primary
+        val surface = cs.surface
+        val ground = cs.surfaceVariant
         val dark = surface.luminance() < 0.5f
         val measurer = rememberTextMeasurer()
-        val showArrow = arrow
         val letterStyle = MaterialTheme.typography.labelLarge.copy(color = ink, fontWeight = FontWeight.Medium)
         val northStyle = MaterialTheme.typography.titleMedium.copy(color = accent, fontWeight = FontWeight.Bold)
-        val point = remember(fix) { fix?.let { ReportMapTiles.tilePoint(it.first, it.second) } }
-        val fade by animateFloatAsState(if (tiles.isNotEmpty() && magneticDeg != null) 1f else 0f, tween(400), label = "tiles")
+        val point = remember(centre) { centre?.let { ReportMapTiles.tilePoint(it.first, it.second) } }
+        val fixPoint = remember(fix) { fix?.let { ReportMapTiles.tilePoint(it.first, it.second) } }
         // swisstopo's grey map is light grey; in the dark theme it is inverted (and dimmed) like
         // the website's map (docs/map/karte.css: invert(1) brightness(0.82)).
         val tileFilter = remember(dark) { if (dark) ColorFilter.colorMatrix(INVERT_DIM) else null }
-        Canvas(modifier.fillMaxSize().then(drag)) {
+        Canvas(Modifier.fillMaxSize()) {
             val c = Offset(size.width / 2, size.height / 2)
-            val radius = size.minDimension / 2 - 4.dp.toPx()
             val live = magneticDeg != null
-            val turn = -(magneticDeg ?: 0.0).toFloat()
-            val faint = if (live) 1f else 0.4f
-            val onMap = fade > 0f
-            // The real streets, clipped to the disc, turned by the true heading.
-            if (live && point != null && fix != null && onMap) {
-                val disc = Path().apply { addOval(Rect(c, radius)) }
+            drawRect(ground)
+            // The real streets, turned by the true heading.
+            if (live && point != null && fix != null && fade > 0f) {
                 // The scale of the fix's latitude, as the drag uses: the map stays under the finger.
-                val scale = ReportMapTiles.canvasScale(size.width.toDouble(), scaleLat ?: fix.first)
-                clipPath(disc) {
-                    rotate(-((magneticDeg ?: 0.0) + declination).toFloat(), c) {
-                        for ((t, image) in tiles) {
-                            val b = ReportMapTiles.placement(t, point, scale)
-                            val left = (c.x + b[0]).roundToInt()
-                            val top = (c.y + b[1]).roundToInt()
-                            drawImage(
-                                image,
-                                srcOffset = IntOffset.Zero, srcSize = IntSize(image.width, image.height),
-                                dstOffset = IntOffset(left, top),
-                                dstSize = IntSize((c.x + b[2]).roundToInt() - left, (c.y + b[3]).roundToInt() - top),
-                                alpha = ReportMapTiles.TILE_ALPHA * fade, colorFilter = tileFilter, filterQuality = FilterQuality.Medium,
-                            )
-                        }
+                val scale = ReportMapTiles.canvasScale(size.width.toDouble(), fix.first)
+                rotate(-((magneticDeg ?: 0.0) + declination).toFloat(), c) {
+                    for ((t, image) in tiles) {
+                        val b = ReportMapTiles.placement(t, point, scale)
+                        val left = (c.x + b[0]).roundToInt()
+                        val top = (c.y + b[1]).roundToInt()
+                        drawImage(
+                            image,
+                            srcOffset = IntOffset.Zero, srcSize = IntSize(image.width, image.height),
+                            dstOffset = IntOffset(left, top),
+                            dstSize = IntSize((c.x + b[2]).roundToInt() - left, (c.y + b[3]).roundToInt() - top),
+                            alpha = ReportMapTiles.TILE_ALPHA * fade * dim, colorFilter = tileFilter, filterQuality = FilterQuality.Medium,
+                        )
+                    }
+                    // Once the map was moved: where the reporter is, the blue dot of map apps (it turns and moves with the map).
+                    if (moved && fixPoint != null) {
+                        val k = (ReportMapTiles.TILE_PX * scale).toFloat()
+                        val at = Offset(c.x + (fixPoint.x - point.x).toFloat() * k, c.y + (fixPoint.y - point.y).toFloat() * k)
+                        drawCircle(Color.White, 8.dp.toPx(), at, alpha = fade)
+                        drawCircle(OWN_BLUE, 5.5f.dp.toPx(), at, alpha = fade)
                     }
                 }
             }
-            rotate(turn, c) {
-                drawCircle(ink.copy(alpha = 0.35f * faint), radius, c, style = Stroke(2.dp.toPx()))
-                // 16 ticks every 22.5°, inward from the ring; the cardinal ones (every 4th) longer.
-                for (i in 0 until 16) {
-                    val cardinal = i % 4 == 0
-                    val a = Math.toRadians(i * 22.5)
-                    val len = if (cardinal) 12.dp.toPx() else 6.dp.toPx()
-                    val dx = sin(a).toFloat()
-                    val dy = -cos(a).toFloat()
-                    drawLine(
-                        ink.copy(alpha = (if (cardinal) 0.7f else 0.4f) * faint),
-                        Offset(c.x + dx * radius, c.y + dy * radius),
-                        Offset(c.x + dx * (radius - len), c.y + dy * (radius - len)),
-                        (if (cardinal) 2.dp else 1.dp).toPx(),
-                    )
+            // Without the map: the rose, inscribed in the card's height (it fades out as the map fades in).
+            val rose = (1f - fade) * dim
+            if (rose > 0f) {
+                val radius = size.minDimension / 2 - 4.dp.toPx()
+                val turn = -(magneticDeg ?: 0.0).toFloat()
+                val faint = (if (live) 1f else 0.4f) * rose
+                rotate(turn, c) {
+                    drawCircle(ink.copy(alpha = 0.35f * faint), radius, c, style = Stroke(2.dp.toPx()))
+                    // 16 ticks every 22.5°, inward from the ring; the cardinal ones (every 4th) longer.
+                    for (i in 0 until 16) {
+                        val cardinal = i % 4 == 0
+                        val a = Math.toRadians(i * 22.5)
+                        val len = if (cardinal) 12.dp.toPx() else 6.dp.toPx()
+                        val dx = sin(a).toFloat()
+                        val dy = -cos(a).toFloat()
+                        drawLine(
+                            ink.copy(alpha = (if (cardinal) 0.7f else 0.4f) * faint),
+                            Offset(c.x + dx * radius, c.y + dy * radius),
+                            Offset(c.x + dx * (radius - len), c.y + dy * (radius - len)),
+                            (if (cardinal) 2.dp else 1.dp).toPx(),
+                        )
+                    }
+                }
+                // The letters: their places turn with the rose, the letters themselves stay upright.
+                if (live) {
+                    val letterRadius = radius - 24.dp.toPx()
+                    for ((i, letter) in CARDINALS.withIndex()) {
+                        val layout = measurer.measure(letter, if (i == 0) northStyle else letterStyle)
+                        val a = Math.toRadians(i * 90.0 + turn)
+                        val p = Offset(c.x + sin(a).toFloat() * letterRadius, c.y - cos(a).toFloat() * letterRadius)
+                        drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f), alpha = rose)
+                    }
                 }
             }
-            // The letters: their places turn with the rose, the letters themselves stay upright.
-            if (live) {
-                val letterRadius = radius - 24.dp.toPx()
-                for ((i, letter) in CARDINALS.withIndex()) {
-                    val layout = measurer.measure(letter, if (i == 0) northStyle else letterStyle)
-                    val a = Math.toRadians(i * 90.0 + turn)
-                    val p = Offset(c.x + sin(a).toFloat() * letterRadius, c.y - cos(a).toFloat() * letterRadius)
-                    // Over the map a soft disc behind each letter keeps it legible.
-                    if (onMap) drawCircle(surface.copy(alpha = 0.75f * fade), 11.dp.toPx(), p)
-                    drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f))
-                }
-            }
-            // The fixed arrow: where the phone points.
-            val r = radius * 0.62f
-            val arrow = Path().apply {
-                moveTo(c.x, c.y - r)
-                lineTo(c.x - r * 0.36f, c.y - r * 0.25f)
-                lineTo(c.x - r * 0.12f, c.y - r * 0.25f)
-                lineTo(c.x - r * 0.12f, c.y + r * 0.7f)
-                lineTo(c.x + r * 0.12f, c.y + r * 0.7f)
-                lineTo(c.x + r * 0.12f, c.y - r * 0.25f)
-                lineTo(c.x + r * 0.36f, c.y - r * 0.25f)
-                close()
-            }
-            if (showArrow) drawPath(arrow, if (live) accent else ink.copy(alpha = 0.3f))
-            // The reporter: a small dot at the centre, where the fix lies on the map.
-            if (onMap) {
-                drawCircle(surface, 5.dp.toPx(), c)
-                drawCircle(ink, 3.dp.toPx(), c)
+            // The marker at the centre: the reported place.
+            if (car) {
+                drawCar(c, body = if (live) accent else ink.copy(alpha = 0.3f), window = surface, halo = surface, chevrons = live)
+            } else {
+                drawCircle(surface, 7.dp.toPx(), c)
+                drawCircle(ink, 4.5f.dp.toPx(), c)
             }
         }
     }
+
+    /**
+     * 0.9.6.1: a car seen from above at [c] (its centre), nose up the screen: 22 dp wide and 44 dp long, the body in
+     * [body] with side mirrors, a 2 dp [halo] round it (so it stands out on any map), the windscreen (larger, the
+     * long bonnet in front of it) and the rear window (smaller, the short boot behind it) in [window] so that front and
+     * back are obvious; with [chevrons] two chevrons ahead of the nose: «drives this way». Paths only, no bitmap.
+     */
+    private fun DrawScope.drawCar(c: Offset, body: Color, window: Color, halo: Color, chevrons: Boolean) {
+        val u = 1.dp.toPx()
+        // Points in dp from the car's centre (x right, y down the screen).
+        fun Path.mv(x: Float, y: Float) = moveTo(c.x + x * u, c.y + y * u)
+        fun Path.ln(x: Float, y: Float) = lineTo(c.x + x * u, c.y + y * u)
+        val shell = Path().apply {
+            addRoundRect(
+                RoundRect(
+                    left = c.x - 11f * u, top = c.y - 22f * u, right = c.x + 11f * u, bottom = c.y + 22f * u,
+                    topLeftCornerRadius = CornerRadius(8f * u, 10f * u), topRightCornerRadius = CornerRadius(8f * u, 10f * u),
+                    bottomRightCornerRadius = CornerRadius(6f * u, 6f * u), bottomLeftCornerRadius = CornerRadius(6f * u, 6f * u),
+                ),
+            )
+            // The side mirrors, at the front of the doors.
+            addRoundRect(RoundRect(c.x - 14f * u, c.y - 8f * u, c.x - 10f * u, c.y - 5f * u, CornerRadius(1.5f * u)))
+            addRoundRect(RoundRect(c.x + 10f * u, c.y - 8f * u, c.x + 14f * u, c.y - 5f * u, CornerRadius(1.5f * u)))
+        }
+        val arrows = if (!chevrons) null else Path().apply {
+            for (apex in listOf(-35f, -28.5f)) {
+                mv(-6.5f, apex + 5f)
+                ln(0f, apex)
+                ln(6.5f, apex + 5f)
+            }
+        }
+        // The halo first, then the shapes.
+        drawPath(shell, halo, style = Stroke(4f * u, join = StrokeJoin.Round))
+        arrows?.let { drawPath(it, halo, style = Stroke(6.5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        drawPath(shell, body)
+        arrows?.let { drawPath(it, body, style = Stroke(2.5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        // Windscreen: wide at the bonnet, narrower at the roof.
+        drawPath(Path().apply {
+            mv(-8.5f, -9f); ln(8.5f, -9f)
+            ln(7f, -2f); ln(-7f, -2f); close()
+        }, window)
+        // Rear window: smaller, narrower at the roof.
+        drawPath(Path().apply {
+            mv(-7f, 11f); ln(7f, 11f)
+            ln(8f, 15f); ln(-8f, 15f); close()
+        }, window)
+        // Side windows: thin strips between the two.
+        drawRect(window, topLeft = Offset(c.x - 9.5f * u, c.y), size = Size(1.5f * u, 9f * u))
+        drawRect(window, topLeft = Offset(c.x + 8f * u, c.y), size = Size(1.5f * u, 9f * u))
+    }
+
+    /** 0.9.6.1: the reporter's own position once the map was moved: the blue of map apps' location dot. */
+    private val OWN_BLUE = Color(0xFF1A73E8)
 
     /** Colour inversion, dimmed to 82 % (RGB' = 0.82 · (255 − RGB)), alpha kept. */
     private val INVERT_DIM = ColorMatrix(

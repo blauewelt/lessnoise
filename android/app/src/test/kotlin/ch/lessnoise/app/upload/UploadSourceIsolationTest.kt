@@ -211,7 +211,8 @@ class UploadSourceIsolationTest {
             step.contains("if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect"),
             "the step requests nothing without a fix, while dragging, or for a centre outside Switzerland",
         )
-        assertTrue(step.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"), "no tile request while the finger is down")
+        // 0.9.6.1: nor before the map card has its size (the radius of the tiles comes from it).
+        assertTrue(step.contains("rememberStreetTiles(fix, centre.takeUnless { dragging || cardPx.width == 0 }, cover)"), "no tile request while the finger is down")
         assertTrue(step.contains("ReportMapTiles.clampOffset("), "the drag is clamped to 2 km")
         assertTrue(!Regex("""\bLABOR_UNTERWEGS\b|\bENABLED\b""").containsMatchIn(step), "0.9.0: no edition flag left in ReportDirectionUi.kt")
         // The file is compiled only into the two editions with the map (public, laborKarte).

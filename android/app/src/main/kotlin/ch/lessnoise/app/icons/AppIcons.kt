@@ -19,6 +19,11 @@ object AppIcons {
             .apply { for (d in paths) addPath(pathData = addPathNodes(d), fill = SolidColor(Color.Black)) }
             .build()
 
+    /** «open_with» (four arrows, «move»): 0.9.6.1, the chip «Karte verschieben» on the map card of «Laut! Melden». */
+    val OpenWith: ImageVector by lazy {
+        icon("OpenWith", "M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z")
+    }
+
     /** «window»: the mode «Am Fenster». */
     val Window: ImageVector by lazy {
         icon("Window", "M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z")

@@ -22,10 +22,11 @@ object ReportDirectionUi {
     fun rememberReading(): State<CompassReading?>? = null
 
     /**
-     * Same signature as the real disc (0.8.1 with the place moved under the dot; 0.9.2 [onDraggable], never called
-     * here; 0.9.4.2 [discSize] and [measureOnly]; 0.9.4.5 [directionOn], [onDirectionOn]); draws nothing, so nothing can be moved.
+     * Same signature as the real panel (0.8.1 with the place moved under the dot; 0.9.4.2 the size and [measureOnly];
+     * 0.9.4.5 [directionOn], [onDirectionOn]; 0.9.6.1 [cardHeight], the map card's height, and without 0.9.2's
+     * `onDraggable`); draws nothing, so nothing can be moved.
      */
     @Suppress("UNUSED_PARAMETER")
     @Composable
-    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, onDraggable: (Boolean) -> Unit = {}, discSize: Dp = REPORT_DISC_MAX_DP.dp, measureOnly: Boolean = false, directionOn: Boolean = true, onDirectionOn: ((Boolean) -> Unit)? = null, onMove: (Pair<Double, Double>) -> Boolean) = Unit
+    fun Panel(reading: State<CompassReading?>, fix: Pair<Double, Double>?, moved: Pair<Double, Double>?, cardHeight: Dp = REPORT_DISC_MAX_DP.dp, measureOnly: Boolean = false, directionOn: Boolean = true, onDirectionOn: ((Boolean) -> Unit)? = null, onMove: (Pair<Double, Double>) -> Boolean) = Unit
 }

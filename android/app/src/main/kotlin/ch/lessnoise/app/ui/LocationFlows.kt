@@ -198,8 +198,6 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     val camera = if (video) rememberReportVideoCamera(onMedia) else rememberReportPhotoCamera(onMedia)
     // 0.8.1 (same build): the place under the dot once the map was moved by hand (null: the fix).
     var moved by remember { mutableStateOf<ReportPlace?>(null) }
-    // 0.9.2: whether the disc's map can be dragged now (streets drawn), for «· Karte verschiebbar» in the location row.
-    var draggable by remember { mutableStateOf(false) }
     // 0.8.5: the level while the dialog is open (ReportLevel.kt), reset when it opens; the microphone
     // permission (asked when the dialog opens if missing; without it there is no level); the level of
     // the «Senden» tap.
@@ -209,7 +207,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
     // Whether the pending permission request includes the location (it may ask for the microphone only).
     var askedLocation by remember { mutableStateOf(false) }
     fun cancel() {
-        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null; draggable = false
+        job?.cancel(); step = null; fixOutcome = null; chosen = null; sending = false; chosenReading = null; dropDraft(); photoNote = null; moved = null; chosenLevel = null
         directionOn = true; count = 1
     }
 
@@ -343,7 +341,7 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         disc = if (reading == null) null else ({ size, measureOnly ->
                             ReportDirectionUi.Panel(
                                 reading, fix?.let { it.lat to it.lon }, moved?.let { it.lat to it.lon },
-                                onDraggable = { draggable = it }, discSize = size, measureOnly = measureOnly,
+                                cardHeight = size, measureOnly = measureOnly,
                                 directionOn = directionOn, onDirectionOn = { on -> if (!waiting) directionOn = on },
                             ) { p ->
                                 // Taken only within 2 km of the fix and in Switzerland; else the map stops.
@@ -354,7 +352,8 @@ fun rememberReportAction(onQueued: () -> Unit, preset: ReportPreset? = null, onP
                         }),
                         // 0.8.5: the level (none without the microphone and no measurement).
                         level = if (micAllowed || measuring) meter else null,
-                        fixLine = reportFixLine(fix?.accuracyText, moved != null, draggable = draggable && !waiting),
+                        // 0.9.6.1: no hint about the drag in this line any more (the chip on the map card says it).
+                        fixLine = reportFixLine(fix?.accuracyText, moved != null),
                         fixState = reportFixState(fix != null, moved != null),
                         waiting = waiting,
                         onMoveBack = { moved = null },
@@ -441,16 +440,20 @@ val REPORT_GROUP_GAP = 14.dp
 fun reportGroupGap(moreOpen: Boolean): Dp = if (moreOpen) 6.dp else REPORT_GROUP_GAP
 val REPORT_INNER_GAP = 6.dp
 
-/** 0.9.4.2: the disc's side in the dialog: at least this (a short screen then scrolls) … */
+/**
+ * 0.9.4.2: the disc's side in the dialog: at least this (a short screen then scrolls) … 0.9.6.1 (Labor·Karte first):
+ * the map card's HEIGHT (the card is as wide as the dialog's content; the names keep «disc» from 0.9.4.2).
+ */
 const val REPORT_DISC_MIN_DP = 140
 
-/** … and at most this (0.8.1–0.9.4.1: always 200 dp). */
-const val REPORT_DISC_MAX_DP = 220
+/** … and at most this (0.8.1–0.9.4.1: always 200 dp; 0.9.4.2–0.9.6: 220 dp, the round disc; 0.9.6.1: 300 dp, the map card). */
+const val REPORT_DISC_MAX_DP = 300
 
 /**
  * 0.9.4.2 (owner: the dialog was taller than one screen): the disc gets the height that is left, [availableDp]
  * (what the dialog's scrolling part may take) minus [restDp] (that part's content without the disc), between
  * [REPORT_DISC_MIN_DP] and [REPORT_DISC_MAX_DP]. Below the minimum the content scrolls; «Senden» never does.
+ * 0.9.6.1: the height of the map card.
  */
 fun reportDiscDp(availableDp: Float, restDp: Float): Int =
     if (availableDp.isInfinite() || availableDp.isNaN()) REPORT_DISC_MAX_DP
@@ -472,7 +475,8 @@ fun reportFixIcon(state: ReportFixState): ImageVector = when (state) {
  * 1. «Was war es?» ([REPORT_WHAT]; «Erkannt um 22:36» at its right when [erkanntAt]) — ONE row Töff · Auto ·
  *    «Andere ▾»; «Andere» folds out a second row Lastwagen · Flugzeug ([reportCategoryButtons]);
  * 2. «Wohin fuhr es?» — [disc] (the compass Panel with its heading [REPORT_WHERE], the live label and the
- *    hint lines; null without a compass), its side from the height left ([reportDiscDp], [ReportFitDisc]);
+ *    hint lines; null without a compass), its side from the height left ([reportDiscDp], [ReportFitDisc]; 0.9.6.1:
+ *    the map card's height);
  * 3. the status line, level and place in one ([ReportStatusLine]; «Zurück zum Standort» under it once the map
  *    was moved), with [photo] («Foto»; 0.9.4.3 Labor·Karte «Video») beside it, or under it once one is taken ([photoBesideStatus] false),
  *    and [photoNote].
@@ -1073,21 +1077,15 @@ const val REPORT_LOCATING = "Standort wird gesucht …"
 
 /**
  * «Standort wird gesucht …» while there is no fix, then «Standort ± 12 m»; 0.8.1 (same build):
- * [REPORT_MOVED_LINE] once the map was moved under the dot ([moved]); 0.9.2: «Standort ± 12 m · Karte
- * verschiebbar» while the map can be dragged ([draggable]).
+ * [REPORT_MOVED_LINE] once the map was moved under the dot ([moved]). 0.9.2–0.9.6: «Standort ± 12 m · Karte
+ * verschiebbar» while the map could be dragged; 0.9.6.1 (Labor·Karte first): gone — the chip «Karte verschieben»
+ * on the map card itself says it (ReportDirectionUi.PAN_HINT), and the line is shorter.
  */
-fun reportFixLine(accuracyM: Int?, moved: Boolean = false, draggable: Boolean = false): String = when {
+fun reportFixLine(accuracyM: Int?, moved: Boolean = false): String = when {
     accuracyM == null -> REPORT_LOCATING
     moved -> REPORT_MOVED_LINE
-    draggable -> "Standort ± $accuracyM m · $REPORT_DRAG_HINT"
     else -> "Standort ± $accuracyM m"
 }
-
-/**
- * 0.9.2: appended to «Standort ± n m» while the disc's map can be dragged (streets drawn, not moved yet):
- * the only sign of the drag. Once moved, [REPORT_MOVED_LINE] and «Zurück zum Standort» take over.
- */
-const val REPORT_DRAG_HINT = "Karte verschiebbar"
 
 // ---- 0.8.1 (same build, Labor·Karte): the map moved under the dot -------------------------------
 // The disc (src/karte ReportDirectionUi.Panel) lets the person drag the map under the dot when

@@ -112,16 +112,19 @@ class ReportFlowTest {
         assertTrue(rows.contains("AnimatedVisibility(") && rows.contains("visible = rows.expanded"), rows)
     }
 
-    /** 0.9.4.2: the disc takes the height that is left, 140–220 dp. */
+    /** 0.9.4.2: the disc takes the height that is left, 140–220 dp; 0.9.6.1: the map card's height, 140–300 dp. */
     @Test
     fun theDiscFitsTheHeightLeft() {
         assertEquals(140, REPORT_DISC_MIN_DP)
-        assertEquals(220, REPORT_DISC_MAX_DP)
+        assertEquals(300, REPORT_DISC_MAX_DP)
         assertEquals(200, reportDiscDp(600f, 400f))
-        assertEquals(220, reportDiscDp(900f, 400f))
+        assertEquals(300, reportDiscDp(700f, 400f))
+        assertEquals(300, reportDiscDp(900f, 400f))
+        assertEquals(299, reportDiscDp(699.9f, 400f))
         assertEquals(140, reportDiscDp(500f, 400f))
         assertEquals(140, reportDiscDp(300f, 400f))
-        assertEquals(220, reportDiscDp(Float.POSITIVE_INFINITY, 400f))
+        assertEquals(300, reportDiscDp(Float.POSITIVE_INFINITY, 400f))
+        assertEquals(300, reportDiscDp(Float.NaN, 400f))
         assertEquals(171, reportDiscDp(571.9f, 400.5f))
         val app = listOf(File("."), File("app")).first { File(it, "src/main").isDirectory }
         val ui = File(app, "src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
@@ -130,7 +133,7 @@ class ReportFlowTest {
         assertTrue(fit.contains("content(0.dp, true)") && fit.contains("reportDiscDp(available, rest.toDp().value)") && fit.contains("verticalScroll(scroll)) { content(disc, false) }"), fit)
         // The dialog hands both to the Panel.
         val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
-        assertTrue(dialog.contains("discSize = size, measureOnly = measureOnly,"))
+        assertTrue(dialog.contains("cardHeight = size, measureOnly = measureOnly,"))
     }
 
     /**
@@ -277,13 +280,11 @@ class ReportFlowTest {
         // 0.9.4.2: at the end of the status line's place (was in the location row of the card).
         assertTrue(body.contains("if (!waiting && fixState == ReportFixState.MOVED) ({\n                TextButton(onClick = onMoveBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text(REPORT_MOVE_BACK) }"))
         assertTrue(body.contains("placeTrailing = moveBack,"))
-        // 0.9.2: «· Karte verschiebbar» only while the disc says the drag works, and not while «Senden» waits.
-        assertTrue(dialog.contains("fixLine = reportFixLine(fix?.accuracyText, moved != null, draggable = draggable && !waiting),"))
-        assertTrue(dialog.contains("onDraggable = { draggable = it },"))
-        assertEquals("Standort ± 12 m · Karte verschiebbar", reportFixLine(12, moved = false, draggable = true))
-        assertEquals("Standort von Hand gesetzt", reportFixLine(12, moved = true, draggable = true))
-        assertEquals("Standort wird gesucht …", reportFixLine(null, draggable = true))
-        assertTrue(ui.substringAfter("fun cancel() {").substringBefore("\n    }").contains("draggable = false"))
+        // 0.9.2–0.9.6: «· Karte verschiebbar» while the drag worked; 0.9.6.1: gone (the chip «Karte verschieben» on the
+        // map card says it), and with it the dialog's `draggable` state and the Panel's onDraggable.
+        assertTrue(dialog.contains("fixLine = reportFixLine(fix?.accuracyText, moved != null),"))
+        for (gone in listOf("draggable", "onDraggable", "REPORT_DRAG_HINT", "Karte verschiebbar")) assertFalse(ui.contains(gone), gone)
+        assertTrue(ui.substringAfter("fun cancel() {").substringBefore("\n    }").contains("moved = null"))
         assertTrue(dialog.contains("fixState = reportFixState(fix != null, moved != null),"))
         assertEquals(ReportFixState.SEARCHING, reportFixState(false, true))
         assertEquals(ReportFixState.MOVED, reportFixState(true, true))

@@ -119,6 +119,58 @@ class ReportMapTilesTest {
         }
     }
 
+    /**
+     * 0.9.6.1 (Labor·Karte first): the map card is a rectangle (its width 300 m, its height what the dialog has left,
+     * 140–300 dp), turned by the heading, so the tiles must cover its half-diagonal in every rotation, not the 150 m
+     * circle of the round disc. The radius is capped so that one view stays at most 36 tiles (6 × 6) anywhere in
+     * Switzerland, well within the memory cap, and the other caps are unchanged.
+     */
+    @Test
+    fun theTilesCoverTheTurningMapCard() {
+        // The half-diagonal in metres: width = 300 m, so a square card is 150 · √2 ≈ 212.1 m, rounded up.
+        assertEquals(213.0, ReportMapTiles.coverRadiusM(900.0, 900.0))
+        // The owner's phone: 412 dp × 0.94 − 40 dp ≈ 347 dp wide, 300 dp high (3 px per dp).
+        assertEquals(199.0, ReportMapTiles.coverRadiusM(347.0 * 3, 300.0 * 3))
+        // 360 × 740 dp with the rarer choices open: 298 × 140 dp.
+        assertEquals(166.0, ReportMapTiles.coverRadiusM(298.0 * 3, 140.0 * 3))
+        // Never below the disc's circle, never above the cap; no size yet: the circle.
+        assertTrue(ReportMapTiles.coverRadiusM(900.0, 1.0) in 150.0..151.0)
+        assertEquals(ReportMapTiles.MAX_COVER_M, ReportMapTiles.coverRadiusM(100.0, 900.0))
+        assertEquals(150.0, ReportMapTiles.coverRadiusM(0.0, 0.0))
+        assertEquals(150.0, ReportMapTiles.coverRadiusM(Double.NaN, 300.0))
+        assertEquals(250.0, ReportMapTiles.MAX_COVER_M)
+        // Every corner of a turned card lies in one of its tiles, for the cards of the renders and the extremes.
+        for ((w, h) in listOf(347.0 to 300.0, 298.0 to 300.0, 298.0 to 140.0, 260.0 to 300.0)) {
+            val radius = ReportMapTiles.coverRadiusM(w, h)
+            val set = ReportMapTiles.tilesAround(lat, lon, radius).toSet()
+            val p = ReportMapTiles.tilePoint(lat, lon)
+            // Card pixels per tile pixel: the width is 300 m.
+            val perTile = ReportMapTiles.metresPerPixel(lat) * 256 / (300.0 / w)
+            for (deg in 0 until 360 step 3) {
+                val a = Math.toRadians(deg.toDouble())
+                for (fx in listOf(-0.5, 0.0, 0.5)) for (fy in listOf(-0.5, 0.0, 0.5)) {
+                    // A point of the card (its corners and edge middles), turned by the heading, in tiles.
+                    val x = fx * w
+                    val y = fy * h
+                    val q = TilePoint(18, p.x + (x * cos(a) - y * sin(a)) / perTile, p.y + (x * sin(a) + y * cos(a)) / perTile)
+                    assertTrue(ReportMapTiles.tileOf(q) in set, "$w × $h at $deg°: ($fx, $fy) uncovered")
+                }
+            }
+        }
+        // At the cap: at most 36 tiles anywhere in Switzerland (and the fix's 3 × 3 block always among them).
+        for (la in listOf(45.81, 46.5, 47.3779, 47.84)) for (lo in listOf(5.91, 7.4, 8.5403, 10.54)) {
+            val got = ReportMapTiles.tilesAround(la, lo, ReportMapTiles.MAX_COVER_M)
+            assertTrue(got.size in 16..36, "$la $lo: ${got.size}")
+            assertEquals(got.size, got.toSet().size, "no duplicates")
+        }
+        assertTrue(36 <= ReportMapTiles.CACHE_MAX)
+        assertEquals(64, ReportMapTiles.CACHE_MAX)
+        assertEquals(4, ReportMapTiles.PARALLEL)
+        assertEquals(512 * 1024, ReportMapTiles.MAX_BYTES)
+        // 0.9.6.1: the map is drawn at 80 % (0.6 under the disc's arrow and rose).
+        assertEquals(0.8f, ReportMapTiles.TILE_ALPHA)
+    }
+
     @Test
     fun theViewIs300MetresAcrossAtAnyDensity() {
         val mpp = ReportMapTiles.metresPerPixel(lat)
@@ -271,15 +323,33 @@ class ReportMapTilesTest {
         assertFalse(ui.contains("ENABLED"), "no edition flag in ReportDirectionUi.kt")
         assertTrue(ui.contains("if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect"), "no download without a fix, or for a centre outside Switzerland")
         assertTrue(ui.contains("val canDrag = fix != null && tiles.isNotEmpty() && r != null"))
-        assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"))
+        // 0.9.6.1: the tiles of the map card's half-diagonal, requested once the card has its size.
+        assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging || cardPx.width == 0 }, cover)"))
+        assertTrue(ui.contains("val cover = ReportMapTiles.coverRadiusM(cardPx.width.toDouble(), cardPx.height.toDouble())"))
+        assertTrue(ui.contains("for (t in ReportMapTiles.tilesAround(c.first, c.second, radiusM)) {"))
         assertTrue(ui.contains("if (c != f) delay(TILE_DEBOUNCE_MS)"))
-        assertTrue(ui.contains("DirectionArrow(\n                    frozenDeg ?: r?.magneticDeg,"), "the disc is frozen while the finger is down")
+        assertTrue(ui.contains("val shownDeg = frozenDeg ?: r?.magneticDeg") && ui.contains("MapCanvas(\n                    shownDeg, declination,"), "the map is frozen while the finger is down")
         // 0.8.1: the disc of the one «Laut! Melden» dialog was 200 dp; 0.9.4.2: at most 220 dp, the dialog passes the
-        // size that fits (discSize; still 300 m across, canvasScale).
-        assertEquals(220, ReportDirectionUi.DISC_DP)
-        assertEquals(REPORT_DISC_MAX_DP, ReportDirectionUi.DISC_DP)
-        // 0.8.6: the square is a Box holding the canvas (filling it) and the credit in its corner.
-        assertTrue(ui.contains("Box(Modifier.widthIn(max = discSize).fillMaxWidth().aspectRatio(1f))") && ui.contains("Canvas(modifier.fillMaxSize().then(drag))"))
+        // size that fits (still 300 m across, canvasScale). 0.9.6.1: the map card, full width, its height 140–300 dp.
+        assertEquals(300, ReportDirectionUi.CARD_DP)
+        assertEquals(REPORT_DISC_MAX_DP, ReportDirectionUi.CARD_DP)
+        // 0.9.6.1: the card is a Box with rounded corners and an outline, the drag on the Box (so that the chip,
+        // the badge and the credit take no touch), the canvas filling it.
+        assertTrue(ui.contains("Modifier.fillMaxWidth().height(cardHeight).clip(shape).border(1.dp, cs.outlineVariant, shape)\n                    .onSizeChanged { cardPx = it }.then(drag),"))
+        assertTrue(ui.contains("Canvas(Modifier.fillMaxSize()) {"))
+        assertEquals(16, ReportDirectionUi.CARD_CORNER_DP)
+        assertEquals("Karte verschieben", ReportDirectionUi.PAN_HINT)
+        // The chip and the badge have no click or pointer input of their own.
+        for (f in listOf("private fun PanChip(", "private fun NorthBadge(")) {
+            val body = ui.substringAfter(f).substringBefore("\n    }\n")
+            for (bad in listOf("clickable", "pointerInput", "Button(", "onClick")) assertFalse(body.contains(bad), "$f $bad")
+        }
+        // The chip goes at the first drag and stays gone in this dialog; a moved place counts as dragged.
+        assertTrue(ui.contains("var dragged by remember { mutableStateOf(moved != null) }"))
+        assertTrue(ui.contains("onDragStart = {\n                        dragged = true"))
+        assertTrue(ui.contains("animateFloatAsState(if (canDrag && !dragged) 1f else 0f"))
+        // No compass rose over the map: it fades out as the map fades in.
+        assertTrue(ui.contains("val rose = (1f - fade) * dim"))
         // 0.9.4.2: the dialog's measuring pass composes only the lines: no tiles, no canvas, no effects.
         val measure = ui.substringAfter("        if (measureOnly) {").substringBefore("\n        }")
         assertEquals("PanelLines(reading.value, directionOn) {}\n            return", measure.trim())
@@ -296,13 +366,14 @@ class ReportMapTilesTest {
         val eight = panel.indexOf("CALIBRATE_HINT, style")
         val disc = panel.indexOf("disc()")
         assertTrue(hint in 0 until eight && eight < disc, "hint, then the figure-eight line, then the disc")
-        assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("PanelLines(r, directionOn) {\n            Box(Modifier.widthIn(max = discSize)"))
+        assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("PanelLines(r, directionOn) {"))
         // 0.9.4.2: the heading row (with the live label) comes first; no condition between the column and the hint.
         val column = panel.indexOf("Column(Modifier.fillMaxWidth()")
         assertTrue(column in 0 until hint && !Regex("""if \(.*\) \{""").containsMatchIn(panel.substring(column, hint)), "the hint is not inside a condition")
         assertTrue(panel.substring(hint, eight).contains("if (directionOn && r != null && showCalibrationHint(r.sensorStatus)) {"))
         assertFalse(panel.contains("} else {\n                Text(POINT_HINT"))
-        assertTrue(ui.substringAfter("fun Panel(").substringBefore("\n    }\n").contains("LaunchedEffect(canDrag) { onDraggableNow(canDrag) }"))
+        // 0.9.2–0.9.6 told the dialog whether the map could be dragged (for «· Karte verschiebbar»); 0.9.6.1: gone.
+        assertFalse(ui.contains("onDraggable"))
         // «Standort wird gesucht …» while the fix is searched: the dialog's fix line (src/main, every edition).
         assertEquals("Standort wird gesucht …", reportFixLine(null))
         // Nothing is written: no file, preference or log in either file.

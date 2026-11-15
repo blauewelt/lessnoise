@@ -23,7 +23,8 @@ class ClarityTextsTest {
     @Test
     fun theReportDialogNamesWhatEachPartIsFor() {
         assertEquals("Wohin fuhr es?", REPORT_WHERE)
-        assertEquals("Karte verschiebbar", REPORT_DRAG_HINT)
+        // 0.9.2–0.9.6: «Karte verschiebbar» at the end of the status line; 0.9.6.1: the chip «Karte verschieben» on the map card instead.
+        assertTrue(src("src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").contains("const val PAN_HINT = \"Karte verschieben\""))
         assertEquals("Mikrofon läuft", ReportLevelUi.MIC_ON)
         assertEquals(40, REPORT_REMOVE_TOUCH_DP)
         val ui = src("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt")

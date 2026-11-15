@@ -97,22 +97,50 @@ private fun polishPaparazzi(heightPx: Int) = Paparazzi(
 private val zone: ZoneId = ZoneId.of("Europe/Zurich")
 private fun ms(d: Int, h: Int, m: Int, s: Int = 0) = LocalDateTime.of(2026, 10, d, h, m, s).atZone(zone).toInstant().toEpochMilli()
 
-/** A grey street map for the disc: a few streets drawn into each tile around the place (like swisstopo's grey map). */
-private fun fakeTiles(lat: Double, lon: Double): Map<ReportMapTiles.Tile, ImageBitmap> =
-    ReportMapTiles.tilesAround(lat, lon).associateWith { t ->
-        val img = ImageBitmap(256, 256)
-        val c = androidx.compose.ui.graphics.Canvas(img)
-        c.drawRect(0f, 0f, 256f, 256f, Paint().apply { color = Color(0xFFF2F2F0) })
-        val road = Paint().apply { color = Color(0xFFBDBDBD); style = PaintingStyle.Stroke; strokeWidth = 14f; strokeCap = StrokeCap.Square }
-        val lane = Paint().apply { color = Color(0xFFD0D0D0); style = PaintingStyle.Stroke; strokeWidth = 6f }
-        // Streets continuous across tiles: lines at fixed world positions.
-        val ox = (t.x % 2) * 256f
-        val oy = (t.y % 2) * 256f
-        c.drawLine(Offset(0f, 180f - oy / 4), Offset(256f, 120f - oy / 4), road)
-        c.drawLine(Offset(140f - ox / 8, 0f), Offset(110f - ox / 8, 256f), road)
-        c.drawLine(Offset(0f, 40f), Offset(256f, 60f), lane)
-        img
+/**
+ * A grey street map for the disc: a few streets drawn into each tile around the place (like swisstopo's grey map).
+ * 0.9.6.1: for the map card — every tile within [ReportMapTiles.MAX_COVER_M] (the largest radius the card asks for)
+ * around each of [centres], the streets and blocks at fixed positions of the map so that they run on across tiles
+ * (a street grid of 120 × 100 tile pixels, ≈ 48 × 40 m, two wide roads, grey blocks); still no network.
+ */
+private fun fakeTiles(vararg centres: Pair<Double, Double>): Map<ReportMapTiles.Tile, ImageBitmap> {
+    val (lat, lon) = centres.first()
+    val origin = ReportMapTiles.tileOf(ReportMapTiles.tilePoint(lat, lon))
+    return centres.flatMap { ReportMapTiles.tilesAround(it.first, it.second, ReportMapTiles.MAX_COVER_M) }.distinct()
+        .associateWith { t -> fakeTile(t, origin) }
+}
+
+private fun fakeTile(t: ReportMapTiles.Tile, origin: ReportMapTiles.Tile): ImageBitmap {
+    val img = ImageBitmap(256, 256)
+    val c = androidx.compose.ui.graphics.Canvas(img)
+    c.drawRect(0f, 0f, 256f, 256f, Paint().apply { color = Color(0xFFF4F4F2) })
+    // Map pixels relative to the origin tile's top-left corner.
+    c.translate(-(t.x - origin.x) * 256f, -(t.y - origin.y) * 256f)
+    val x0 = (t.x - origin.x) * 256
+    val y0 = (t.y - origin.y) * 256
+    val block = Paint().apply { color = Color(0xFFD9D9D6) }
+    for (bx in Math.floorDiv(x0, 120) - 1..Math.floorDiv(x0 + 256, 120) + 1) for (by in Math.floorDiv(y0, 100) - 1..Math.floorDiv(y0 + 256, 100) + 1) {
+        // Two houses per block, with a gap (a courtyard) between them.
+        val l = bx * 120f
+        val t0 = by * 100f
+        c.drawRect(l + 14f, t0 + 14f, l + 56f, t0 + 86f, block)
+        c.drawRect(l + 64f, t0 + 14f, l + 106f, t0 + 50f, block)
     }
+    val casing = Paint().apply { color = Color(0xFFB4B4B0); style = PaintingStyle.Stroke; strokeWidth = 11f }
+    val fill = Paint().apply { color = Color(0xFFFFFFFF); style = PaintingStyle.Stroke; strokeWidth = 7f }
+    val bigCasing = Paint().apply { color = Color(0xFFA6A6A2); style = PaintingStyle.Stroke; strokeWidth = 22f }
+    val bigFill = Paint().apply { color = Color(0xFFFFFFFF); style = PaintingStyle.Stroke; strokeWidth = 16f }
+    val streets = mutableListOf<Pair<Offset, Offset>>()
+    for (k in Math.floorDiv(x0, 120) - 1..Math.floorDiv(x0 + 256, 120) + 1) streets += Offset(k * 120f, y0 - 10f) to Offset(k * 120f, y0 + 266f)
+    for (k in Math.floorDiv(y0, 100) - 1..Math.floorDiv(y0 + 256, 100) + 1) streets += Offset(x0 - 10f, k * 100f) to Offset(x0 + 266f, k * 100f)
+    for ((a, b) in streets) c.drawLine(a, b, casing)
+    for ((a, b) in streets) c.drawLine(a, b, fill)
+    // Two wide roads across the area: one diagonal, one along a grid line.
+    val roads = listOf(Offset(-1500f, 900f) to Offset(1500f, -600f), Offset(-1500f, 300f) to Offset(1500f, 300f))
+    for ((a, b) in roads) c.drawLine(a, b, bigCasing)
+    for ((a, b) in roads) c.drawLine(a, b, bigFill)
+    return img
+}
 
 /**
  * The «Laut! Melden» dialog over the dimmed screen. 0.9.1: the frame is the app's own ReportDialogLayout
@@ -131,8 +159,8 @@ internal fun ReportDialogFrame(body: @Composable () -> Unit) {
 internal fun ReportDialogSample(
     chosen: ReportCategory?,
     fixState: ReportFixState = ReportFixState.FIX,
-    // 0.9.2: with the streets drawn the app appends «· Karte verschiebbar» (reportFixLine(…, draggable = true)).
-    fixLine: String = reportFixLine(100, draggable = true),
+    // 0.9.2–0.9.6: with the streets drawn the app appended «· Karte verschiebbar»; 0.9.6.1: the chip on the map card.
+    fixLine: String = reportFixLine(100),
     suggested: List<ReportCategory> = emptyList(),
     level: Boolean = true,
     waiting: Boolean = false,
@@ -148,6 +176,10 @@ internal fun ReportDialogSample(
     /** 0.9.4.5: the direction switched off («×» on the disc), and «Anzahl». */
     directionOn: Boolean = true,
     count: Int = 1,
+    /** 0.9.6.1: no map (outside Switzerland, the tiles failed, no network): the card with the rose. */
+    noMap: Boolean = false,
+    /** 0.9.6.1: no compass reading yet (the grey car without chevrons). */
+    noReading: Boolean = false,
 ) {
     val lat = 47.3769
     val lon = 8.5417
@@ -156,15 +188,18 @@ internal fun ReportDialogSample(
         meter.step(68.9, 75.8, 66.0, valid = true)
         meter.step(68.9, 70.0, 66.0, valid = true)
     }
-    val reading = mutableStateOf<CompassReading?>(CompassReading(358.0, sensorStatus))
+    val reading = mutableStateOf<CompassReading?>(if (noReading) null else CompassReading(358.0, sensorStatus))
     val fix = if (fixState == ReportFixState.SEARCHING) null else lat to lon
-    val tiles = if (fix != null) fakeTiles(lat, lon) else null
+    // 0.9.6.1: the moved state moves the map for real (until 0.9.6 only the lines said so): 50 m north and 70 m east of
+    // the fix, so the card shows the reporter's blue dot south-west of the car and no chip.
+    val moved = if (fixState == ReportFixState.MOVED) (lat + 50.0 / 111_320.0) to (lon + 70.0 / (111_320.0 * kotlin.math.cos(Math.toRadians(lat)))) else null
+    val tiles = if (fix == null) null else if (noMap) emptyMap() else if (moved != null) fakeTiles(fix, moved) else fakeTiles(fix)
     ReportDialogFrame {
         ReportDialogBody(
             erkanntAt = if (suggested.isNotEmpty()) "22:36" else null,
             disc = { size, measureOnly ->
                 ReportDirectionUi.Panel(
-                    reading, fix, null, previewTiles = tiles, discSize = size, measureOnly = measureOnly,
+                    reading, fix, moved, previewTiles = tiles, cardHeight = size, measureOnly = measureOnly,
                     directionOn = directionOn, onDirectionOn = {},
                 ) { false }
             },
@@ -198,7 +233,7 @@ abstract class ReportDialogDeviceScreenshots(widthDp: Int, heightDp: Int, fontSc
             screenWidth = widthDp * 3, screenHeight = heightDp * 3, xdpi = 480, ydpi = 480, density = Density.XXHIGH, fontScale = fontScale,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
-        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.4.2-dialog")),
+        snapshotHandler = PolishPngWriter(File(System.getProperty("stadtlaerm.screenshotDir") ?: "build/screenshots", "0.9.6.1-dialog")),
         useDeviceResolution = true,
     )
 
@@ -207,18 +242,33 @@ abstract class ReportDialogDeviceScreenshots(widthDp: Int, heightDp: Int, fontSc
         dark: Boolean,
         chosen: ReportCategory?,
         fixState: ReportFixState = ReportFixState.FIX,
-        fixLine: String = reportFixLine(100, draggable = true),
+        fixLine: String = reportFixLine(100),
         suggested: List<ReportCategory> = emptyList(),
         level: Boolean = true,
         waiting: Boolean = false,
         scrolledToEnd: Boolean = false,
         directionOn: Boolean = true,
         count: Int = 1,
+        noMap: Boolean = false,
+        noReading: Boolean = false,
     ) = paparazzi.snapshot("report-$state-$suffix") {
         LessNoiseTheme(dark = dark) {
-            ReportDialogSample(chosen, fixState, fixLine, suggested, level, waiting, scrolledToEnd, directionOn = directionOn, count = count)
+            ReportDialogSample(
+                chosen, fixState, fixLine, suggested, level, waiting, scrolledToEnd, directionOn = directionOn, count = count,
+                noMap = noMap, noReading = noReading,
+            )
         }
     }
+
+    // 0.9.6.1: the map card. Light and dark with the map and the chip «Karte verschieben» (nothing chosen, as the
+    // dialog opens); the map moved (the blue dot, no chip, «Zurück zum Standort»); no map (the rose and the car);
+    // no compass reading yet (the faint car, no chevrons, no map).
+    @Test fun mapCard() = dialog("map", dark = false, chosen = null)
+    @Test fun mapCardDark() = dialog("map-dark", dark = true, chosen = null)
+    @Test fun mapMoved() = dialog("map-moved", dark = false, chosen = ReportCategory.MOTORRAD, fixState = ReportFixState.MOVED, fixLine = REPORT_MOVED_LINE)
+    @Test fun noMap() = dialog("nomap", dark = false, chosen = ReportCategory.AUTO, noMap = true)
+    @Test fun noMapDark() = dialog("nomap-dark", dark = true, chosen = ReportCategory.AUTO, noMap = true)
+    @Test fun noReading() = dialog("no-reading", dark = false, chosen = null, noReading = true)
 
     // 0.9.4.5: nothing chosen and «Senden» enabled (above: nothingChosen); the direction switched off; «Anzahl» 3;
     // «Andere» open with its six choices (Hupen, Gartengeräte chosen); everything at once.

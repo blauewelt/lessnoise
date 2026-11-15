@@ -10,6 +10,7 @@ import java.net.URI
 import java.util.Collections
 import kotlin.math.PI
 import kotlin.math.atan
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -39,8 +40,11 @@ object ReportMapTiles {
     /** The canvas shows this many metres across its width. */
     const val VIEW_M = 300.0
 
-    /** Tiles are drawn faint, so that the arrow and the rose stay in front. */
-    const val TILE_ALPHA = 0.6f
+    /**
+     * Tiles are drawn a little faint, so that the marker stays in front. 0.9.6.1 (Labor·Karte first): 0.8, so that the
+     * card reads as a map (until 0.9.6: 0.6 under the arrow and the compass rose of the disc).
+     */
+    const val TILE_ALPHA = 0.8f
 
     const val TIMEOUT_MS = 5_000
 
@@ -101,7 +105,8 @@ object ReportMapTiles {
      * Every tile that touches the disc of [radiusM] around the place (default: half the view, so the
      * turning circle is covered in every direction), nearest first. At zoom 18 in Switzerland a tile
      * is 103–107 m, so this is 3 to 4 tiles each way and always contains the 3 × 3 tiles around the
-     * fix's own tile.
+     * fix's own tile. 0.9.6.1: the map card asks with [coverRadiusM] (its half-diagonal, at most [MAX_COVER_M]),
+     * so that the turning rectangle is covered: 5 to 6 tiles each way, at most 36.
      */
     fun tilesAround(lat: Double, lon: Double, radiusM: Double = VIEW_M / 2, z: Int = ZOOM): List<Tile> {
         val p = tilePoint(lat, lon, z)
@@ -118,6 +123,25 @@ object ReportMapTiles {
             if (d <= r) out += d to Tile(z, x.toInt(), y.toInt())
         }
         return out.sortedWith(compareBy({ it.first }, { it.second.y }, { it.second.x })).map { it.second }
+    }
+
+    /**
+     * 0.9.6.1 (Labor·Karte first): the largest radius [coverRadiusM] gives. The map card is at most
+     * REPORT_DISC_MAX_DP (300 dp) high and its width shows [VIEW_M]; on a phone the half-diagonal is ≈ 200–215 m,
+     * and this cap keeps any shape (a narrow screen, a tall card) at ≤ 6 × 6 = 36 tiles per centre, well within
+     * [CACHE_MAX].
+     */
+    const val MAX_COVER_M = 250.0
+
+    /**
+     * 0.9.6.1: the radius (metres) whose circle holds the whole map card of [widthPx] × [heightPx] canvas pixels in
+     * every rotation: its half-diagonal, where the width is [VIEW_M] metres (as [canvasScale]). Rounded up to whole
+     * metres (so a pixel more or less does not start new requests), between VIEW_M / 2 (the 0.8.1 disc's circle)
+     * and [MAX_COVER_M]; VIEW_M / 2 while the card has no size yet.
+     */
+    fun coverRadiusM(widthPx: Double, heightPx: Double): Double {
+        if (!(widthPx > 0.0) || !(heightPx > 0.0)) return VIEW_M / 2
+        return ceil(VIEW_M / 2 * hypot(widthPx, heightPx) / widthPx).coerceIn(VIEW_M / 2, MAX_COVER_M)
     }
 
     /** Whether the grey map has data there; outside, no tile is requested at all. */
@@ -144,7 +168,11 @@ object ReportMapTiles {
 
     // ---- 0.8.1 (same build): the map moved under the dot by hand ---------------------------------
 
-    /** At most this many tiles stay in memory while the map is moved (≈ 16 MB as 256 × 256 ARGB); the farthest go first. */
+    /**
+     * At most this many tiles stay in memory while the map is moved (≈ 16 MB as 256 × 256 ARGB); the farthest go first.
+     * 0.9.6.1: unchanged — one view of the map card needs at most 36 ([MAX_COVER_M]) and the farthest go first, so the view
+     * on screen is always complete and up to 28 tiles of the place before a move stay.
+     */
     const val CACHE_MAX = 64
 
     /**
