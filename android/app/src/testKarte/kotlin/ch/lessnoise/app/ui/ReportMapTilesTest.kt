@@ -324,9 +324,9 @@ class ReportMapTilesTest {
         assertTrue(ui.contains("if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect"), "no download without a fix, or for a centre outside Switzerland")
         assertTrue(ui.contains("val canDrag = fix != null && tiles.isNotEmpty() && r != null"))
         // 0.9.6.1: the tiles of the map card's half-diagonal, requested once the card has its size.
-        assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging || cardPx.width == 0 }, cover)"))
-        assertTrue(ui.contains("val cover = ReportMapTiles.coverRadiusM(cardPx.width.toDouble(), cardPx.height.toDouble())"))
-        assertTrue(ui.contains("for (t in ReportMapTiles.tilesAround(c.first, c.second, radiusM)) {"))
+        assertTrue(ui.contains("rememberStreetTiles(fix, centre.takeUnless { dragging }, cardHeight) {\n            ReportMapTiles.coverRadiusM(cardPx[0].toDouble(), cardPx[1].toDouble())"))
+        assertTrue(ui.contains("withFrameNanos { }\n            val radius = radiusM()") && ui.contains("for (t in ReportMapTiles.tilesAround(c.first, c.second, radius)) {"))
+        assertTrue(ui.contains("LaunchedEffect(fetcher, centre, cardHeight) {"))
         assertTrue(ui.contains("if (c != f) delay(TILE_DEBOUNCE_MS)"))
         assertTrue(ui.contains("val shownDeg = frozenDeg ?: r?.magneticDeg") && ui.contains("MapCanvas(\n                    shownDeg, declination,"), "the map is frozen while the finger is down")
         // 0.8.1: the disc of the one «Laut! Melden» dialog was 200 dp; 0.9.4.2: at most 220 dp, the dialog passes the
@@ -335,12 +335,14 @@ class ReportMapTilesTest {
         assertEquals(REPORT_DISC_MAX_DP, ReportDirectionUi.CARD_DP)
         // 0.9.6.1: the card is a Box with rounded corners and an outline, the drag on the Box (so that the chip,
         // the badge and the credit take no touch), the canvas filling it.
-        assertTrue(ui.contains("Modifier.fillMaxWidth().height(cardHeight).clip(shape).border(1.dp, cs.outlineVariant, shape)\n                    .onSizeChanged { cardPx = it }.then(drag),"))
+        assertTrue(ui.contains("Modifier.fillMaxWidth().height(cardHeight).clip(shape).border(1.dp, cs.outlineVariant, shape)\n                    .onSizeChanged { cardPx[0] = it.width; cardPx[1] = it.height }.then(drag),"))
+        // Its size is kept in a plain holder, never in a state written during layout.
+        assertTrue(ui.contains("val cardPx = remember { intArrayOf(0, 0) }"))
         assertTrue(ui.contains("Canvas(Modifier.fillMaxSize()) {"))
         assertEquals(16, ReportDirectionUi.CARD_CORNER_DP)
         assertEquals("Karte verschieben", ReportDirectionUi.PAN_HINT)
         // The chip and the badge have no click or pointer input of their own.
-        for (f in listOf("private fun PanChip(", "private fun NorthBadge(")) {
+        for (f in listOf("private fun PanChip(", "private fun NorthBadge(", "private fun CardBottom(")) {
             val body = ui.substringAfter(f).substringBefore("\n    }\n")
             for (bad in listOf("clickable", "pointerInput", "Button(", "onClick")) assertFalse(body.contains(bad), "$f $bad")
         }

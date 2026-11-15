@@ -403,7 +403,7 @@ test("the privacy page names every data flow of 0.6.0", async ({ page }) => {
     "stats.json",
     "GitHub Pages",
     "swisstopo",
-    "Stand: 31. Oktober 2026",           // 0.9.4.6 (for 0.9.5): «Unterwegs messen», the local «Sehr laut» notification
+    "Stand: 15. November 2026",          // 0.9.6.1: tiles of «Laut! Melden» for at most about 250 m (was about 150 m)
     "auf etwa eine Minute genau",      // the 30-second map: residual risk (DESIGN.md §2 rule 8)
     "Art, Zeit, den ungefähren Ort",   // what the phone keeps of a sent report
   ]) {

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.9.6.1 — Labor·Karte first (branch labor-0.9.6.1): «Laut! Melden» with a map card and a car instead of the compass disc and the arrow (versionCode 55)
+
+In short (owner and a second person, 2026-11-15: the arrow did not say it meant the vehicle's direction, and
+nothing showed that the map can be dragged; «a car icon instead of the arrow», the drag «through some known UX»,
+the map «maybe a bit larger», less text): the round compass disc becomes a **map card** the full width of the
+dialog, 140–300 dp high (was a 140–220 dp disc), with a **car seen from above** at its centre — nose up, two
+chevrons ahead, the reported place at its centre — and the map moving under it, the pattern of ride-hailing and
+delivery apps. Over the map no compass rose but a small north badge; «×» inside the top-right corner; «© swisstopo»
+bottom-right; until the first drag of the dialog a chip **«Karte verschieben»** with a four-arrows icon, which
+replaces «· Karte verschiebbar» in the status line. Once moved, the reporter's own position is the blue dot on the
+map. Without a map the compass rose stays, with the car at its centre. The tiles cover the card in every rotation
+(its half-diagonal, at most 250 m, at most 36 tiles; was the 150 m circle) and are drawn at 80 % (was 60 %);
+PRIVACY.md, README.md, server/DESIGN.md §2 and the privacy page (datenschutz.html, «höchstens etwa 250 m», Stand
+15. November 2026) say so. Unchanged: what a report sends, the permissions, the drag (frozen heading, 2 km,
+debounce), the hints above the card. Code in `src/karte` and `src/main`, so the Online-Version gets it with its next
+release; the Offline and Labor builds are unchanged (stand-in in `src/nomap`).
+
+- `ui/ReportDirectionUi.kt` (src/karte): `Panel` draws the card (`cardHeight`, was `discSize`; `CARD_DP` = 300,
+  `CARD_CORNER_DP`, `PAN_HINT`), `MapCanvas` (was `DirectionArrow`), `drawCar`, `NorthBadge`, `PanChip`, `CardBottom` (chip and credit never overlap, also at font 1.3 on 360 dp); the Panel's
+  callback for «Karte verschiebbar» is gone. `ui/ReportMapTiles.kt`: `coverRadiusM`, `MAX_COVER_M`, `TILE_ALPHA`
+  0.8. `ui/LocationFlows.kt`: `REPORT_DISC_MAX_DP` 300, `reportFixLine(accuracy, moved)`, `REPORT_DRAG_HINT` and the
+  dialog's `draggable` state removed. `icons/AppIcons.kt`: `OpenWith`.
+- Tests: `ReportMapTilesTest.theTilesCoverTheTurningMapCard` (new), source checks adapted in `ReportMapTilesTest`,
+  `ReportFlowTest`, `ClarityTextsTest`, `LoudAlertIsolationTest`, `UploadSourceIsolationTest`; `EditionTextTest`
+  0.9.6.1 / 55. Renders `ReportDialog*Screenshots` in `0.9.6.1-dialog` with the new states map, map-dark,
+  map-moved, nomap, nomap-dark, no-reading; synthetic tiles cover the card.
+
 ## 0.9.6 — 2026-11-01 (versionCode 54; published: Offline-Version and Online-Version on the website)
 
 In short: the owner's calibration changes of 2026-11-01 for both published editions (and both Labor builds; the

@@ -647,6 +647,51 @@ are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureText
   itself. Tests: `ShortcutAndWidgetTest` (src/testKarte). Not verified on a phone yet (launcher,
   widget picker, cold start).
 
+## The map card of «Laut! Melden» (0.9.6.1, Labor·Karte first)
+
+Owner and a second person, 2026-11-15: it was not clear that the arrow meant the direction the **vehicle** drove,
+nor that the map under it could be dragged; «a car icon instead of the arrow», the drag shown «through some known
+UX», the map «maybe a bit larger», and less text. The code is in `src/karte` (`ui/ReportDirectionUi.kt`,
+`ui/ReportMapTiles.kt`) and `src/main` (`ui/LocationFlows.kt`), so the Online-Version gets it with its next
+release; the Offline and Labor builds keep the stand-in of `src/nomap` (no dialog). Nothing changes in what a
+report sends, in the permissions or in the drag itself (frozen heading from touch-down to lift, 2 km clamp,
+`onMove`, 300 ms tile debounce).
+
+- **The map card** replaces the round disc: a rounded rectangle (16 dp, 1 dp `outlineVariant`) the full width of
+  the dialog's content, its height from the dialog's two passes (`ReportFitDisc` / `reportDiscDp`, names kept),
+  140–300 dp (was a 140–220 dp disc). Its width still shows 300 m (`VIEW_M`, `canvasScale`), the map still turns
+  with the true heading. The drag handlers sit on the card itself, so nothing drawn over it takes a touch.
+- **A car instead of the arrow**: a car seen from above at the centre (22 × 44 dp, `primary`, a 2 dp `surface`
+  halo, windscreen and rear window in `surface`, side mirrors), nose up the screen, with two chevrons ahead of it
+  («drives this way»); before the first compass reading a faint grey car without chevrons. Its centre is the
+  reported place (the separate dot under the arrow is gone). Shown for every category in this first try.
+- **Over the map no compass rose** but a 28 dp north badge top-left (a red tip and «N», turned to the map's north;
+  not a button); «×» («Richtung weglassen», 40 dp) on a round `surface` inside the top-right corner; «© swisstopo»
+  on a faint `surface` in the bottom-right corner; the tiles at 80 % (was 60 %).
+- **«Karte verschieben»**: while the map can be dragged and has not been in this dialog, a pill at the card's
+  bottom (four-arrows icon `AppIcons.OpenWith`, `labelMedium`, `surface` at 90 %); it fades at the first drag and
+  does not come back in this dialog. «· Karte verschiebbar» at the end of the status line is gone
+  (`reportFixLine(accuracy, moved)`), and with it the Panel's callback that reported whether the map could be
+  dragged.
+- **Moved**: the reporter's own fix as the blue dot with a white ring where it lies on the card, turning and
+  moving with the map; «Standort von Hand gesetzt» and «Zurück zum Standort» as before.
+- **Direction off** («×»): no car, a place dot (7 dp) at the centre, the map faint, «Richtung angeben» above the
+  centre (was under it; there it would cover the chip on a 140 dp card).
+- **Without a map** (no fix or reading yet, outside Switzerland, no tiles): the same card on `surfaceVariant` with
+  the 0.7.6 rose (ring, ticks, N/O/S/W) inscribed in its height and the car at the centre; no chip, no badge.
+- **Tiles**: those touching the circle that holds the card in every rotation, its half-diagonal
+  (`ReportMapTiles.coverRadiusM`: about 200 m on a 412 dp phone, 213 m on a 360 dp one, at most `MAX_COVER_M` =
+  250 m, so at most 36 tiles per centre; was the 150 m circle, 9–16 tiles), requested once the card has its size.
+  Caps unchanged: 64 kept (the farthest dropped, so the view on screen stays complete), 4 at a time, 512 kB per
+  tile. PRIVACY.md, README.md, server/DESIGN.md §2 and docs/datenschutz.html («höchstens etwa 250 m») say so.
+
+Tests: `ReportMapTilesTest.theTilesCoverTheTurningMapCard` (radius, every corner of turned cards covered, ≤ 36
+tiles anywhere in Switzerland, caps), the source checks in `ReportMapTilesTest`, `ReportFlowTest`,
+`ClarityTextsTest`, `LoudAlertIsolationTest`, `UploadSourceIsolationTest`. Renders (`ReportDialog*Screenshots`,
+written to `0.9.6.1-dialog`): new states `map`, `map-dark`, `map-moved`, `nomap`, `nomap-dark`, `no-reading`
+besides the earlier ones, at 412 × 915, 360 × 740 and 360 × 640 dp (font 1.3); the synthetic tiles now cover
+the card (a street grid continuous across tiles, no network).
+
 ## Three ways to use the app; «Unterwegs messen» (0.9.4.6, Labor·Karte first; the Online-Version with 0.9.5)
 
 Owner (2026-10-31): «It is still not easy enough to use.» «Messen» in both editions with the map now offers,
@@ -960,10 +1005,10 @@ to 6 dp apart while open, so that it fits 360 × 740 dp with the disc at 140 dp)
 «Richtung weglassen») switches the direction off: the disc is drawn faint without the arrow, the heading
 says «Ohne Richtung», the hint «Es wird keine Fahrtrichtung gesendet.», and «Richtung angeben» turns it back
 on (the map under the dot can still be dragged). **«Wohin fuhr es?»** with the live «Nord · 358°» at its right, the hint line(s) and the compass disc
-(editions with the map and a compass, below), its side from the height left, 140–220 dp
+(editions with the map and a compass, below), its side from the height left, 140–220 dp (since 0.9.6.1, Labor·Karte first, the map card's height, 140–300 dp; see «The map card of «Laut! Melden»» above)
 (`reportDiscDp`: the dialog measures its content once without the disc, `ReportFitDisc`); one **status
 line**: a microphone icon (for «Mikrofon läuft»), «68,9 dB(A) · Spitze 75,8» and the button «Foto» at its
-right, under it the place «Standort wird gesucht …» / «Standort ± 12 m · Karte verschiebbar»
+right, under it the place «Standort wird gesucht …» / «Standort ± 12 m · Karte verschiebbar» (since 0.9.6.1 «Standort ± 12 m»: the chip «Karte verschieben» on the map card says it)
 (`reportFixLine`; «Zurück zum Standort» at its end once the map was moved); with a photo taken, its row
 under the status. On a 412 × 915 dp phone and on 360 × 740 dp at font 1.0 nothing scrolls; on 360 × 640 dp at
 font 1.3 the middle scrolls, the category row is at its top. Until 0.9.4.1 the order was disc · level card ·
@@ -995,7 +1040,7 @@ finger is down the disc does not follow the compass; the map stops 2 km from the
 Switzerland). Under the disc «Standort von Hand gesetzt» then replaces «Standort ± n m», with
 «Zurück zum Standort» to return to the fix. A tap sends the place under the dot with
 `MANUAL_ACCURACY_M` = 15 m and its own 100 m cell (`reportPlace`); not moved, the fix as it is. When
-the finger lifts (300 ms later, `TILE_DEBOUNCE_MS`) the tiles touching the 150 m circle around the
+the finger lifts (300 ms later, `TILE_DEBOUNCE_MS`) the tiles touching the 150 m circle (since 0.9.6.1 the map card's half-diagonal, at most 250 m) around the
 new centre are requested, those already in memory not again (at most 64 kept, the farthest dropped);
 same host and caps as below. No fix →
 «Kein genauer Standort» with the reason and «Nochmals» (back to the dialog, a category already
@@ -1112,17 +1157,17 @@ request, no effect): the arrow stays fixed pointing up the screen; around it the
 below (since 0.9.4.2 at the right of the heading). Above the disc (0.9.2) the heading «Wohin fuhr es?» (since 0.9.4.2 drawn by the Panel) and, always, «Telefon in die Fahrtrichtung
 halten»; while the compass is unreliable the figure-eight hint «Kompass ungenau: …» is an additional red
 line under it (until 0.9.1 it replaced the line under the label, and the arrow was left unexplained).
-While the streets are drawn the location row reads «Standort ± n m · Karte verschiebbar» (0.9.2; the
-only sign of the drag), and the level card says «Mikrofon läuft» in its top-right corner. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
+While the streets are drawn the location row reads «Standort ± n m · Karte verschiebbar» (0.9.2–0.9.6; the
+only sign of the drag; since 0.9.6.1 the chip «Karte verschieben» on the map card instead), and the level card says «Mikrofon läuft» in its top-right corner. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
 Online-Version**, i.e. in both editions with the map — `src/karte` is not compiled into Offline or Labor;
 no edition flag): once the fix is there
 (`LocationFlows` passes it as `fix`; null while locating), the real streets around it are drawn under the arrow — swisstopo's grey
 map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
-zoom 18, every tile that touches the 150 m disc around the fix (9–16 tiles; a zoom-18 tile is only
+zoom 18, every tile that touches the 150 m disc around the fix (since 0.9.6.1 the map card's half-diagonal, at most 250 m, 25–36 tiles; until 0.9.6 9–16 tiles; a zoom-18 tile is only
 ≈ 103 m in Switzerland, so a plain 3 × 3 block would leave the edge of a 300 m view empty), scaled so
 that the disc is 300 m across whatever the screen density, turned by the true heading (magnetic +
-declination at the fix), the fix at the centre as a small dot, at 60 % opacity, fading in, inverted
-in the dark theme like the website's map, «© swisstopo» under the disc. Downloads:
+declination at the fix), the fix at the centre as a small dot, at 60 % opacity (since 0.9.6.1 80 %, under the car), fading in, inverted
+in the dark theme like the website's map, «© swisstopo» under the disc (since 0.9.6.1 inside the card's corner). Downloads:
 `HttpURLConnection` on `Dispatchers.IO`, at most 4 at a time, nearest tile first, GET, 5 s
 timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile, decoded with
 `BitmapFactory`, kept in a `remember`ed map only for the life of the dialog, open connections closed

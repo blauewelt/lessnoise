@@ -89,6 +89,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.runtime.withFrameNanos
 import ch.lessnoise.app.icons.AppIcons
 import androidx.compose.ui.draw.alpha
 
@@ -221,9 +224,9 @@ object ReportDirectionUi {
      * centre is the reported place. Over the map: no compass rose, a small north badge top-left ([NorthBadge]),
      * «×» top-right, «© swisstopo» bottom-right and, until the first drag of this dialog, the chip [PAN_HINT]
      * bottom-centre. Once moved, the reporter's own fix is the blue dot on the map. Without the map (no fix or
-     * reading yet, outside Switzerland, no tiles) the rose of 0.7.6 with the car at its centre. 0.9.2's
-     * `onDraggable` (for «· Karte verschiebbar» in the status line) is gone with that text: the chip says it at
-     * the map itself.
+     * reading yet, outside Switzerland, no tiles) the rose of 0.7.6 with the car at its centre. The callback of 0.9.2
+     * that told the dialog whether the map could be dragged (for «· Karte verschiebbar» in the status line) is gone
+     * with that text: the chip says it at the map itself.
      */
     @Composable
     fun Panel(
@@ -260,11 +263,15 @@ object ReportDirectionUi {
         // 0.9.6.1: whether the map was dragged in this dialog — the chip [PAN_HINT] then goes and does not come back
         // (also not after «Zurück zum Standort»). A place already moved when the panel appears counts as dragged.
         var dragged by remember { mutableStateOf(moved != null) }
-        // 0.9.6.1: the card's size in pixels, for the tiles that cover it in every rotation (its half-diagonal).
-        var cardPx by remember { mutableStateOf(IntSize.Zero) }
         val centre = moved ?: fix
-        val cover = ReportMapTiles.coverRadiusM(cardPx.width.toDouble(), cardPx.height.toDouble())
-        val tiles = previewTiles ?: rememberStreetTiles(fix, centre.takeUnless { dragging || cardPx.width == 0 }, cover)
+        // 0.9.6.1: the card's size in pixels, for the tiles that cover it in every rotation (its half-diagonal). Written in
+        // layout and read by the tile request a frame later — on purpose NOT snapshot state: a state written during
+        // layout costs a second pass and left the first frame unsettled (the JVM renders showed the dialog's scroll
+        // divider although nothing scrolled). The request restarts when [cardHeight] changes.
+        val cardPx = remember { intArrayOf(0, 0) }
+        val tiles = previewTiles ?: rememberStreetTiles(fix, centre.takeUnless { dragging }, cardHeight) {
+            ReportMapTiles.coverRadiusM(cardPx[0].toDouble(), cardPx[1].toDouble())
+        }
         // Map north is true north; the compass reads magnetic north. The tiles are turned by the
         // true heading (declination at the fix, Android's built-in model, no network).
         val declination = remember(fix) { fix?.let { declination(it.first, it.second, System.currentTimeMillis()) } ?: 0.0 }
@@ -327,21 +334,26 @@ object ReportDirectionUi {
             // a drag that starts on the chip drags the map. Only «×» / «Richtung angeben» are buttons.
             Box(
                 Modifier.fillMaxWidth().height(cardHeight).clip(shape).border(1.dp, cs.outlineVariant, shape)
-                    .onSizeChanged { cardPx = it }.then(drag),
+                    .onSizeChanged { cardPx[0] = it.width; cardPx[1] = it.height }.then(drag),
             ) {
                 MapCanvas(
                     shownDeg, declination, centre, fix, moved != null, tiles, fade, car = directionOn,
                     dim = if (directionOn) 1f else OFF_ALPHA,
                 )
-                if (fade > 0f && shownDeg != null) {
-                    NorthBadge(shownDeg + declination, Modifier.align(Alignment.TopStart).padding(6.dp).alpha(fade * (if (directionOn) 1f else OFF_ALPHA)))
-                    Text(
-                        TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = cs.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 4.dp).alpha(fade)
-                            .background(cs.surface.copy(alpha = 0.7f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
-                    )
+                val mapShown = fade > 0f && shownDeg != null
+                if (mapShown) {
+                    NorthBadge((shownDeg ?: 0.0) + declination, Modifier.align(Alignment.TopStart).padding(6.dp).alpha(fade * (if (directionOn) 1f else OFF_ALPHA)))
                 }
-                if (chip > 0f) PanChip(Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp).alpha(chip))
+                CardBottom(
+                    chip = if (chip > 0f) ({ PanChip(Modifier.alpha(chip)) }) else null,
+                    credit = if (mapShown) ({
+                        Text(
+                            TILE_ATTRIBUTION, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = cs.onSurfaceVariant,
+                            modifier = Modifier.alpha(fade).background(cs.surface.copy(alpha = 0.7f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
+                        )
+                    }) else null,
+                    modifier = Modifier.matchParentSize(),
+                )
                 if (onDirectionOn != null) {
                     if (directionOn) {
                         // 0.9.4.5: «×»: the direction off. 0.9.6.1: inside the card's top-right corner, on a round surface.
@@ -360,6 +372,48 @@ object ReportDirectionUi {
                             contentPadding = PaddingValues(horizontal = 14.dp),
                         ) { Text(DIRECTION_ON, maxLines = 1, softWrap = false) }
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 0.9.6.1: the bottom of the map card: [credit] («© swisstopo») in the bottom-right corner (8 dp from the side,
+     * 4 dp from the bottom, inside the rounded corner), [chip] 8 dp above the bottom, centred — moved left if it would
+     * come within 6 dp of the credit, and above the credit if even that leaves no 8 dp at the left (a narrow phone
+     * with a large font). No pointer input: touches go through to the card's drag.
+     */
+    @Composable
+    private fun CardBottom(chip: (@Composable () -> Unit)?, credit: (@Composable () -> Unit)?, modifier: Modifier) {
+        Layout(
+            content = {
+                if (chip != null) Box(Modifier.layoutId("chip")) { chip() }
+                if (credit != null) Box(Modifier.layoutId("credit")) { credit() }
+            },
+            modifier = modifier,
+        ) { measurables, c ->
+            val loose = c.copy(minWidth = 0, minHeight = 0)
+            val chipP = measurables.firstOrNull { it.layoutId == "chip" }?.measure(loose)
+            val creditP = measurables.firstOrNull { it.layoutId == "credit" }?.measure(loose)
+            layout(c.maxWidth, c.maxHeight) {
+                val w = c.maxWidth
+                val h = c.maxHeight
+                val edge = 8.dp.roundToPx()
+                val low = 4.dp.roundToPx()
+                val gap = 6.dp.roundToPx()
+                val creditLeft = creditP?.let { w - edge - it.width } ?: w
+                creditP?.place(creditLeft, h - low - creditP.height)
+                if (chipP != null) {
+                    var x = (w - chipP.width) / 2
+                    var y = h - edge - chipP.height
+                    if (creditP != null && x + chipP.width > creditLeft - gap) {
+                        x = creditLeft - gap - chipP.width
+                        if (x < edge) {
+                            x = (w - chipP.width) / 2
+                            y = h - low - creditP.height - gap - chipP.height
+                        }
+                    }
+                    chipP.place(x, y)
                 }
             }
         }
@@ -465,10 +519,16 @@ object ReportDirectionUi {
      *
      * 0.9.6.1 (Labor·Karte first): the tiles touching the circle of [radiusM] (the map card's half-diagonal,
      * [ReportMapTiles.coverRadiusM], at most [ReportMapTiles.MAX_COVER_M]) instead of the 150 m circle, so that the
-     * turning rectangle is covered; a new radius (the card grows or shrinks) requests only the tiles not there yet.
+     * turning rectangle is covered. [radiusM] is read one frame after the request starts (the card is laid out by
+     * then); a new [cardHeight] restarts it, and only the tiles not there yet are requested.
      */
     @Composable
-    private fun rememberStreetTiles(fix: Pair<Double, Double>?, centre: Pair<Double, Double>?, radiusM: Double): Map<ReportMapTiles.Tile, ImageBitmap> {
+    private fun rememberStreetTiles(
+        fix: Pair<Double, Double>?,
+        centre: Pair<Double, Double>?,
+        cardHeight: Dp,
+        radiusM: () -> Double,
+    ): Map<ReportMapTiles.Tile, ImageBitmap> {
         val tiles = remember(fix) { mutableStateMapOf<ReportMapTiles.Tile, ImageBitmap>() }
         val fetcher = remember(fix) { ReportTileFetcher() }
         // Requested and not answered yet (touched on the main thread only).
@@ -477,13 +537,16 @@ object ReportDirectionUi {
         // The downloads outlive a new centre (a running one is not thrown away); they end with the dialog.
         val scope = rememberCoroutineScope()
         DisposableEffect(fetcher) { onDispose { fetcher.close() } }
-        LaunchedEffect(fetcher, centre, radiusM) {
+        LaunchedEffect(fetcher, centre, cardHeight) {
             val f = fix
             val c = centre
             if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect
             if (c != f) delay(TILE_DEBOUNCE_MS)
+            // The card's size is known after its first layout.
+            withFrameNanos { }
+            val radius = radiusM()
             val at = ReportMapTiles.tilePoint(c.first, c.second)
-            for (t in ReportMapTiles.tilesAround(c.first, c.second, radiusM)) {
+            for (t in ReportMapTiles.tilesAround(c.first, c.second, radius)) {
                 if (t in tiles || t in pending) continue
                 pending += t
                 scope.launch {

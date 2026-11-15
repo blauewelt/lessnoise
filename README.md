@@ -72,7 +72,7 @@ location sent (the view is in the part after `#`, which never leaves the phone; 
 map area is shown, as for any visitor) — see [PRIVACY.md](PRIVACY.md), «The tab «Karte»». (3) Since 0.8.0, in «Laut! Melden»,
 while the report dialog is open (0.8.0: the step «Wohin fuhr es?») and the report's fix is there, swisstopo's grey map tiles
 (`wmts.geo.admin.ch`, the Federal Office of Topography; the host the map tab already uses) for the
-≈ 150 m around the reporter's **true** position and, since 0.9.0, around the place the reporter
+≈ 150 m (since 0.9.6.1, Labor·Karte first: at most 250 m, the map card's half-diagonal) around the reporter's **true** position and, since 0.9.0, around the place the reporter
 moves the map to (at most 2 km away; that place is then sent with a fixed accuracy of 15 m), to draw the streets under the direction arrow
 (`android/app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt`): GET only, no redirects, no
 cache, no cookies, only inside Switzerland, kept in memory for that dialog only; swisstopo sees those

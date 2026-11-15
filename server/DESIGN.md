@@ -122,11 +122,12 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    Since app 0.8.0 (first in the internal Labor·Karte build, 0.7.8) the Online-Version also talks
    to swisstopo in «Laut! Melden»: while the report dialog is open (0.8.0: the step «Wohin fuhr
    es?») and the report's location fix is there, it requests the grey map's tiles
-   (`wmts.geo.admin.ch`, the same host and tile set as the map page) for the ≈ 150 m around the
+   (`wmts.geo.admin.ch`, the same host and tile set as the map page) for the ≈ 150 m (since app 0.9.6.1: up to 250 m) around the
    reporter's **true** position, to draw the streets under the direction arrow, and since app 0.9.0
-   (Labor·Karte 0.8.1) also for the ≈ 150 m around a place the reporter drags the map to (at most
+   (Labor·Karte 0.8.1) also for the same area around a place the reporter drags the map to (at most
    2 km from the fix, requested 300 ms after the finger lifts) — GET only, no redirects, no cache,
-   no cookies, only tiles touching the 150 m circle, only inside Switzerland, kept in memory for
+   no cookies, only tiles touching the 150 m circle (since app 0.9.6.1, Labor·Karte first: the circle that holds
+   the rectangular map card in every rotation, at most 250 m), only inside Switzerland, kept in memory for
    that dialog only. Since app 0.9.0 the fix is taken as soon as the dialog opens, so these tiles
    are requested also when the reporter then cancels. The dark mode of the map tab (app 0.9.0)
    changes only how the page is drawn, not what is loaded or from where. swisstopo
