@@ -1,12 +1,12 @@
 # iOS app «Weniger Lärm» (ios/): the Swift packages' tests on macOS, then the app built and
-# tested on an iOS Simulator, without signing. Runs on pushes to the branch ios-app that touch
-# ios/** (and on demand). Reads nothing but the repository and the Swift packages (GRDB,
+# tested on an iOS Simulator, without signing. Runs on pushes to the branches ios-app and
+# ios-testflight* that touch ios/** (and on demand). Reads nothing but the repository and the Swift packages (GRDB,
 # swift-crypto) from github.com; sends nothing anywhere.
 name: iOS
 
 on:
   push:
-    branches: [ios-app]
+    branches: [ios-app, "ios-testflight*"]
     paths:
       - "ios/**"
       - ".github/workflows/ios.yml"

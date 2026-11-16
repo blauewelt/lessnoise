@@ -1,0 +1,280 @@
+# iOS app «Weniger Lärm» (ios/): Release archive for a real iPhone, and — once the owner has set
+# the signing secrets — a signed upload to TestFlight (Apple's beta-testing service).
+#
+# Why on GitHub Actions: the owner has no Mac. Signing uses an App Store Connect API key that lives
+# only in this repository's Actions secrets; Xcode's automatic signing (-allowProvisioningUpdates)
+# creates the distribution certificate and the provisioning profile with it on the runner. The same
+# idea as labor-build.yml for Android: no key ever travels through a chat session.
+#
+# Job «archive-unsigned» always runs: proves the Release device build compiles and links.
+# Job «testflight» signs and uploads, but only when all four secrets are set; without them it ends
+# green with «Signing secrets not set — skipped» in the run summary.
+#
+# Secrets (Settings → Secrets and variables → Actions; ios/README.md «TestFlight»):
+#   APPLE_TEAM_ID   the Team ID of the Apple Developer account (10 characters)
+#   ASC_KEY_ID      the key id of the App Store Connect API key
+#   ASC_ISSUER_ID   the issuer id shown next to the API keys
+#   ASC_KEY_P8      the full text of the downloaded AuthKey_<id>.p8 file
+#
+# Runs on pushes to branches ios-testflight* that touch ios/** or this file, and by hand
+# (`gh workflow run ios-testflight.yml --ref <branch>`, optional input build_number).
+# Sends nothing anywhere except, in job «testflight», the signed app to Apple.
+name: iOS TestFlight
+
+on:
+  push:
+    branches: ["ios-testflight*"]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-testflight.yml"
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "CFBundleVersion for this upload (empty = run number + 1). Must be higher than every build uploaded before for this version."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  # An upload that has started is not cut off by the next push.
+  cancel-in-progress: false
+
+jobs:
+  archive-unsigned:
+    name: archive-unsigned
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          sw_vers
+
+      - name: XcodeGen
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen --spec project.yml
+
+      - name: Archive (Release, generic iOS device, no signing)
+        working-directory: ios
+        run: |
+          set +e
+          xcodebuild archive \
+            -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/WenigerLaerm.xcarchive \
+            CODE_SIGNING_ALLOWED=NO > archive-unsigned.log 2>&1; status=$?
+          grep -E "error:|warning: .*(deprecated|unavailable)|\*\* .* \*\*" archive-unsigned.log | sort -u | head -150
+          exit $status
+
+      - name: Summary (version, build, size)
+        working-directory: ios
+        run: |
+          APP=build/WenigerLaerm.xcarchive/Products/Applications/WenigerLaerm.app
+          PB=/usr/libexec/PlistBuddy
+          VERSION=$($PB -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          BUILD=$($PB -c 'Print :CFBundleVersion' "$APP/Info.plist")
+          BUNDLE=$($PB -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          SIZE=$(du -sk "$APP" | cut -f1)
+          ARCHS=$(lipo -archs "$APP/WenigerLaerm")
+          echo "app $BUNDLE $VERSION ($BUILD), ${SIZE} KiB, $ARCHS"
+          ls "$APP/Frameworks" || true
+          {
+            echo '### iOS Release archive (unsigned)'
+            echo ''
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Bundle id | \`$BUNDLE\` |"
+            echo "| Version (CFBundleShortVersionString) | $VERSION |"
+            echo "| Build (CFBundleVersion) | $BUILD |"
+            echo "| Size of WenigerLaerm.app | ${SIZE} KiB |"
+            echo "| Architectures | $ARCHS |"
+            echo "| Xcode | $(xcodebuild -version | head -1) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive-unsigned-log
+          path: ios/archive-unsigned.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  testflight:
+    name: testflight
+    needs: archive-unsigned
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check that the signing secrets exist
+        id: secrets
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          missing=""
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!v}" ]; then missing="$missing $v"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets not set — skipped (missing:$missing)"
+            {
+              echo '### TestFlight'
+              echo ''
+              echo "Signing secrets not set — skipped (missing:$missing)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "all four signing secrets are set"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - name: Toolchain
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      - name: XcodeGen
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen --spec project.yml
+
+      - name: Build number
+        if: steps.secrets.outputs.ready == 'true'
+        id: build
+        env:
+          INPUT_BUILD: ${{ github.event.inputs.build_number }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [ -n "$INPUT_BUILD" ]; then
+            case "$INPUT_BUILD" in
+              *[!0-9.]*|.*|*.) echo "::error::build_number must be digits (and dots), got '$INPUT_BUILD'"; exit 1 ;;
+            esac
+            BUILD="$INPUT_BUILD"
+          else
+            # project.yml has CURRENT_PROJECT_VERSION 1; every upload is higher than that.
+            BUILD=$((RUN_NUMBER + 1))
+          fi
+          echo "number=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "build number $BUILD"
+
+      - name: Write the API key (outside the checkout)
+        if: steps.secrets.outputs.ready == 'true'
+        id: key
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -eu
+          umask 077
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" | tr -d '\r' > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          if ! grep -q -- '-----BEGIN PRIVATE KEY-----' "$KEY_PATH"; then
+            echo "::error::ASC_KEY_P8 does not look like the text of a .p8 file (no BEGIN PRIVATE KEY line)"
+            exit 1
+          fi
+          echo "path=$KEY_PATH" >> "$GITHUB_OUTPUT"
+          echo "key file written: $(wc -c < "$KEY_PATH") bytes"
+
+      - name: Archive (Release, automatic signing)
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: ios
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          KEY_PATH: ${{ steps.key.outputs.path }}
+          BUILD: ${{ steps.build.outputs.number }}
+        run: |
+          set +e
+          xcodebuild archive \
+            -project WenigerLaerm.xcodeproj -scheme WenigerLaerm \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/WenigerLaerm.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$BUILD" > archive-signed.log 2>&1; status=$?
+          grep -E "error:|\*\* .* \*\*|Signing Identity|Provisioning Profile" archive-signed.log | sort -u | head -150
+          exit $status
+
+      - name: Export and upload to App Store Connect
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: ios
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          KEY_PATH: ${{ steps.key.outputs.path }}
+        run: |
+          set +e
+          # The committed ExportOptions.plist has no team id; it is added to a copy here.
+          OPTS="$RUNNER_TEMP/ExportOptions.plist"
+          cp ExportOptions.plist "$OPTS"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$OPTS"
+          xcodebuild -exportArchive \
+            -archivePath build/WenigerLaerm.xcarchive \
+            -exportOptionsPlist "$OPTS" \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" > export-upload.log 2>&1; status=$?
+          grep -E "error:|Upload|upload|\*\* .* \*\*" export-upload.log | sort -u | head -150
+          exit $status
+
+      - name: Summary
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: ios
+        env:
+          BUILD: ${{ steps.build.outputs.number }}
+        run: |
+          APP=build/WenigerLaerm.xcarchive/Products/Applications/WenigerLaerm.app
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          PLIST_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
+          {
+            echo '### TestFlight'
+            echo ''
+            echo "Version $VERSION, build $PLIST_BUILD (requested $BUILD) — uploaded to App Store Connect."
+            echo ''
+            echo 'App Store Connect processes the build (often 5–30 min) before it appears under TestFlight.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the API key
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP/ExportOptions.plist"
+          echo "key files removed"
+
+      - name: Upload logs
+        if: always() && steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-testflight-logs
+          path: |
+            ios/archive-signed.log
+            ios/export-upload.log
+          if-no-files-found: ignore
+          retention-days: 14
