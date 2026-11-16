@@ -35,9 +35,13 @@ targets:
           - Info.plist
     dependencies:
       # Both products are dynamic frameworks (embedded in the app): the app uses the core's types
-      # directly, and the test bundle must see the same single copy of them.
+      # directly, and the test bundle must see the same single copy of them. `embed: true` copies
+      # them into WenigerLaerm.app/Frameworks: without it the Release archive linked them but did not
+      # contain them (run 43863068772), so the app could not launch on an iPhone.
       - package: LessNoiseKit
+        embed: true
       - package: LessNoiseCore
+        embed: true
       - sdk: WebKit.framework
       - sdk: BackgroundTasks.framework
       - sdk: SoundAnalysis.framework

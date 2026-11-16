@@ -100,6 +100,23 @@ jobs:
             echo "| Xcode | $(xcodebuild -version | head -1) |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The simulator finds frameworks in the build folder; an iPhone only inside the app. Every
+      # @rpath framework the app (or an embedded framework) links must be in WenigerLaerm.app/Frameworks.
+      - name: Check embedded frameworks
+        working-directory: ios
+        run: |
+          APP=build/WenigerLaerm.xcarchive/Products/Applications/WenigerLaerm.app
+          missing=0
+          for bin in "$APP/WenigerLaerm" "$APP"/Frameworks/*.framework/*; do
+            [ -f "$bin" ] && file "$bin" | grep -q Mach-O || continue
+            for fw in $(otool -L "$bin" | awk '/@rpath\/.*\.framework/ {print $1}' | sed -E 's#@rpath/([^/]+\.framework)/.*#\1#'); do
+              if [ -d "$APP/Frameworks/$fw" ]; then echo "ok: $(basename "$bin") → $fw"; else echo "::error::$(basename "$bin") links $fw, which is not in WenigerLaerm.app/Frameworks"; missing=1; fi
+            done
+          done
+          echo "embedded: $(ls "$APP/Frameworks" 2>/dev/null | tr '\n' ' ')"
+          echo "| Embedded frameworks | $(ls "$APP/Frameworks" 2>/dev/null | tr '\n' ' ') |" >> "$GITHUB_STEP_SUMMARY"
+          exit $missing
+
       - name: Upload log
         if: always()
         uses: actions/upload-artifact@v4
