@@ -72,11 +72,13 @@ def test_measurement_over_midnight_counts_for_both_days():
     assert sat.valid_s == pytest.approx(365 * 60)
     assert fri.laeq_db == pytest.approx(energy([m["laeq_db"] for m in inside(syn.FRIDAY)]))
     assert sat.laeq_db == pytest.approx(energy([m["laeq_db"] for m in inside(syn.SATURDAY)]))
-    # Friday has the 7 events from 22:12 to 23:58, Saturday the 11 from 00:20 to 05:59:20.
-    assert fri.event_count == 7 and sat.event_count == 11
-    assert fri.events_per_h == pytest.approx(7 / 2.5)
+    # Friday has 7 events from 22:12 to 23:58, Saturday 11 from 00:20 to 05:59:20; only machine
+    # and motor noise counts: Friday's 2 voices and Saturday's 2 voices + 1 unclassified do not.
+    assert fri.event_count == 5 and sat.event_count == 8
+    assert fri.events_per_h == pytest.approx(5 / 2.5)
     assert fri.events_per_h_by_category["loud_vehicle"] == pytest.approx(2 / 2.5)
-    assert sat.events_per_h_by_category["music"] == 0
+    assert list(sat.events_per_h_by_category) == list(agg.CATEGORIES)
+    assert "voices" not in sat.events_per_h_by_category and "music" not in sat.events_per_h_by_category
     # Loud events (≥ 75 dB): 78 and 85 on Friday; 81 and 76 on Saturday (72 is below).
     assert fri.loud_events == 2 and sat.loud_events == 2
     assert fri.loud_events_per_h == pytest.approx(2 / 2.5)
@@ -248,7 +250,8 @@ def test_profile_is_energy_mean_over_days_and_devices():
     b = [_minute(f"2026-10-06T23:{i:02d}:00+02:00", 40.0) for i in range(10)]
     ev_a = [
         Event(ms("2026-10-05T23:05:00+02:00"), 80.0, "loud_vehicle"),
-        Event(ms("2026-10-06T23:10:00+02:00"), 60.0, "voices"),
+        Event(ms("2026-10-06T23:10:00+02:00"), 60.0, "road_traffic"),
+        Event(ms("2026-10-06T23:12:00+02:00"), 90.0, "voices"),  # not machine noise: never counted
     ]
     pa, pb = agg.device_profile(a, ev_a), agg.device_profile(b, [])
     assert pa[23].laeq_db == pytest.approx(energy([50.0, 60.0]))  # equal minutes on both days

@@ -32,6 +32,7 @@ Both kinds produce the same content for the files they write (tests/test_live_pu
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import sqlite3
@@ -281,10 +282,19 @@ class MapState:
     parts: dict[str, DevicePart] = field(default_factory=dict)  # device id → its share
     by_cell_day: dict[str, dict[date, dict[str, agg.DeviceDay]]] = field(default_factory=dict)
     index: agg.DayIndex = field(default_factory=agg.DayIndex)
+    # Local date (ISO) since which only machine and motor noise is kept (db.counted_since, §6).
+    counted_since: str | None = None
 
     @classmethod
-    def of(cls, parts: dict[str, DevicePart], span: _Span, min_devices: int, loud_db: float) -> MapState:
-        st = cls(span, min_devices, loud_db, index=agg.DayIndex(min_devices=min_devices))
+    def of(
+        cls,
+        parts: dict[str, DevicePart],
+        span: _Span,
+        min_devices: int,
+        loud_db: float,
+        counted_since: str | None = None,
+    ) -> MapState:
+        st = cls(span, min_devices, loud_db, index=agg.DayIndex(min_devices=min_devices), counted_since=counted_since)
         for dev in sorted(parts):
             st.parts[dev] = parts[dev]
             for (cell, day), s in parts[dev].days.items():
@@ -352,6 +362,7 @@ class MapState:
             "periods": _periods(day),
             "min_devices_per_cell": self.min_devices,
             "loud_event_db": self.loud_db,
+            "counted_since": self.counted_since,
             "cells": [e for c in sorted(self.index.cells) if (e := _cell_entry(self.index, c, day)) is not None],
             "network": network,
         }
@@ -371,6 +382,7 @@ class MapState:
             "devices": newest["devices"] if newest else 0,
             "calibrated": newest["calibrated"] if newest else False,
             "loud_event_db": self.loud_db,
+            "counted_since": self.counted_since,
             "days": history,
             "profile": {
                 "from": self.span.profile_from.isoformat(),
@@ -390,34 +402,58 @@ class MapState:
 
 
 def build_state(
-    devices: Iterable[DeviceData], now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
+    devices: Iterable[DeviceData],
+    now: datetime,
+    min_devices: int = 1,
+    loud_db: float = agg.DEFAULT_LOUD_EVENT_DB,
+    counted_since: str | None = None,
 ) -> MapState:
     span = _Span.at(now)
     parts = {d.site.device_id: device_part(d, span, loud_db) for d in devices}
-    return MapState.of(parts, span, min_devices, loud_db)
+    return MapState.of(parts, span, min_devices, loud_db, counted_since)
 
 
 def build(
-    devices: Iterable[DeviceData], now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
+    devices: Iterable[DeviceData],
+    now: datetime,
+    min_devices: int = 1,
+    loud_db: float = agg.DEFAULT_LOUD_EVENT_DB,
+    counted_since: str | None = None,
 ) -> tuple[dict, dict[str, dict], dict[str, dict]]:
     """Pure: device data → (cells.json, {cell: cells/{cell}.json}, {date: days/{date}.json})."""
-    return build_state(devices, now, min_devices, loud_db).all_files()
+    return build_state(devices, now, min_devices, loud_db, counted_since).all_files()
 
 
-def build_reports(rows: Iterable[tuple[int, float, float, str]], now: datetime) -> dict:
-    """reports.json (§6.4) from (time_utc ms, lat, lon, category) of non-hidden devices.
+def build_reports(rows: Iterable[tuple], now: datetime) -> dict:
+    """reports.json (§6.4) from (time_utc ms, lat, lon, category[, direction_deg, direction_accuracy
+    [, level_lafmax_db[, count]]]) of non-hidden devices.
 
     The last REPORT_DAYS calendar days up to today. Each time is rounded *down* to the full
-    hour (local ISO with offset); no device id, no accuracy. Sorted by (hour, lat, lon,
-    category), so within an hour the order says nothing about who reported what."""
+    hour (local ISO with offset); no device id, no accuracy. `category` is null when the reporter
+    did not say (schema v9, Labor·Karte 0.9.4.5). `direction` is the reported direction of
+    travel in whole degrees (app 0.6.7), null when none was given or the compass said «unreliable»;
+    north and accuracy class are not published. `lafmax_db` (app 0.8.5) is the peak level while the
+    report dialog was open, rounded to whole dB, null when none was measured; the LAeq, the seconds and
+    the calibration flag are not published. `count` (v9) how many vehicles passed, 1–9, always present
+    (1 for every report before v9). Sorted by (hour, lat, lon, category, direction, lafmax_db, count),
+    so within an hour the order says nothing about who reported what."""
     latest = agg.today(now)
     first = latest - timedelta(days=REPORT_DAYS - 1)
     a, b = agg.day_bounds(first)[0], agg.day_bounds(latest)[1]
     items = []
-    for t_ms, lat, lon, category in rows:
+    for row in rows:
+        t_ms, lat, lon, category = row[:4]
+        deg, acc = (row[4], row[5]) if len(row) >= 6 else (None, None)
+        direction = deg if deg is not None and acc != "unreliable" else None
+        peak = row[6] if len(row) >= 7 else None
+        level = None if peak is None else int(math.floor(peak + 0.5))
+        n = row[7] if len(row) >= 8 and row[7] else 1
         if a <= t_ms < b:
             hour = t_ms // agg.HOUR_MS * agg.HOUR_MS
-            items.append((hour, lat, lon, category))
+            # A missing category sorts first ("" before every id); published as null.
+            items.append((
+                hour, lat, lon, category or "", -1 if direction is None else direction, -1 if level is None else level, n,
+            ))
     items.sort()
     return {
         "generated_at": now.astimezone(agg.ZONE).isoformat(timespec="seconds"),
@@ -425,21 +461,34 @@ def build_reports(rows: Iterable[tuple[int, float, float, str]], now: datetime) 
         "to": latest.isoformat(),
         "categories": list(REPORT_CATEGORIES),
         "reports": [
-            {"time": agg.local(h).isoformat(timespec="seconds"), "lat": lat, "lon": lon, "category": c}
-            for h, lat, lon, c in items
+            {
+                "time": agg.local(h).isoformat(timespec="seconds"), "lat": lat, "lon": lon, "category": c or None,
+                "direction": None if d < 0 else d,
+                "lafmax_db": None if v < 0 else v,
+                "count": n,
+            }
+            for h, lat, lon, c, d, v, n in items
         ],
     }
 
 
-def load_reports(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> list[tuple[int, float, float, str]]:
-    return [
-        tuple(r)  # type: ignore[misc]
-        for r in conn.execute(
-            "SELECT r.time_utc, r.lat, r.lon, r.category FROM reports r JOIN devices d ON d.id = r.device_id "
-            "WHERE d.hidden = 0 AND r.time_utc >= ? AND r.time_utc < ?",
-            (start_ms, end_ms),
-        )
-    ]
+def load_reports(conn: sqlite3.Connection, start_ms: int, end_ms: int) -> list[tuple]:
+    where = "FROM reports r JOIN devices d ON d.id = r.device_id WHERE d.hidden = 0 AND r.time_utc >= ? AND r.time_utc < ?"
+    # Newest schema first; an older database lacks the later columns (v9 count, v8 level, v6 direction).
+    selects = (
+        "r.time_utc, r.lat, r.lon, r.category, r.direction_deg, r.direction_accuracy, r.level_lafmax_db, r.count",
+        "r.time_utc, r.lat, r.lon, r.category, r.direction_deg, r.direction_accuracy, r.level_lafmax_db",
+        "r.time_utc, r.lat, r.lon, r.category, r.direction_deg, r.direction_accuracy",
+        "r.time_utc, r.lat, r.lon, r.category",
+    )
+    for i, cols in enumerate(selects):
+        try:
+            cur = conn.execute(f"SELECT {cols} {where}", (start_ms, end_ms))
+            break
+        except sqlite3.OperationalError:
+            if i == len(selects) - 1:
+                raise
+    return [tuple(r) for r in cur]
 
 
 def reports_from_db(conn: sqlite3.Connection, now: datetime) -> dict:
@@ -473,7 +522,7 @@ def build_from_db(
     conn: sqlite3.Connection, now: datetime, min_devices: int = 1, loud_db: float = agg.DEFAULT_LOUD_EVENT_DB
 ) -> tuple[dict, dict[str, dict], dict[str, dict]]:
     """[build] on the devices in the database, over the days the published files need."""
-    return build(load_devices(conn, *_read_span(now)), now, min_devices, loud_db)
+    return build(load_devices(conn, *_read_span(now)), now, min_devices, loud_db, db.counted_since(conn))
 
 
 def current_stats(conn: sqlite3.Connection, now: datetime | None = None, min_devices: int = 1) -> dict:
@@ -584,7 +633,9 @@ class Publisher:
         """Reads the database, writes every map file, reports.json and stats.json; returns cells.json."""
         now = now or datetime.now(UTC)
         hidden = hidden_fingerprint(conn)
-        st = build_state(load_devices(conn, *_read_span(now)), now, self.min_devices, self.loud_db)
+        st = build_state(
+            load_devices(conn, *_read_span(now)), now, self.min_devices, self.loud_db, db.counted_since(conn)
+        )
         cells_json, cell_files, day_files = st.all_files()
         write(self.map_dir, cells_json, cell_files, day_files)
         reports = reports_from_db(conn, now)
@@ -624,7 +675,7 @@ class Publisher:
         span = _Span.at(now)
         if span.latest != old.span.latest:
             raise _NeedFull
-        st = MapState(span, old.min_devices, old.loud_db, old.parts, old.by_cell_day, old.index)
+        st = MapState(span, old.min_devices, old.loud_db, old.parts, old.by_cell_day, old.index, old.counted_since)
         changed: set[tuple[str, date]] = set()
         profile_cells: set[str] = set()
         for dev in sorted(pending.touched):

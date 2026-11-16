@@ -46,8 +46,11 @@ object Replay {
         localFloorWindowSeconds = localWindowS, localFloorMinHistorySeconds = minHistoryS,
     )
 
-    /** Replays [signal48k] (48 kHz, full scale ±1). */
-    fun run(signal48k: FloatArray, config: EngineConfig = config(), startMs: Long = START_MS): Result {
+    /** Replays [signal48k] (48 kHz, full scale ±1), optionally with an event head (logging only). */
+    fun run(
+        signal48k: FloatArray, config: EngineConfig = config(), startMs: Long = START_MS,
+        eventHead: ch.lessnoise.dsp.classify.EventHeadClassifier? = null,
+    ): Result {
         val events = ArrayList<NoiseEvent>()
         val minutes = ArrayList<MinuteRecord>()
         val ticks = ArrayList<LafTick>()
@@ -64,6 +67,7 @@ object Replay {
                 }
             },
             clock::now,
+            eventHead,
         )
         TestSignals.feed(engine, signal48k, clock = clock)
         engine.stop()
@@ -71,14 +75,17 @@ object Replay {
     }
 
     /** Replays a WAV file (16 kHz is upsampled to 48 kHz, 48 kHz is used as is). */
-    fun runWav(file: File, config: EngineConfig = config(), startMs: Long = START_MS): Result {
+    fun runWav(
+        file: File, config: EngineConfig = config(), startMs: Long = START_MS,
+        eventHead: ch.lessnoise.dsp.classify.EventHeadClassifier? = null,
+    ): Result {
         val (x, rate) = Wav.read(file)
         val signal = when (rate) {
             48_000 -> x
             16_000 -> Upsampler3.process(x)
             else -> error("${file.name}: $rate Hz (only 16 kHz and 48 kHz are supported)")
         }
-        return run(signal, config, startMs)
+        return run(signal, config, startMs, eventHead)
     }
 }
 
@@ -264,13 +271,37 @@ object ReplayMain {
  * setting, picks the v2 event that overlaps the manifest's event span most (ties: the louder one)
  * and writes one CSV row per clip and setting.
  *
+ * With `--head` (default on; `--head none` turns it off) the engine also runs the bundled event
+ * head ([ch.lessnoise.dsp.classify.EventHead]): per clip and setting the columns `head_<class>`
+ * (the replayed event's probabilities, phone signal path and live detector) and `head_decision`;
+ * and, once per clip, `span_<class>`: the same head on the manifest's event span through
+ * [ch.lessnoise.dsp.head.ClipHarness] (the Python pipeline at 16 kHz) with the manifest's own
+ * detector features, levels and background — i.e. what the training pipeline computed. The model
+ * inputs of both go to `<out>.head_inputs.csv` (one row per clip and source).
+ *
+ * `--offset manifest` replays each clip with its session's `calibrationOffsetDb` (session_start
+ * line) instead of the engine default, so that absolute levels (LAFmax, floors, background — head
+ * inputs) are comparable with the manifest; `--offset <dB>` sets one offset for all clips.
+ *
  * ```
  * ./gradlew :dsp:replayBatch --args="--manifest /path/manifest.jsonl --clips /path/clips --out /tmp/v2.csv \
- *     [--excess 6.5,5,8] [--floor 30,20] [--min-history 3] [--window 30]"
+ *     [--excess 6.5,5,8] [--floor 30,20] [--min-history 3] [--window 30] [--head none] [--offset manifest|dB]"
  * ```
  */
 object ReplayBatch {
-    private class Clip(val file: String, val eventId: Long?, val offsetS: Double, val durationS: Double)
+    private class Clip(
+        val file: String, val eventId: Long?, val offsetS: Double, val durationS: Double,
+        val lafMaxDb: Double, val backgroundDb: Double, val features: EventFeatures?, val session: String?,
+    )
+
+    /** The manifest's `features` object as [EventFeatures] (null if absent). */
+    private fun manifestFeatures(o: kotlinx.serialization.json.JsonObject?): EventFeatures? {
+        if (o == null) return null
+        fun d(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() ?: Double.NaN
+        val shape = (o["shape"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return null
+        val wind = (o["wind"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+        return EventFeatures(d("localFloorDb"), d("excessDb"), d("riseS"), d("decayS"), d("jaggedness"), d("midBandRiseDb"), d("lfShare"), d("lfFlutterDb"), wind, shape)
+    }
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -281,9 +312,13 @@ object ReplayBatch {
         var floors = listOf(EngineConfig.DEFAULT_EVENT_MIN_LEVEL_DB)
         var minHistory = 3.0
         var window = EngineConfig.DEFAULT_LOCAL_FLOOR_WINDOW_SECONDS
+        var headOn = true
+        var offsetArg: String? = null
         var i = 0
         while (i < args.size) {
             when (args[i]) {
+                "--head" -> headOn = args[++i] != "none"
+                "--offset" -> offsetArg = args[++i]
                 "--manifest" -> manifest = File(args[++i])
                 "--clips" -> clips = File(args[++i])
                 "--out" -> out = File(args[++i])
@@ -296,34 +331,60 @@ object ReplayBatch {
             i++
         }
         requireNotNull(manifest) { "--manifest missing" }; requireNotNull(clips) { "--clips missing" }; requireNotNull(out) { "--out missing" }
+        val sessionOffset = HashMap<String, Double>()
         val list = manifest.readLines().mapNotNull { line ->
             val o = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(line) }.getOrNull() as? kotlinx.serialization.json.JsonObject
                 ?: return@mapNotNull null
             fun s(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content
+            if (s("type") == "session_start") s("calibrationOffsetDb")?.toDoubleOrNull()?.let { sessionOffset[s("session") ?: ""] = it }
             if (s("type") != "clip") return@mapNotNull null
             Clip(
                 s("file")!!.substringAfterLast('/'), s("eventId")?.toLongOrNull(),
                 s("offsetOfEventStartInClipMs")!!.toDouble() / 1000, s("durationS")?.toDoubleOrNull() ?: 0.0,
+                s("lafMaxDb")?.toDoubleOrNull() ?: Double.NaN, s("backgroundDb")?.toDoubleOrNull() ?: Double.NaN,
+                manifestFeatures(o["features"] as? kotlinx.serialization.json.JsonObject), s("session"),
             )
         }
+        fun offsetFor(c: Clip): Double? = when (offsetArg) {
+            null -> null
+            "manifest" -> sessionOffset[c.session ?: ""]
+            else -> offsetArg!!.toDouble()
+        }
+        val head = if (headOn) ch.lessnoise.dsp.classify.EventHead.loadDefault() else null
+        val classes = head?.classes ?: emptyList()
+        val inputRows = java.util.concurrent.ConcurrentLinkedQueue<String>()
         val settings = excess.flatMap { e -> floors.map { f -> e to f } }
         val header = listOf(
             "clip", "event_id", "excess_setting", "floor_setting", "detected", "n_v2_events", "manifest_start_s", "manifest_dur_s",
             "v2_start_s", "v2_dur_s", "v2_lafmax_db", "local_floor_db", "excess_db", "rise_s", "decay_s", "jaggedness",
             "mid_band_rise_db", "lf_share", "lf_flutter_db", "wind", "shape",
-        )
+        ) + classes.map { "head_$it" } + (if (head != null) listOf("head_decision") else emptyList()) + classes.map { "span_$it" }
         val t0 = System.nanoTime()
         val rows = list.parallelStream().map { c ->
             val f = File(clips, c.file)
             if (!f.isFile) return@map listOf("${c.file},${c.eventId ?: ""},,,missing")
             val (x, rate) = Wav.read(f)
             val signal = if (rate == 16_000) Upsampler3.process(x) else x
+            // The head on the manifest span (Python pipeline, manifest's own detector values), once per clip.
+            var spanCols = List(classes.size) { "" }
+            if (head != null && rate == 16_000 && c.features != null) {
+                runCatching {
+                    val h = ch.lessnoise.dsp.head.ClipHarness.run(
+                        ch.lessnoise.dsp.head.ClipHarness.readWav(f), Math.round(c.offsetS * 8).toInt(), c.durationS, 127.773, c.backgroundDb, null,
+                    )
+                    val inputs = ch.lessnoise.dsp.head.HeadInputs.f1(h.raw, c.features, c.lafMaxDb, c.backgroundDb, c.durationS)
+                    val r = head.evaluate(inputs)
+                    spanCols = classes.map { Csv.num(r.scores.getValue(it), 5) }
+                    inputRows += (listOf(c.file, c.eventId?.toString() ?: "", "span") + head.inputNames.map { Csv.num(r.inputs.getValue(it), 5) }).joinToString(",")
+                }.onFailure { System.err.println("${c.file}: span head failed: $it") }
+            }
             val clipS = signal.size / 48_000.0
             val mStart = c.offsetS
             val mEnd = minOf(c.offsetS + c.durationS, clipS)
             settings.map { (e, fl) ->
-                val cfg = Replay.config(e, window, minHistory).copy(eventMinLevelDb = fl)
-                val r = Replay.run(signal, cfg)
+                val base = Replay.config(e, window, minHistory).copy(eventMinLevelDb = fl)
+                val cfg = offsetFor(c)?.let { base.copy(calibrationOffsetDb = it) } ?: base
+                val r = Replay.run(signal, cfg, eventHead = head)
                 fun overlap(ev: NoiseEvent): Double {
                     val s = (ev.startEpochMs - Replay.START_MS) / 1000.0
                     return minOf(mEnd, s + ev.durationSeconds) - maxOf(mStart, s)
@@ -340,11 +401,21 @@ object ReplayBatch {
                     ft?.let { Csv.num(it.riseS, 3) } ?: "", ft?.let { Csv.num(it.decayS, 3) } ?: "", ft?.let { Csv.num(it.jaggedness, 4) } ?: "",
                     ft?.let { Csv.num(it.midBandRiseDb, 2) } ?: "", ft?.let { Csv.num(it.lfShare, 4) } ?: "", ft?.let { Csv.num(it.lfFlutterDb, 3) } ?: "",
                     ft?.wind?.toString() ?: "", ft?.shape ?: "",
-                ).joinToString(",")
+                ).plus(
+                    if (head == null) emptyList() else classes.map { k -> best?.headScores?.get(k)?.let { Csv.num(it, 5) } ?: "" } +
+                        listOf(best?.headDecision?.joinToString("|") ?: "")
+                ).plus(spanCols).joinToString(",").also {
+                    val hr = best?.features?.head
+                    if (hr != null && head != null) inputRows += (listOf(c.file, c.eventId?.toString() ?: "", "engine_${Csv.num(e)}_${Csv.num(fl)}") +
+                        head.inputNames.map { Csv.num(hr.inputs.getValue(it), 5) }).joinToString(",")
+                }
             }
         }.toList().flatten()
         out.parentFile?.mkdirs()
         out.writeText((listOf(header.joinToString(",")) + rows).joinToString("\n", postfix = "\n"))
+        if (head != null) File(out.path + ".head_inputs.csv").writeText(
+            (listOf((listOf("clip", "event_id", "source") + head.inputNames).joinToString(",")) + inputRows.sorted()).joinToString("\n", postfix = "\n"),
+        )
         println("${list.size} clips x ${settings.size} settings -> ${out.path} in ${(System.nanoTime() - t0) / 1_000_000_000} s")
     }
 }
@@ -358,7 +429,10 @@ object ReplayBatch {
  * file — 2049 for MediaCodec AAC decoded by ffmpeg, found by cross-correlating clips), gaps are
  * filled with silence, and the stream is fed through one engine per (excess, floor) setting.
  * Writes `<out>.events.csv` (every v2 event, with the manifest event it overlaps most) and
- * `<out>.clips.csv` (every manifest clip event with the v2 event overlapping it most).
+ * `<out>.clips.csv` (every manifest clip event with the v2 event overlapping it most); with the
+ * event head (default; `--head none` turns it off) both carry `head_<class>` probabilities and
+ * `head_decision`. `--offset manifest` uses the session's `calibrationOffsetDb` (else the engine
+ * default; `--offset <dB>` sets it), so absolute levels match the manifest.
  *
  * ```
  * ./gradlew :dsp:replayNight --args="--manifest m.jsonl --wavs dir --session 20261007_220455 --out /tmp/night \
@@ -382,6 +456,12 @@ object ReplayNight {
         val excess = (a["excess"] ?: "6.5").split(",").map { it.toDouble() }
         val floors = (a["floor"] ?: "30").split(",").map { it.toDouble() }
         val window = (a["window"] ?: "30").toDouble()
+        val head = if (a["head"] == "none") null else ch.lessnoise.dsp.classify.EventHead.loadDefault()
+        var offset: Double? = a["offset"]?.takeIf { it != "manifest" }?.toDouble()
+        val classes = head?.classes ?: emptyList()
+        fun headCols(e: NoiseEvent?): String = if (head == null) "" else
+            "," + (classes.map { k -> e?.headScores?.get(k)?.let { Csv.num(it, 5) } ?: "" } + listOf(e?.headDecision?.joinToString("|") ?: "")).joinToString(",")
+        val headHeader = if (head == null) "" else "," + (classes.map { "head_$it" } + listOf("head_decision")).joinToString(",")
         val opens = ArrayList<Open>()
         val clipEvents = ArrayList<Ev>()
         var anchorMs = Replay.START_MS
@@ -390,24 +470,25 @@ object ReplayNight {
             fun s(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content
             if (s("session") != session) continue
             when (s("type")) {
+                "session_start" -> if (a["offset"] == "manifest") offset = s("calibrationOffsetDb")?.toDouble()
                 "continuous_open" -> opens += Open(s("file")!!.substringAfterLast('/').removeSuffix(".m4a"), s("startInputSample")!!.toLong())
                 "clip" -> clipEvents += Ev(s("eventId")!!.toLong(), s("eventStartSample")!!.toLong(), s("eventEndSample")!!.toLong())
                 "clock" -> if (s("correctionMs") == null) anchorMs = s("anchorEpochMs")!!.toLong() - s("anchorSample")!!.toLong() / 48
             }
         }
         val settings = excess.flatMap { e -> floors.map { f -> e to f } }
-        val results = settings.parallelStream().map { (e, f) -> Triple(e, f, run(opens, wavs, skip, e, f, window, anchorMs)) }.toList()
+        val results = settings.parallelStream().map { (e, f) -> Triple(e, f, run(opens, wavs, skip, e, f, window, anchorMs, head, offset)) }.toList()
         val ev = StringBuilder("excess_setting,floor_setting,start_sample,end_sample,start,matched_event_id," +
-            "duration_s,lafmax_db,background_db," + Csv.EVENT_FEATURE_COLUMNS.joinToString(",") + "\n")
+            "duration_s,lafmax_db,background_db," + Csv.EVENT_FEATURE_COLUMNS.joinToString(",") + headHeader + "\n")
         val cl = StringBuilder("event_id,excess_setting,floor_setting,detected,v2_start_sample,v2_dur_s,v2_lafmax_db," +
-            Csv.EVENT_FEATURE_COLUMNS.joinToString(",") + "\n")
+            Csv.EVENT_FEATURE_COLUMNS.joinToString(",") + headHeader + "\n")
         for ((e, f, v2) in results) {
             fun overlap(x: V2, c: Ev) = minOf(x.end, c.end) - maxOf(x.start, c.start)
             for (x in v2) {
                 val m = clipEvents.filter { overlap(x, it) > 0 }.maxByOrNull { overlap(x, it) }
                 ev.append("${Csv.num(e)},${Csv.num(f)},${x.start},${x.end},${x.event.startIso},${m?.id ?: ""},")
                     .append("${Csv.num(x.event.durationSeconds, 3)},${Csv.num(x.event.lafMaxDb, 2)},${Csv.num(x.event.backgroundDb, 2)},")
-                    .append(Csv.featureFields(x.event).joinToString(",")).append("\n")
+                    .append(Csv.featureFields(x.event).joinToString(",")).append(headCols(x.event)).append("\n")
             }
             for (c in clipEvents) {
                 // Manifest events of 0 samples (none expected) still match an event containing their start.
@@ -416,7 +497,7 @@ object ReplayNight {
                 cl.append("${c.id},${Csv.num(e)},${Csv.num(f)},${best != null},${best?.start ?: ""},")
                     .append("${best?.let { Csv.num(it.event.durationSeconds, 3) } ?: ""},${best?.let { Csv.num(it.event.lafMaxDb, 2) } ?: ""},")
                     .append(best?.let { Csv.featureFields(it.event).joinToString(",") } ?: List(Csv.EVENT_FEATURE_COLUMNS.size) { "" }.joinToString(","))
-                    .append("\n")
+                    .append(headCols(best?.event)).append("\n")
             }
         }
         File("$out.events.csv").writeText(ev.toString())
@@ -424,13 +505,16 @@ object ReplayNight {
         println("${settings.size} settings: ${results.map { it.third.size }} v2 events; ${clipEvents.size} manifest events -> $out.*.csv")
     }
 
-    private fun run(opens: List<Open>, wavs: File, skip: Int, excess: Double, floor: Double, window: Double, anchorMs: Long): List<V2> {
+    private fun run(
+        opens: List<Open>, wavs: File, skip: Int, excess: Double, floor: Double, window: Double, anchorMs: Long,
+        head: ch.lessnoise.dsp.classify.EventHeadClassifier?, offset: Double? = null,
+    ): List<V2> {
         val found = ArrayList<V2>()
         val clock = SimClock(anchorMs)
-        val cfg = Replay.config(excess, window, 5.0).copy(eventMinLevelDb = floor)
+        val cfg = Replay.config(excess, window, 5.0).copy(eventMinLevelDb = floor).let { c -> offset?.let { c.copy(calibrationOffsetDb = it) } ?: c }
         val engine = MeasurementEngine(cfg, null, object : MeasurementEngine.Listener {
             override fun onEventEmitted(event: NoiseEvent, startSample: Long, endSample: Long) { found += V2(startSample, endSample, event) }
-        }, clock::now)
+        }, clock::now, head)
         val block = FloatArray(6000)
         var pos = 0L // input samples fed so far
         fun feed(buf: FloatArray, n: Int) {

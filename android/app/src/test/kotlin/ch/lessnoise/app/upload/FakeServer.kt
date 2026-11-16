@@ -52,6 +52,27 @@ class FakeServer : AutoCloseable {
     /** False: behave like a server without the reports call (404), as before app 0.6.0. */
     @Volatile var reportsAvailable = true
 
+    /**
+     * True: behave like the server before app 0.6.7 (schema v5, `extra="forbid"`): a report with a
+     * `direction` is listed in `rejected` with field "direction", «Extra inputs are not permitted»
+     * (the exact answer, checked against server/ at 03a3347; WORKLOG 0.6.7).
+     */
+    @Volatile var rejectDirection = false
+
+    /**
+     * 0.8.5: True: behave like the server before schema v8 (`extra="forbid"` without `level`): a report
+     * with a `level` is listed in `rejected` with field "level", «Extra inputs are not permitted»;
+     * together with [rejectDirection] both fields are listed (one reason each), as pydantic does.
+     */
+    @Volatile var rejectLevel = false
+
+    /**
+     * 0.9.4.5: True: behave like the server before schema v9 (category required, `extra="forbid"` without `count`): a
+     * report without `category` is listed with field "category", «Field required», one with a `count` with field
+     * "count", «Extra inputs are not permitted» (missing fields first, then extra ones, as pydantic orders them).
+     */
+    @Volatile var beforeV9 = false
+
     /** Return this status for the next request matching (method, path suffix) once, e.g. "POST" to "/minutes". */
     val failNext: MutableList<Triple<String, String, Int>> = java.util.Collections.synchronizedList(mutableListOf())
 
@@ -172,7 +193,7 @@ class FakeServer : AutoCloseable {
     }
 
     private fun reportKey(o: JsonObject): String =
-        listOf("time", "category", "lat", "lon").joinToString("|") { o[it]!!.jsonPrimitive.content }
+        listOf("time", "category", "lat", "lon").joinToString("|") { o[it]?.jsonPrimitive?.content ?: "" }
 
     private fun upsert(
         into: MutableMap<String, JsonObject>, arr: JsonArray, limit: Int,
@@ -185,7 +206,21 @@ class FakeServer : AutoCloseable {
             arr.forEachIndexed { i, el ->
                 val o = el.jsonObject
                 val start = key(o)
-                if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
+                val missing = listOfNotNull("category".takeIf { beforeV9 && "time" in o && it !in o })
+                val unknown = listOfNotNull(
+                    "direction".takeIf { rejectDirection && it in o },
+                    "level".takeIf { rejectLevel && it in o },
+                    "count".takeIf { beforeV9 && it in o },
+                )
+                if (missing.isNotEmpty() || unknown.isNotEmpty()) {
+                    add(buildJsonObject {
+                        put("index", i); put("time", o["time"]!!.jsonPrimitive.content)
+                        put("reasons", buildJsonArray {
+                            for (f in missing) add(buildJsonObject { put("field", f); put("reason", "Field required") })
+                            for (f in unknown) add(buildJsonObject { put("field", f); put("reason", "Extra inputs are not permitted") })
+                        })
+                    })
+                } else if (start in refuseStarts || o["time"]?.jsonPrimitive?.content in refuseStarts) {
                     add(buildJsonObject {
                         put("index", i); put("start", start)
                         put("reasons", buildJsonArray { add(buildJsonObject { put("field", "laeq_db"); put("reason", "out of range") }) })

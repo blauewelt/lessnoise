@@ -80,15 +80,17 @@ fun HistorySection(
     showWindEvents: Boolean = true,
     /** An older measurement exists («‹»). */
     canGoPrevious: Boolean = true,
+    /** 0.6.5: the phone's noise floor («Messgrenze» band, «≤» in «Grundrauschen»); null: none. */
+    noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
 ) {
     val windows = remember(zone) { Windows(zone) }
-    val model = remember(data, highlight, eventFloorDb, zone, showWindEvents) {
-        data?.let { ChartModel.build(it, zone, highlight, eventFloorDb, showWindEvents) }
+    val model = remember(data, highlight, eventFloorDb, zone, showWindEvents, noiseFloor) {
+        data?.let { ChartModel.build(it, zone, highlight, eventFloorDb, showWindEvents, noiseFloor) }
     }
     val loading = data == null || data.window != window
     val scheme = MaterialTheme.colorScheme
     val palette = ChartPalette.current()
-    val highlightName = ChartCategories.name(highlight)
+    val highlightLegend = ChartCategories.legendName(highlight)
 
     val margin = 16.dp
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -160,7 +162,7 @@ fun HistorySection(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    LegendItem(Swatch.Dot(palette.series2), highlightName)
+                    LegendItem(Swatch.Dot(palette.series2), highlightLegend)
                     if (model?.hourly != true) {
                         LegendItem(Swatch.Dot(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor), small = true), "andere Spitzen")
                     }
@@ -172,7 +174,7 @@ fun HistorySection(
                             else -> "Mittel pro Minute"
                         },
                     )
-                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), "Schwankung")
+                    LegendItem(Swatch.Band(palette.series1.copy(alpha = palette.bandAlpha).compositeOver(cardColor)), BAND_LEGEND)
                     if (model != null && model.windEvents.isNotEmpty()) {
                         LegendItem(Swatch.Hollow(scheme.onSurfaceVariant.copy(alpha = 0.55f).compositeOver(cardColor)), WIND_LEGEND)
                     }
@@ -186,9 +188,16 @@ fun HistorySection(
         // carries an orange dot like the highlighted events.
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
             contentPadding = PaddingValues(horizontal = margin),
             modifier = Modifier.fillMaxWidth(),
         ) {
+            // 0.9.2: what the chips are for (until 0.9.1 an unlabelled row).
+            item(key = "label") {
+                Box(Modifier.height(32.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(HIGHLIGHT_LABEL, style = MaterialTheme.typography.labelLarge, color = scheme.onSurfaceVariant)
+                }
+            }
             items(ChartCategories.all, key = { it.first }) { (id, name) ->
                 val selected = highlight == id
                 FilterChip(
@@ -208,17 +217,23 @@ fun HistorySection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             // The hum (steady background) and the bursts above it are separate quantities.
-            StatTile("Grundrauschen", s?.let { "${ChartFmt.db(it.humDb)} dB(A)" } ?: "–", null, Modifier.weight(1f))
+            StatTile("Grundrauschen", s?.humText ?: "–", HUM_NOTE, Modifier.weight(1f))
             StatTile("Lärmspitzen", s?.eventsPerHourText ?: "–", "pro Stunde", Modifier.weight(1f))
             val loud = s?.loudest
             StatTile(
-                "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: "–",
+                "Lauteste", loud?.let { "${ChartFmt.db(it.lafMaxDb)} dB(A)" } ?: (if (s == null) "–" else NO_PEAK),
                 loud?.let { TimeFmt(zone, windows.crossesDates(window)).hm(it.startEpochMs) }, Modifier.weight(1f),
+            )
+        }
+        if (s?.humLimitDb != null && model?.isEmpty == false) {
+            Text(
+                AT_FLOOR_NOTE, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = margin),
             )
         }
         if (s != null && model?.isEmpty == false) {
             Text(
-                s.line(highlightName = highlightName), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
+                s.line(highlightName = ChartCategories.countName(highlight, s.highlightCount)), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = margin),
             )
         }

@@ -5,7 +5,13 @@ import ch.lessnoise.dsp.classify.CategoryMapper
 import ch.lessnoise.dsp.classify.ClassifierFrame
 import ch.lessnoise.dsp.classify.ClassifierPreprocessor
 import ch.lessnoise.dsp.classify.ClassifierResult
+import ch.lessnoise.dsp.classify.EventHeadClassifier
 import ch.lessnoise.dsp.classify.LabelScore
+import ch.lessnoise.dsp.head.HeadFeatureExtractor
+import ch.lessnoise.dsp.head.HeadInputs
+import ch.lessnoise.dsp.head.HeadTickStore
+import ch.lessnoise.dsp.head.TickSpectrum
+import ch.lessnoise.dsp.head.TonalAccumulator
 import java.time.ZoneId
 import kotlin.math.abs
 
@@ -93,7 +99,15 @@ data class EngineConfig(
  * Minute boundaries stay aligned to wall-clock minutes.
  *
  * Privacy: the only audio held is the decimator history (241 samples) and the 1 s classifier
- * ring buffer. Nothing here writes audio anywhere.
+ * ring buffer (also fed, and read for the spectra, when only the event head runs). Nothing here
+ * writes audio anywhere; the event head keeps per-tick numbers only.
+ *
+ * **Event head (optional, logging only).** With an [eventHead], every event additionally gets the
+ * head's per-class probabilities and decision ([EventFeatures.head], [DetectedEvent.headScores]):
+ * per tick the engine records the five 25 ms A-weighted energies and, from the 16 kHz classifier
+ * ring, one 4096-point spectrum summary ([TickSpectrum], one tick late); the head's features
+ * ([HeadFeatureExtractor]) are computed once per event, at most 1 s after its end (the event is
+ * reported then). The category decision, counts and stored values do not depend on it.
  *
  * Not thread-safe except for [setMicSilenced]: call everything else from the capture thread.
  */
@@ -102,6 +116,7 @@ class MeasurementEngine(
     private val mapper: CategoryMapper?,
     private val listener: Listener,
     private val wallClock: () -> Long = System::currentTimeMillis,
+    private val eventHead: EventHeadClassifier? = null,
 ) {
     interface Listener {
         fun onTick(tick: LafTick) {}
@@ -154,6 +169,9 @@ class MeasurementEngine(
     private val classifierWindowSamples48k = ClassifierPreprocessor.YAMNET_INPUT_SAMPLES.toLong() * 3
 
     private val classifierActive = config.classifierEnabled && mapper != null
+    private val headActive = eventHead != null
+    /** The 16 kHz ring is fed for the classifier and/or the head's spectra. */
+    private val decimating = classifierActive || headActive
     private val classifierIntervalSamples = (config.classifierIntervalSeconds * fs).toLong()
     private var lastClassifierSample = Long.MIN_VALUE / 2
     private var forceClassification = false
@@ -242,6 +260,21 @@ class MeasurementEngine(
     /** Index (in [tracker]) of the tick being evaluated. */
     private var currentTickIndex = -1L
 
+    // Event head (null/unused without a head).
+    private val headStore = if (headActive) HeadTickStore(tracker.capacityTicks) else null
+    private val spectrum = if (headActive) TickSpectrum() else null
+    private val specIn = FloatArray(TickSpectrum.NFFT)
+    private val specFrame = DoubleArray(TickSpectrum.NFFT)
+    /** Decimator group delay in 16 kHz samples: centres the spectrum frames on the ticks' audio. */
+    private val delay16 = decimator.delaySamples / 3
+    private val subLen = tickLen / HeadTickStore.SUB
+    private var subPos = 0
+    private var subIdx = 0
+    private var subSum = 0.0
+    private val tickSub = DoubleArray(HeadTickStore.SUB)
+    /** Events whose features are known and whose head result waits for later ticks. */
+    private val headWaiting = ArrayList<EventAcc>()
+
     // Event classification bookkeeping
     private class EventAcc(val startSample: Long, labelCount: Int, val minute: MinuteCounts, val startTick: Long) {
         val sum = FloatArray(labelCount)
@@ -253,6 +286,14 @@ class MeasurementEngine(
         var curvePeakDb = Double.NaN
         /** Set at the end of the tail; the event is emitted only then. */
         var features: EventFeatures? = null
+        /** Event-mean 40–800 Hz spectrum for the head (null without a head). */
+        var tonal: TonalAccumulator? = null
+        /** The head's result is still being waited for (the event is not emitted before). */
+        var headPending = false
+        var headNeedTicks = 0L
+        var peakTick = 0L
+        var bestStart = 0L
+        var topTicks = 0
     }
 
     /** The closed event whose tail (decay) is still being followed, if any. */
@@ -281,7 +322,9 @@ class MeasurementEngine(
             override fun onCandidateStart(startSample: Long) {
                 // The previous event's tail ends where the next candidate starts.
                 if (tailAcc != null) finishTail(currentTickIndex)
-                activeAcc = EventAcc(startSample, labelCount, curMinute, currentTickIndex)
+                activeAcc = EventAcc(startSample, labelCount, curMinute, currentTickIndex).also {
+                    if (headActive) it.tonal = TonalAccumulator(currentTickIndex)
+                }
                 curMinute.undecided++
                 listener.onEventCandidate(startSample)
             }
@@ -304,6 +347,7 @@ class MeasurementEngine(
                 activeAcc = null
                 acc.detected = event
                 acc.endTick = acc.startTick + Math.round(event.durationSeconds * 8)
+                if (headActive) (acc.tonal ?: TonalAccumulator(acc.startTick).also { acc.tonal = it }).endTick = acc.endTick
                 var peak = Double.NEGATIVE_INFINITY
                 for (i in acc.startTick until acc.endTick) { val v = tracker.lafAt(i); if (v > peak) peak = v }
                 acc.curvePeakDb = peak
@@ -328,9 +372,74 @@ class MeasurementEngine(
         acc.features = f
         if (f.wind) acc.minute.wind++ else acc.minute.events++
         acc.minute.undecided--
+        if (headActive) {
+            acc.peakTick = tracker.lastPeakTick
+            acc.bestStart = tracker.lastBestStart
+            acc.topTicks = tracker.lastTopTicks
+            acc.headNeedTicks = HeadFeatureExtractor.ticksNeeded(acc.startTick, acc.endTick, tracker.oldest)
+            acc.headPending = true
+            headWaiting += acc
+            checkHead(force = false)
+        } else {
+            listener.onEventClosed(ev.startSample, ev.endSample, f)
+            tryEmit(acc, force = false)
+        }
+        releaseIfDecided(acc.minute)
+    }
+
+    /** Finishes the head of waiting events once the ticks they read exist (all of them if [force]). */
+    private fun checkHead(force: Boolean) {
+        if (headWaiting.isEmpty()) return
+        for (acc in headWaiting.toList()) {
+            if (!force && tracker.count < acc.headNeedTicks) continue
+            headWaiting.remove(acc)
+            finishHead(acc)
+        }
+    }
+
+    private fun finishHead(acc: EventAcc) {
+        val ev = acc.detected!!
+        var f = acc.features!!
+        val head = eventHead
+        if (head != null) {
+            // Logging only: a failure here must never cost the event.
+            try {
+                val raw = HeadFeatureExtractor.compute(
+                    tracker, headStore!!, acc.tonal, acc.startTick, acc.endTick, acc.peakTick, acc.bestStart, acc.topTicks,
+                )
+                val r = head.evaluate(HeadInputs.f1(raw, f, ev.lafMaxDb, ev.backgroundDb, ev.durationSeconds))
+                f = f.copy(head = r)
+                acc.detected = ev.copy(headScores = r.scores, headDecision = r.decision)
+            } catch (e: RuntimeException) {
+                // features stay without head
+            }
+        }
+        acc.features = f
+        acc.tonal = null
+        acc.headPending = false
         listener.onEventClosed(ev.startSample, ev.endSample, f)
         tryEmit(acc, force = false)
-        releaseIfDecided(acc.minute)
+    }
+
+    /**
+     * Head bookkeeping of tick [i] (just pushed, ending at input sample [endSample]): its 25 ms
+     * energies, and the spectrum of the previous tick, whose frame reaches 64 ms into this one.
+     */
+    private fun headTick(i: Long, valid: Boolean, endSample: Long) {
+        val store = headStore ?: return
+        if (valid && subIdx == HeadTickStore.SUB) store.putSub(i, tickSub) else store.putSubInvalid(i)
+        if (i < 1) return
+        val t = spectrum!!
+        // Tick i − 1 ends at input sample endSample − tickLen, i.e. at 16 kHz sample (…)/3; its
+        // centre is TICK/2 earlier, shifted by the decimator delay so the frame sees the tick's audio.
+        val centre = (endSample - tickLen) / 3 - TickSpectrum.TICK / 2 + delay16
+        if (!classifierRing.copyAt(centre - TickSpectrum.NFFT / 2, specIn, TickSpectrum.NFFT)) return
+        for (k in 0 until TickSpectrum.NFFT) specFrame[k] = specIn[k].toDouble()
+        t.analyze(specFrame)
+        store.putSpectrum(i - 1, t)
+        val prevValid = !tracker.lafAt(i - 1).isNaN()
+        activeAcc?.tonal?.add(i - 1, prevValid, t)
+        for (acc in pending) acc.tonal?.add(i - 1, prevValid, t)
     }
 
     /** After each valid tick: the tail ends when LAF is back at 10 % of the excess, or after the maximum. */
@@ -373,6 +482,7 @@ class MeasurementEngine(
         if (drift < minDriftMs) minDriftMs = drift
         if (micSilenced) silencedSeenInTick = true
 
+        var segStart = 0
         for (i in 0 until count) {
             val xf = block[i]
             if (xf == 0f) {
@@ -395,19 +505,29 @@ class MeasurementEngine(
             tickSumTotal += ft * ft
             val y = fast.process(a2)
             if (y > tickMaxY) tickMaxY = y
+            if (headActive) {
+                subSum += a2
+                if (++subPos == subLen) {
+                    if (subIdx < HeadTickStore.SUB) tickSub[subIdx] = subSum / subLen
+                    subIdx++; subSum = 0.0; subPos = 0
+                }
+            }
             tickPos++
             totalSamples++
             if (tickPos == tickLen) {
+                // The 16 kHz ring is brought up to the tick end first (the head's spectra read it).
+                if (decimating) { decimator.process(block, segStart, i + 1, classifierRing); segStart = i + 1 }
                 endTick()
                 if (micSilenced) silencedSeenInTick = true
             }
         }
-        if (classifierActive) decimator.process(block, count, classifierRing)
+        if (decimating && segStart < count) decimator.process(block, segStart, count, classifierRing)
     }
 
     private fun resetTick() {
         tickPos = 0; tickSumA = 0.0; tickSumZ = 0.0; tickMaxY = 0.0
         tickSumBand = 0.0; tickSumLow = 0.0; tickSumTotal = 0.0
+        subPos = 0; subIdx = 0; subSum = 0.0
         tickMaxZeroRun = zeroRun // a zero run continuing from the previous tick still counts
         silencedSeenInTick = false
     }
@@ -451,6 +571,7 @@ class MeasurementEngine(
         minuteSamples += tickLen
         if (valid) {
             currentTickIndex = tracker.push(laf, tickSumA / tickLen, tickSumBand / tickLen, tickSumLow / tickLen, tickSumTotal / tickLen)
+            headTick(currentTickIndex, true, endSample)
             secValidTicks++
             secSumA += tickSumA; secSumZ += tickSumZ
             if (tickMaxY > secMaxY) secMaxY = tickMaxY
@@ -471,6 +592,7 @@ class MeasurementEngine(
             updateTail()
         } else {
             currentTickIndex = tracker.pushInvalid()
+            headTick(currentTickIndex, false, endSample)
             detector.interrupt(endSample - tickLen)
             // A tail cannot continue over invalid audio.
             if (tailAcc != null) finishTail(currentTickIndex)
@@ -482,6 +604,7 @@ class MeasurementEngine(
         recentTickPos = (recentTickPos + 1) % recentTicks
         resetTick()
 
+        checkHead(force = false)
         if (secTicks == 8) endSecond(endSample, nowMs)
         if (nowMs >= nextMinuteBoundaryMs) endMinute(nextMinuteBoundaryMs)
         finalizePending(force = false)
@@ -687,7 +810,7 @@ class MeasurementEngine(
      * classifier is off, or none arrived within the timeout, or [force]). True if emitted.
      */
     private fun tryEmit(acc: EventAcc, force: Boolean): Boolean {
-        if (acc.features == null) return false
+        if (acc.features == null || acc.headPending) return false
         val timeout = (config.eventClassificationTimeoutSeconds * fs).toLong()
         if (force || !classifierActive || acc.frames > 0 || totalSamples - acc.detected!!.endSample > timeout) {
             pending.remove(acc)
@@ -749,6 +872,8 @@ class MeasurementEngine(
         detector.flush(totalSamples)
         // The tail ends with the audio there is.
         if (tailAcc != null) finishTail(tracker.count)
+        // Heads waiting for ticks after the end use the ticks there are.
+        checkHead(force = true)
         finalizePending(force = true)
         if (recording && minuteSamples >= fs) endMinute(nextMinuteBoundaryMs)
         // Every event is decided now; nothing can stay held.
@@ -756,6 +881,7 @@ class MeasurementEngine(
         recording = false
         classifierRing.clear()
         decimator.reset()
+        subPos = 0; subIdx = 0; subSum = 0.0
         featureFilters.reset()
     }
 }

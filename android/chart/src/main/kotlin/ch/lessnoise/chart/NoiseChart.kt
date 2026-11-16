@@ -72,6 +72,8 @@ private class ChartColors(
     val text: Color,
     val surface: Color,
     val gapFill: Color,
+    /** 0.6.5: the «Messgrenze» band (muted, like the gap areas but lighter). */
+    val floorFill: Color,
     val band: Color,
     val tooltipBg: Color,
     val tooltipBorder: Color,
@@ -120,6 +122,7 @@ fun NoiseChart(
             text = scheme.onSurface,
             surface = surfaceColor,
             gapFill = scheme.onSurfaceVariant.copy(alpha = 0.10f),
+            floorFill = scheme.onSurfaceVariant.copy(alpha = 0.07f),
             band = palette.series1.copy(alpha = palette.bandAlpha),
             tooltipBg = scheme.surface,
             tooltipBorder = scheme.outline.copy(alpha = 0.5f),
@@ -238,6 +241,7 @@ private class ChartLayout(
     val xLabels: List<Pair<TextLayoutResult, Float>>,
     val gapLabel: TextLayoutResult,
     val gapLabel2: TextLayoutResult,
+    val floorLabel: TextLayoutResult,
     val bandPaths: List<Path>,
     val linePaths: List<Path>,
     val width: Float,
@@ -279,6 +283,7 @@ private class ChartLayout(
                 g, yLabels, xLabels,
                 gapLabel = measurer.measure("keine Messung", style),
                 gapLabel2 = measurer.measure("keine\nMessung", style.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center)),
+                floorLabel = measurer.measure(FLOOR_BAND_LABEL, style.copy(fontSize = style.fontSize * 0.85f)),
                 bandPaths = bandPaths, linePaths = linePaths, width = width, height = height,
             )
         }
@@ -288,6 +293,13 @@ private class ChartLayout(
 private fun DrawScope.drawChart(l: ChartLayout, c: ChartColors, d: ChartDims) {
     val g = l.geometry
     val p = g.plot
+    // The phone's noise floor + 3 dB (0.6.5): a light band from the bottom, labelled at the right.
+    g.floorBandTop?.let { top ->
+        drawRect(c.floorFill, Offset(p.left, top), Size(p.width, p.bottom - top))
+        val lab = l.floorLabel
+        val y = (top - lab.size.height - d.grid).coerceAtLeast(p.top)
+        drawText(lab, topLeft = Offset(p.right - lab.size.width - d.gap4, y))
+    }
     // Gaps.
     for ((x0, x1) in g.gaps) {
         drawRect(c.gapFill, Offset(x0, p.top), Size(x1 - x0, p.height))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stamp the local script and style URLs of docs/karte.html with the hash of their file.
+"""Stamp the local script and style URLs of docs/karte.html and docs/index.html with the hash of their file.
 
 Adapted from blauewelt/earth (scripts/stamp_assets.py). GitHub Pages tells browsers a file
 stays fresh for a while, and there is no build step that renames files, so a phone could run
@@ -7,7 +7,7 @@ yesterday's karte.js against today's JSON. Each local asset URL therefore carrie
 the first 8 hex of the file's own sha256: change a byte and the URL changes with it; leave the
 file alone and caching works as it should. The hash is measured, never typed in.
 
-    python3 scripts/stamp_assets.py           # rewrite the stamps in docs/karte.html
+    python3 scripts/stamp_assets.py           # rewrite the stamps in the pages of PAGES
     python3 scripts/stamp_assets.py --check   # exit 1 if any stamp is stale (tests, CI)
 
 Only `src="…"` and `href="…"` attributes in `<script>` and `<link rel="stylesheet">` tags that
@@ -23,7 +23,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(ROOT, "docs")
-PAGES = ["karte.html"]
+PAGES = ["karte.html", "index.html"]  # index.html: js/newsletter.js (2026-10-20) and style.css
 
 TAG = re.compile(r"<(script|link)\b[^>]*>", re.IGNORECASE)
 ATTR = re.compile(r'\b(src|href)="([^"?#]+)(\?v=[0-9a-f]{8})?"')

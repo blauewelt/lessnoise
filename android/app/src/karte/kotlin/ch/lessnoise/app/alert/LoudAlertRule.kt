@@ -5,9 +5,9 @@ import ch.lessnoise.app.ui.ReportPreset
 import ch.lessnoise.app.upload.ReportCategory
 import kotlin.math.roundToInt
 
-// «Unterwegs» and the «Sehr laut» notification (0.6.3). Compiled only into the editions with the
-// map (src/karte, flavours public and laborKarte); pure, so that LoudAlertTest (src/testKarte)
-// checks the rules on the JVM in both.
+// «Unterwegs messen» and the «Sehr laut» notification (0.6.3). Compiled into both editions with the map
+// (src/karte; 0.8.4–0.9.4.5 Labor·Karte only, src/laborKarte); pure, so that LoudAlertTest (src/testKarte, run
+// for public and laborKarte) checks the rules on the JVM. The rule itself is unchanged since 0.6.7.
 
 /** When a detected event alerts, and what the notification says. */
 object LoudAlertRule {
@@ -18,7 +18,7 @@ object LoudAlertRule {
      */
     const val THRESHOLD_DB = 75.0
 
-    /** «Töff & Poser» and «Strassenverkehr» (categories.json ids). */
+    /** «Lautes Fahrzeug» and «Strassenverkehr» (categories.json ids). */
     val CATEGORIES: Set<String> = setOf("loud_vehicle", "road_traffic")
 
     /** At most one notification per … */
@@ -31,28 +31,46 @@ object LoudAlertRule {
     const val CHANNEL_NAME = "Sehr laut"
 
     /**
-     * Whether [e] alerts now ([nowMs]): «Unterwegs» on, a measurement running, not wind, one of
-     * [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown: calibrated if the phone is, else
-     * with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
+     * Whether [e] alerts now ([nowMs]): the running measurement is «unterwegs» ([unterwegs]: started with
+     * «Unterwegs messen», or a window run while the phone is carried, [unterwegsNow]; 0.6.3 a switch), a
+     * measurement running, not wind, one of [CATEGORIES], LAFmax ≥ [THRESHOLD_DB] (the level as shown:
+     * calibrated if the phone is, else with the default offset), and the last alert [MIN_GAP_MS] or longer ago.
      */
     fun shouldAlert(e: LiveEvent, unterwegs: Boolean, running: Boolean, lastAlertAtMs: Long?, nowMs: Long): Boolean =
         unterwegs && running && !e.wind && e.category in CATEGORIES && e.lafMaxDb >= THRESHOLD_DB &&
             (lastAlertAtMs == null || nowMs - lastAlertAtMs >= MIN_GAP_MS)
 
-    /** «Töff & Poser» / «Strassenverkehr» (the names of categories.json). */
+    /**
+     * Whether the running measurement counts as «unterwegs» for the alert: started with «Unterwegs messen»
+     * (0.6.4), or (0.6.7, «Unterwegs erkannt») a window run while the motion detector says the phone is being
+     * carried ([moving], LiveState.moving). Everything else of the rule is the same.
+     */
+    fun unterwegsNow(unterwegs: Boolean, moving: Boolean): Boolean = unterwegs || moving
+
+    /** «Lautes Fahrzeug» / «Strassenverkehr» (the names of categories.json; renamed in 0.9.3). */
     fun categoryLabel(category: String?): String = when (category) {
-        "loud_vehicle" -> "Töff & Poser"
+        "loud_vehicle" -> "Lautes Fahrzeug"
         "road_traffic" -> "Strassenverkehr"
+        "aircraft" -> "Flugzeug"
         else -> "Lärm"
     }
 
-    /** «Sehr laut: Töff & Poser, 84 dB». */
+    /** «Sehr laut: Lautes Fahrzeug, 84 dB». */
     fun title(e: LiveEvent): String = "Sehr laut: ${categoryLabel(e.category)}, ${e.lafMaxDb.roundToInt()} dB"
 
-    /** The report categories that fit the detected sound (highlighted in «Was war laut?»). */
+    /**
+     * The report categories that fit the detected sound (first in the grid, marked «erkannt»). 0.9.1:
+     * only offered ones (ReportCategory.OFFERED); a loud vehicle suggests Töff and Auto (was Töff and Poser).
+     */
     fun suggested(category: String?): List<ReportCategory> = when (category) {
-        "loud_vehicle" -> listOf(ReportCategory.MOTORRAD, ReportCategory.POSER)
+        "loud_vehicle" -> listOf(ReportCategory.MOTORRAD, ReportCategory.AUTO)
         "road_traffic" -> listOf(ReportCategory.AUTO, ReportCategory.LASTWAGEN)
+        // 0.7.7: only reached if the alert ever fires for aircraft; CATEGORIES does not include it.
+        "aircraft" -> listOf(ReportCategory.FLUGZEUG)
+        // 0.9.4.5: the new categories of the detector's classes; like aircraft only reached if the alert ever fires
+        // for them (CATEGORIES is unchanged: loud_vehicle, road_traffic).
+        "construction" -> listOf(ReportCategory.BAUSTELLE)
+        "rail_tram" -> listOf(ReportCategory.BAHN)
         else -> emptyList()
     }
 }

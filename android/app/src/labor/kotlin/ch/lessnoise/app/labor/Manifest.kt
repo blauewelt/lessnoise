@@ -4,6 +4,7 @@ import ch.lessnoise.dsp.EventFeatures
 import ch.lessnoise.dsp.Iso
 import ch.lessnoise.dsp.NoiseEvent
 import ch.lessnoise.dsp.classify.ClassifierResult
+import ch.lessnoise.dsp.classify.EventHeadResult
 import java.io.File
 import java.io.FileOutputStream
 import java.time.ZoneId
@@ -85,6 +86,8 @@ object ManifestLines {
         val audioSource: String,
         val encoding: String,
         val effects: List<String>,
+        /** 0.6.6: the input that delivered the audio (BuiltInMic.label), e.g. «eingebautes Mikrofon (bottom)». */
+        val inputDevice: String,
         val calibrationId: Long?,
         val calibrationOffsetDb: Double,
         val calibrated: Boolean,
@@ -109,6 +112,7 @@ object ManifestLines {
             .put("android", i.androidRelease).put("sdk", i.sdkInt)
             .put("app", i.appVersion).put("appCode", i.appVersionCode)
             .put("audioSource", i.audioSource).put("encoding", i.encoding).putStrings("effects", i.effects)
+            .put("inputDevice", i.inputDevice)
             .put("calibrationId", i.calibrationId).put("calibrationOffsetDb", i.calibrationOffsetDb).put("calibrated", i.calibrated)
             // Detector v2 (0.4.0): start at local floor + excess; wind rule thresholds.
             .put("detector", "v2").put("eventExcessDb", i.eventExcessDb).put("localFloorWindowS", i.localFloorWindowSeconds)
@@ -118,6 +122,36 @@ object ManifestLines {
             .put("classifierIntervalS", i.classifierIntervalSeconds)
             .put("inputSampleRate", INPUT_RATE)
             .put("clips", i.clips).put("continuous", i.continuous).put("clipEvery", i.clipEvery).put("maxBytes", i.maxBytes)
+            .build()
+
+    /**
+     * 0.6.7, Labor·Karte only («Unterwegs erkannt»): one change of the motion detector, for tuning.
+     * `to` STILL | MOVING (| STOP when the measurement ends while moving), `spanStart` the start of
+     * the moving span (for MOVING: the first active second of the enter window), and the feature
+     * values that decided it (MotionDetector.Transition.features: active seconds in the enter and
+     * exit windows, mean and last per-second deviation of |a| in m/s², samples of the last second,
+     * the threshold). [session] is the recorder's session, or "none" without a recording. Stays in
+     * this file on the phone; nothing of it is uploaded.
+     */
+    fun motion(session: String, nowMs: Long, zone: ZoneId, to: String, spanStartMs: Long, features: Map<String, Double>): String {
+        val j = base("motion", session, nowMs, zone).put("to", to).put("spanStart", Iso.format(spanStartMs, zone, millis = true))
+        for ((k, v) in features) j.put(k, v, 3)
+        return j.build()
+    }
+
+    /**
+     * 0.6.9, Labor·Karte only: one minute of a «Messen» run (`time` = the minute's start): `median` and
+     * `max` of the per-second motion value (deviation of |a|, m/s²; null if no second had enough
+     * samples), `seconds` closed in it, `distanceM` from the run's first position rounded to 50 m (null
+     * without a fix; no coordinates), `state` STILL/MOVING and which signal says MOVING.
+     */
+    fun motionMinute(
+        session: String, minuteStartMs: Long, zone: ZoneId, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ): String =
+        base("motion_minute", session, minuteStartMs, zone)
+            .put("median", medianMs2, 3).put("max", maxMs2, 3).put("seconds", seconds)
+            .put("distanceM", distanceM).put("state", state).put("byMotion", motion).put("byPosition", position)
             .build()
 
     /**
@@ -175,6 +209,7 @@ object ManifestLines {
                 .put("category", event.dominantCategory).put("categoryScore", event.dominantScore.toDouble())
                 .putObjects("top3", event.topLabels.take(3).map { Json().put("label", it.label).put("score", it.score.toDouble()) })
             event.features?.let { j.putRaw("features", features(it).build()) }
+            event.features?.head?.let { j.putRaw("head", head(it, withInputs = false).build()) }
         } else {
             j.put("eventStart", null as String?).put("eventEnd", null as String?)
         }
@@ -202,9 +237,27 @@ object ManifestLines {
         .put("wind", f.wind).put("shape", f.shape)
 
     /**
+     * The event head's output (Labor, logging only): `model`, `scores` (class → probability, all
+     * classes, 4 decimals), `decision` (enabled classes at or above their threshold) and, with
+     * [withInputs], the model `inputs` (name → value as fed, null = missing → training median).
+     */
+    fun head(h: EventHeadResult, withInputs: Boolean): Json {
+        val scores = Json()
+        for ((k, v) in h.scores) scores.put(k, v, 4)
+        val j = Json().put("model", h.model).putRaw("scores", scores.build()).putStrings("decision", h.decision)
+        if (withInputs) {
+            val inputs = Json()
+            for ((k, v) in h.inputs) inputs.put(k, v, 4)
+            j.putRaw("inputs", inputs.build())
+        }
+        return j
+    }
+
+    /**
      * Every event (also those without a clip, since 0.4.0) when it is complete: input sample span,
-     * start/end time and [features]. Written from `AudioTap.onEventEnded`, before the event is
-     * stored, so it carries no database id; match it to `clip` lines by `eventStartSample`.
+     * start/end time and [features], plus the event head's [head] with its inputs when the engine
+     * ran one. Written from `AudioTap.onEventEnded`, before the event is stored, so it carries no
+     * database id; match it to `clip` lines by `eventStartSample`.
      */
     fun event(
         session: String, nowMs: Long, zone: ZoneId, startSample: Long, endSample: Long, startEpochMs: Long, endEpochMs: Long,
@@ -216,6 +269,7 @@ object ManifestLines {
             .put("durationS", (endSample - startSample).toDouble() / INPUT_RATE)
             .put("eventStartSample", startSample).put("eventEndSample", endSample)
             .putRaw("features", features(f).build())
+            .also { j -> f.head?.let { j.putRaw("head", head(it, withInputs = true).build()) } }
             .build()
 
     /**
@@ -244,8 +298,39 @@ object ManifestLines {
             .put("durationMs", (toInputSample - fromInputSample) * 1000 / INPUT_RATE).put("filledWithSilence", filled)
             .build()
 
+    /**
+     * The audio budget is used up: clips and hour files stop, the manifest and the classifier log go on
+     * (0.7.5). Once when it happens, and once at a session start while it is still full.
+     */
     fun storageFull(session: String, nowMs: Long, zone: ZoneId, usedBytes: Long, maxBytes: Long): String =
-        base("storage_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes).build()
+        base("storage_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes)
+            .put("audio", false).put("logging", true).build()
+
+    /**
+     * 0.7.6, Labor·Karte only: a «Laut! Melden» report confirmed with «Senden» (`time` = the report's
+     * time): `cat` the category id (0.9.4.5: null when none was chosen), `media` «video», «photo» or null — what was taken with the report (0.9.4.3;
+     * 0.8.5–0.9.4.2 `photo` true/false; 0.7.6–0.8.4 `plate`, the licence plate as typed — never the file itself or
+     * its name), `direction`
+     * the bearing in whole degrees with `north` (true/magnetic) and `accuracy` (null without a
+     * direction). No coordinates. Stays in this file on the phone, like the rest of the manifest.
+     */
+    fun report(
+        session: String, reportMs: Long, zone: ZoneId, category: String?, media: String?,
+        bearingDeg: Int?, north: String?, accuracy: String?,
+    ): String {
+        val j = base("report", session, reportMs, zone).put("cat", category).put("media", media)
+        if (bearingDeg == null) j.put("direction", null as String?)
+        else j.putRaw("direction", Json().put("deg", bearingDeg).put("north", north).put("accuracy", accuracy).build())
+        return j.build()
+    }
+
+    /**
+     * 0.7.5: even the log margin beyond the cap ([StorageBudget.LOG_MARGIN_BYTES]) is used up: from now on
+     * no `event`, `clip`, `clock`, `gap` lines and no classifier log for this session (`session_stop` still comes).
+     */
+    fun logsFull(session: String, nowMs: Long, zone: ZoneId, usedBytes: Long, maxBytes: Long, marginBytes: Long): String =
+        base("logs_full", session, nowMs, zone).put("usedBytes", usedBytes).put("maxBytes", maxBytes)
+            .put("marginBytes", marginBytes).build()
 
     data class Counts(
         val clipsWritten: Long = 0,
@@ -257,6 +342,10 @@ object ManifestLines {
         val clipErrors: Long = 0,
         val continuousFiles: Long = 0,
         val continuousBlocksDropped: Long = 0,
+        /** 0.7.5: events (clips on) that got no clip because the audio budget was used up. */
+        val clipsSkipped: Long = 0,
+        /** 0.7.5: manifest lines and classifier-log lines not written because the log margin was used up. */
+        val linesDropped: Long = 0,
     )
 
     fun sessionStop(session: String, nowMs: Long, zone: ZoneId, c: Counts, storageFull: Boolean): String =
@@ -266,6 +355,7 @@ object ManifestLines {
             .put("clipsDroppedStorage", c.clipsDroppedStorage).put("clipsWithoutEventId", c.clipsWithoutEventId)
             .put("clipErrors", c.clipErrors)
             .put("continuousFiles", c.continuousFiles).put("continuousBlocksDropped", c.continuousBlocksDropped)
+            .put("clipsSkipped", c.clipsSkipped).put("linesDropped", c.linesDropped)
             .put("storageFull", storageFull)
             .build()
 }
@@ -274,12 +364,15 @@ object ManifestLines {
 object ManifestFile {
     private val lock = Any()
 
-    fun append(file: File, line: String) {
+    /** Appends [line]; returns the bytes written (for the log margin, 0.7.5). */
+    fun append(file: File, line: String): Long {
         require('\n' !in line)
+        val bytes = (line + "\n").toByteArray(Charsets.UTF_8)
         synchronized(lock) {
             file.parentFile?.mkdirs()
-            FileOutputStream(file, true).use { it.write((line + "\n").toByteArray(Charsets.UTF_8)) }
+            FileOutputStream(file, true).use { it.write(bytes) }
         }
+        return bytes.size.toLong()
     }
 }
 

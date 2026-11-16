@@ -84,8 +84,11 @@ class DecimatingResampler(
     }
 
     /** Processes [count] input samples and appends the decimated output to [out]. */
-    fun process(input: FloatArray, count: Int, out: FloatRingBuffer) {
-        for (i in 0 until count) {
+    fun process(input: FloatArray, count: Int, out: FloatRingBuffer) = process(input, 0, count, out)
+
+    /** Processes input[from until to] and appends the decimated output to [out]. */
+    fun process(input: FloatArray, from: Int, to: Int, out: FloatRingBuffer) {
+        for (i in from until to) {
             val x = input[i].toDouble()
             history[pos] = x
             history[pos + n] = x
@@ -135,8 +138,12 @@ class FloatRingBuffer(val capacity: Int) {
     private var next = 0
     var available = 0
         private set
+    /** Samples written since construction or [clear] (absolute index of the next sample). */
+    var written = 0L
+        private set
 
     fun write(v: Float) {
+        written++
         data[next] = v
         next++
         if (next == capacity) next = 0
@@ -156,8 +163,24 @@ class FloatRingBuffer(val capacity: Int) {
         return true
     }
 
+    /**
+     * Copies the samples with absolute indices [absStart, absStart + count) (counted like
+     * [written]) into dest[0 until count]; false if any of them is not (or no longer) held.
+     */
+    fun copyAt(absStart: Long, dest: FloatArray, count: Int): Boolean {
+        if (absStart < written - available || absStart + count > written || count > dest.size) return false
+        var src = next - (written - absStart).toInt()
+        if (src < 0) src += capacity
+        for (i in 0 until count) {
+            dest[i] = data[src]
+            src++
+            if (src == capacity) src = 0
+        }
+        return true
+    }
+
     fun clear() {
-        data.fill(0f); next = 0; available = 0
+        data.fill(0f); next = 0; available = 0; written = 0
     }
 }
 

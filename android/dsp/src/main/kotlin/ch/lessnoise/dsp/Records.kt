@@ -167,6 +167,12 @@ data class NoiseEvent(
     /** Wind on the microphone: excluded from event counts, events/h and the category highlights. */
     val wind: Boolean get() = features?.wind == true
 
+    /** Event head probabilities (class → p) if the engine ran a head (logging only; not stored or uploaded). */
+    val headScores: Map<String, Double>? get() = features?.head?.scores
+
+    /** Event head decision (enabled classes over their threshold), if the engine ran a head (logging only). */
+    val headDecision: List<String>? get() = features?.head?.decision
+
     /** The level fields of this event. */
     val levels: EventLevels get() = EventLevels(lafMaxDb, selDb, backgroundDb)
 

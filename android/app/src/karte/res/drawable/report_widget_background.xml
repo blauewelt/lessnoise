@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4: the widget's one button: the app's primary colour (Theme.kt), fully rounded like a Material button. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/report_widget_background" />
+    <corners android:radius="28dp" />
+</shape>

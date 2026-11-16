@@ -1,4 +1,4 @@
-"""`python -m stadtlaerm_server [publish|retention|stats|serve]`.
+"""`python -m stadtlaerm_server [publish|retention|stats|export-newsletter|serve]`.
 
 serve (default)  run the API with the background publish/retention loop
 publish          rebuild the map files (and stats.json) once and exit
@@ -7,6 +7,10 @@ retention        run the retention job once (raw data older than RETENTION_DAYS 
                  INACTIVE_DELETE_DAYS deleted), republish if any
                  device was deleted, and exit
 stats            print the usage counts of stats.json (computed now, nothing written)
+export-newsletter
+                 print the e-mail addresses left for update notices (DESIGN.md §4.8), one per
+                 line, oldest first, for the owner to write to from his own account; the count
+                 goes to stderr. Nothing is changed.
 """
 
 from __future__ import annotations
@@ -36,13 +40,21 @@ def main(argv: list[str]) -> int:
         )
         return 0
     with db.open_db(s.db_path) as conn:
-        db.migrate(conn)
+        before = db.schema_version(conn)
+        if 0 < before < db.PURGE_VERSION <= db.migrate(conn) and cmd != "publish":
+            # v5 deleted stored events of other categories: the published files follow at once.
+            publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
         if cmd == "publish":
             cells = publish.publish(conn, s.map_dir, min_devices=s.min_devices_per_cell, loud_db=s.loud_event_db)
             print(f"published {len(cells['cells'])} cells, windows ending {cells['day']}, to {s.map_dir}")
         elif cmd == "stats":
             stats = publish.current_stats(conn, min_devices=s.min_devices_per_cell)
             print(json.dumps(stats, ensure_ascii=False, indent=2))
+        elif cmd == "export-newsletter":
+            addresses = db.newsletter_addresses(conn)
+            for email, _ in addresses:
+                print(email)
+            print(f"{len(addresses)} addresses", file=sys.stderr)
         elif cmd == "retention":
             result = retention.run_retention(conn, retention_days=s.retention_days)
             result["devices_expired"] = retention.expire_inactive(conn, inactive_days=s.inactive_delete_days)

@@ -30,5 +30,8 @@ def test_compose_default_lists_both_hosts():
 
 def test_deploy_health_check_uses_a_served_host():
     deploy = (SERVER / "scripts" / "deploy.sh").read_text()
-    m = re.search(r"HEALTH_URL=\$\{HEALTH_URL:-https://([^/]+)/healthz\}", deploy)
-    assert m is not None and m.group(1) in ("api.lessnoise.ch", "api.stadtlaerm.ch")
+    m = re.search(r"HEALTH_URLS=\$\{HEALTH_URL:-([^}]+)\}", deploy)
+    assert m is not None
+    hosts = re.findall(r"https://([^/]+)/healthz", m.group(1))
+    # the project's host first, then the old one; both are served (API_HOSTS above)
+    assert hosts == ["api.lessnoise.ch", "api.stadtlaerm.ch"]

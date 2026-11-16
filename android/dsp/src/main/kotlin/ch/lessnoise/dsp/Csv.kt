@@ -14,7 +14,12 @@ object Csv {
     fun num(v: Double, decimals: Int = 1): String =
         if (v.isNaN() || v.isInfinite()) "" else String.format(Locale.ROOT, "%.${decimals}f", v)
 
-    fun minutes(records: List<MinuteRecord>, bucketIds: List<String>): String {
+    /**
+     * The minutes CSV. [noiseFloor] (0.6.5): the phone's noise floor; the last column `at_floor` is 1
+     * for a minute at it ([NoiseFloor.Limit.atFloor]), else 0 (also without a floor, for invalid
+     * minutes and for minutes of another audio source).
+     */
+    fun minutes(records: List<MinuteRecord>, bucketIds: List<String>, noiseFloor: NoiseFloor.Limit? = null): String {
         val sb = StringBuilder()
         val header = listOf(
             "start", "duration_s", "valid_s", "coverage", "laeq_db", "lafmax_db", "lafmin_db", "l1_db", "l10_db", "l50_db", "l90_db",
@@ -27,6 +32,8 @@ object Csv {
             "recalibrated_from_id", "recalibration_offset_db",
             // v0.4.0 (appended): median local floor of the minute and its wind events.
             "local_floor_db", "wind_event_count",
+            // v0.6.5 (appended): at the phone's noise floor («Messgrenze»), 0/1.
+            "at_floor",
         )
         sb.append(header.joinToString(",")).append("\n")
         for (r in records) {
@@ -41,7 +48,8 @@ object Csv {
                 if (o == null) List(7) { "" }
                 else listOf(num(o.laeqDb), num(o.lafMaxDb), num(o.lafMinDb), num(o.l1Db), num(o.l10Db), num(o.l50Db), num(o.l90Db))
             } + listOf(field(r.recalibratedFromId), r.recalibrationOffsetDb?.let { num(it, 2) } ?: "") +
-                listOf(num(r.localFloorDb), r.windEventCount.toString())
+                listOf(num(r.localFloorDb), r.windEventCount.toString()) +
+                listOf(if (noiseFloor?.atFloor(r) == true) "1" else "0")
             sb.append(row.joinToString(",")).append("\n")
         }
         return sb.toString()

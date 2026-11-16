@@ -47,8 +47,8 @@ android {
         applicationId = "ch.lessnoise.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.6.3"
+        versionCode = 54
+        versionName = "0.9.6"
         buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
         // The one host the opt-in upload «Messwerte teilen» talks to (server/DESIGN.md §4). Only
         // app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt opens connections, and only
@@ -60,6 +60,9 @@ android {
         // below). Shown in Einstellungen → Über die App; the two published editions send it to
         // update.html as #…&e=<edition> (EditionInfo.updateEdition).
         buildConfigField("String", "EDITION", "\"karte\"")
+        // 0.9.4.6: the flag LABOR_UNTERWEGS (0.6.9–0.9.4.5, true only in laborKarte: the position signal, the
+        // Labor motion thresholds, the readout line) is gone. Both editions with the map compile the same
+        // «Unterwegs messen» and «Sehr laut» code (src/karte) and behave the same.
     }
 
     signingConfigs {
@@ -97,6 +100,9 @@ android {
     //            Labor install and keeps its measurements and recordings. Audio is never uploaded:
     //            the upload code is the Karte edition's (src/main/.../upload/), which reads only the
     //            Room tables; UploadSourceIsolationTest fails if it touches files or the Labor code.
+    //            0.9.4.6 (owner: «like the production version, plus the one thing where the audio gets
+    //            saved»): the Online-Version's code (src/karte, src/noposition) plus src/labor, whose
+    //            visible part is one switch «Audio speichern» in «Einstellungen».
     flavorDimensions += "edition"
     productFlavors {
         create("offline") {
@@ -140,26 +146,42 @@ android {
         // The tab «Karte» (0.6.3): the website's map page in a WebView (src/karte/.../MapScreen.kt),
         // compiled ONLY into the two editions with the map. The Offline and Labor builds get the
         // stand-in src/nomap/.../MapTab.kt (no tab, no WebView in their dex).
+        // 0.8.4: src/karte/res (the widget «Laut! Melden», the shortcut's icon and labels) goes with
+        // src/karte/kotlin into both editions with the map; each has its own res/xml/shortcuts.xml
+        // (the shortcut's targetPackage is the literal application id).
+        // 0.9.4.6: src/karte also holds «Unterwegs messen» and the «Sehr laut» notification (alert/ and the real
+        // ui/LoudAlerts.kt; 0.8.4–0.9.4.5 in src/laborKarte only, with the stand-in src/nounterwegs in public), so
+        // the Online-Version and Labor·Karte compile the same code. The Offline and Labor builds keep the
+        // src/nomap stand-in (no alerts, no reports).
         named("public") {
             kotlin.srcDir("src/karte/kotlin")
+            res.srcDir("src/karte/res")
+            // 0.6.9: the stand-in of the position signal (it reads nothing, adds no service type). 0.9.4.6: in
+            // laborKarte too; the real signal (src/laborKarte/…/position, 0.6.9–0.9.4.5) is gone.
+            kotlin.srcDir("src/noposition/kotlin")
         }
         named("labor") {
             kotlin.srcDir("src/nomap/kotlin")
         }
         // laborKarte compiles the Labor edition's Kotlin and resources (recorder, clip player, red
-        // icon, «Stadtlärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
+        // icon, «Weniger Lärm Labor») but NOT src/labor/AndroidManifest.xml, which removes INTERNET.
         // Its own manifest is src/laborKarte/AndroidManifest.xml. The Labor JVM tests run too.
         // src/labor/ has no other folders (no assets, java, resources); add them here if it gets any.
+        // 0.9.4.6: besides that and its manifest the Online-Version's sources (src/karte, src/noposition).
         named("laborKarte") {
             kotlin.srcDir("src/labor/kotlin")
             kotlin.srcDir("src/karte/kotlin")
+            kotlin.srcDir("src/noposition/kotlin")
             res.srcDir("src/labor/res")
+            res.srcDir("src/karte/res")
         }
         named("testLaborKarte") {
             kotlin.srcDir("src/testLabor/kotlin")
             kotlin.srcDir("src/testKarte/kotlin")
         }
-        // JVM tests of src/karte (0.6.3: the «Sehr laut» alert), run for both editions with the map.
+        // JVM tests of src/karte (map, compass, motion detector, 0.8.4 shortcut and widget, 0.9.4.6 again the
+        // «Sehr laut» / «Unterwegs messen» tests LoudAlertTest, ReportTapTest, MotionAlertTest), run for both
+        // editions with the map.
         named("testPublic") {
             kotlin.srcDir("src/testKarte/kotlin")
         }
@@ -238,6 +260,12 @@ dependencies {
     // Scheduling of the opt-in upload (hourly + after a measurement stops). AndroidX, Apache-2.0.
     // It does no networking itself; not an analytics or crash-reporting SDK.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // 0.8.2: the tab «Karte» (src/karte, editions with the map only) follows the app's dark theme:
+    // WebSettingsCompat's algorithmic-darkening / force-dark switches. AndroidX, Apache-2.0, no
+    // networking of its own. Not in the Offline and Labor builds, which have no WebView.
+    "publicImplementation"("androidx.webkit:webkit:1.12.1")
+    "laborKarteImplementation"("androidx.webkit:webkit:1.12.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation(kotlin("test"))

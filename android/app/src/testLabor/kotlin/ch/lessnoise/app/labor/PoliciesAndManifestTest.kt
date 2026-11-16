@@ -42,8 +42,82 @@ class PoliciesAndManifestTest {
         assertTrue(b.full)
         // Already over the cap from earlier sessions: full right away.
         assertTrue(StorageBudget(100, 100).full)
-        assertEquals(2_000_000_000L, (StorageBudget.DEFAULT_GB * StorageBudget.GB).toLong())
-        assertEquals(2_000_000_000L, LaborSettings().maxBytes)
+        // 0.7.5: 5 GB for new installs; the choices are unchanged.
+        assertEquals(5_000_000_000L, (StorageBudget.DEFAULT_GB * StorageBudget.GB).toLong())
+        assertEquals(5_000_000_000L, LaborSettings().maxBytes)
+        assertEquals(listOf(0.5, 1.0, 2.0, 5.0, 10.0), StorageBudget.CHOICES_GB)
+        assertTrue(StorageBudget.DEFAULT_GB in StorageBudget.CHOICES_GB)
+    }
+
+    @Test
+    fun fullAudioBudgetKeepsTheLogsGoingWithinTheMargin() {
+        // 0.7.5: the 2026-10-18 case — the cap is reached; audio stops, the logs go on within the margin.
+        val b = StorageBudget(maxBytes = 1_000, initialUsedBytes = 990, logMarginBytes = 100)
+        assertFalse(b.tryReserve(20)) // a clip no longer fits: audio stops
+        assertTrue(b.full)
+        assertFalse(b.logsFull)
+        val gate = LogGate(b)
+        var written = 0
+        // Manifest and classifier-log lines of 30 bytes: 990 + 3·30 = 1080 ≤ 1100 are written …
+        repeat(3) { assertTrue(gate.write(essential = false) { written++; 30L }) }
+        assertFalse(b.logsFull)
+        // … the 4th crosses cap + margin (1110 > 1100): written, then the margin is used up.
+        assertTrue(gate.write(essential = false) { written++; 30L })
+        assertTrue(b.logsFull)
+        // From now on only essential lines (session_stop, storage_full, logs_full) are written.
+        assertFalse(gate.write(essential = false) { written++; 30L })
+        assertFalse(gate.write(essential = false) { written++; 30L })
+        assertTrue(gate.write(essential = true) { written++; 30L })
+        assertEquals(5, written)
+        assertEquals(2, gate.dropped)
+        // A session that starts already full: audio full at once, logging still allowed.
+        val next = StorageBudget(maxBytes = 1_000, initialUsedBytes = 1_000, logMarginBytes = 100)
+        assertTrue(next.full)
+        assertFalse(next.logsFull)
+        assertTrue(LogGate(next).write(essential = false) { 10L })
+        assertTrue(StorageBudget(1_000, 1_100, 100).logsFull)
+        // Log lines also count towards the audio cap: they can fill it, then the audio stops.
+        val c = StorageBudget(maxBytes = 100, initialUsedBytes = 95, logMarginBytes = 50)
+        assertTrue(c.accountLog(10))
+        assertTrue(c.full)
+        assertFalse(c.tryReserve(1))
+        assertEquals(StorageBudget.LOG_MARGIN_BYTES, StorageBudget(1, 0).logMarginBytes)
+    }
+
+    @Test
+    fun nearCapWarningAndBlock() {
+        val gb = StorageBudget.GB
+        fun level(used: Long, max: Long, on: Boolean = true) = StoragePolicy.level(used, max, on)
+        // 5 GB: warn below max(10 % = 500 MB, 200 MB) = 500 MB free.
+        assertEquals(500_000_000L, StoragePolicy.warnBelowBytes(5 * gb))
+        assertEquals(StoragePolicy.Level.NONE, level(4_500_000_000L, 5 * gb))
+        assertEquals(StoragePolicy.Level.WARN, level(4_500_000_001L, 5 * gb))
+        assertEquals(StoragePolicy.Level.WARN, level(5 * gb - 1, 5 * gb))
+        assertEquals(StoragePolicy.Level.BLOCK, level(5 * gb, 5 * gb))
+        assertEquals(StoragePolicy.Level.BLOCK, level(5 * gb + 150_000_000L, 5 * gb), "beyond the cap (log margin): still blocked")
+        // 1 GB: 10 % = 100 MB < 200 MB, so the 200 MB floor applies.
+        assertEquals(200_000_000L, StoragePolicy.warnBelowBytes(gb))
+        assertEquals(StoragePolicy.Level.NONE, level(800_000_000L, gb))
+        assertEquals(StoragePolicy.Level.WARN, level(800_000_001L, gb))
+        // Recording off: nothing, even when full (the cap applies to audio).
+        assertEquals(StoragePolicy.Level.NONE, level(5 * gb, 5 * gb, on = false))
+        assertEquals(null, StoragePolicy.message(5 * gb, 5 * gb, false))
+        // The texts.
+        // 0.9.4.6: without «Limit erhöhen» (the «Maximaler Speicher» buttons left the card) and with the switch's name.
+        assertEquals(
+            "Speicher fast voll: 312 MB frei von 5 GB – Aufnahme würde bald stoppen. Exportieren und löschen.",
+            StoragePolicy.message(5 * gb - 312_000_000L, 5 * gb, true),
+        )
+        assertEquals(
+            "Speicher voll: 0 MB frei von 2 GB – Messen startet nicht ohne Platz für die Aufnahme. " +
+                "Exportieren und löschen oder «Audio speichern» ausschalten.",
+            StoragePolicy.message(2 * gb + 5, 2 * gb, true),
+        )
+        assertEquals("0,5 GB", StoragePolicy.gbLabel(500_000_000L))
+        // «Audio aufzeichnen» on, but neither clips nor hour files: no audio, so no warning or block.
+        assertTrue(StoragePolicy.recordsAudio(LaborSettings(recordAudio = true)))
+        assertFalse(StoragePolicy.recordsAudio(LaborSettings(recordAudio = true, clips = false, continuous = false)))
+        assertFalse(StoragePolicy.recordsAudio(LaborSettings(recordAudio = false)))
     }
 
     // ---- Clip rate --------------------------------------------------------------------------
@@ -115,6 +189,7 @@ class PoliciesAndManifestTest {
         val info = ManifestLines.SessionInfo(
             deviceModel = "Google Pixel 7", androidRelease = "15", sdkInt = 35, appVersion = "0.3.3-labor", appVersionCode = 7,
             audioSource = "UNPROCESSED", encoding = "PCM_FLOAT", effects = listOf("AGC: nicht vorhanden"),
+            inputDevice = "eingebautes Mikrofon (bottom)",
             calibrationId = 4, calibrationOffsetDb = 112.25, calibrated = true,
             eventExcessDb = 6.5, localFloorWindowSeconds = 30.0, eventMinLevelDb = 30.0, windLfShareMin = 0.95, windFlutterMinDb = 3.8,
             classifierEnabled = true, classifierNormalize = true,
@@ -124,7 +199,7 @@ class PoliciesAndManifestTest {
         assertEquals(
             """{"type":"session_start","session":"20261007_234210","time":"2026-10-07T23:42:10.250+02:00","zone":"Europe/Zurich",""" +
                 """"device":"Google Pixel 7","android":"15","sdk":35,"app":"0.3.3-labor","appCode":7,"audioSource":"UNPROCESSED",""" +
-                """"encoding":"PCM_FLOAT","effects":["AGC: nicht vorhanden"],"calibrationId":4,"calibrationOffsetDb":112.25,"calibrated":true,""" +
+                """"encoding":"PCM_FLOAT","effects":["AGC: nicht vorhanden"],"inputDevice":"eingebautes Mikrofon (bottom)","calibrationId":4,"calibrationOffsetDb":112.25,"calibrated":true,""" +
                 """"detector":"v2","eventExcessDb":6.5,"localFloorWindowS":30,"eventFloorDb":30,"windLfShareMin":0.95,"windFlutterMinDb":3.8,""" +
                 """"classifier":true,"classifierLevelAdjustment":true,"classifierIntervalS":1,""" +
                 """"inputSampleRate":48000,"clips":true,"continuous":false,"clipEvery":2,"maxBytes":2000000000}""",
@@ -194,6 +269,40 @@ class PoliciesAndManifestTest {
         assertTrue(""""lfShare":0.985,"lfFlutterDb":0.39,"wind":true,"shape":"impulse"},"offsetOfEventStartInClipMs":5000""" in clipLine, clipLine)
     }
 
+    /** The event head's output (logging only) goes into the event line (with inputs) and the clip line (without). */
+    @Test
+    fun eventAndClipLinesCarryTheEventHead() {
+        val h = ch.lessnoise.dsp.classify.EventHeadResult(
+            model = "weniger-laerm-head-F1-MLP",
+            scores = linkedMapOf("carried" to 0.12345678, "road" to 0.66, "aircraft" to 0.0001),
+            decision = listOf("road"),
+            inputs = linkedMapOf("excessDb" to 12.66, "per50_hz" to Double.NaN),
+        )
+        val f = EventFeatures(41.84, 12.66, 1.748, Double.NaN, 0.0141, 12.52, 0.0083, 0.391, false, EventShape.HUMP, head = h)
+        val line = ManifestLines.event("S", t0, zurich, 480_000, 702_000, t0, t0 + 4625, f)
+        assertTrue(
+            line.endsWith(""""wind":false,"shape":"hump"},"head":{"model":"weniger-laerm-head-F1-MLP",""" +
+                """"scores":{"carried":0.1235,"road":0.66,"aircraft":0.0001},"decision":["road"],""" +
+                """"inputs":{"excessDb":12.66,"per50_hz":null}}}"""),
+            line,
+        )
+        val ev = NoiseEvent(
+            startEpochMs = t0, startIso = "", durationSeconds = 4.625, lafMaxDb = 57.9, selDb = 52.2, backgroundDb = 41.9,
+            thresholdDb = 6.5, dominantCategory = "road_traffic", dominantScore = 0.4f, topLabels = emptyList(),
+            classifierFrames = 1, calibrationId = null, audioSource = "UNPROCESSED", calibrated = false, features = f,
+        )
+        assertEquals(listOf("road"), ev.headDecision)
+        val clip = AssembledClip(480_000, 702_000, 240_000, emptyList(), 702_000, truncated = false, endedEarly = false)
+        val clipLine = ManifestLines.clip("S", t0, zurich, 3, "clips/ev_3.wav", ev, clip, 170_000)
+        assertTrue(
+            """"shape":"hump"},"head":{"model":"weniger-laerm-head-F1-MLP","scores":{"carried":0.1235,"road":0.66,"aircraft":0.0001},""" +
+                """"decision":["road"]},"offsetOfEventStartInClipMs":5000""" in clipLine,
+            clipLine,
+        )
+        // The category written stays the app's (YAMNet) decision.
+        assertTrue(""""category":"road_traffic"""" in clipLine, clipLine)
+    }
+
     @Test
     fun continuousAndStopLines() {
         val open = ManifestLines.continuousOpen("S", t0, zurich, "continuous/20261007_23.m4a", 6000, t0)
@@ -205,7 +314,30 @@ class PoliciesAndManifestTest {
         assertTrue(""""fromInputSample":48000,"toInputSample":54000,"durationMs":125,"filledWithSilence":true}""" in gap, gap)
         val stop = ManifestLines.sessionStop("S", t0, zurich, ManifestLines.Counts(clipsWritten = 3, continuousBlocksDropped = 2), false)
         assertTrue(stop.endsWith(""""clipsWritten":3,"clipsSkippedRate":0,"clipsDroppedBusy":0,"clipsDroppedQueue":0,"clipsDroppedStorage":0,""" +
-            """"clipsWithoutEventId":0,"clipErrors":0,"continuousFiles":0,"continuousBlocksDropped":2,"storageFull":false}"""), stop)
+            """"clipsWithoutEventId":0,"clipErrors":0,"continuousFiles":0,"continuousBlocksDropped":2,"clipsSkipped":0,"linesDropped":0,"storageFull":false}"""), stop)
+        // 0.7.5: events without a clip because the audio budget was used up, and lines beyond the log margin.
+        val full = ManifestLines.sessionStop("S", t0, zurich, ManifestLines.Counts(clipsSkipped = 41, linesDropped = 7), true)
+        assertTrue(full.endsWith(""""clipsSkipped":41,"linesDropped":7,"storageFull":true}"""), full)
+        val sf = ManifestLines.storageFull("S", t0, zurich, 2_000_000_100L, 2_000_000_000L)
+        assertTrue(sf.startsWith("""{"type":"storage_full","session":"S","""), sf)
+        assertTrue(sf.endsWith(""""usedBytes":2000000100,"maxBytes":2000000000,"audio":false,"logging":true}"""), sf)
+        val lf = ManifestLines.logsFull("S", t0, zurich, 5_200_000_001L, 5_000_000_000L, 200_000_000L)
+        assertTrue(lf.endsWith(""""usedBytes":5200000001,"maxBytes":5000000000,"marginBytes":200000000}"""), lf)
+    }
+
+    @Test
+    fun reportLine() {
+        // 0.7.6, Labor·Karte: «Senden» in «Laut! Melden» writes one line; no coordinates.
+        // 0.8.5: whether a photo was taken instead of the plate (no file name, no image).
+        // 0.9.4.3: `media` «video», «photo» or null (until 0.9.4.2 `photo` true/false).
+        val r = ManifestLines.report("S", t0, zurich, "motorrad", "video", 47, "true", "high")
+        assertTrue(r.startsWith("""{"type":"report","session":"S","""), r)
+        assertTrue(r.endsWith(""""cat":"motorrad","media":"video","direction":{"deg":47,"north":"true","accuracy":"high"}}"""), r)
+        val photo = ManifestLines.report("S", t0, zurich, "auto", "photo", null, null, null)
+        assertTrue(photo.endsWith(""""cat":"auto","media":"photo","direction":null}"""), photo)
+        val bare = ManifestLines.report("none", t0, zurich, "auto", null, null, null, null)
+        assertTrue(bare.endsWith(""""cat":"auto","media":null,"direction":null}"""), bare)
+        for (bad in listOf("lat", "lon", "cell", "plate", ".jpg", ".mp4", "\"photo\":")) assertFalse(r.contains(bad), bad)
     }
 
     // ---- Classifier trace and log ------------------------------------------------------------

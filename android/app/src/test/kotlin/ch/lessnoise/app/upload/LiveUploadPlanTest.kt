@@ -92,4 +92,30 @@ class LiveUploadPlanTest {
         assertEquals(LiveUploadPlan.Run(70 * s + 2 * min, FULL), p.next())
         assertEquals(0, p.backOffLevel)
     }
+
+    /** 0.6.4: only an event that may leave the phone starts an events run (Payloads.isMapEvent). */
+    @Test
+    fun onlyMapEventsTriggerALiveRun() {
+        fun ev(category: String? = "loud_vehicle", wind: Boolean = false, threshold: Double = 10.0, db: Double = 72.0, floor: Double? = 30.0, durMs: Long = 2_000) =
+            ch.lessnoise.app.service.LiveEvent(
+                startEpochMs = 100 * s, endEpochMs = 100 * s + durMs, lafMaxDb = db, category = category, wind = wind,
+                calibrated = false, thresholdDb = threshold, minLevelDb = floor,
+            )
+        for (c in listOf("loud_vehicle", "road_traffic", "rail_tram", "aircraft", "construction")) assertEquals(true, LiveUploadPlan.triggers(ev(c)), c)
+        for (c in listOf("voices", "music", "unclassified", "wind", null)) assertEquals(false, LiveUploadPlan.triggers(ev(c)), "$c")
+        assertEquals(false, LiveUploadPlan.triggers(ev(wind = true)), "wind on the microphone")
+        assertEquals(false, LiveUploadPlan.triggers(ev(threshold = 6.4)), "excess setting below 6.5 dB")
+        assertEquals(false, LiveUploadPlan.triggers(ev(db = 29.9, floor = null)), "below 30 dB(A)")
+        assertEquals(false, LiveUploadPlan.triggers(ev(db = 39.9, floor = 40.0)), "below its floor setting")
+        assertEquals(true, LiveUploadPlan.triggers(ev(db = 30.0, floor = Double.NaN)), "no floor (before 0.3.0): 30 dB(A)")
+        assertEquals(false, LiveUploadPlan.triggers(ev(durMs = 499)), "shorter than 0.5 s")
+        assertEquals(true, LiveUploadPlan.triggers(ev(durMs = 500)))
+        assertEquals(false, LiveUploadPlan.triggers(null))
+        // A voices event therefore never moves the plan: the next run stays the full one.
+        val p = LiveUploadPlan(0)
+        p.runNext() // 0:30 full
+        val voices = ev("voices")
+        if (LiveUploadPlan.triggers(voices)) p.onEvent(voices.endEpochMs)
+        assertEquals(LiveUploadPlan.Run(30 * s + 2 * min, FULL), p.next())
+    }
 }

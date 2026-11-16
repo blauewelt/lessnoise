@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 from stadtlaerm_server.aggregate import ZONE
 from stadtlaerm_server.app import hash_token
+from stadtlaerm_server.schemas import REPORT_CATEGORIES
 
 SITE = {
     "cell": "h26824_12473",
@@ -82,7 +83,7 @@ def test_round_trip(client, settings):
     ts = [recent(m) for m in range(120, 60, -1)]
     r = client.post(f"/v1/devices/{dev}/minutes", json=[minute(t) for t in ts], headers=auth)
     assert r.status_code == 200, r.text
-    assert r.json() == {"accepted": 60, "duplicates": 0, "rejected": []}
+    assert r.json() == {"accepted": 60, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
 
     # gzip body; 30 already stored (re-evaluated, louder) and 30 new.
     batch = [minute(t, laeq=50.0) for t in ts[30:]] + [minute(recent(m)) for m in range(60, 30, -1)]
@@ -91,7 +92,7 @@ def test_round_trip(client, settings):
         content=gzip.compress(json.dumps(batch).encode()),
         headers={**auth, "Content-Encoding": "gzip", "Content-Type": "application/json"},
     )
-    assert r.json() == {"accepted": 30, "duplicates": 30, "rejected": []}
+    assert r.json() == {"accepted": 30, "duplicates": 30, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT COUNT(*) FROM minutes") == [(90,)]
     # The later record replaced the stored one.
     assert rows(settings, "SELECT laeq_db FROM minutes WHERE start_iso = ?", ts[45].isoformat()) == [(50.0,)]
@@ -101,14 +102,14 @@ def test_round_trip(client, settings):
     e1 = recent(50) + timedelta(seconds=12.375)
     evs = [event(e1), event(e1, lafmax=80.0), event(recent(40))]
     r = client.post(f"/v1/devices/{dev}/events", json=evs, headers=auth)
-    assert r.json() == {"accepted": 2, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 2, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT lafmax_db FROM events ORDER BY start_utc") == [(80.0,), (71.4,)]
     r = client.post(
         f"/v1/devices/{dev}/events",
         content=gzip.compress(json.dumps(evs[:1]).encode()),
         headers={**auth, "Content-Encoding": "gzip"},
     )
-    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     # Millisecond starts are kept.
     assert rows(settings, "SELECT start_utc % 1000 FROM events ORDER BY start_utc")[0] == (375,)
 
@@ -333,7 +334,7 @@ def test_map_cors_allows_each_configured_origin(make_client, settings):
 
 
 def test_schema_version_and_wal(client, settings):
-    assert rows(settings, "SELECT version FROM schema_version") == [(4,)]
+    assert rows(settings, "SELECT version FROM schema_version") == [(9,)]
     assert rows(settings, "PRAGMA journal_mode") == [("wal",)]
     idx = {r[0] for r in rows(settings, "SELECT name FROM sqlite_master WHERE type = 'index'")}
     assert {"minutes_start", "events_start", "sites_cell", "reports_time"} <= idx
@@ -459,13 +460,18 @@ def test_reports_round_trip_and_validation(client, settings):
     url = f"/v1/devices/{dev}/reports"
     t = recent(30)
     r = client.post(url, json=[report(t), report(recent(29), category="poser")], headers=auth)
-    assert r.status_code == 200 and r.json() == {"accepted": 2, "duplicates": 0, "rejected": []}
+    assert r.status_code == 200 and r.json() == {
+        "accepted": 2,
+        "duplicates": 0,
+        "rejected": [],
+        "dropped_by_category": 0,
+    }
     # Same (device, time) again: a duplicate, and the later one wins (as for minutes); gzip works.
     again = [report(t, lat=47.3600049, lon=8.5400051, category="auto")]
     r = client.post(
         url, content=gzip.compress(json.dumps(again).encode()), headers={**auth, "Content-Encoding": "gzip"}
     )
-    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": []}
+    assert r.json() == {"accepted": 0, "duplicates": 1, "rejected": [], "dropped_by_category": 0}
     assert rows(settings, "SELECT lat, lon, accuracy_m, category FROM reports ORDER BY time_utc") == [
         (47.36, 8.54001, 9.0, "auto"),  # rounded to 5 decimals
         (47.3553, 8.5355, 9.0, "poser"),
@@ -478,15 +484,17 @@ def test_reports_round_trip_and_validation(client, settings):
         "naive": {**report(recent(5)), "time": recent(5).replace(tzinfo=None).isoformat()},
         "outside": report(recent(5), lat=48.14, lon=11.58),  # München
         "north": report(recent(5), lat=47.9, lon=8.6),  # north of the box (Germany)
-        "accuracy": {**report(recent(5)), "accuracy_m": 201.0},
+        "accuracy": {**report(recent(5)), "accuracy_m": 10_000.1},
         "category": report(recent(5), category="velo"),
         "missing": {k: v for k, v in report(recent(5)).items() if k != "accuracy_m"},
         "extra": {**report(recent(5)), "device": "x"},
         "nan": {**report(recent(5)), "lat": "NaN"},
     }
     good = report(recent(4))
-    body = client.post(url, json=[good, *cases.values()], headers=auth).json()
-    assert body["accepted"] == 1
+    # App 0.6.7 sends a report at any accuracy: a poor fix (± 1500 m) is stored as it is.
+    poor = {**report(recent(3)), "accuracy_m": 1500.0}
+    body = client.post(url, json=[good, *cases.values(), poor], headers=auth).json()
+    assert body["accepted"] == 2
     assert [x["index"] for x in body["rejected"]] == list(range(1, len(cases) + 1))
     reasons = {k: rej["reasons"][0] for k, rej in zip(cases, body["rejected"], strict=True)}
     assert body["rejected"][0]["time"] == cases["old"]["time"]
@@ -495,7 +503,7 @@ def test_reports_round_trip_and_validation(client, settings):
     assert "zone offset" in reasons["naive"]["reason"]
     assert reasons["outside"] == {"field": "lat", "reason": "the point (lat, lon) is not in Switzerland"}
     assert reasons["north"]["field"] == "lat"
-    assert reasons["accuracy"]["field"] == "accuracy_m" and "200" in reasons["accuracy"]["reason"]
+    assert reasons["accuracy"]["field"] == "accuracy_m" and "10000" in reasons["accuracy"]["reason"]
     assert reasons["category"]["field"] == "category"
     assert reasons["missing"]["field"] == "accuracy_m"
     assert reasons["extra"]["field"] == "device"
@@ -505,6 +513,66 @@ def test_reports_round_trip_and_validation(client, settings):
     assert client.post(url, json=[report(recent(3))] * 51, headers=auth).status_code == 413
     assert client.post(url, json=report(recent(3)), headers=auth).status_code == 422
     assert client.post(url, json=[report(recent(3))]).status_code == 401
+
+
+def test_every_report_category_is_accepted(client, settings):
+    """App 0.7.7 adds «flugzeug»: each id of REPORT_CATEGORIES is stored as sent."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    body = [report(recent(20 - i), category=c) for i, c in enumerate(REPORT_CATEGORIES)]
+    r = client.post(url, json=body, headers=auth).json()
+    assert r == {"accepted": len(REPORT_CATEGORIES), "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert [c for (c,) in rows(settings, "SELECT category FROM reports ORDER BY time_utc")] == list(REPORT_CATEGORIES)
+    assert "flugzeug" in REPORT_CATEGORIES
+
+
+def test_report_needs_only_place_and_time_and_may_count_several(client, settings, tmp_path):
+    """Schema v9 (Labor·Karte 0.9.4.5, DESIGN.md §4.7): the category may be absent or null («not said»), an
+    unknown id is still refused; `count` 1–9 (absent or null = 1) says how many passed. Old apps (always a
+    category, never a count) are unaffected."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    no_key = {k: v for k, v in report(recent(30)).items() if k != "category"}
+    null = {**report(recent(29)), "category": None}
+    old_app = report(recent(28), category="lastwagen")
+    three = {**report(recent(27), category="auto"), "count": 3, "direction": direction(90)}
+    nine = {**no_key, "time": recent(26).isoformat(timespec="seconds"), "count": 9}
+    count_null = {**report(recent(25), category="bahn"), "count": None}
+    one = {**report(recent(24), category="garten"), "count": 1}
+    body = client.post(url, json=[no_key, null, old_app, three, nine, count_null, one], headers=auth).json()
+    assert body == {"accepted": 7, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(settings, "SELECT category, count, direction_deg FROM reports ORDER BY time_utc") == [
+        (None, 1, None), (None, 1, None), ("lastwagen", 1, None), ("auto", 3, 90), (None, 9, None),
+        ("bahn", 1, None), ("garten", 1, None),
+    ]  # fmt: skip
+
+    cases = {
+        "unknown": report(recent(20), category="velo"),
+        "empty": report(recent(19), category=""),
+        "zero": {**report(recent(18)), "count": 0},
+        "ten": {**report(recent(17)), "count": 10},
+        "negative": {**report(recent(16)), "count": -1},
+        "fraction": {**report(recent(15)), "count": 2.5},
+        "string": {**report(recent(14)), "count": "3"},
+        "bool": {**report(recent(13)), "count": True},
+        "no_place": {k: v for k, v in report(recent(12)).items() if k not in ("lat", "lon")},
+    }
+    body = client.post(url, json=list(cases.values()), headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["unknown"] == fields["empty"] == "category"
+    assert {fields[k] for k in ("zero", "ten", "negative", "fraction", "string", "bool")} == {"count"}
+    assert fields["no_place"] in ("lat", "lon")
+
+    # Published: category null for «not said», count always (1 when absent).
+    from stadtlaerm_server import publish as pub
+
+    with sqlite3.connect(settings.db_path) as c:
+        out = pub.reports_from_db(c, datetime.now(ZONE))
+    got = sorted((r["category"] or "", r["count"]) for r in out["reports"])
+    assert got == sorted([("", 1), ("", 1), ("lastwagen", 1), ("auto", 3), ("", 9), ("bahn", 1), ("garten", 1)])
+    assert all(set(r) == {"time", "lat", "lon", "category", "direction", "lafmax_db", "count"} for r in out["reports"])
+    assert out["categories"][-4:] == ["hupen", "baustelle", "garten", "bahn"]
 
 
 def test_reports_count_against_the_device_rate_limit(make_client):
@@ -531,3 +599,136 @@ def test_loud_event_db_setting(make_client, settings):
     client = make_client(loud_event_db=80.0)
     client.app.state.publish_once()
     assert json.loads((settings.map_dir / "cells.json").read_text())["loud_event_db"] == 80.0
+
+
+def direction(deg=123, north="true", accuracy="high") -> dict:
+    return {"bearing_deg": deg, "north": north, "accuracy": accuracy}
+
+
+def test_report_direction_is_optional_validated_and_stored(client, settings):
+    """App 0.6.7: a report may say in which direction the vehicle drove (DESIGN.md §4.7)."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    old_app = report(recent(30))  # apps up to 0.6.6: no field at all
+    with_dir = {**report(recent(29)), "direction": direction(0, "true", "high")}
+    magnetic = {**report(recent(28)), "direction": direction(359, "magnetic", "low")}
+    explicit_null = {**report(recent(27)), "direction": None}
+    body = client.post(url, json=[old_app, with_dir, magnetic, explicit_null], headers=auth).json()
+    assert body == {"accepted": 4, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(
+        settings, "SELECT direction_deg, direction_north, direction_accuracy FROM reports ORDER BY time_utc"
+    ) == [(None, None, None), (0, "true", "high"), (359, "magnetic", "low"), (None, None, None)]
+
+    cases = {
+        "360": direction(360),
+        "negative": direction(-1),
+        "fraction": direction(12.5),
+        "string": direction("12"),
+        "bool": direction(True),
+        "north": direction(north="grid"),
+        "accuracy": direction(accuracy="perfect"),
+        "missing": {"bearing_deg": 10, "north": "true"},
+        "extra": {**direction(), "samples": [1, 2, 3]},  # never a sensor stream
+        "not_object": 123,
+    }
+    bad = [{**report(recent(20 - i)), "direction": d} for i, d in enumerate(cases.values())]
+    body = client.post(url, json=bad, headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["360"] == fields["negative"] == fields["fraction"] == "direction.bearing_deg"
+    assert fields["string"] == fields["bool"] == "direction.bearing_deg"
+    assert fields["north"] == "direction.north"
+    assert fields["accuracy"] == "direction.accuracy"
+    assert fields["missing"] == "direction.accuracy"
+    assert fields["extra"] == "direction.samples"
+    assert fields["not_object"] == "direction"
+
+
+def test_a_duplicate_without_direction_clears_the_stored_one(client, settings):
+    """The later report wins entirely (idempotent on time), direction included."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    t = recent(10)
+    client.post(url, json=[{**report(t), "direction": direction(90)}], headers=auth)
+    assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
+    assert rows(settings, "SELECT direction_deg FROM reports") == [(None,)]
+
+
+def level(lafmax=81.4, laeq=66.2, seconds=9, calibrated=True) -> dict:
+    return {"lafmax_db": lafmax, "laeq_db": laeq, "seconds": seconds, "calibrated": calibrated}
+
+
+def test_report_level_is_optional_validated_and_stored(client, settings):
+    """App 0.8.5: a report may carry the level while the report dialog was open (DESIGN.md §4.7)."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    old_app = report(recent(30))  # apps up to 0.8.4: no field at all
+    calibrated = {**report(recent(29)), "level": level()}
+    rough = {**report(recent(28)), "level": level(140, 0, 600, False)}
+    explicit_null = {**report(recent(27)), "level": None}
+    both = {**report(recent(26)), "direction": direction(90), "level": level(79.95, 70.04, 1)}
+    body = client.post(url, json=[old_app, calibrated, rough, explicit_null, both], headers=auth).json()
+    assert body == {"accepted": 5, "duplicates": 0, "rejected": [], "dropped_by_category": 0}
+    assert rows(
+        settings, "SELECT level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, direction_deg FROM reports ORDER BY time_utc"
+    ) == [
+        (None, None, None, None, None),
+        (81.4, 66.2, 9, 1, None),
+        (140.0, 0.0, 600, 0, None),
+        (None, None, None, None, None),
+        (80.0, 70.0, 1, 1, 90),  # stored to 0.1 dB
+    ]  # fmt: skip
+
+    cases = {
+        "loud": level(lafmax=140.1),
+        "negative": level(laeq=-0.1),
+        "nan": level(lafmax="NaN"),
+        "zero_seconds": level(seconds=0),
+        "long": level(seconds=601),
+        "fraction": level(seconds=1.5),
+        "string_seconds": level(seconds="9"),
+        "calibrated": level(calibrated="yes"),
+        "missing": {k: v for k, v in level().items() if k != "laeq_db"},
+        "extra": {**level(), "samples": [0.1, 0.2]},  # never audio
+        "not_object": 81.4,
+    }
+    bad = [{**report(recent(20 - i)), "level": lv} for i, lv in enumerate(cases.values())]
+    body = client.post(url, json=bad, headers=auth).json()
+    assert body["accepted"] == 0 and len(body["rejected"]) == len(cases)
+    fields = {k: rej["reasons"][0]["field"] for k, rej in zip(cases, body["rejected"], strict=True)}
+    assert fields["loud"] == fields["nan"] == "level.lafmax_db"
+    assert fields["negative"] == fields["missing"] == "level.laeq_db"
+    assert fields["zero_seconds"] == fields["long"] == fields["fraction"] == fields["string_seconds"] == "level.seconds"
+    assert fields["calibrated"] == "level.calibrated"
+    assert fields["extra"] == "level.samples"
+    assert fields["not_object"] == "level"
+
+
+def test_a_duplicate_without_level_clears_the_stored_one(client, settings):
+    """The later report wins entirely (idempotent on time), level included."""
+    dev, auth = register(client)
+    url = f"/v1/devices/{dev}/reports"
+    t = recent(10)
+    client.post(url, json=[{**report(t), "level": level()}], headers=auth)
+    assert client.post(url, json=[report(t)], headers=auth).json()["duplicates"] == 1
+    assert rows(settings, "SELECT level_lafmax_db, level_seconds FROM reports") == [(None, None)]
+
+
+def test_minute_audio_source_carries_the_microphone_kind(client, settings):
+    """App 0.7.2 (§4.3): «<source>+<kind>» for a microphone other than the built-in one; plain = built-in."""
+    dev, auth = register(client)
+    assert client.put(f"/v1/devices/{dev}/site", json=SITE, headers=auth).status_code == 204
+    good = ["UNPROCESSED", "VOICE_RECOGNITION", "UNPROCESSED+usb", "UNPROCESSED+bluetooth", "UNPROCESSED+wired",
+            "UNPROCESSED+other", "VOICE_RECOGNITION+usb"]  # fmt: skip
+    bad = ["UNPROCESSED+builtin", "UNPROCESSED+headset", "usb", "UNPROCESSED+usb:0123456789abcdef", "unprocessed+usb"]
+    body = [{**minute(recent(5 + i)), "audio_source": s} for i, s in enumerate(good + bad)]
+    r = client.post(f"/v1/devices/{dev}/minutes", json=body, headers=auth)
+    assert r.status_code == 200, r.text
+    res = r.json()
+    assert res["accepted"] == len(good)
+    assert [x["index"] for x in res["rejected"]] == list(range(len(good), len(good) + len(bad)))
+    assert all(x["reasons"][0]["field"] == "audio_source" for x in res["rejected"]), res["rejected"]
+    stored = sorted(s for (s,) in rows(settings, "SELECT audio_source FROM minutes"))
+    assert stored == sorted(good)
+    # The site keeps working with the plain value (the app sends the built-in microphone's source there).
+    assert client.put(f"/v1/devices/{dev}/site", json={**SITE, "audio_source": "UNPROCESSED+usb"}, headers=auth).status_code == 204

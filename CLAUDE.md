@@ -33,3 +33,9 @@ subagent it launches; the main session copies the agent rules into each agent pr
    not verified and why, every deviation from the spec you were given.
 9. Commit messages end with the attribution lines the session provides. Push your branch;
    do not open pull requests unless asked.
+10. **Labor builds are signed by GitHub Actions, never by a session.** The keystore lives only in
+    the repository's Actions secrets. To deliver a Labor·Karte build: bump the version, push a
+    `labor-*` branch (or `gh workflow run labor-build.yml --ref <branch>`), download the artifact
+    of the green run and hand the APK over with its SHA-256. Never ask for the key; never copy a
+    Labor APK into `docs/` or a release (`android/README.md` → «Signed Labor builds on GitHub
+    Actions»).

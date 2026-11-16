@@ -1,7 +1,9 @@
 package ch.lessnoise.app.upload
 
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.app.service.LiveEvent
 import ch.lessnoise.dsp.geo.LocationNoise
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -37,8 +39,9 @@ data class SiteExtras(
  * flutter, shape, wind flag) and the minutes' `wind_event_count`. Levels are rounded to 0.1 dB as
  * the design says.
  *
- * Wind-flagged events are not sent at all ([isShared]); the minutes' `event_count` is already the
- * count without wind (`MinuteEntity.eventCount`, detector v2), i.e. the count the app shows.
+ * Only map events are sent at all ([isMapEvent], 0.6.4: the five machine and motor categories, not
+ * wind, the quality gates); the minutes' `event_count` is the count without wind
+ * (`MinuteEntity.eventCount`, detector v2), i.e. the count the app shows.
  */
 object Payloads {
 
@@ -66,10 +69,42 @@ object Payloads {
     }
 
     /**
-     * Whether an event is uploaded at all: events flagged as wind on the microphone are excluded,
-     * the same way they are left out of the app's own counts (server/DESIGN.md §4.4).
+     * The categories of the public map (0.6.4): machine and motor noise only. The same ids, in the
+     * same order, as the server's allow-list (server/stadtlaerm_server/config.py MAP_CATEGORIES;
+     * MapEventTest reads it from the source). The project's definition, not a setting.
      */
-    fun isShared(e: EventEntity): Boolean = !e.wind
+    val MAP_CATEGORIES: List<String> = listOf("loud_vehicle", "road_traffic", "rail_tram", "aircraft", "construction")
+
+    /** Quality gates of a map event (the server's MIN_EVENT_THRESHOLD_DB, MIN_EVENT_LAFMAX_DB, MIN_EVENT_DURATION_S). */
+    const val MIN_EXCESS_DB = 6.5
+    const val MIN_LAFMAX_DB = 30.0
+    const val MIN_DURATION_S = 0.5
+
+    /**
+     * Whether an event may leave the phone at all (0.6.4, the ONE rule for the upload's include
+     * filter and the live-upload trigger): one of [MAP_CATEGORIES], not wind on the microphone, the
+     * excess setting in force ([thresholdDb], sent as `threshold_db`) at least [MIN_EXCESS_DB], LAFmax
+     * at least the event's own floor setting ([minLevelDb], none for events before 0.3.0) and at least
+     * [MIN_LAFMAX_DB], and at least [MIN_DURATION_S] long. Voices, music, unclassified and wind never
+     * leave the phone. Uses only fields the app already stores; nothing new is sent.
+     */
+    fun isMapEvent(
+        category: String?, wind: Boolean, thresholdDb: Double, lafMaxDb: Double, minLevelDb: Double?, durationS: Double,
+    ): Boolean {
+        val floor = minLevelDb?.takeUnless { it.isNaN() } ?: MIN_LAFMAX_DB
+        return category != null && category in MAP_CATEGORIES && !wind &&
+            thresholdDb >= MIN_EXCESS_DB &&
+            lafMaxDb >= maxOf(floor, MIN_LAFMAX_DB) &&
+            durationS >= MIN_DURATION_S
+    }
+
+    /** [isMapEvent] of a stored event (the upload's include filter, [Uploader]). */
+    fun isMapEvent(e: EventEntity): Boolean =
+        isMapEvent(e.dominantCategory, e.wind, e.thresholdDb, e.lafMaxDb, e.minLevelDb, e.durationSeconds)
+
+    /** [isMapEvent] of a just-detected event (the live-upload trigger, [LiveUploadPlan.triggers]). */
+    fun isMapEvent(e: LiveEvent): Boolean =
+        isMapEvent(e.category, e.wind, e.thresholdDb, e.lafMaxDb, e.minLevelDb, (e.endEpochMs - e.startEpochMs) / 1000.0)
 
     fun minute(m: MinuteEntity, point: LocationNoise.Point): JsonObject = buildJsonObject {
         put("start", m.startIso)
@@ -91,7 +126,8 @@ object Payloads {
         put("calibration_id", m.calibrationId?.let { JsonPrimitive(it.toString()) } ?: JsonNull)
         put("calibration_offset_db", num(m.calibrationOffsetDb, 2))
         put("calibrated", m.calibrated)
-        put("audio_source", m.audioSource)
+        // 0.7.2: «UNPROCESSED» for the built-in microphone as before, «UNPROCESSED+usb» etc. for another.
+        put("audio_source", MicChoice.wireAudioSource(m.audioSource, m.mic))
         put("clock_corrections", m.clockCorrections)
     }
 
@@ -112,14 +148,37 @@ object Payloads {
 
     /**
      * One «Laut! Melden» report: time of the tap (ISO-8601 with offset, seconds), the exact place
-     * (5 decimals ≈ 1 m), its accuracy and the category.
+     * (5 decimals ≈ 1 m), its accuracy and the category; since 0.6.7 the direction of travel when the
+     * reporter gave one (whole degrees, true or magnetic north, the compass's accuracy class); since
+     * 0.8.5 the `level` while the dialog was open (peak LAFmax and LAeq of those seconds, one decimal,
+     * the seconds, calibrated or not) when the microphone gave one. A report without either is exactly
+     * the request of 0.6.6. The plate (0.7.6–0.8.4) and the photo (0.8.5) or video (0.9.4.3, `media`) are never read here.
+     * 0.9.4.5 (Labor·Karte first): only the place is required — no `category` key when none was chosen, and
+     * `count` (2–9) only for several vehicles; a report with a category and one vehicle is the request of 0.9.4.4.
      */
     fun report(r: PendingReport): JsonObject = buildJsonObject {
         put("time", r.timeIso)
         put("lat", num(r.lat, 5))
         put("lon", num(r.lon, 5))
         put("accuracy_m", num(r.accuracyM, 1))
-        put("category", r.category)
+        // 0.9.4.5 (server schema v9): absent when none was chosen; `count` only for more than one vehicle.
+        r.category?.let { put("category", it) }
+        if (r.count > 1) put("count", r.count)
+        r.direction?.let { d ->
+            put("direction", buildJsonObject {
+                put("bearing_deg", d.bearingDeg)
+                put("north", d.north.id)
+                put("accuracy", d.accuracy.id)
+            })
+        }
+        r.level?.let { l ->
+            put("level", buildJsonObject {
+                put("lafmax_db", num(l.lafMaxDb, 1))
+                put("laeq_db", num(l.laeqDb, 1))
+                put("seconds", l.seconds)
+                put("calibrated", l.calibrated)
+            })
+        }
     }
 
     /** One decimal; NaN/∞/null become JSON null (NaN is not valid JSON and would spoil the batch). */

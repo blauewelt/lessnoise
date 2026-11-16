@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,6 +11,7 @@ import pytest
 from stadtlaerm_server import aggregate as agg
 from stadtlaerm_server import db, publish, retention
 from stadtlaerm_server import synthetic as syn
+from stadtlaerm_server.config import MAP_CATEGORIES
 from stadtlaerm_server.schemas import EventIn, MinuteIn, ReportIn
 
 # Publishing "now" = 18:40 on Sunday 25 October 2026, the 25-hour day of the autumn DST change.
@@ -45,8 +46,8 @@ def add_day(conn, dev, day: date, base: float, rate: float, seed: int, calibrate
     db.upsert_rows(conn, "events", db.EVENT_COLUMNS, ev_rows)
 
 
-def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad"):
-    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4))
+def add_report(conn, dev, at: datetime, lat: float, lon: float, category: str = "motorrad", direction=None, level=None):
+    r = ReportIn(**syn.report_record(at, lat, lon, category, accuracy_m=123.4, direction=direction, level=level))
     db.upsert_rows(conn, "reports", db.REPORT_COLUMNS, [db.report_row(dev, r, RECEIVED)], key="time_utc")
 
 
@@ -93,6 +94,8 @@ def test_publish_files_and_format(conn, tmp_path):
         "last_30_days": {"from": "2026-09-26", "to": "2026-10-25", "days": 30},
     }
     assert cells["min_devices_per_cell"] == 1 and cells["loud_event_db"] == 75.0
+    # The local date migration v5 ran (here: when the test database was made), as ISO date.
+    assert cells["counted_since"] == db.counted_since(conn) == agg.today(datetime.now(UTC)).isoformat()
     by_cell = {x["cell"]: x for x in cells["cells"]}
     assert set(by_cell) == {"h26824_12473", "h26830_12490"}  # hidden device not shown
     assert not (out / "nights").exists()
@@ -102,7 +105,8 @@ def test_publish_files_and_format(conn, tmp_path):
     assert two["devices"] == 2 and two["calibrated"] is True
     d = two["day"]
     assert set(d) == set(agg.BLOCK_KEYS)
-    assert set(agg.CATEGORIES) <= set(d["events_per_h_by_category"])
+    # Exactly the five machine and motor categories, in order (add_day also sends voices).
+    assert list(d["events_per_h_by_category"]) == list(MAP_CATEGORIES)
     # The cell value equals the combination of the two device days computed directly.
     assert d == agg.combine_cell_day({a: device_day(conn, a, LAST), b: device_day(conn, b, LAST)}).block()
     # a: 00:00–18:00 on a 25-hour day = 19 real hours; b: 06:00–18:00 = 12 h; the mean of the devices.
@@ -118,7 +122,10 @@ def test_publish_files_and_format(conn, tmp_path):
 
     # Per-cell history and the 24-hour profile.
     cf = load(out / "cells" / "h26824_12473.json")
-    assert set(cf) == {"generated_at", "cell", "devices", "calibrated", "loud_event_db", "days", "profile"}
+    assert set(cf) == {
+        "generated_at", "cell", "devices", "calibrated", "loud_event_db", "counted_since", "days", "profile"
+    }  # fmt: skip
+    assert cf["counted_since"] == cells["counted_since"]
     assert cf["cell"] == "h26824_12473" and cf["devices"] == 2
     assert len(cf["days"]) == 10 and cf["days"][0]["day"] == "2026-10-25"
     assert cf["days"][0] == {"day": "2026-10-25", **d}
@@ -256,14 +263,16 @@ def test_reports_json(conn, tmp_path):
     r = load(out / "reports.json")
     assert set(r) == {"generated_at", "from", "to", "categories", "reports"}
     assert (r["from"], r["to"]) == ("2026-09-26", "2026-10-25")
-    assert r["categories"] == ["motorrad", "auto", "lastwagen", "poser", "andere"]
+    assert r["categories"] == [
+        "motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn",
+    ]  # fmt: skip
     assert r["reports"] == [
-        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere"},
-        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto"},
+        {"time": "2026-09-26T00:00:00+02:00", "lat": 47.38, "lon": 8.51, "category": "andere", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T02:00:00+02:00", "lat": 47.37, "lon": 8.52, "category": "auto", "direction": None, "lafmax_db": None, "count": 1},
         # 09:01, 09:30 and 09:59:59 are all «09:00»; within the hour, sorted by place, not by time or device.
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser"},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad"},
-        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen"},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35, "lon": 8.53, "category": "poser", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": None, "lafmax_db": None, "count": 1},
+        {"time": "2026-10-25T09:00:00+01:00", "lat": 47.36, "lon": 8.54, "category": "lastwagen", "direction": None, "lafmax_db": None, "count": 1},
     ]
     text = (out / "reports.json").read_text()
     for forbidden in ("dev-", "accuracy", "123.4", "device"):
@@ -373,7 +382,11 @@ def test_example_fixture_has_the_published_format(conn, tmp_path):
     for i in range(3):
         add_day(conn, a, LAST - timedelta(days=i), 44.0, 6.0, 10 + i, start_h=0, hours=18)
         add_day(conn, b, LAST - timedelta(days=i), 40.0, 3.0, 20 + i)
-    add_report(conn, a, datetime(2026, 10, 25, 9, 12), 47.3553, 8.5355)
+    add_report(
+        conn, a, datetime(2026, 10, 25, 9, 12), 47.3553, 8.5355,
+        direction={"bearing_deg": 87, "north": "true", "accuracy": "high"},
+        level={"lafmax_db": 84.3, "laeq_db": 71.0, "seconds": 8, "calibrated": True},
+    )  # fmt: skip
     conn.commit()
     cells = publish.publish(conn, tmp_path / "map", now=NOW)
     server = Path(__file__).resolve().parent.parent
@@ -384,3 +397,44 @@ def test_example_fixture_has_the_published_format(conn, tmp_path):
     assert _shape(load(server / "example_reports.json")) == _shape(load(tmp_path / "map" / "reports.json"))
     assert 20 <= len(example["cells"]) <= 30
     assert len(load(server / "example_reports.json")["reports"]) >= 20
+
+
+def test_reports_json_publishes_the_direction_in_whole_degrees_only(conn, tmp_path):
+    """App 0.6.7 (§6.4): the direction of travel is published as whole degrees; north and the
+    compass accuracy class are not; an «unreliable» compass reading is not published at all."""
+    a = add_device(conn, None)
+    t = datetime(2026, 10, 25, 9, 12)
+    add_report(conn, a, t, 47.36, 8.54, direction={"bearing_deg": 87, "north": "true", "accuracy": "medium"})
+    add_report(conn, a, t + timedelta(minutes=1), 47.37, 8.54, direction={"bearing_deg": 4, "north": "magnetic", "accuracy": "low"})
+    add_report(conn, a, t + timedelta(minutes=2), 47.38, 8.54, direction={"bearing_deg": 200, "north": "true", "accuracy": "unreliable"})
+    add_report(conn, a, t + timedelta(minutes=3), 47.39, 8.54)
+    conn.commit()
+    out = tmp_path / "map"
+    publish.publish(conn, out, now=NOW)
+    got = [(r["lat"], r["direction"]) for r in load(out / "reports.json")["reports"]]
+    assert got == [(47.36, 87), (47.37, 4), (47.38, None), (47.39, None)]
+    text = (out / "reports.json").read_text()
+    for forbidden in ("magnetic", "medium", "unreliable", "north", "accuracy", "bearing"):
+        assert forbidden not in text
+
+
+def test_reports_json_publishes_the_peak_level_in_whole_db_only(conn, tmp_path):
+    """App 0.8.5 (§6.4): the peak level while the report dialog was open is published rounded to whole
+    dB; the LAeq, the seconds and the calibration flag are not; a report without one has null."""
+    a = add_device(conn, None)
+    t = datetime(2026, 10, 25, 9, 12)
+    lvl = {"lafmax_db": 81.5, "laeq_db": 66.27, "seconds": 13, "calibrated": True}
+    add_report(conn, a, t, 47.36, 8.54, level=lvl)
+    add_report(conn, a, t + timedelta(minutes=1), 47.37, 8.54, level={**lvl, "lafmax_db": 79.4, "calibrated": False})
+    add_report(conn, a, t + timedelta(minutes=2), 47.38, 8.54)
+    conn.commit()
+    assert tuple(conn.execute("SELECT level_lafmax_db, level_laeq_db, level_seconds, level_calibrated FROM reports ORDER BY lat").fetchone()) == (
+        81.5, 66.3, 13, 1,
+    )  # fmt: skip
+    out = tmp_path / "map"
+    publish.publish(conn, out, now=NOW)
+    got = [(r["lat"], r["lafmax_db"]) for r in load(out / "reports.json")["reports"]]
+    assert got == [(47.36, 82), (47.37, 79), (47.38, None)]
+    text = (out / "reports.json").read_text()
+    for forbidden in ("laeq", "66.3", "seconds", "calibrated", "81.5", "level"):
+        assert forbidden not in text

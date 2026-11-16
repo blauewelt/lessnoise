@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from . import db, publish, retention
-from .config import Settings
+from .config import MAP_CATEGORY_SET, Settings
 from .ratelimit import TokenBuckets
 from .schemas import (
     MAX_EVENTS,
@@ -38,6 +38,7 @@ from .schemas import (
     DeviceOut,
     EventIn,
     MinuteIn,
+    NewsletterIn,
     ReportIn,
     SiteIn,
     UploadResult,
@@ -90,9 +91,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     registrations = TokenBuckets(settings.registrations_per_ip_per_day, 86_400)
     device_requests = TokenBuckets(settings.requests_per_device_per_hour, 3_600)
+    newsletter_requests = TokenBuckets(settings.newsletter_per_ip_per_hour, 3_600)
 
     with db.open_db(settings.db_path) as conn:
-        db.migrate(conn)
+        before = db.schema_version(conn)
+        after = db.migrate(conn)
+    # Migration v5 deleted stored events of other categories: rewrite every published file before
+    # serving (below), whether or not the background loop runs. A new database has none to rewrite.
+    purged = 0 < before < db.PURGE_VERSION <= after
 
     # The change marker (publish.Changes): the handlers note what they committed; the publish
     # cycle takes the notes and rebuilds only when something changed (DESIGN.md §6).
@@ -129,6 +135,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.info("retention: %s", retention.run_retention(conn, retention_days=settings.retention_days))
             return retention.expire_inactive(conn, inactive_days=settings.inactive_delete_days)
 
+    if purged:
+        publish_once()
+        log.info("migration v5: published files rebuilt")
+
     async def background() -> None:
         last_retention: datetime | None = None
         while True:
@@ -145,6 +155,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     last_retention = now
                 registrations.prune()
                 device_requests.prune()
+                newsletter_requests.prune()
             except Exception:  # keep the loop alive; the next run tries again (a full one)
                 log.exception("background job failed")
             # Every PUBLISH_INTERVAL_S from start to start; a run that took longer is followed at once.
@@ -168,6 +179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.retention_once = retention_once
     app.state.registrations = registrations
     app.state.device_requests = device_requests
+    app.state.newsletter_requests = newsletter_requests
 
     # ---- helpers ------------------------------------------------------------------------
 
@@ -357,10 +369,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         rows, rejected = upload(
             await read_body(request), EventIn, MAX_EVENTS, lambda e: db.event_row(device_id, e, received)
         )
+        # Only machine and motor noise goes on the map (DESIGN.md §4.4): any other category
+        # (voices, music, unclassified, wind, an unknown id) is dropped here, not stored, and
+        # answered with 2xx so that apps 0.5.x–0.6.3, which send every category, do not retry.
+        kept = [r for r in rows if r["category"] in MAP_CATEGORY_SET]
+        dropped = [r["start_utc"] for r in rows if r["category"] not in MAP_CATEGORY_SET]
         with conn:
-            accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, rows)
-        changes.records(device_id, (r["start_utc"] for r in rows))
-        return UploadResult(accepted=accepted, duplicates=duplicates, rejected=rejected)
+            accepted, duplicates = db.upsert_rows(conn, "events", db.EVENT_COLUMNS, kept)
+            # A dropped record replaces a stored one with its start, like any upload (§4.4): that
+            # stored event goes too (e.g. re-sent with another category).
+            # (Within one batch a kept record with the same start wins.)
+            starts = {r["start_utc"] for r in kept}
+            replaced = db.delete_rows(conn, "events", device_id, [t for t in dropped if t not in starts])
+        if dropped:
+            log.info("events: dropped_by_category=%d", len(dropped))
+        changes.records(device_id, [r["start_utc"] for r in kept] + (dropped if replaced else []))
+        return UploadResult(
+            accepted=accepted, duplicates=duplicates, rejected=rejected, dropped_by_category=len(dropped)
+        )
 
     @app.post("/v1/devices/{device_id}/reports", response_model=UploadResult)
     async def post_reports(device_id: str, request: Request, conn: Conn, authorization: Auth = None) -> UploadResult:
@@ -383,6 +409,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         db.delete_device(conn, device_id)
         changes.structural()  # gone from every file on the next cycle, ≤ PUBLISH_INTERVAL_S (§2 rule 4)
         return Response(status_code=204)
+
+    # ---- e-mail addresses for update notices (DESIGN.md §4.8) -------------------------------
+    # Called by the website's form (docs/js/newsletter.js), so this route — and only this one —
+    # answers CORS preflights, for the configured website origins only. Stored: the address and
+    # the time, nothing else; the client IP is used only as the in-memory rate-limit key.
+
+    def newsletter_cors(request: Request) -> dict[str, str]:
+        origin = request.headers.get("origin", "").rstrip("/")
+        if origin and origin in settings.cors_origins:
+            return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+        return {"Vary": "Origin"}
+
+    def newsletter_error(e: ApiError, cors: dict[str, str]) -> JSONResponse:
+        # With the CORS header, so the page can tell a refusal from an unreachable server.
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code, headers={**(e.headers or {}), **cors})
+
+    async def newsletter_email(request: Request) -> str:
+        limited(
+            newsletter_requests, client_ip(request), f"{settings.newsletter_per_ip_per_hour} requests per IP per hour"
+        )
+        return validate(NewsletterIn, await read_body(request)).email
+
+    @app.options("/v1/newsletter")
+    def newsletter_preflight(request: Request) -> Response:
+        headers = newsletter_cors(request)
+        if "Access-Control-Allow-Origin" in headers:
+            headers |= {
+                "Access-Control-Allow-Methods": "POST, DELETE",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Max-Age": "600",
+            }
+        return Response(status_code=204, headers=headers)
+
+    @app.post("/v1/newsletter")
+    async def newsletter_add(request: Request, conn: Conn) -> Response:
+        # A new and an already stored address get the same answer: nobody can find out
+        # whether an address is on the list.
+        headers = newsletter_cors(request)
+        try:
+            db.add_newsletter(conn, await newsletter_email(request))
+        except ApiError as e:
+            return newsletter_error(e, headers)
+        return JSONResponse({"ok": True}, headers=headers)
+
+    @app.delete("/v1/newsletter")
+    async def newsletter_remove(request: Request, conn: Conn) -> Response:
+        # 204 whether or not the address was stored (no enumeration).
+        headers = newsletter_cors(request)
+        try:
+            db.remove_newsletter(conn, await newsletter_email(request))
+        except ApiError as e:
+            return newsletter_error(e, headers)
+        return Response(status_code=204, headers=headers)
 
     # ---- the public map files -------------------------------------------------------------
 

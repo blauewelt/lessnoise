@@ -7,6 +7,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.ln
+import kotlin.math.roundToLong
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -257,6 +258,20 @@ object CalibrationMath {
         return w
     }
 
+    /**
+     * 0.9.5.1: decided on the deviation as the app shows it (one decimal), so «+20,0 dB» never warns and
+     * «+20,1 dB» always does (until 0.9.5 on the unrounded value: 20,04 warned while showing 20,0).
+     */
     fun implausible(offsetDb: Double): Boolean =
-        abs(offsetDb - Acoustics.DEFAULT_CALIBRATION_OFFSET_DB) > MAX_DEVIATION_FROM_DEFAULT_DB
+        (abs(deviationFromDefault(offsetDb)) * 10).roundToLong() > (MAX_DEVIATION_FROM_DEFAULT_DB * 10).roundToLong()
+
+    /**
+     * 0.9.5.1: what the app shows instead of the conversion constant [offsetDb] (dBFS → dB SPL, ≈ 112 dB
+     * on a typical phone): how far it is from the CDD default. +3 dB means the phone shows 3 dB more
+     * than it would uncalibrated. [offsetDb] stays the stored quantity.
+     */
+    fun deviationFromDefault(offsetDb: Double): Double = offsetDb - Acoustics.DEFAULT_CALIBRATION_OFFSET_DB
+
+    /** The inverse of [deviationFromDefault]: «Korrektur von Hand» takes the deviation and stores this. */
+    fun offsetFromDeviation(deviationDb: Double): Double = Acoustics.DEFAULT_CALIBRATION_OFFSET_DB + deviationDb
 }

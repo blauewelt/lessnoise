@@ -3,4 +3,7 @@
     <color name="background">#FFF7F7F4</color>
     <color name="icon_background">#FF1F3A4D</color>
     <color name="icon_foreground">#FFF2C14E</color>
+    <!-- 0.8.7: the circle behind the logo on the idle «Messen» screen: the launcher background of the
+         edition (src/labor/res/values/colors.xml overrides it with the Labor red). -->
+    <color name="logo_background">@color/icon_background</color>
 </resources>

@@ -23,6 +23,11 @@ if [ "$1" = compose ] && [ "$2" = up ]; then echo "$GIT_COMMIT" > "$STUB_DIR/run
 exit 0
 """
 CURL_STUB = """#!/usr/bin/env bash
+url="${@: -1}"
+echo "$url" >> "$STUB_DIR/curl_urls"
+# a host listed in `down` does not answer (no certificate yet, say)
+host=$(echo "$url" | sed -E 's#^https://([^/:]+).*#\\1#')
+grep -qx "$host" "$STUB_DIR/down" 2>/dev/null && exit 7
 running=$(cat "$STUB_DIR/running" 2>/dev/null || echo none)
 grep -qx "$running" "$STUB_DIR/broken" 2>/dev/null && exit 22
 printf '{"ok":true,"commit":"%s"}' "$running"
@@ -176,3 +181,28 @@ def test_other_branch_from_config(s):
     assert s.deploy().returncode == 0
     assert git(s.repo, "rev-parse", "HEAD") == ed
     assert git(s.repo, "branch", "--show-current") == "editions"
+
+
+def curl_urls(s: Setup) -> list[str]:
+    p = s.stubs / "curl_urls"
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def test_health_check_asks_api_lessnoise_ch_first(s):
+    assert s.deploy().returncode == 0
+    assert curl_urls(s) == ["https://api.lessnoise.ch/healthz"]
+
+
+def test_health_check_falls_back_to_the_old_host(s):
+    """While api.lessnoise.ch does not answer on this machine, api.stadtlaerm.ch (still in
+    API_HOSTS) is enough; a deployment is not rolled back for that."""
+    (s.stubs / "down").write_text("api.lessnoise.ch\n")
+    r = s.deploy()
+    assert r.returncode == 0, r.stderr
+    assert curl_urls(s)[:2] == ["https://api.lessnoise.ch/healthz", "https://api.stadtlaerm.ch/healthz"]
+
+
+def test_health_url_from_config_wins(s):
+    s.conf.write_text("BRANCH=main\nHEALTH_URL=https://example.invalid/healthz\n")
+    assert s.deploy().returncode == 0
+    assert set(curl_urls(s)) == {"https://example.invalid/healthz"}

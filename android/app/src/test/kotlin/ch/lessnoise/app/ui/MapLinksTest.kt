@@ -137,4 +137,30 @@ class MapLinksTest {
         assertTrue(File(app, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").isFile)
         assertFalse(File(app, "src/main/kotlin/ch/lessnoise/app/ui/MapScreen.kt").exists())
     }
+
+    /** 0.8.2: the page's own dark style when the app is dark; never an algorithmic darkening by the WebView. */
+    @Test
+    fun theMapFollowsTheAppsDarkThemeWithThePagesOwnStyle() {
+        val app = generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }.take(4)
+            .flatMap { sequenceOf(it, File(it, "app"), File(it, "android/app")) }
+            .firstOrNull { File(it, "build.gradle.kts").isFile && File(it, "src/karte").isDirectory } ?: fail("app module not found")
+        val map = File(app, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").readText()
+        // The same signal as LessNoiseTheme, passed into the screen and used where the WebView is made.
+        assertTrue(map.contains("MapScreen(modifier, visible, onOpen, isDark = isSystemInDarkTheme())"))
+        assertTrue(map.contains("WebView(MapDark.context(ctx, isDark))"))
+        assertTrue(map.contains("ContextThemeWrapper(base, android.R.style.Theme_Material_NoActionBar)"), "a theme with isLightTheme = false")
+        assertTrue(map.contains("MapDark.settings(web.settings, isDark)"))
+        assertTrue(map.contains("WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)"))
+        assertTrue(map.contains("WebSettingsCompat.DARK_STRATEGY_WEB_THEME_DARKENING_ONLY"))
+        for (f in listOf("setAlgorithmicDarkeningAllowed(settings, true)", "DARK_STRATEGY_USER_AGENT_DARKENING_ONLY", "DARK_STRATEGY_PREFER_WEB_THEME_OVER_USER_AGENT_DARKENING")) {
+            assertFalse(map.contains(f), f)
+        }
+        // The light theme of the Activity is what made the page light; it stays (Compose draws the app).
+        val themes = File(app, "src/main/res/values/themes.xml").readText()
+        assertTrue(themes.contains("android:Theme.Material.Light.NoActionBar"))
+        // The page has its own dark style (no website change for this).
+        val docs = File(app, "../../docs")
+        assertTrue(File(docs, "karte.html").readText().contains("""<meta name="color-scheme" content="light dark">"""))
+        assertTrue(File(docs, "map/karte.css").readText().contains("@media (prefers-color-scheme: dark)"))
+    }
 }

@@ -84,6 +84,20 @@ test("LSV reference values: 6–22 Uhr and 22–6 Uhr, ES II", () => {
   assert.deepEqual(segs.map((s) => [s.x0 * 24, s.x1 * 24, s.pw]), [[0, 6, 45], [6, 22, 55], [22, 24, 45]]);
 });
 
+test("0.9.3: the detector class loud_vehicle is «Lautes Fahrzeug» (plural «Laute Fahrzeuge» per hour)", () => {
+  assert.equal(M.source("loud_vehicle").name, "Lautes Fahrzeug");
+  assert.equal(M.CATEGORY_NAMES.loud_vehicle, "Lautes Fahrzeug");
+  assert.equal(M.sourceMetric("loud_vehicle").label, "Laute Fahrzeuge/h");
+  assert.equal(M.sourceMetric("loud_vehicle").title, "Ereignisse «Lautes Fahrzeug» pro Stunde Messzeit");
+  assert.equal(M.sourceMetric("road_traffic").label, "Strassenverkehr/h");
+  assert.equal(M.METRICS.loud.label, "Laute Fahrzeuge/h");
+  // the old name is gone from the map's code and page; the report category «Poser» (old reports) stays
+  for (const f of ["docs/map/model.js", "docs/map/karte.js", "docs/karte.html"]) {
+    const text = fs.readFileSync(path.join(__dirname, "../..", f), "utf8");
+    assert.ok(!/Töff (&|&amp;) Poser/.test(text), f);
+  }
+});
+
 test("reports: categories, letters, filter by period", () => {
   assert.deepEqual(M.REPORT_CATEGORIES.map((c) => c.id).sort(), [...reports.categories].sort());
   const letters = M.REPORT_CATEGORIES.map((c) => c.letter);
@@ -99,9 +113,122 @@ test("reports: categories, letters, filter by period", () => {
   assert.deepEqual(M.reportsInPeriod(null, "2026-10-08", 7), []);
 });
 
+/** A stand-in for karte.js `el`: plain objects with the same attributes, children and a style. */
+function fakeEl(tag, attrs, children) {
+  return { tag, attrs: attrs || {}, children: (children || []).filter((c) => c !== null && c !== undefined), style: {} };
+}
+const classes = (n) => (n.attrs && n.attrs.class) || "";
+const find = (n, cls, out = []) => {
+  if (n && typeof n === "object") {
+    if (classes(n).split(" ").includes(cls)) out.push(n);
+    (n.children || []).forEach((c) => find(c, cls, out));
+  }
+  return out;
+};
+
+test("0.9.4.5: four more categories with their own letters; a report without one is a grey dot, not «Andere»", () => {
+  assert.deepEqual(M.REPORT_CATEGORIES.map((c) => c.id).slice(-5), ["bahn", "baustelle", "garten", "hupen", "andere"]);
+  assert.equal(M.reportCategory("hupen").letter, "H");
+  assert.equal(M.reportCategory("baustelle").letter, "B");
+  assert.equal(M.reportCategory("garten").name, "Gartengeräte");
+  assert.equal(M.reportCategory("bahn").letter, "Z");
+  for (const none of [null, undefined]) assert.equal(M.reportCategory(none), M.REPORT_NONE);
+  assert.equal(M.REPORT_NONE.letter, "");
+  assert.notEqual(M.REPORT_NONE.id, "andere");
+  assert.ok(!M.REPORT_CATEGORIES.some((c) => c.id === M.REPORT_NONE.id));
+  const none = M.reportMarker({ time: "2026-10-08T14:00:00+02:00", category: null }, fakeEl);
+  assert.equal(none.className, "report report-none");
+  assert.deepEqual(none.html.children.map(classes), ["report-dot"]);
+  assert.equal(none.text, "Ohne Angabe · " + M.hourLabel("2026-10-08T14:00:00+02:00"));
+  assert.deepEqual(M.reportMarker({ time: "2026-10-08T14:00:00+02:00", category: "hupen" }, fakeEl).html.children[0].attrs.text, "H");
+  // every colour class the page uses exists in karte.css
+  const css = fs.readFileSync(path.join(__dirname, "../../docs/map/karte.css"), "utf8");
+  for (const c of M.REPORT_CATEGORIES.concat([M.REPORT_NONE])) assert.match(css, new RegExp("\\.report-" + c.id + " \\{ --rc: #[0-9a-f]{6}"), c.id);
+  const colours = M.REPORT_CATEGORIES.concat([M.REPORT_NONE]).map((c) => css.match(new RegExp("\\.report-" + c.id + " \\{ --rc: (#[0-9a-f]{6})"))[1]);
+  assert.equal(new Set(colours).size, colours.length, "distinct colours");
+});
+
+test("0.9.4.5: several vehicles — count 1–9, a convoy behind the front marker, or «×n» without a direction", () => {
+  assert.equal(M.reportCount({ count: 3 }), 3);
+  for (const one of [{}, { count: null }, { count: 1 }, { count: 0 }, { count: 10 }, { count: 2.5 }, { count: "3" }]) {
+    assert.equal(M.reportCount(one), 1, JSON.stringify(one));
+  }
+  assert.deepEqual(M.convoyOffsets(90, 1), []);
+  // driving east: the others to the west (left), on the same line, 13 then 11 px apart
+  assert.deepEqual(M.convoyOffsets(90, 3), [{ x: -13, y: 0 }, { x: -24, y: 0 }]);
+  // driving north: behind is down the screen
+  assert.deepEqual(M.convoyOffsets(0, 2), [{ x: 0, y: 13 }]);
+  const [o] = M.convoyOffsets(225, 2);
+  assert.ok(Math.abs(o.x - 9.2) < 0.05 && Math.abs(o.y + 9.2) < 0.05, JSON.stringify(o));
+  assert.equal(M.reportText("Auto", "14 Uhr", 87, 84, 3), "Auto · 3 Fahrzeuge · 14 Uhr · Richtung Ost · 84 dB");
+  assert.equal(M.reportText("Auto", "14 Uhr", null, null, 1), "Auto · 14 Uhr", "1 is never shown");
+  const t = "2026-10-08T14:00:00+02:00";
+  const convoy = M.reportMarker({ time: t, category: "auto", direction: 90, count: 3 }, fakeEl);
+  assert.equal(convoy.className, "report report-auto report-heading report-many");
+  assert.deepEqual(convoy.html.children.map(classes), ["report-tail", "report-tail", "report-shape", ""]);
+  assert.deepEqual(find(convoy.html, "report-tail").map((n) => n.style.transform), ["translate(-24px, 0px)", "translate(-13px, 0px)"]);
+  for (const s of find(convoy.html, "report-tail-shape").concat(find(convoy.html, "report-shape"))) {
+    assert.equal(s.style.transform, `rotate(${M.headingShapeRotation(90)}deg)`);
+  }
+  assert.equal(find(convoy.html, "report-shape").length, 1, "one teardrop with data-direction per report");
+  assert.equal(convoy.html.attrs["data-count"], "3");
+  assert.match(convoy.text, /^Auto · 3 Fahrzeuge · /);
+  const badge = M.reportMarker({ time: t, category: "auto", count: 4 }, fakeEl);
+  assert.equal(badge.className, "report report-auto report-many");
+  assert.deepEqual(find(badge.html, "report-count").map((n) => n.attrs.text), ["×4"]);
+  assert.equal(find(badge.html, "report-tail").length, 0);
+  const single = M.reportMarker({ time: t, category: "auto", direction: 90 }, fakeEl);
+  assert.equal(find(single.html, "report-tail").length + find(single.html, "report-count").length, 0);
+  // the fixture has convoys and badges
+  const counts = reports.reports.filter((r) => M.reportCount(r) > 1);
+  assert.ok(counts.some((r) => M.reportDirection(r) !== null) && counts.some((r) => M.reportDirection(r) === null));
+  assert.ok(reports.reports.some((r) => r.category === null));
+  // the legend: every category, «Ohne Angabe», the corner and the convoy
+  const legend = M.reportLegendItems(fakeEl).map((li) => li.children[li.children.length - 1]);
+  assert.deepEqual(legend, M.REPORT_CATEGORIES.map((c) => c.name).concat(["Ohne Angabe", "Spitze = Fahrtrichtung", "= 3 Fahrzeuge"]));
+});
+
+test("reports: direction of travel (app 0.6.7), whole degrees or none", () => {
+  assert.equal(M.reportDirection({ direction: 87 }), 87);
+  assert.equal(M.reportDirection({ direction: 0 }), 0);
+  assert.equal(M.reportDirection({ direction: 359.4 }), 359);
+  assert.equal(M.reportDirection({ direction: 359.6 }), 0);
+  for (const bad of [null, undefined, -1, 360, "90", NaN]) assert.equal(M.reportDirection({ direction: bad }), null);
+  assert.equal(M.reportDirection({}), null, "reports of older apps have none");
+  assert.equal(M.directionLabel(0), "Richtung Nord");
+  assert.equal(M.directionLabel(22), "Richtung Nord");
+  assert.equal(M.directionLabel(23), "Richtung Nordost");
+  assert.equal(M.directionLabel(87), "Richtung Ost");
+  assert.equal(M.directionLabel(180), "Richtung Süd");
+  assert.equal(M.directionLabel(338), "Richtung Nord");
+  assert.equal(M.directionLabel(null), "");
+  const dirs = reports.reports.map(M.reportDirection);
+  assert.ok(dirs.some((d) => d === null) && dirs.some((d) => d !== null), "the fixture has both");
+});
+
+test("a report's peak level: whole dB or nothing, shown after the direction (app 0.8.5)", () => {
+  assert.equal(M.reportLevel({ lafmax_db: 84 }), 84);
+  assert.equal(M.reportLevel({ lafmax_db: 0 }), 0);
+  for (const bad of [null, undefined, -1, 141, "84", NaN]) assert.equal(M.reportLevel({ lafmax_db: bad }), null);
+  assert.equal(M.reportLevel({}), null, "reports of older apps have none");
+  assert.equal(M.reportText("Töff", "14 Uhr", 87, 84), "Töff · 14 Uhr · Richtung Ost · 84 dB");
+  assert.equal(M.reportText("Töff", "14 Uhr", null, 84), "Töff · 14 Uhr · 84 dB");
+  assert.equal(M.reportText("Töff", "14 Uhr", 87, null), "Töff · 14 Uhr · Richtung Ost");
+  assert.equal(M.reportText("Töff", "14 Uhr", null, null), "Töff · 14 Uhr");
+  const levels = reports.reports.map(M.reportLevel);
+  assert.ok(levels.some((v) => v === null) && levels.some((v) => v !== null), "the fixture has both");
+});
+
 test("reports fixture: hours only, no device ids, no accuracy", () => {
   for (const r of reports.reports) {
-    assert.deepEqual(Object.keys(r).sort(), ["category", "lat", "lon", "time"]);
+    // app 0.6.7: plus `direction`, whole degrees or null; never north, compass accuracy or samples
+    // app 0.8.5: plus `lafmax_db`, whole dB or null; never the LAeq, the seconds or the calibration flag
+    // 0.9.4.5 (schema v9): plus `count`, a whole number 1–9 (always present); `category` may be null
+    assert.deepEqual(Object.keys(r).sort(), ["category", "count", "direction", "lafmax_db", "lat", "lon", "time"]);
+    assert.ok(Number.isInteger(r.count) && r.count >= 1 && r.count <= 9);
+    assert.ok(r.category === null || reports.categories.includes(r.category));
+    assert.ok(r.direction === null || (Number.isInteger(r.direction) && r.direction >= 0 && r.direction <= 359));
+    assert.ok(r.lafmax_db === null || (Number.isInteger(r.lafmax_db) && r.lafmax_db >= 0 && r.lafmax_db <= 140));
     assert.match(r.time, /^\d{4}-\d{2}-\d{2}T\d{2}:00:00\+0[12]:00$/);
   }
 });
@@ -152,5 +279,18 @@ test("no word «Nacht» / «night» in the map's scripts and page", () => {
   for (const f of ["docs/karte.html", "docs/map/karte.js", "docs/map/model.js", "docs/map/karte.css"]) {
     const text = fs.readFileSync(path.join(__dirname, "..", "..", f), "utf8");
     assert.doesNotMatch(text, /nacht|night|nächt/i, f);
+  }
+});
+
+test("headingShapeRotation turns the teardrop's south-west corner to the bearing", () => {
+  assert.equal(M.headingShapeRotation(225), 0);
+  assert.equal(M.headingShapeRotation(0), 135);
+  assert.equal(M.headingShapeRotation(90), 225);
+  assert.equal(M.headingShapeRotation(180), 315);
+  assert.equal(M.headingShapeRotation(270), 45);
+  for (let d = 0; d < 360; d += 7) {
+    const r = M.headingShapeRotation(d);
+    assert.ok(r >= 0 && r < 360);
+    assert.equal((225 + r) % 360, d);
   }
 });

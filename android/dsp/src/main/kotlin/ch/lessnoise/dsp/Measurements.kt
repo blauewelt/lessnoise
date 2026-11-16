@@ -43,6 +43,12 @@ data class MeasurementSummary(
     val humDb: Double = Double.NaN,
     /** Events (after the floor) flagged as wind on the microphone: not in [eventCount]. */
     val windEventCount: Int = 0,
+    /**
+     * 0.6.5: the phone's noise floor ([NoiseFloor.Limit.limitDb], floor + 3 dB) if [humDb] is at it
+     * (at least half of the valid minutes are «an der Messgrenze», [NoiseFloor.Limit.mostlyAtFloor]);
+     * the list then shows «≤ [humLimitDb] dB(A)». Null otherwise or without a floor.
+     */
+    val humLimitDb: Double? = null,
 ) {
     val startMs: Long get() = span.startMs
     val endMs: Long get() = span.endMs
@@ -98,6 +104,7 @@ object MeasurementSummarizer {
         minutes: List<MinuteRecord>,
         events: List<NoiseEvent>,
         eventMinLevelDb: Double = Double.NEGATIVE_INFINITY,
+        noiseFloor: NoiseFloor.Limit? = null,
     ): MeasurementSummary {
         val allMinutes = minutes.filter { it.startEpochMs in span }
         val ms = allMinutes.filter { it.coverage >= MIN_MINUTE_COVERAGE && !it.laeqDb.isNaN() }
@@ -132,6 +139,7 @@ object MeasurementSummarizer {
             anyRecalibrated = allMinutes.any { it.recalibrated },
             humDb = Dynamics.medianL90(ms),
             windEventCount = wind.size,
+            humLimitDb = noiseFloor?.takeIf { it.mostlyAtFloor(allMinutes) }?.limitDb,
         )
     }
 
@@ -141,11 +149,12 @@ object MeasurementSummarizer {
         minutes: List<MinuteRecord>,
         events: List<NoiseEvent>,
         eventMinLevelDb: Double = Double.NEGATIVE_INFINITY,
+        noiseFloor: NoiseFloor.Limit? = null,
     ): List<MeasurementSummary> {
         val sortedMinutes = minutes.sortedBy { it.startEpochMs }
         val sortedEvents = events.sortedBy { it.startEpochMs }
         return spans.sortedByDescending { it.startMs }.map { s ->
-            summarize(s, slice(sortedMinutes, s) { it.startEpochMs }, slice(sortedEvents, s) { it.startEpochMs }, eventMinLevelDb)
+            summarize(s, slice(sortedMinutes, s) { it.startEpochMs }, slice(sortedEvents, s) { it.startEpochMs }, eventMinLevelDb, noiseFloor)
         }
     }
 

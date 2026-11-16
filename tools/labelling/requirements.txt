@@ -1,0 +1,4 @@
+# Python 3.12 (GitHub Actions) or later. numpy as installed on the Step 2 machine; google-genai current
+# stable on 2026-10-24 (Step 2 recorded no version). Tests additionally need pytest.
+google-genai==2.33.0
+numpy==2.5.3

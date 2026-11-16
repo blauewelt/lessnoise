@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 0.8.4: the static app shortcut «Laut! Melden» (long press on the app icon, or dragged to the home
+     screen). It opens MainActivity with ch.lessnoise.app.action.REPORT_NOW (report/ReportNow.kt,
+     src/karte); the app opens the report dialog at the time of the tap, nothing preselected. The
+     shortcut sends nothing by itself. One copy per edition with the map because targetPackage must be
+     the literal application id (ch.lessnoise.labor here; ShortcutAndWidgetTest checks it against build.gradle.kts). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_report"
+        android:shortcutId="report_now"
+        android:shortcutLongLabel="@string/report_now_label"
+        android:shortcutShortLabel="@string/report_now_label">
+        <intent
+            android:action="ch.lessnoise.app.action.REPORT_NOW"
+            android:targetClass="ch.lessnoise.app.ui.MainActivity"
+            android:targetPackage="ch.lessnoise.labor" />
+    </shortcut>
+</shortcuts>

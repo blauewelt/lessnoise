@@ -98,5 +98,23 @@ class CalibrationTest {
     fun implausibleOffsetIsFlagged() {
         assertFalse(CalibrationMath.implausible(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB + 8))
         assertTrue(CalibrationMath.implausible(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB - 25))
+        // 0.9.5.1: the rule is |deviation| > 20 dB; exactly 20 is not implausible (also after the float round trip).
+        assertFalse(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(20.0)))
+        assertFalse(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(-20.0)))
+        assertTrue(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(20.1)))
+        assertTrue(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(-20.1)))
+        // On the shown deviation (one decimal): 20,04 shows «+20,0» and does not warn, 20,06 shows «+20,1» and does.
+        assertFalse(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(20.04)))
+        assertTrue(CalibrationMath.implausible(CalibrationMath.offsetFromDeviation(20.06)))
+    }
+
+    @Test
+    fun deviationAndOffsetAreInverse() {
+        assertEquals(0.0, CalibrationMath.deviationFromDefault(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB), 1e-12)
+        // The owner's calibration of 2026-11-01: 132,42 dB is +20,1 dB from the ≈ 112,35 dB standard.
+        assertEquals(132.42 - Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, CalibrationMath.deviationFromDefault(132.42), 1e-12)
+        for (d in listOf(-30.0, -3.0, 0.0, 0.05, 12.3, 20.1)) {
+            assertEquals(d, CalibrationMath.deviationFromDefault(CalibrationMath.offsetFromDeviation(d)), 1e-9)
+        }
     }
 }

@@ -5,7 +5,7 @@
     python3 scripts/usage_report.py --releases-file r.json --stats-file stats.json   # offline
 
 Downloads come from scripts/download_stats.py (GitHub's download_count per release asset);
-sharing figures from https://api.stadtlaerm.ch/v1/map/stats.json (server/DESIGN.md §6.5),
+sharing figures from https://api.lessnoise.ch/v1/map/stats.json (server/DESIGN.md §6.5),
 both public, both counts only. The Offline-Version cannot report anything: beyond its
 downloads, nothing about it is known, by design.
 """
@@ -21,11 +21,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import download_stats  # noqa: E402
 
-STATS_URL = "https://api.stadtlaerm.ch/v1/map/stats.json"
+STATS_URL = "https://api.lessnoise.ch/v1/map/stats.json"
 
 
 def fetch_stats(url: str = STATS_URL) -> dict:
-    req = urllib.request.Request(url, headers={"User-Agent": "stadtlaerm-usage-report"})
+    req = urllib.request.Request(url, headers={"User-Agent": "lessnoise-usage-report"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
 

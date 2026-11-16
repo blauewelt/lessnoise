@@ -199,21 +199,30 @@ class LocationPolicyTest {
     }
 
     @Test
-    fun reportFixNeedsPreciseFiftyMetresAndSwitzerland() {
+    fun reportUsesTheFixAtAnyAccuracyNeedsPreciseAndSwitzerland() {
         val zh = 47.37690 to 8.54170
         val ok = LocationPolicy.decideReport(zh.first, zh.second, 50.0, precise = true)
         assertTrue(ok is LocationPolicy.ReportOutcome.Fix, ok.toString())
         ok as LocationPolicy.ReportOutcome.Fix
         assertEquals(zh.first, ok.lat); assertEquals(zh.second, ok.lon); assertEquals(50, ok.accuracyText)
         assertTrue(ok.cell.matches(Regex("h\\d{5}_\\d{5}")), ok.cell)
-        assertEquals(
-            LocationPolicy.ReportOutcome.Problem(Outcome.TooInaccurate(51)),
-            LocationPolicy.decideReport(zh.first, zh.second, 50.1, precise = true),
-        )
-        assertEquals(
-            LocationPolicy.ReportOutcome.Problem(Outcome.TooInaccurate(null)),
-            LocationPolicy.decideReport(zh.first, zh.second, null, precise = true),
-        )
+        // Since 0.6.7 no accuracy is too poor for a report (owner, 2026-10-17: «± 107 m» was refused).
+        for (acc in listOf(0.0, 50.1, 75.5, 106.2, 199.9, 350.0, 2500.0)) {
+            val r = LocationPolicy.decideReport(zh.first, zh.second, acc, precise = true)
+            assertTrue(r is LocationPolicy.ReportOutcome.Fix, "$acc: $r")
+            r as LocationPolicy.ReportOutcome.Fix
+            assertEquals(acc, r.accuracyM, "the accuracy is sent as the phone gave it")
+            assertEquals(zh.first, r.lat); assertEquals(zh.second, r.lon)
+        }
+        assertEquals(107, (LocationPolicy.decideReport(zh.first, zh.second, 106.2, precise = true) as LocationPolicy.ReportOutcome.Fix).accuracyText)
+        // A fix without any accuracy (none, NaN, negative, infinite) is no fix: the retry dialog.
+        for (acc in listOf(null, Double.NaN, -1.0, Double.POSITIVE_INFINITY)) {
+            assertEquals(
+                LocationPolicy.ReportOutcome.Problem(Outcome.NoFix),
+                LocationPolicy.decideReport(zh.first, zh.second, acc, precise = true),
+                "$acc",
+            )
+        }
         assertEquals(
             LocationPolicy.ReportOutcome.Problem(Outcome.ApproximateOnly),
             LocationPolicy.decideReport(zh.first, zh.second, 5.0, precise = false),
@@ -221,7 +230,7 @@ class LocationPolicyTest {
         assertTrue(LocationPolicy.decideReport(48.8566, 2.3522, 5.0, precise = true).let {
             it is LocationPolicy.ReportOutcome.Problem && it.outcome is Outcome.OutsideSwitzerland
         })
-        // A report is stricter than a measurement's cell (75 m).
-        assertTrue(LocationPolicy.REPORT_MAX_ACCURACY_M < LocationPolicy.MAX_ACCURACY_M)
+        // The shared measurement keeps its limit (75 m) and its shifted point; only reports changed.
+        assertEquals(75.0, LocationPolicy.MAX_ACCURACY_M)
     }
 }

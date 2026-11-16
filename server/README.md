@@ -55,7 +55,29 @@ deletion of devices without uploads for `INACTIVE_DELETE_DAYS`; republishes the 
 device was deleted; prints `{"hours": …, "minutes_deleted": …, "events_deleted": …,
 "reports_deleted": …, "devices_expired": …}`),
 `python -m stadtlaerm_server stats` prints the usage counts of `stats.json` (computed now,
-nothing written).
+nothing written), and `python -m stadtlaerm_server export-newsletter` prints the e-mail
+addresses left on the website for update notices (DESIGN §4.8), one per line, oldest first
+(the count goes to stderr; nothing is changed).
+
+### E-mail addresses for update notices
+
+The form above the download buttons on wenigerlaerm.ch stores an address (and the time, nothing
+else) in the table `newsletter` (schema v7, created automatically at the first start of this
+version). To write to everyone, export the list on the VPS and paste it as **Bcc** into a mail
+from the Verein's own account:
+
+```sh
+cd /opt/stadtlaerm/server
+sudo docker compose exec -T app python -m stadtlaerm_server export-newsletter > /tmp/newsletter.txt
+# … use it, then: shred -u /tmp/newsletter.txt
+```
+
+To remove an address someone asked to have deleted (lowercase, as stored):
+
+```sh
+curl -s -X DELETE https://api.lessnoise.ch/v1/newsletter -H 'Content-Type: application/json' \
+     -d '{"email":"name@example.ch"}'          # 204 whether or not it was stored
+```
 
 To regenerate the example fixture after a format change: `python scripts/make_fixture.py`
 (about 40 s). It writes synthetic days (three measuring schedules: around the clock, evenings,
@@ -83,7 +105,9 @@ delete and after retention), and the 30-second cycle (`tests/test_live_publish.p
 change triggers — none, incremental or full; full after 10 minutes, after local midnight, after
 a delete, a new site or a change of `hidden`; every file an incremental run writes equals a full
 run's, also over random cycles; a failed run keeps its changes), plus `304 Not Modified` for the
-map files and the rate-limit default.
+map files and the rate-limit default, and the e-mail list for update notices
+(`tests/test_newsletter.py`: accept, invalid shapes, duplicate, delete, rate limit, CORS,
+nothing but address and time stored, the export command; the v6 → v7 migration).
 
 ## The API in one screen
 
@@ -98,6 +122,8 @@ map files and the rate-limit default.
 | `GET /v1/map/cells.json`, `/v1/map/cells/{cell}.json`, `/v1/map/days/{date}.json`, `/v1/map/reports.json` | – | static JSON, `Cache-Control: max-age=15`, `ETag`/`Last-Modified`; `304` without body for a matching `If-None-Match` / `If-Modified-Since` |
 | `GET /v1/map/stats.json` | – | static JSON: project-wide usage counts (below) |
 | `GET /healthz` | – | `{ok: true, commit}` (the deployed git commit) |
+| `POST /v1/newsletter` `{email}` (DESIGN §4.8, the website's form) | – | `200 {ok: true}`, also for an address already stored; `422` invalid; CORS for the website origins |
+| `DELETE /v1/newsletter` `{email}` | – | `204`, whether or not it was stored |
 
 Every call answers the same on `api.lessnoise.ch` and `api.stadtlaerm.ch`. Minutes and events
 may carry `"cell": "h<E100>_<N100>"` (DESIGN §4.3); without it they count for the device's
@@ -113,6 +139,21 @@ category or field…) is skipped and reported in `rejected` as `{index, start, r
 `{index, time, reasons}`); the valid
 records of the same batch are stored. The app should treat rejected records as permanently
 refused (they will never be accepted) and move on, rather than retrying the batch forever.
+
+**Only machine and motor noise.** The map counts only the five machine and motor categories
+`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction`
+(`config.MAP_CATEGORIES`). An event of any other category — `voices`, `music`, `unclassified`,
+`wind` or an unknown id — is dropped on arrival: not stored, answered with `200` so that apps
+0.5.x–0.6.3 (which send every category) do not retry, counted in the answer's
+`dropped_by_category` and in one log line (`events: dropped_by_category=N`, no device id), and it
+deletes a stored event with the same start. Such events stored before 2026-10-16 were deleted
+by migration v5 at the first start of this version (one log line `migration v5: deleted N stored
+events of other categories, trimmed M hourly rows; counted_since=2026-10-16`; then all published
+files are rebuilt; DESIGN.md §5). The map files carry `counted_since`. Every stored event must also pass the quality gates
+(`duration_s ≥ 0.5`, `lafmax_db ≥ max(min_level_db, 30)`, `threshold_db ≥ 6.5` when sent) to count;
+a minute whose voices + music shares reach 0.5 counts as measured time but not for the levels.
+Calibration is not a gate: a block is `calibrated` only if all its valid minutes and counted
+events are. Details in DESIGN.md §4.4 and §6.
 
 **Status codes.** 401 bad or missing token (unknown device and wrong token look the same),
 413 body or batch too large, 415 unknown `Content-Encoding`, 400 not JSON / not gzip,
@@ -200,15 +241,53 @@ sudo /opt/stadtlaerm/server/scripts/install-autodeploy.sh main
 
 - Log: `journalctl -u stadtlaerm-deploy` (one line per deployment, rollback or refusal).
 - Deploy now instead of waiting: `sudo systemctl start stadtlaerm-deploy`.
-- Which commit runs: `curl https://api.stadtlaerm.ch/healthz` → `{"ok":true,"commit":"…"}`
+- Which commit runs: `curl https://api.lessnoise.ch/healthz` → `{"ok":true,"commit":"…"}`
   (`unknown` when started by hand without `GIT_COMMIT`).
 - Switch off: `sudo systemctl disable --now stadtlaerm-deploy.timer`.
+- Health check: `deploy.sh` asks `https://api.lessnoise.ch/healthz` and, if that host does not
+  answer on this machine, `https://api.stadtlaerm.ch/healthz` (both in `API_HOSTS`), each through
+  Caddy here (`curl --resolve …:443:127.0.0.1`). `HEALTH_URL=…` in `/etc/stadtlaerm-deploy.conf`
+  replaces both.
+
+**Still named «stadtlaerm» on the VPS.** The project is lessnoise («Weniger Lärm»), but the clone
+lives in `/opt/stadtlaerm` and the timer is `stadtlaerm-deploy` (config
+`/etc/stadtlaerm-deploy.conf`, state `/var/lib/stadtlaerm-deploy`, lock
+`/run/stadtlaerm-deploy.lock`, backups `/var/backups/stadtlaerm`, database
+`/data/stadtlaerm.sqlite` in the volume). They are deliberately not renamed by a commit: the
+running timer would lose its paths. Renaming requires reinstalling the timer, by hand:
+
+```sh
+# Only the folder, /opt/stadtlaerm → /opt/lessnoise (no commit needed: the unit gets REPO from
+# install-autodeploy.sh). The compose project stays «server», so the volumes (database, map,
+# certificates) are kept — unless .env sets COMPOSE_PROJECT_NAME; check first.
+sudo systemctl disable --now stadtlaerm-deploy.timer
+cd /opt/stadtlaerm/server && sudo docker compose down
+sudo mv /opt/stadtlaerm /opt/lessnoise
+cd /opt/lessnoise/server && sudo GIT_COMMIT=$(sudo git -C /opt/lessnoise rev-parse --short=12 HEAD) docker compose up -d
+sudo /opt/lessnoise/server/scripts/install-autodeploy.sh main
+sudo crontab -e        # backup line: /opt/lessnoise/server/scripts/backup.sh
+curl https://api.lessnoise.ch/healthz
+```
+
+```sh
+# The timer's name, stadtlaerm-deploy → lessnoise-deploy: first a commit that renames it in
+# server/scripts/deploy.sh and install-autodeploy.sh (unit, conf, state and lock names); once
+# that commit is on main (the old timer may deploy it, harmlessly), on the VPS:
+sudo systemctl disable --now stadtlaerm-deploy.timer
+sudo rm /etc/systemd/system/stadtlaerm-deploy.service /etc/systemd/system/stadtlaerm-deploy.timer
+sudo systemctl daemon-reload
+sudo mv /etc/stadtlaerm-deploy.conf /etc/lessnoise-deploy.conf
+sudo mv /var/lib/stadtlaerm-deploy /var/lib/lessnoise-deploy
+git -C /opt/stadtlaerm log -1 --oneline      # the renaming commit is checked out (or /opt/lessnoise)
+sudo /opt/stadtlaerm/server/scripts/install-autodeploy.sh main
+journalctl -u lessnoise-deploy -n 20
+```
 
 Consequence: whoever can push to the deployed branch decides what runs here within about
 5 minutes. Keep the branch protected accordingly. Local edits to tracked files on the server
 make the checkout fail (the log says so); keep server-only settings in the untracked `.env`.
 
-**Operator tasks.** Usage numbers (the same as `https://api.stadtlaerm.ch/v1/map/stats.json`):
+**Operator tasks.** Usage numbers (the same as `https://api.lessnoise.ch/v1/map/stats.json`):
 `sudo docker compose exec app python -m stadtlaerm_server stats`.
 Keep a misbehaving device out of the map without deleting its data:
 `sudo docker compose exec app sqlite3 /data/stadtlaerm.sqlite "UPDATE devices SET hidden = 1 WHERE id = '…'"`
@@ -261,9 +340,10 @@ the deployed branch) applies an edited `.env` too. Check with
 | `BACKGROUND_JOBS` | `1` | `1` runs the publish loop and the daily retention job inside the server process; `0` turns them off (tests, or if you run `publish`/`retention` from cron instead). |
 | `RETENTION_DAYS` | `730` | Raw minutes and events older than this are reduced to hourly figures and deleted; reports older than this are deleted (2 years per DESIGN §5). |
 | `INACTIVE_DELETE_DAYS` | `60` | A device with no authenticated request (upload, site) for this many days is deleted with all its data in the daily job, like a deletion by its owner (DESIGN §2.9, §5); counted in `devices_expired_total`. `0` disables it. |
-| `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
+| `CORS_ORIGIN` | `https://wenigerlaerm.ch,https://stadtlaerm.ch` | The website origins (comma-separated) allowed to read the map files from the browser and to call `/v1/newsletter` (`Access-Control-Allow-Origin` echoes the requesting origin if listed, else names the first). Use `http://localhost:8080` or similar for local website work. |
 | `TRUST_PROXY` | `0` (compose: `1`) | `1` takes the client IP for the registration limit from the `X-Forwarded-For` header set by Caddy. Only turn on behind a proxy you control, otherwise clients could fake their IP. |
 | `REGISTRATIONS_PER_IP_PER_DAY` | `10` | How many new device ids one IP address may create per day. |
+| `NEWSLETTER_PER_IP_PER_HOUR` | `10` | How many `POST`/`DELETE /v1/newsletter` requests (together) one IP address may make per hour. |
 | `REQUESTS_PER_DEVICE_PER_HOUR` | `360` | How many authenticated requests one device may make per hour (deleting is never limited). App 0.6.3 sends loud events about 30 s after they end and minutes every 2 minutes. Until release 0.6.2 the default was `60`. |
 | `MAX_BODY_BYTES` | `2000000` | Largest request body accepted, as sent (compressed). A gzip body may expand to 8× this. |
 | `MAX_RECORD_AGE_DAYS` | `7` | Minute, event and report records older than this are rejected. |
@@ -292,9 +372,11 @@ These are choices the design left open; the website builds against them (see the
   `cell` counts there. One with neither counts for the device's *current* site cell: if a
   contributor changes the placement to another hectare, the history of its cell-less records
   moves with it.
-- **Day L90 / L10** are the medians over the valid minutes of the minute L90 / L10 (the
+- **Day L90 / L10** are the medians over the valid minutes (minus those mostly voices or music) of the minute L90 / L10 (the
   "typical" quiet and loud level of a minute). With several devices, the energy mean.
-- **`events_per_h_by_category`** always lists all eight app categories (zeros included).
+- **`events_per_h_by_category`** always lists exactly the five map categories, in the order
+  `loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction` (zeros included), and
+  nothing else.
 - **`measured_hours`** and **`loud_events`** of a cell-day are the mean over its devices; in a
   window they are summed over the days with data.
 - **`last_7_days` / `last_30_days`**: energy mean of the daily cell levels, median of the daily

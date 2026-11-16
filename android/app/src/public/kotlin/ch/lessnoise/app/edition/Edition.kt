@@ -13,6 +13,36 @@ import kotlinx.coroutines.flow.flowOf
 // source set (app/src/public/kotlin) and app/src/main/ contain no code that writes audio; the Labor
 // edition's recorder exists only in app/src/labor/. See PRIVACY.md.
 
+/** Local diagnostics of the Labor builds (0.6.7: the motion detector's changes). Public: none, nothing is written. */
+object EditionDiagnostics {
+    /** 0.9.4.6: whether this edition writes them at all (the motion watch then computes its minute values). */
+    const val ENABLED = false
+
+    @Suppress("UNUSED_PARAMETER")
+    fun motionTransition(context: Context, atMs: Long, to: String, spanStartMs: Long, features: Map<String, Double>) = Unit
+
+    @Suppress("UNUSED_PARAMETER")
+    fun motionMinute(
+        context: Context, minuteStartMs: Long, medianMs2: Double?, maxMs2: Double?, seconds: Int,
+        distanceM: Int?, state: String, motion: Boolean, position: Boolean,
+    ) = Unit
+
+    /** 0.7.6: the Labor·Karte `report` line at «Senden». Public: nothing is written. */
+    @Suppress("UNUSED_PARAMETER")
+    fun report(
+        context: Context, reportMs: Long, category: String?, media: String?,
+        bearingDeg: Int?, north: String?, accuracy: String?,
+    ) = Unit
+}
+
+/**
+ * The event head (multi-label classifier on event features, logging only). Public: none — the
+ * engine runs without it, nothing of it is computed, stored or sent.
+ */
+object EditionEventHead {
+    fun create(): ch.lessnoise.dsp.classify.EventHeadClassifier? = null
+}
+
 /** Public: there is no audio recorder, the measurement service always gets [NoAudioTap]. */
 object AudioTapProvider {
     fun create(@Suppress("UNUSED_PARAMETER") context: Context): AudioTap = NoAudioTap
@@ -44,13 +74,24 @@ object EditionUi {
     @Composable
     fun Overlay() {}
 
-    /** Shown above every screen (Labor: the red warning banner). */
+    /** Shown above every screen. Public: nothing. (0.9.4.6: Labor neither; until 0.9.4.5 its red warning banner.) */
     @Composable
     fun Banner() {}
 
-    /** Extra section at the end of Einstellungen (Labor: recording settings). */
+    /** 0.9.4.6: a line on the running «Messen» while audio is stored (Labor: «Audio wird gespeichert»). Public: never. */
+    @Composable
+    fun RecordingNote() {}
+
+    /** Extra section near the end of Einstellungen (Labor: the card «Labor» with «Audio speichern», 0.9.4.6). */
     @Composable
     fun SettingsSection() {}
+
+    /** Why «Messen» must not start (Labor: audio budget used up), or null. Public: never refused. */
+    fun startRefusal(@Suppress("UNUSED_PARAMETER") context: Context): String? = null
+
+    /** A red storage line on «Messen» (Labor: «Speicher fast voll …»). Public: nothing. */
+    @Composable
+    fun StorageNotice() {}
 
     /** Marker after an event in «Letzte Lärmspitzen» (Labor: a red dot if a clip exists, tap plays it). */
     @Composable

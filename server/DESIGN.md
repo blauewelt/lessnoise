@@ -1,17 +1,25 @@
 # Weniger Lärm – shared noise map: data model, contribution API, map
 
 Status: design, 2026-10-08; schema v3 (days instead of nights, a hectare per record, manual
-reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14. This document is the contract between the three parts that make the
+reports) 2026-10-12; schema v4 (location noise: a shifted point per record, app 0.6.2) 2026-10-14;
+only machine and motor noise counted (server filter, §4.4, §6) 2026-10-16; schema v5 (stored
+events of other categories deleted, `counted_since`, §5, §6) 2026-10-16; schema v8 (the optional
+`level` of a report, app 0.8.5 in Labor·Karte, published with app 0.9.0, §4.7, §5, §6.4) 2026-10-25,
+deployed with release 0.9.0; schema v9 (a report needs only its place and time: `category` optional,
+`count` of vehicles, four more categories; Labor·Karte 0.9.4.5, §4.7, §5, §6.4, §7) 2026-10-28. This document is the contract between the three parts that make the
 shared map: the **app** (sends), the **server** (stores and aggregates) and the **website**
 (shows). Each part is built against this file; when one of them needs a change, this file
 changes first.
 
 ## 1. What the map is for
 
-A resident-run picture of road noise in Switzerland: where it is loud, where it is *bursty*
-(quiet street, loud single motorbikes), how many loud single events per hour, at which hours
-of the day, and how that changes over weeks — plus the places where people reported a loud
-passing vehicle by hand. No time of day is special: someone may measure all day, only in the
+A resident-run picture of **machine and motor noise** in Switzerland — road traffic, loud
+vehicles, rail and tram, aircraft, construction: where it is loud, where it is *bursty* (quiet
+street, loud single motorbikes), how many loud single events per hour, at which hours of the day,
+and how that changes over weeks — plus the places where people reported a loud passing vehicle by
+hand. Only the five machine and motor categories of the app (`loud_vehicle`, `road_traffic`,
+`rail_tram`, `aircraft`, `construction`) are counted; voices, music, unclassified sounds and wind
+are not part of the map (§4.4, §6). No time of day is special: someone may measure all day, only in the
 evening or only at night, and every measured hour counts the same. It is meant to be shown to
 the authorities and to neighbours — so every number on it must be reproducible from the stored
 data, and the stored data must be explainable to the person who contributed it.
@@ -24,7 +32,10 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    minute records and event records the app keeps today (levels, percentiles, category
    shares, event start/duration/peak/category). The top-3 raw AudioSet labels per event are
    **not** sent — the category is enough for the map and the labels add fingerprinting
-   surface for no gain.
+   surface for no gain. (Since 2026-10-16 the server drops every event that is not one of the
+   five machine and motor categories on arrival; such events stored earlier were deleted by
+   migration v5 on 2026-10-16, §4.4, §5, §6;
+   the rule itself is unchanged.)
 2. **Measurements carry a shifted point, never the true location.** Since app 0.6.2 (schema v4)
    the app moves the place of a shared measurement on the phone *before* anything is sent. From
    the one location fix right after «Starten» (since 0.6.3 while the measurement already runs, and
@@ -108,6 +119,25 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
    measurement and no location; the centre of the view (the shifted point of the newest shared
    measurement) is in the URL fragment, which never leaves the phone — but the tiles requested for
    the area on screen tell swisstopo which area is being looked at, as for any visitor of the map.
+   Since app 0.8.0 (first in the internal Labor·Karte build, 0.7.8) the Online-Version also talks
+   to swisstopo in «Laut! Melden»: while the report dialog is open (0.8.0: the step «Wohin fuhr
+   es?») and the report's location fix is there, it requests the grey map's tiles
+   (`wmts.geo.admin.ch`, the same host and tile set as the map page) for the ≈ 150 m around the
+   reporter's **true** position, to draw the streets under the direction arrow, and since app 0.9.0
+   (Labor·Karte 0.8.1) also for the ≈ 150 m around a place the reporter drags the map to (at most
+   2 km from the fix, requested 300 ms after the finger lifts) — GET only, no redirects, no cache,
+   no cookies, only tiles touching the 150 m circle, only inside Switzerland, kept in memory for
+   that dialog only. Since app 0.9.0 the fix is taken as soon as the dialog opens, so these tiles
+   are requested also when the reporter then cancels. The dark mode of the map tab (app 0.9.0)
+   changes only how the page is drawn, not what is loaded or from where. swisstopo
+   sees those requests with the phone's IP address, like a visitor looking at that area on the map;
+   nothing of it is stored by the app or sent to our server. So the hosts the Online-Version talks
+   to are exactly: our API host `api.lessnoise.ch` (upload and reports; the map page in the tab
+   falls back to `api.stadtlaerm.ch`, the same machine, if it cannot reach it), wenigerlaerm.ch
+   (map tab) and wmts.geo.admin.ch (map tab and the report dialog). The app shortcut and widget
+   «Laut! Melden» (app 0.9.0) only open the report dialog and talk to no host by themselves. The
+   optional photo of a vehicle (app 0.9.0) never leaves the phone: no host receives it, and no field
+   of §4 can carry it. The Offline-Version talks to none.
 8. **Minimisation on publish.** Event times are published only as counts per day and per
    clock hour of the 24-hour profile, never as a list of events. The 24-hour profile of a cell
    (§6.2) is a mean over 30 days: it shows at which hours of the day someone measured there,
@@ -135,17 +165,27 @@ These rules are the design. They go into PRIVACY.md and the website when the fea
     lorry / poser passed». Its place *is* its content, so the server stores the point
     (rounded to 5 decimals of a degree, ≈ 1 m) and publishes it in `reports.json` (§6.4) as it
     was reported — not snapped to a hectare. What is published per report is exactly: the
-    point, the category, and the time **rounded down to the full hour**. Never published: the
+    point, the category, and the time **rounded down to the full hour**; since app 0.7.0 also the
+    direction of travel in whole degrees, if the reporter took one with the phone's compass (north
+    reference and compass accuracy are stored, not published); since app 0.9.0 (Labor·Karte 0.8.5) also the peak level
+    (LAFmax) of the seconds the report dialog was open, **rounded to whole dB**, if the phone measured
+    one (the LAeq of those seconds, their number and the calibration flag are stored, not published;
+    the level is numbers from the phone's level meter, never audio). Never published: the
     device id, the exact time, the location accuracy, any link between two reports. Within an
     hour the reports are sorted by place, not by time or device, so the order reveals no
     sequence (§6.4). Only the last 30 days are published; reports of hidden devices are left
     out; `MIN_DEVICES_PER_CELL` does not apply (a report is a statement, not a measurement of
     someone's home). The raw report is deleted with the device (rules 4, 9) and at the latest
-    after 2 years (§5). Risk that remains, and that the app must say on its report screen:
+    after 2 years (§5). What the app must say on its report screen, on every report: that the
+    report appears on the map at exactly this place. Risk that remains, which follows from it:
     someone who reports often from the same spot (their balcony, their front door) makes that
-    spot visible on the map as a cluster of points, at hour resolution. (Since app 0.6.3 the
-    confirmation of every report says «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte
-    sichtbar.», because the first-report consent is skipped once sharing is on.)
+    spot visible on the map as a cluster of points, at hour resolution; the first-report consent
+    says so. (Since app 0.6.3 the confirmation of every report said «Wer oft vom gleichen Ort
+    meldet, macht ihn auf der Karte sichtbar.», because the first-report consent is skipped once
+    sharing is on; since app 0.9.0 (Labor·Karte 0.8.1), which has no separate confirmation, the
+    one report dialog says it just above its «Senden». Since app 0.9.4.4 (Labor·Karte first), with
+    reports also offered while a measurement runs, that line is plain about the exact place:
+    «Die Meldung erscheint genau an diesem Ort auf der Karte.»)
 
 ## 3. Cell ids
 
@@ -207,7 +247,7 @@ The other fields are optional details the app remembers.
   "floor": 3,                      // 0 = ground floor; null = not given
   "street_facing": true,           // mic faces the street (vs courtyard)
   "device_model": "Pixel 8",       // android.os.Build.MODEL
-  "audio_source": "UNPROCESSED | VOICE_RECOGNITION",
+  "audio_source": "UNPROCESSED | VOICE_RECOGNITION",   // the app sends the built-in microphone's; «+kind» accepted, see §4.3
   "calibrated": true,
   "calibration_offset_db": 121.9,
   "note": "optional free text ≤ 200 chars, e.g. '2. OG, Seestrasse-Seite'"
@@ -239,6 +279,18 @@ calibration id they were measured with — that is enough to reason about calibr
   "clock_corrections": 0
 }
 ```
+
+**`audio_source`** (optional): the Android audio source the minute was measured with,
+`UNPROCESSED` or `VOICE_RECOGNITION`. Since app 0.7.2 the user may choose a microphone other than
+the phone's built-in one («Einstellungen → Erweitert → Mikrofon»); a minute measured with such a
+microphone carries its **kind** after a `+`: `UNPROCESSED+usb`, `+bluetooth` (LE Audio), `+wired` or
+`+other` (likewise for `VOICE_RECOGNITION`). The plain value means the built-in microphone — every
+app up to 0.7.1 measured only with it. Only the kind is sent, never the microphone's name, address
+or the app's identifier for it. Such a minute is `calibrated: true` only if the contributor
+calibrated that microphone. Any other value is refused per record (`rejected`); servers before
+this change refuse the `+kind` values the same way, so a phone sends its other-microphone minutes
+successfully only once the server is updated (the built-in ones are unaffected). No column
+changed: the value is stored as received in `minutes.audio_source`. Events carry no audio source.
 
 **`point`** (optional, from schema v4): where the minute was measured, as the app sends it
 since 0.6.2 — the **shifted** LV95 point of its measurement (§2 rule 2): `e` and `n` are JSON
@@ -298,6 +350,19 @@ not sent.
 `point` and `cell` follow the rules of §4.3. Idempotent on `(device_id, start)`; same replace rule as
 minutes.
 
+**Only machine and motor noise is kept** (server, since 2026-10-16; `config.MAP_CATEGORIES`). An
+event whose `category` is not one of `loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`,
+`construction` — `voices`, `music`, `unclassified`, `wind` or an id the server does not know — is
+**dropped on arrival**: validated like any record, then not stored, and answered with the normal
+`200` so that the apps 0.5.x–0.6.3, which send every category except wind, do not retry it. It is
+not in `accepted`/`duplicates` but counted in the response field `dropped_by_category` (present in
+every upload answer, 0 for minutes and reports) and in one log line with the number only, no
+device id. A dropped event replaces a stored event with the same start (the replace rule above),
+i.e. that stored event is deleted; within one batch a kept record with the same start wins. Events
+of other categories that were stored before the filter were deleted on 2026-10-16 by migration
+v5 (§5); the reads for the map still skip any other category (§6). Minutes keep their
+`dominant_category` and `category_shares`; the server uses the shares for the minute rule of §6.
+
 ### 4.5 Delete (`DELETE /v1/devices/{id}`)
 
 Deletes the device, its site, minutes, events, hourly rows and reports in one transaction.
@@ -306,8 +371,8 @@ Response `204`. Never rate limited.
 ### 4.6 Upload cadence in the app
 
 While «Messwerte teilen» is on, since app 0.6.3 (the live map): while a shared measurement runs,
-a full upload about 30 s after it got its point and then every 2 minutes, and each loud event about
-30 s after it ended in an events-only upload (usually one request; at most one upload per 30 s, so
+a full upload about 30 s after it got its point and then every 2 minutes, and each map event (since
+app 0.6.4 only an event the app sends at all, below) about 30 s after it ended in an events-only upload (usually one request; at most one upload per 30 s, so
 events close together go together; an events upload due within 30 s of the next full one is merged
 into it) — run in the app's process while the measurement's foreground service runs
 (`LiveUploadPlan`), not as a WorkManager job; shortly (15 s) after it stops; after a report; and at
@@ -327,7 +392,18 @@ that the minutes before the fix are sent too (`Uploader.pointAttached`). The tab
 screen «Messen» show one status line («Wird geteilt – erste Werte in etwa einer Minute», «Auf der
 Karte · zuletzt gesendet …», «Kein Internet – wird nachgeholt», …); «Teilen» › «Weitere Angaben»
 shows the number of minutes still to send. Reports are sent with the next upload (the app agent
-documents the details in android/README.md).
+documents the details in android/README.md). Apps 0.5.x–0.6.3 upload the events of every category
+except wind; the server drops those that are not machine or motor noise on arrival (§4.4) with a
+`200`, so the app moves its markers past them and never sends them again. Since app 0.6.4 the app
+itself sends only map events, by one rule (`Payloads.isMapEvent`) that decides both which events an
+upload includes and which ones start an events-only upload: category one of the five of §4.4, not
+wind, `threshold_db` ≥ 6.5, `lafmax_db` ≥ max(`min_level_db`, 30) and `duration_s` ≥ 0.5 (the
+server's checks of §4.4 and §6). Voices, music, unclassified and wind never leave the phone; no
+field was added to the bodies. A measurement started as «Unterwegs» (app 0.6.4, a start mode next
+to «Messen»; app 0.9.5 / Labor·Karte 0.9.4.6 «Unterwegs messen», with a local «Sehr laut» notification
+that sends nothing) is never shared: it gets no point, so none of its minutes and events is sent. Since app
+0.7.0 a measurement started with «Messen» also sends nothing of a time span in which the phone's
+motion sensor showed it was being carried («Unterwegs erkannt»); no field was added.
 
 ### 4.7 Reports (`POST /v1/devices/{id}/reports`)
 
@@ -339,8 +415,20 @@ auth and rate limit as for the other calls; body = JSON array of at most **50** 
   "time": "2026-10-08T14:23:05+02:00",   // ISO-8601 with offset
   "lat": 47.355312,                      // WGS84 degrees
   "lon": 8.535549,
-  "accuracy_m": 12.0,                    // the location fix's accuracy, ≤ 200 m
-  "category": "motorrad"                 // motorrad | auto | lastwagen | poser | andere
+  "accuracy_m": 12.0,                    // the location fix's accuracy (15 for a place set by hand, app 0.9.0 / Labor·Karte 0.8.1), ≤ 10 000 m
+  "category": "motorrad",                // optional since v9 (absent or null = not said); motorrad | auto | lastwagen | flugzeug | poser | andere | hupen | baustelle | garten | bahn (poser/andere: not offered since app 0.9.1, still accepted; the last four since v9)
+  "count": 3,                            // optional (v9, Labor·Karte 0.9.4.5): how many vehicles, whole number 1–9; absent or null = 1
+  "direction": {                         // optional (app 0.7.0); absent or null = none given
+    "bearing_deg": 87,                   //   where the vehicle drove, whole degrees 0–359 clockwise
+    "north": "true",                     //   "true" | "magnetic" (no place for the declination)
+    "accuracy": "high"                   //   high | medium | low | unreliable (Android's compass status)
+  },
+  "level": {                             // optional (app 0.9.0 / Labor·Karte 0.8.5); absent or null = none measured
+    "lafmax_db": 81.4,                   //   peak LAFmax while the report dialog was open, dB(A), 0.1
+    "laeq_db": 66.2,                     //   LAeq over those seconds, dB(A), 0.1
+    "seconds": 9,                        //   how long the dialog was open, whole seconds 1–600
+    "calibrated": true                   //   the phone's microphone is calibrated (else: the default offset)
+  }
 }
 ```
 
@@ -352,10 +440,38 @@ Validation, per report (a bad one is skipped and listed in `rejected` as
 - the point inside Switzerland: first the WGS84 box of the map (lat 45.8–47.85,
   lon 5.9–10.55), then its LV95 hectare inside the box of §4.3 (reported as field `lat`);
   border areas of neighbouring countries inside that box are accepted, as for site cells;
-- `0 ≤ accuracy_m ≤ 200`; `category` one of the five; no other fields.
+- `0 ≤ accuracy_m ≤ 10 000` (a bound against nonsense, no quality gate: since app 0.7.0 a report
+  is sent at whatever accuracy the fix has; until then the bound was 200); `category` absent, null or one of
+  the ids of `REPORT_CATEGORIES` (an unknown id or "" is refused; until v8 it was required); no other fields;
+- `count` (v9) optional; if present an integer 1–9 (no fraction, no string, no boolean) or null;
+- `direction` (app 0.7.0) optional; if present exactly these three fields: `bearing_deg` an
+  integer 0–359 (no fraction, no string), `north` and `accuracy` one of the listed ids. Reasons name
+  the part, e.g. field `direction.bearing_deg`;
+- `level` (app 0.9.0; Labor·Karte 0.8.5) optional; if present exactly these four fields: `lafmax_db` and `laeq_db`
+  numbers 0–140 (finite), `seconds` an integer 1–600 (no fraction, no string), `calibrated` a JSON
+  boolean (no string). Reasons name the part, e.g. field `level.seconds`.
+
+**Old servers and the new field.** A server before schema v6 rejects `direction` like any unknown
+field (HTTP 200, the report in `rejected` with field `direction`, «Extra inputs are not permitted»).
+App 0.7.0 therefore re-queues a report that was rejected *only* for `direction` without it and sends
+it again in the same run, so a report is never lost while the server is older than the app. Apps up
+to 0.6.6 never send the field and are unaffected by v6. The same holds for `level` and a server
+before schema v8 (field `level`; both fields listed for a server before v6): app 0.9.0 (Labor·Karte 0.8.5) re-queues a
+report rejected only for `direction` and/or `level` without the refused fields and sends it again in
+the same run (`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Published apps up to 0.8.0 (Labor·Karte up to 0.8.4) never send `level`.
+**Schema v9** (Labor·Karte 0.9.4.5): a server before v9 refuses `count` like any unknown field — the app
+sends the report again as one vehicle in the same run (`ReportQueue.dropCount`) — and refuses a report
+*without* `category` («Field required», field `category`). Nothing sensible can be sent to such a server
+for that report, so the app keeps it queued unchanged, does not send it again in that run, and shows «Server
+zu alt – wird später gesendet» in «Meldungen» (`Uploader.serverTooOld`); the server deploys from `main`, so
+this lasts until the next deploy. Apps before 0.9.4.5 always send a category and never a count and are
+unaffected by v9.
 
 Stored: `lat`/`lon` rounded to 5 decimals (≈ 1.1 m north–south, 0.75 m east–west),
-`accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds.
+`accuracy_m` to 0.1 m (never published), `time` as sent and as UTC milliseconds, the direction
+(v6) as `direction_deg`, `direction_north`, `direction_accuracy` (NULL when none was given), the
+level (v8) as `level_lafmax_db`, `level_laeq_db` (0.1 dB), `level_seconds`, `level_calibrated` (0/1;
+all NULL when none was measured), `category` NULL when none was given (v9), `count` (v9; 1 when absent).
 Idempotent on `(device_id, time)`: the same time again counts as a duplicate and replaces the
 stored report. Response like minutes: `{accepted, duplicates, rejected}`.
 
@@ -370,17 +486,91 @@ of up to 50 reports, bearer auth as above:
   "lat": 47.37691,
   "lon": 8.54169,
   "accuracy_m": 12.3,
-  "category": "motorrad | auto | lastwagen | poser | andere"
+  "category": "motorrad | auto | lastwagen | flugzeug | poser | andere | hupen | baustelle | garten | bahn (optional since v9)",
+  "count": 3,
+  "direction": { "bearing_deg": 87, "north": "true", "accuracy": "high" },
+  "level": { "lafmax_db": 81.4, "laeq_db": 66.2, "seconds": 9, "calibrated": true }
 }
 ```
 
+`category` is one of the six ids of `REPORT_CATEGORIES` (server/stadtlaerm_server/schemas.py). Since
+app 0.9.1 (Labor·Karte first) the dialog offers only four — Töff, Auto, Lastwagen, Flugzeug
+(`motorrad`, `auto`, `lastwagen`, `flugzeug`) — so that «Senden» has room as the dialog's main button;
+`poser` and `andere` are **no longer offered but still accepted**: older apps in the field still send
+them, and a 0.9.0 phone updated to 0.9.1 may still have one queued. The list and its order stay as
+they are (the app's test compares its full category enum with it), and `reports.json` keeps all six
+in `categories`, so the map still shows the old reports with their markers.
+
+**Since schema v9 (Labor·Karte 0.9.4.5, owner's decision of 2026-10-28) only the place is required.**
+`category` may be absent (the reporter chose none, or tapped the chosen one again); `REPORT_CATEGORIES`
+gains four ids, appended so that the order of the old six stays: `hupen` (honking), `baustelle` (a
+construction site), `garten` (motorised garden tools: leaf blowers, mowers, trimmers), `bahn` (trains and
+trams). The dialog offers Töff · Auto · «Andere ▾», and «Andere» folds out Lastwagen · Flugzeug · Bahn /
+Baustelle · Gartengeräte · Hupen. `direction` was already optional; the dialog can now switch it off
+(«×» on the compass, «Ohne Richtung»). `count` («Anzahl», 1–9) is sent only when more than one vehicle
+passed. The «Sehr laut» suggestion (Labor·Karte; app 0.9.5 / Labor·Karte 0.9.4.6 both editions with the map) maps the detector's `construction` to `baustelle` and
+`rail_tram` to `bahn` (the alert itself still fires only for `loud_vehicle` and `road_traffic`). Nothing
+about the person is added: one small number, and fewer fields when something is left out.
+
 `time` is the moment of the tap, to the second, with the phone's offset; the server rounds it for
-publication. `lat`/`lon` are WGS84 with 5 decimals, from one precise fix with `accuracy_m` ≤ 50.
+publication. `lat`/`lon` are WGS84 with 5 decimals, from one fix with «Genauer Standort», at any accuracy since app 0.7.0 (until 0.6.6
+`accuracy_m` ≤ 50). Since app 0.9.0 (Labor·Karte 0.8.1) the reporter can drag the map under the dot
+to correct the place (the car drove on, or the fix is off): then `lat`/`lon` are the place set by
+hand, at most 2 km from the fix and inside Switzerland, and `accuracy_m` is a fixed 15 — not a measured accuracy, but the
+precision of a dot placed by a finger on a 300 m map. Nothing in the body says which it was; the
+server treats both alike.
 This is the only request with exact coordinates. The app keeps them only until the server has
-answered for the report, then deletes them (it keeps category, time and cell). Reports are not
+answered for the report, then deletes them (it keeps category, time and cell). `direction` (0.7.0,
+editions with the map, phones with a compass) is present only when the reporter pointed the phone
+and tapped «Richtung übernehmen» (app 0.7.0–0.8.0; Labor·Karte 0.8.1 the compass reading at the moment the
+category is tapped; since app 0.9.0 / Labor·Karte 0.8.2 the reading at the moment «Senden» is tapped, when the phone has a compass with a reading): the bearing the phone pointed at, corrected from magnetic to true
+north with the declination of Android's World Magnetic Model at the report's fix (`north: "true"`),
+or left magnetic if that failed; rounded to whole degrees. One value per report, never sensor data.
+It is not snapped to a street: no road data exists in the app or on the server (a server-side
+follow-up, WORKLOG 0.6.7 / 0.7.0). `level` (app 0.9.0; Labor·Karte 0.8.5): while the report dialog is
+open and no measurement runs, the phone's microphone runs through the same level meter as a
+measurement (A-weighting, Fast time weighting, 125 ms steps, the phone's calibration offset), in the
+app's own process, without classifier and without any audio being stored; while a measurement runs,
+the dialog takes that measurement's own values instead of opening the microphone a second time. Sent
+are the highest LAFmax of a 125 ms step and the LAeq over the time the dialog was open (until
+«Senden»), one decimal, that time in whole seconds (at most 600), and whether the phone is
+calibrated; absent when the microphone permission was refused or no valid step was measured. The
+optional photo of the vehicle (app 0.9.0) and a licence plate typed in app 0.8.0 stay on the phone:
+no field of the body carries them, and the server would refuse any extra field. Reports are not
 shifted: their place is their content (§2 rule 10). Response like
 minutes: `{ "accepted": n, "duplicates": m, "rejected": [...] }`. The app treats a `404`/`405`
 as "server without reports yet" and retries later; any other `4xx` drops that batch.
+
+### 4.8 E-mail for update notices (`POST` / `DELETE /v1/newsletter`, website, 2026-10-20)
+
+Not part of the map and not sent by the app: the form in `docs/index.html#download`
+(`docs/js/newsletter.js`) lets a visitor leave an e-mail address, voluntarily, to hear about new
+app versions. No auth, no device.
+
+```json
+{ "email": "name@example.ch" }
+```
+
+- `POST` stores the address trimmed and lowercased with `created_at` (ISO UTC, the first time
+  only) and answers `200 {"ok": true}` — **also when it was already stored**, so the answer
+  never tells whether an address is on the list. `DELETE` with the same body removes it and
+  answers `204` whether or not it was stored. Both answer `422` for anything but exactly one
+  field `email` that passes a simple check (dot-atom local part ≤ 64, a domain of ≥ 2 labels,
+  ≤ 254 characters in all; `schemas.normalize_email`).
+- **Stored: the address and `created_at`, nothing else** — no IP address, no user agent, no
+  referrer, no link to a device, site, record or report (table `newsletter`, §5, v7). The client
+  IP is used only as the in-memory rate-limit key (§8), like the registration limit.
+- CORS: this route — and only this one besides the map files — answers browsers, for the
+  website origins in `CORS_ORIGIN` only (default `https://wenigerlaerm.ch`,
+  `https://stadtlaerm.ch`): `OPTIONS` preflight with `POST, DELETE` and `Content-Type`;
+  `Access-Control-Allow-Origin` echoes a listed origin (on errors too) and is absent for any
+  other origin.
+- Use: notices of new app versions and important changes only, never passed on. The owner
+  exports the list with `python -m stadtlaerm_server export-newsletter` (one address per line,
+  `server/README.md`) and writes from the Verein's own mail account. Deletion on request
+  (reply, or an issue) by `DELETE /v1/newsletter` or the same SQL; nightly backups (§5) keep a
+  deleted address for at most 30 days. Not covered by retention (§5) or by device deletion
+  (§4.5): the two are unrelated.
 
 ## 5. Server storage (SQLite)
 
@@ -402,8 +592,13 @@ hourly(device_id, hour_utc INT, cell TEXT DEFAULT '', valid_s, valid_minutes, la
        l10_db, dynamics_db, events TEXT, loudest_db, calibrated,
        PRIMARY KEY(device_id, hour_utc, cell))   -- v3: cell in the key, '' = the site cell
 reports(device_id, time_utc INT, time_iso TEXT, lat REAL, lon REAL, accuracy_m REAL,
-        category TEXT, received_at, PRIMARY KEY(device_id, time_utc))   -- v3
+        category TEXT, received_at, PRIMARY KEY(device_id, time_utc),   -- v3
+        direction_deg INT NULL, direction_north TEXT NULL, direction_accuracy TEXT NULL,  -- v6
+        level_lafmax_db REAL NULL, level_laeq_db REAL NULL, level_seconds INT NULL,
+        level_calibrated INT NULL,  -- v8
+        count INT NOT NULL DEFAULT 1)  -- v9; and category NULL allowed since v9
 counters(name TEXT PK, value INT)          -- v2; 'devices_deleted', 'devices_expired' (§6.5)
+newsletter(email TEXT PK, created_at TEXT)  -- v7; website form (§4.8), linked to nothing else
 ```
 
 `token_hash` is SHA-256 of the token; the token itself is never stored. `hidden` lets the
@@ -426,6 +621,38 @@ Retention: raw minutes and events are kept for 2 years (`RETENTION_DAYS`), then 
 per-device hourly rows (one per device, UTC hour and hectare; the arithmetic of
 `aggregate.summarize_hour`) by the daily job, and deleted. Raw reports older than 2 years are
 deleted without any reduction.
+
+**Migration v4 → v5** (owner's decision of 2026-10-16; runs at startup, one transaction; a Python
+step, `db._v5_purge_other_categories`): `DELETE FROM events WHERE category NOT IN` the five map
+categories (`config.MAP_CATEGORIES`) — the voices, music, unclassified, wind and unknown-id events
+that the filter of §4.4 ignored since 77e47ef are **deleted**, not just ignored. In `hourly` (the
+retention job's reduced rows) the per-category JSON `events` loses every other key; levels and hours
+stay. Minutes (with their `category_shares`) and reports are not touched. New table
+`meta(name TEXT PK, value TEXT)` with `counted_since` = the local (Europe/Zurich) date the step ran,
+set once and never changed; published in every map file (§6). One log line with the counts only
+(deleted events, trimmed hourly rows, the date), no device id. An existing database that crosses v5
+gets all published files rebuilt at once when the server starts (`app.create_app`, also
+`python -m stadtlaerm_server publish|retention|…`), before the first request is served; a new
+database records its creation day and has nothing to rebuild. A failure rolls the step back and
+leaves v4.
+
+**Migration v5 → v6** (app 0.7.0; runs at startup, one transaction): `ALTER TABLE reports ADD
+COLUMN direction_deg` (INTEGER), `direction_north`, `direction_accuracy` (TEXT). Existing reports
+get NULL, i.e. «no direction given». No row is lost or changed.
+
+**Migration v7 → v8** (app 0.8.5; runs at startup, one transaction): `ALTER TABLE reports ADD
+COLUMN level_lafmax_db`, `level_laeq_db` (REAL), `level_seconds`, `level_calibrated` (INTEGER).
+Existing reports get NULL, i.e. «no level measured». No row is lost or changed. (v6 → v7 added the
+`newsletter` table, §4.8.)
+
+**Migration v8 → v9** (Labor·Karte 0.9.4.5; runs at startup, one transaction): `reports` is rebuilt,
+because SQLite cannot drop the `NOT NULL` of `category` with `ALTER TABLE` (as v3 rebuilt `hourly`): a new
+table with the same columns in the same order, `category TEXT` nullable and `count INTEGER NOT NULL
+DEFAULT 1` appended, the foreign key to `devices` (`ON DELETE CASCADE`) and the primary key as before;
+every row copied with `count = 1`; the old table dropped, the new one renamed to `reports`, the index
+`reports_time` made again. Existing reports read as one vehicle of the category they had. No row is lost
+or changed (`tests/test_migration.py`: a v8 database with reports of a visible and a hidden device,
+with and without direction and level).
 
 Expiry (§2.9), in the same daily job and in `python -m stadtlaerm_server retention`: every
 device whose `COALESCE(last_seen_at, created_at)` is more than `INACTIVE_DELETE_DAYS` (default
@@ -487,16 +714,43 @@ over midnight counts for both days, each with its own minutes. The newest day is
 (still running; the files are rebuilt about every 30 seconds while data arrives), so a
 contributor sees today's data on the map within about a minute.
 
+**What is counted: machine and motor noise only** (since 2026-10-16). An event is *counted* if
+its category is one of the five map categories (`loud_vehicle`, `road_traffic`, `rail_tram`,
+`aircraft`, `construction`; others are dropped on arrival, §4.4, and were deleted if stored earlier, §5)
+and it passes the **quality gates**, which the server checks again from the fields it has:
+`duration_s ≥ 0.5`; `lafmax_db ≥ max(min_level_db if sent, 30)`; `threshold_db` (the app's excess
+setting) `≥ 6.5` when sent. An event that fails a gate stays stored (deletable like any row) but
+counts nowhere — not in the rates, the loud events, the loudest event or the profile.
+
+**`counted_since`** (schema v5): every map file (`cells.json`, `cells/{cell}.json`,
+`days/{date}.json`) carries `"counted_since": "2026-10-16"`, the ISO date from which only machine
+and motor noise is stored (`meta.counted_since`, §5; `null` only on a database before v5). Days
+before that date were counted with the same rules (other categories were already ignored, then
+deleted), so it marks the rule, not a gap in the data; the map shows «gezählt seit 16.10.2026»
+(§7).
+
+**Minutes that are mostly voices or music.** When a minute's `category_shares` of `voices` and
+`music` together are **≥ 0.5**, its levels (LAeq, L10, L90, dynamics) are left out of every
+aggregate; the minute still counts as measured time (`measured_hours`, the rates' denominator,
+the profile's 30-minute rule, active devices). A minute without shares is kept. A day whose valid
+minutes are all left out has `null` levels but its hours and rates.
+
+**Calibration is not a gate.** Uncalibrated minutes and events are counted like calibrated ones;
+a block (day, window, cell) is `calibrated: true` only when **all** its valid minutes **and** all
+its counted events are calibrated (an event that is not counted does not matter).
+
 **Per device and day** (the app's rules, with the 22–6 h restriction removed):
 
-- a minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq;
-- `laeq_db` = energy mean of the valid minutes' LAeq, weighted by their valid seconds;
-- `l90_db` / `l10_db` = median over the valid minutes of the minute L90 / L10;
-- `dynamics_db` = median over the valid minutes of (L10 − L90);
-- `measured_hours` = valid seconds / 3600;
-- `events_per_h` (and per category) = events of the day in the cell / measured hours;
-- `loud_events` = events with `lafmax_db ≥ LOUD_EVENT_DB` (server setting, default 75 dB(A));
-  `loud_events_per_h` = that / measured hours; `loudest_event_db` = the largest LAFmax.
+- a minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq; a *level minute* is a valid
+  minute that is not mostly voices or music (above);
+- `laeq_db` = energy mean of the level minutes' LAeq, weighted by their valid seconds;
+- `l90_db` / `l10_db` = median over the level minutes of the minute L90 / L10;
+- `dynamics_db` = median over the level minutes of (L10 − L90);
+- `measured_hours` = valid seconds (of all valid minutes) / 3600;
+- `events_per_h` (and per category) = counted events of the day in the cell / measured hours;
+- `loud_events` = counted events with `lafmax_db ≥ LOUD_EVENT_DB` (server setting, default
+  75 dB(A)); `loud_events_per_h` = that / measured hours; `loudest_event_db` = the largest LAFmax
+  of the counted events.
 
 **Several devices in one cell and day:** levels are the energy mean of the device values,
 rates and counts the arithmetic mean over the devices (so two phones side by side do not
@@ -528,16 +782,17 @@ period:
   },
   "min_devices_per_cell": 1,
   "loud_event_db": 75.0,                    // LOUD_EVENT_DB
+  "counted_since": "2026-10-16",            // schema v5: only machine and motor noise since (§6)
   "cells": [
     {
       "cell": "h26828_12455",
       "devices": 2,                         // distinct devices in the 30 days
-      "calibrated": true,                   // all of them calibrated
+      "calibrated": true,                   // all their minutes and counted events calibrated
       "day": {                              // today, or null if no data today
         "laeq_db": 58.3, "l90_db": 55.8, "l10_db": 60.6, "dynamics_db": 5.5,
-        "events_per_h": 7.1,
+        "events_per_h": 6.7,                // machine and motor noise only (§6)
         "events_per_h_by_category": { "loud_vehicle": 1.4, "road_traffic": 5.2, "rail_tram": 0.0,
-          "aircraft": 0.0, "construction": 0.0, "voices": 0.4, "music": 0.0, "unclassified": 0.0 },
+          "aircraft": 0.1, "construction": 0.0 },
         "loud_events_per_h": 1.2, "loud_events": 20.5, "loudest_event_db": 88.3,
         "measured_hours": 17.2, "days_with_data": 1, "devices": 2, "calibrated": true
       },
@@ -551,7 +806,10 @@ period:
 
 A cell is listed while it has data on any day of the 30-day window; a window without data
 has every value `null`, `measured_hours` 0 and `days_with_data` 0.
-`events_per_h_by_category` always lists the eight app categories. Values are rounded to 0.1.
+`events_per_h_by_category` always lists exactly the five map categories, in this order
+(`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction`), never `voices`,
+`music`, `unclassified`, `wind` or any other id (until 2026-10-16 it listed the eight app
+categories plus any unknown id). Values are rounded to 0.1.
 
 ### 6.2 `cells/{cell}.json` — one cell's days and its 24-hour profile
 
@@ -559,6 +817,7 @@ has every value `null`, `measured_hours` 0 and `days_with_data` 0.
 {
   "generated_at": "2026-10-08T18:40:00+02:00",
   "cell": "h26828_12455", "devices": 2, "calibrated": true, "loud_event_db": 75.0,
+  "counted_since": "2026-10-16",
   "days": [ { "day": "2026-10-08", "…": "the block of §6.1" }, "… newest first, only days with data, ≤ 90" ],
   "profile": {
     "from": "2026-09-09", "to": "2026-10-08",
@@ -573,8 +832,9 @@ has every value `null`, `measured_hours` 0 and `days_with_data` 0.
 ```
 
 **24-hour profile:** for each local clock hour 0–23, over the 30 days ending today: per device
-the energy mean of its valid minutes in that hour (weighted by valid seconds, so across days),
-L90/L10 the median of the minute values, events and loud events per hour of valid measurement;
+the energy mean of its level minutes in that hour (weighted by valid seconds, so across days),
+L90/L10 the median of the minute values, counted events and loud events per hour of valid
+measurement (the rules of §6: machine and motor noise only, gates, voices/music minutes);
 then across devices each device once (energy mean of levels, mean of rates). An hour with
 fewer than **30 valid minutes in total** (all devices, all days), or fewer devices than
 `MIN_DEVICES_PER_CELL`, has `null` levels and rates; its `measured_hours` and `devices` are
@@ -593,9 +853,9 @@ schema v2 is removed on the first publish after the update.
 {
   "generated_at": "2026-10-08T18:40:00+02:00",
   "from": "2026-09-09", "to": "2026-10-08",
-  "categories": ["motorrad", "auto", "lastwagen", "poser", "andere"],
+  "categories": ["motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"],
   "reports": [
-    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad" }
+    { "time": "2026-10-08T14:00:00+02:00", "lat": 47.35531, "lon": 8.53555, "category": "motorrad", "direction": 87, "lafmax_db": 84, "count": 1 }
   ]
 }
 ```
@@ -604,7 +864,16 @@ The reports of the last 30 calendar days up to today, of devices that are not hi
 `time` is the report time **rounded down to the full hour**, local ISO with offset (Swiss
 offsets are whole hours, so the UTC hour and the local hour coincide; in the autumn DST night
 the two «02:00» hours keep their offsets). `lat`/`lon` as stored (5 decimals). No device id,
-no accuracy, no exact time. Sorted by (hour, lat, lon, category): deterministic and testable,
+no accuracy, no exact time. `direction` (since v6): the direction of travel in whole degrees
+clockwise from north, or null (none given, a report of an older app, or a compass the phone marked
+«unreliable»); north reference and compass accuracy are not published. The map draws it as the one
+pointed corner of the report's marker (a teardrop; until 2026-10-28 a small arrowhead on the rim). `lafmax_db` (since v8, app 0.8.5): the peak level while the report
+dialog was open, **rounded to whole dB** (half up), or null (none measured, a report of an older app);
+the LAeq, the seconds and the calibration flag are not published. The map shows it in the marker's
+tooltip after the direction («84 dB»). `category` (v9) is null when the reporter gave none. `count` (v9):
+how many vehicles, 1–9, **always present** (1 for every report before v9) — like `direction` and `lafmax_db`,
+which are always present too, so every row has one shape. Sorted by (hour, lat, lon, category — a missing
+one first —, direction, lafmax_db, count): deterministic and testable,
 and within an hour the order says nothing about the order of the reports or who made them —
 chosen over a random shuffle, which could not be tested and would change the file on every run.
 
@@ -666,9 +935,23 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   with credit «© swisstopo», bounded to Switzerland (swisstopo answers 400 outside).
 - Cells drawn as filled quadrilaterals (section 3), coloured by the chosen metric over the
   chosen period: **Mittlerer Pegel** (LAeq, default), **Hintergrund** (L90), **Dynamik**,
-  **Ereignisse/h**, **Töff & Poser/h**, **Sehr laut/h** (loud events). Period selector
+  **Ereignisse/h**, **Sehr laut/h** (loud events; only the five machine and motor sources, the
+  legend and the explanation say which). Period selector
   «Letzte 7 Tage» (default, from `default_period`) / «Letzte 30 Tage»; ‹ › move the period's
   last day back and forth through the last 90 days (`days/{date}.json`).
+- **One layer per source** (2026-10-16): chips «Quelle:» **Alle** (default) · **Lautes Fahrzeug** (app 0.9.3; the id `loud_vehicle` unchanged) ·
+  **Strassenverkehr** · **Tram & Bahn** · **Flugzeug** · **Baustelle** (the five ids of §6). A
+  source other than «Alle» colours the cells by that source's `events_per_h_by_category` (and
+  switches the metric to «Ereignisse/h»; a level metric or «Sehr laut/h» switches back to «Alle»),
+  in a sequential ramp of that source's own hue, 5 steps light → dark (dark mode: dark → light,
+  as the level scale), one scale for all five: < 0.5 · 0.5–1 · 1–2 · 2–5 · ≥ 5 per hour.
+  Hues (light / dark mode), validated as a set for colour-vision deficiency: Lautes Fahrzeug
+  #EB6834 / #D95926, Strassenverkehr #2A78D6 / #3987E5, Tram & Bahn #1BAF7A / #199E70, Flugzeug
+  #4A3AA7 / #9085E9, Baustelle #EDA100 / #C98500; the ramps (`model.js` `SOURCES`) are those hues
+  in OKLCH lightness steps and pass the dataviz ordinal checks. Only one hue is ever shown at a
+  time — on the cells, the legend bar, the chosen chip, the card's row and the chart's bars —
+  never a rainbow across sources. «Alle» = all five together (`events_per_h`, the rate scale).
+  The chosen source is kept in the fragment (`#quelle=<id>`, below).
 - The level scale is **neutral** (one blue hue, light → dark = quiet → loud, 5-dB classes
   45 · 50 · 55 · 60 · 65): the map shows measurements, not a legal judgement. No legal values
   in the legend.
@@ -692,11 +975,19 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   (Tag = 6–22 Uhr, Nacht = 22–6 Uhr.)
 - Layer **«Meldungen»** (on by default, checkbox «Meldungen zeigen»): the reports of the chosen
   period from `reports.json` as small round markers with a letter per category (M Motorrad,
-  P Poser, L Lastwagen, A Auto, + Andere; the colour only helps), tooltip «category · day,
-  hour–hour+1 Uhr». The legend lists the categories and the number of reports in the period.
+  P Poser, L Lastwagen, F Flugzeug (app 0.7.7), A Auto, + Andere — P and + only for reports of apps up to 0.9.0,
+  §4.7; since v9 also Z Bahn («Zug»), B Baustelle, G Gartengeräte, H Hupen; the colour only helps), a report
+  without a category as a plain grey point with a small dot («Ohne Angabe»); tooltip «category · day,
+  hour–hour+1 Uhr». A report of several vehicles (`count` > 1, v9) with a direction is a short convoy in one
+  marker: smaller copies behind the reported one, against the direction of travel, a fixed number of screen
+  pixels apart at every zoom (`model.js convoyOffsets`); without a direction one marker with a badge «×3»; the
+  tooltip adds «· 3 Fahrzeuge» after the category. The legend lists the categories and the number of reports in the period.
 - Tap/hover card in the style of earth's pixel inspector: cell, devices, the chosen period's
-  figures each with *when* they were measured, the 24-hour profile chart (L90–L10 band, LAeq
-  step line, Töff & Poser per hour as amber bars, hours without enough data as grey gaps, the
+  figures each with *when* they were measured (events: the total and, under «Alle», each of the
+  five sources; with a source chosen only that source, in its hue; «Ereignisse: nur Maschinen- und
+  Motorenlärm, gezählt seit 16.10.2026.» from `counted_since`, §6), the 24-hour profile chart
+  (L90–L10 band, LAeq step line, the chosen source's events per hour as bars in its hue, or all
+  five together as amber bars, hours without enough data as grey gaps, the
   LSV bands), the figures of the file's day, and the other period. «Unkalibriert» badge when
   any device in the cell is uncalibrated.
 - The page never uses the word «Nacht»: nothing about night is special any more.
@@ -725,9 +1016,17 @@ Online-Version (0.5.x: «Karten-Version») are counted.
   tab «Karte» uses it with the **shifted** point of the newest shared measurement (`MapLinks.url`,
   5 decimals, zoom 16), and the plain anchor `karte.html#metric` when there is none. WGS84 rather
   than LV95, because Leaflet works in WGS84 and any map link can be written by hand.
+- **Source in the fragment** (2026-10-16): `#quelle=<id>` (one of the five ids; `alle` or nothing
+  = «Alle»), alone or after a view (`#lat=…&lon=…&z=…&quelle=road_traffic`). `parseView` reads the
+  fragment without this key (`KarteModel.hashWithoutSource`), so the view rules above are
+  unchanged. Choosing a source replaces the address with `history.replaceState` (no history entry,
+  no `hashchange`); «Alle» removes the key. On `hashchange` a new `quelle` is applied; if the app
+  replaces only the view, the chosen source stays and is written back after it. An unknown id is
+  ignored.
 - Playwright tests at 360 px and 1280 px against the fixtures: renders, legend, period switch,
   card and chart, LSV bands, reports layer, day steps, fallback host, no «Nacht», CSP exact,
-  view fragment (valid, invalid, hashchange, no marker, not in any request).
+  view fragment (valid, invalid, hashchange, no marker, not in any request), source chips, one ramp
+  per source (light and dark), the card's source rows and bars, the source in the fragment.
 
 ## 8. Hosting
 
@@ -744,7 +1043,8 @@ with the SQLite file on a mounted volume — the container does not change. Depl
 `docker compose up`; `server/README.md` documents it.
 
 Abuse limits: 10 device registrations per IP per day, 360 requests per device per hour (reports
-included; until release 0.6.2 it was 60 — app 0.6.3 uploads every 30 s to 2 min), request
+included; until release 0.6.2 it was 60 — app 0.6.3 uploads every 30 s to 2 min), 10
+`/v1/newsletter` requests (POST and DELETE together) per IP per hour (§4.8), request
 body ≤ 2 MB, strict schema validation (values outside 0–140 dB, coverage outside 0–1, starts or report times more than 7 days old or in the future, cells, measurement
 points or report points outside Switzerland, a σ other than 25/50/100/200 m are rejected with the
 reason).

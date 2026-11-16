@@ -4,9 +4,9 @@ import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
 import ch.lessnoise.app.ui.REPORT_CONSENT_TEXT
+import ch.lessnoise.app.ui.REPORT_SEND
 import ch.lessnoise.app.ui.REPORT_SPOT_WARNING
-import ch.lessnoise.app.ui.reportConfirmDialogText
-import ch.lessnoise.app.ui.reportConfirmText
+import ch.lessnoise.app.ui.reportFixLine
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,10 +49,43 @@ class ReportsTest {
 
     @Test
     fun categoriesMapToTheServersIdsAndShortLabels() {
-        assertEquals(listOf("motorrad", "auto", "lastwagen", "poser", "andere"), ReportCategory.entries.map { it.id })
-        assertEquals(listOf("Töff", "Auto", "Lastwagen", "Poser", "anderes"), ReportCategory.entries.map { it.label })
+        // 0.7.7: «Flugzeug» after «Lastwagen».
+        // 0.9.4.5: hupen, baustelle, garten, bahn appended (the server's order).
+        assertEquals(
+            listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"),
+            ReportCategory.entries.map { it.id },
+        )
+        // 0.6.4: «anderes Fahrzeug» (was «anderes»); the id stays «andere».
+        assertEquals(
+            listOf("Töff", "Auto", "Lastwagen", "Flugzeug", "Poser", "anderes Fahrzeug", "Hupen", "Baustelle", "Gartengeräte", "Bahn"),
+            ReportCategory.entries.map { it.label },
+        )
+        assertEquals("andere", ReportCategory.ANDERE.id)
+        // What is sent is the id, never the label.
+        assertEquals("andere", Payloads.report(report().copy(category = ReportCategory.ANDERE.id))["category"]!!.jsonPrimitive.content)
         for (c in ReportCategory.entries) assertEquals(c, ReportCategory.fromId(c.id))
         assertEquals(null, ReportCategory.fromId("velo"))
+    }
+
+    /**
+     * The server rejects a report whose category it does not know (server/stadtlaerm_server/schemas.py REPORT_CATEGORIES).
+     * 0.9.1: compared with ALL entries, offered or not: the queue may still hold «poser»/«andere» of 0.9.0, and
+     * older apps in the field still send them, so the server keeps all six.
+     */
+    @Test
+    fun serverAcceptsEveryCategoryInTheSameOrder() {
+        var dir: java.io.File? = java.io.File("").absoluteFile
+        var schemas: java.io.File? = null
+        while (dir != null && schemas == null) {
+            schemas = java.io.File(dir, "server/stadtlaerm_server/schemas.py").takeIf { it.isFile }
+            dir = dir.parentFile
+        }
+        val text = schemas!!.readText()
+        val list = Regex("""REPORT_CATEGORIES\s*=\s*\(([^)]*)\)""").find(text)!!.groupValues[1]
+        val accepted = Regex(""""([^"]+)"""").findAll(list).map { it.groupValues[1] }.toList()
+        assertEquals(ReportCategory.entries.map { it.id }, accepted)
+        assertEquals(listOf("motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn"), accepted)
+        assertTrue(accepted.containsAll(ReportCategory.OFFERED.map { it.id }))
     }
 
     @Test
@@ -177,21 +210,196 @@ class ReportsTest {
     }
 
     @Test
+    fun aPoorFixIsReportedAsItIsWithItsAccuracy() {
+        // 0.6.7: the owner's «Zu ungenau (± 107 m)» case. The fix becomes the report, the
+        // dialog says «Standort ± 107 m» (0.8.1: the fix line of the one dialog), and the body
+        // carries the accuracy as given.
+        val fix = ch.lessnoise.app.location.LocationPolicy.decideReport(47.376912345, 8.541694321, 106.24, precise = true)
+        assertIs<ch.lessnoise.app.location.LocationPolicy.ReportOutcome.Fix>(fix)
+        assertEquals("Standort ± 107 m", reportFixLine(fix.accuracyText))
+        val r = PendingReport(
+            epochMs = now, timeIso = PendingReport.isoSeconds(now, zone),
+            lat = fix.lat, lon = fix.lon, accuracyM = fix.accuracyM, category = ReportCategory.MOTORRAD.id, cell = fix.cell,
+        )
+        val o = Payloads.report(r)
+        assertEquals("106.2", o["accuracy_m"].toString())
+        assertEquals("47.37691", o["lat"].toString(), "the place as the phone has it, not shifted")
+        // The flow (0.8.1, one dialog; 0.8.2 with «Senden»): a Fix with a selected category is sent; only a Problem shows
+        // «Kein genauer Standort» (ReportFlowTest pins the decision itself).
+        val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        assertTrue(ui.contains("ReportNext.SEND -> send(chosen, o as LocationPolicy.ReportOutcome.Fix, chosenReading, chosenLevel)"))
+        assertTrue(ui.contains("ReportNext.FAILED -> step = ReportStep.Failed((o as LocationPolicy.ReportOutcome.Problem).outcome)"))
+        // 0.7.0: the direction of travel (if read) goes with it; 0.8.5: and the level (0.7.6–0.8.4: the plate).
+        // 0.8.1 (same build): the place is the fix, or the one moved under the dot (ReportFlowTest).
+        assertTrue(ui.contains("val place = reportPlace(fix, moved)"))
+        assertTrue(ui.contains("lat = place.lat, lon = place.lon, accuracyM = place.accuracyM,"))
+        assertTrue(ui.contains("category = category?.id, cell = place.cell, direction = direction, level = level, count = count,"))
+        val policy = java.io.File("src/main/kotlin/ch/lessnoise/app/location/LocationPolicy.kt").readText()
+        assertFalse(policy.contains("REPORT_MAX_ACCURACY_M"), "no accuracy limit for reports any more")
+    }
+
+    @Test
     fun textsAreShortAndSayWhatIsSent() {
-        assertEquals("Meldung: Töff, 16:05, Standort ± 12 m – senden?", reportConfirmText(ReportCategory.MOTORRAD, now, 12, zone))
         for (part in listOf("Zeit", "genauer Standort", "Art des Lärms", "nie Audio", "Lärmkarte", "gleichen Ort", "«Vom Server löschen»")) {
             assertTrue(REPORT_CONSENT_TEXT.contains(part), part)
         }
         assertFalse(REPORT_CONSENT_TEXT.contains('ß'))
-        // DESIGN.md §2 rule 10: the report screen states the risk, on every confirmation (0.6.3:
-        // the consent above is skipped once sharing is on).
-        assertEquals("Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.", REPORT_SPOT_WARNING)
-        assertEquals(
-            "Meldung: Töff, 16:05, Standort ± 12 m – senden?\nWer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.",
-            reportConfirmDialogText(ReportCategory.MOTORRAD, now, 12, zone),
-        )
+        // DESIGN.md §2 rule 10: the report screen states the risk, on every report (0.6.3: the
+        // consent above is skipped once sharing is on). Since 0.8.1 there is no separate confirmation: the
+        // line is in the one «Laut! Melden» dialog, unconditionally, above «Senden» (0.8.2).
+        // 0.9.4.4 (owner): plain about the exact place (until 0.9.4.3 «Wer oft vom gleichen Ort meldet, macht ihn auf der
+        // Karte sichtbar.»); rule 10 quotes it.
+        assertEquals("Die Meldung erscheint genau an diesem Ort auf der Karte.", REPORT_SPOT_WARNING)
+        val design = java.io.File(listOf(java.io.File("../.."), java.io.File("..")).first { java.io.File(it, "server/DESIGN.md").isFile }, "server/DESIGN.md").readText()
+        assertTrue(design.replace(Regex("\\s+"), " ").contains("«$REPORT_SPOT_WARNING»"), "server/DESIGN.md §2 rule 10 quotes the line")
+        assertEquals("Senden", REPORT_SEND)
         val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
-        assertTrue(ui.contains("Text(reportConfirmDialogText("), "the «Meldung» dialog shows the warning")
-        assertFalse(ui.contains("Text(reportConfirmText("), "no confirmation without the warning")
+        val dialog = ui.substringAfter("ReportStep.Report -> {").substringBefore("is ReportStep.Failed ->")
+        // 0.8.6: the dialog's content is ReportDialogBody (0.9.1: always passed to ReportDialogLayout); the line is
+        // in a Row with an info icon, behind no condition, outside the scrolling part, directly above «Senden».
+        assertTrue(dialog.contains("ReportDialogLayout(onCancel = { cancel() }) {\n                    // 0.9.4.2: the content (ReportDialogBody): Was war es? · Wohin fuhr es? · level and place · Foto\n                    ReportDialogBody("))
+        val body = ui.substringAfter("fun ReportDialogBody(").substringBefore("\n}\n")
+        val lines = body.lines()
+        val at = lines.indexOfFirst { it.contains("Text(REPORT_SPOT_WARNING") }
+        assertEquals(1, lines.count { it.contains("Text(REPORT_SPOT_WARNING") })
+        assertTrue(lines[at].trimStart().startsWith("Text(REPORT_SPOT_WARNING"), lines[at])
+        val row = lines.subList(0, at).last { it.contains("Row(") }
+        assertTrue(row.trimStart().startsWith("Row(") && row.indexOf("Row(") == 8, "the warning's Row is at the body column's top level, not behind a condition: $row")
+        assertTrue(ui.substringAfter("fun ReportSendButton(").substringBefore("\n}").contains("Text(REPORT_SEND,"), "0.8.2: the explicit «Senden»")
+        // 0.9.1: «Senden» is in the body, directly under the line (both outside the scrolling part).
+        assertTrue(dialog.contains("onSend = { sendTap() },"))
+        val send = lines.indexOfFirst { it.contains("ReportSendButton(onClick = onSend") }
+        assertTrue(send > at && lines.subList(at + 1, send).none { it.contains("Text(") || it.contains("Button(") }, "the line directly above «Senden»")
+        assertFalse(ui.contains("Antippen sendet die Meldung."), "0.8.2: a tap no longer sends")
+        assertFalse(ui.contains("reportConfirm"), "0.8.1: no separate confirmation dialog (owner's decision)")
+    }
+
+    // ---- 0.7.6–0.8.4: «Kontrollschild»; 0.8.5: the photo instead — on the phone only ----------------
+
+    @Test
+    fun oldPlatesAreStillReadAndKeptButNothingWritesOne() {
+        // Reports of 0.7.6–0.8.4 keep their plate in the queue and in the sent list.
+        val old = ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto","plate":"ZH 123"}]""")
+        assertEquals(listOf<String?>("ZH 123"), old.map { it.plate })
+        assertEquals(listOf<String?>("ZH 123"), ReportJson.parsePending(ReportJson.pending(old)).map { it.plate }, "kept when the queue is rewritten")
+        val sent = ReportJson.parseSent("""[{"t":1,"cat":"auto","cell":"h1_2","plate":"ZH 123"}]""")
+        assertEquals(listOf<String?>("ZH 123"), ReportJson.parseSent(ReportJson.sent(sent)).map { it.plate })
+        assertEquals(listOf<String?>("ZH 123"), old.map { it.toSent().plate })
+        // Files written before 0.7.6 have none.
+        assertEquals(listOf<String?>(null), ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto"}]""").map { it.plate })
+        // 0.8.5: the dialog has no plate field and writes none (ReportPhotos.kt replaces it).
+        val ui = java.io.File("src/main/kotlin/ch/lessnoise/app/ui/LocationFlows.kt").readText()
+        assertFalse(ui.contains("plate =") || ui.contains("ReportPlate") || ui.contains("OutlinedTextField"), "no plate in the dialog")
+        val reports = java.io.File("src/main/kotlin/ch/lessnoise/app/upload/Reports.kt").readText()
+        assertFalse(reports.contains("object ReportPlate"))
+    }
+
+    @Test
+    fun thePhotoNameIsStoredRoundTripsAndSurvivesSending() {
+        val r = listOf(report(0).copy(media = "${now}.jpg"), report(1))
+        val json = ReportJson.pending(r)
+        assertEquals(r, ReportJson.parsePending(json))
+        // 0.9.4.3: written as `media` (0.8.5–0.9.4.2: `photo`).
+        assertTrue(json.contains("\"media\":\"${now}.jpg\""), json)
+        assertEquals(1, Regex("\"media\"").findAll(json).count(), "absent when null")
+        assertFalse(json.contains("\"photo\""), json)
+        val sent = r.map { it.toSent() }
+        assertEquals(listOf<String?>("${now}.jpg", null), sent.map { it.media })
+        assertEquals(sent, ReportJson.parseSent(ReportJson.sent(sent)))
+        // The names the sweep keeps: every pending and sent photo.
+        val snap = ReportSnapshot(pending = listOf(report(5).copy(media = "5.jpg")), sent = sent)
+        assertEquals(setOf("5.jpg", "${now}.jpg"), ReportQueue.media(snap))
+        // «Foto löschen» on a sent photo: the entry forgets it, the report stays.
+        val store = MemoryReportStore(snap)
+        ReportQueue.dropSentMedia(store, now, "${now}.jpg")
+        assertEquals(listOf<String?>(null, null), store.state.value.sent.map { it.media })
+        assertEquals(2, store.state.value.sent.size)
+        assertEquals(setOf("5.jpg"), ReportQueue.media(store.state.value))
+        // «Vom Server löschen» drops the pending report, and with it the name the sweep would keep.
+        ReportQueue.dropPending(store)
+        assertEquals(emptySet(), ReportQueue.media(store.state.value))
+    }
+
+    /** 0.9.4.3: the queue written by 0.8.5–0.9.4.2 (`photo`) is still read; rewritten, it says `media` and never `photo`. */
+    @Test
+    fun theOldPhotoKeyIsReadAndNeverWrittenAgain() {
+        val pending = ReportJson.parsePending("""[{"t":1,"iso":"x","lat":47.0,"lon":8.0,"acc":5.0,"cat":"auto","photo":"1.jpg"}]""")
+        assertEquals(listOf<String?>("1.jpg"), pending.map { it.media })
+        val sent = ReportJson.parseSent("""[{"t":2,"cat":"auto","cell":"h1_2","photo":"2.jpg"},{"t":3,"cat":"auto","media":"3.mp4"}]""")
+        assertEquals(listOf<String?>("2.jpg", "3.mp4"), sent.map { it.media })
+        for (json in listOf(ReportJson.pending(pending), ReportJson.sent(sent))) {
+            assertFalse(json.contains("\"photo\""), json)
+            assertTrue(json.contains("\"media\""), json)
+        }
+        assertEquals(setOf("1.jpg", "2.jpg", "3.mp4"), ReportQueue.media(ReportSnapshot(pending, sent)))
+        // Both keys present (cannot be written by the app): `media` wins.
+        assertEquals(listOf<String?>("4.mp4"), ReportJson.parseSent("""[{"t":4,"cat":"auto","photo":"4.jpg","media":"4.mp4"}]""").map { it.media })
+    }
+
+    @Test
+    fun thePlateAndThePhotoAreNeverSent() = runBlocking {
+        // A photo file with recognisable bytes, where the app keeps them (files/reports/).
+        val dir = kotlin.io.path.createTempDirectory("files").toFile()
+        val photos = java.io.File(dir, "reports").apply { mkdirs() }
+        val marker = "JPEG-BYTES-OF-A-PLATE-0123456789"
+        java.io.File(photos, "${now}.jpg").writeText(marker)
+        val r = report().copy(plate = "ZH 123", media = "${now}.jpg")
+        val o = Payloads.report(r)
+        assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
+        for (bad in listOf("plate", "ZH 123", "photo", "media", ".jpg")) assertFalse(o.toString().contains(bad), "$bad in $o")
+        // Through the real upload: what the server receives has neither; the phone keeps both.
+        val reports = MemoryReportStore()
+        ReportQueue.add(reports, r)
+        val (up, _) = setup(reports)
+        assertIs<Uploader.Outcome.Done>(up.run())
+        val bodies = server.requests.map { it.body.toString() }
+        assertTrue(server.requests.any { it.path.endsWith("/reports") })
+        val b64 = java.util.Base64.getEncoder().encodeToString(marker.toByteArray())
+        for (b in bodies) {
+            for (bad in listOf("plate", "ZH 123", "photo", "media", ".jpg", marker, b64.take(16))) assertFalse(b.contains(bad), "$bad in $b")
+        }
+        assertEquals(listOf<String?>("ZH 123"), reports.state.value.sent.map { it.plate })
+        assertEquals(listOf<String?>("${now}.jpg"), reports.state.value.sent.map { it.media })
+        assertEquals(marker, java.io.File(photos, "${now}.jpg").readText(), "the upload leaves the file alone")
+        dir.deleteRecursively()
+        Unit
+    }
+
+    /**
+     * 0.9.4.3 (Labor·Karte): the short video, like the photo, is never sent — no `media` or `photo` key, no file
+     * name, none of the file's bytes (raw, Base64 or hex) in any request — and the upload leaves the file alone
+     * (it opens no file under `reports/` at all: UploadSourceIsolationTest).
+     */
+    @Test
+    fun theVideoIsNeverSent() = runBlocking {
+        val dir = kotlin.io.path.createTempDirectory("files").toFile()
+        val videos = java.io.File(dir, "reports").apply { mkdirs() }
+        val bytes = "ftypmp42-VIDEO-OF-A-LOUD-CAR-0123456789".toByteArray()
+        val file = java.io.File(videos, "${now}.mp4").apply { writeBytes(bytes) }
+        val modified = file.lastModified()
+        val r = report().copy(media = "${now}.mp4")
+        val o = Payloads.report(r)
+        assertEquals(setOf("time", "lat", "lon", "accuracy_m", "category"), o.keys)
+        for (bad in listOf("media", "photo", "video", ".mp4", "$now")) assertFalse(o.toString().contains(bad), "$bad in $o")
+        val reports = MemoryReportStore()
+        ReportQueue.add(reports, r)
+        val (up, _) = setup(reports)
+        assertIs<Uploader.Outcome.Done>(up.run())
+        assertTrue(server.requests.any { it.path.endsWith("/reports") })
+        val b64 = java.util.Base64.getEncoder().encodeToString(bytes)
+        val hex = bytes.joinToString("") { "%02x".format(it) }
+        for (req in server.requests) {
+            val b = req.body.toString()
+            for (bad in listOf("media", "photo", ".mp4", "${now}.mp4", String(bytes), "VIDEO-OF-A-LOUD-CAR", b64.take(16), hex.take(24))) {
+                assertFalse(b.contains(bad), "$bad in ${req.path}: $b")
+            }
+            assertFalse(req.path.contains(".mp4") || req.path.contains("media"), req.path)
+        }
+        // Kept on the phone with the sent report, the file untouched.
+        assertEquals(listOf<String?>("${now}.mp4"), reports.state.value.sent.map { it.media })
+        assertTrue(bytes.contentEquals(file.readBytes()), "the upload leaves the file alone")
+        assertEquals(modified, file.lastModified())
+        dir.deleteRecursively()
+        Unit
     }
 }

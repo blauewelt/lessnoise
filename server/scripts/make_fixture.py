@@ -32,6 +32,8 @@ NOW = datetime.fromisoformat("2026-10-08T18:40:00+02:00")
 TODAY = date(2026, 10, 8)
 CLIP = datetime(2026, 10, 8, 18, 0)  # nothing measured after this (naive local); NOW is 18:40
 DAYS = 30
+# migration v5 records the day it ran as `counted_since`; the fixture pins the live deploy date.
+COUNTED_SINCE_AT = datetime.fromisoformat("2026-10-16T09:00:00+02:00")
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,9 @@ def reports_for(site: Site, si: int) -> list[dict]:
     names = [c for c, _ in site.profile.reports]
     weights = [w for _, w in site.profile.reports]
     n = round(sum(site.profile.rates.values()) * 0.6 + 1)
+    rd = random.Random(9_000 + si)  # directions (app 0.6.7) from their own stream: the reports stay as before
+    rl = random.Random(11_000 + si)  # levels (app 0.8.5) from their own stream, likewise
+    rk = random.Random(13_000 + si)  # v9 (Labor·Karte 0.9.4.5): no category, the new ones, several vehicles
     out = []
     for _ in range(n):
         day = TODAY - timedelta(days=r.randrange(0, DAYS))
@@ -164,13 +169,38 @@ def reports_for(site: Site, si: int) -> list[dict]:
             at -= timedelta(days=1)
         lat = site.lat + r.uniform(-0.0012, 0.0012)
         lon = site.lon + r.uniform(-0.0016, 0.0016)
-        out.append(syn.report_record(at, lat, lon, r.choices(names, weights)[0], accuracy_m=round(r.uniform(4, 30), 1)))
+        # App 0.6.7: most reports carry a direction of travel, along the site's street (either way).
+        street = (si * 37) % 180
+        direction = None
+        if rd.random() < 0.8:
+            deg = (street + rd.choice((0, 180)) + rd.randint(-12, 12)) % 360
+            direction = {"bearing_deg": deg, "north": "true", "accuracy": rd.choice(("high", "medium", "low"))}
+        # App 0.8.5: most reports carry the level of the seconds the dialog was open.
+        level = None
+        if rl.random() < 0.7:
+            peak = round(rl.uniform(68, 92), 1)
+            level = {"lafmax_db": peak, "laeq_db": round(peak - rl.uniform(6, 14), 1),
+                     "seconds": rl.randint(3, 25), "calibrated": rl.random() < 0.5}  # fmt: skip
+        category: str | None = r.choices(names, weights)[0]
+        accuracy_m = round(r.uniform(4, 30), 1)
+        # v9: some reports say no category, some name one of the four added in 0.9.4.5; some count several.
+        u = rk.random()
+        if u < 0.12:
+            category = None
+        elif u < 0.27:
+            category = rk.choice(("hupen", "baustelle", "garten", "bahn"))
+        count = rk.randint(2, 4) if rk.random() < 0.2 else None
+        out.append(
+            syn.report_record(
+                at, lat, lon, category, accuracy_m=accuracy_m, direction=direction, level=level, count=count,
+            )
+        )
     return out
 
 
 def build_db(path: Path) -> None:
     conn = db.connect(path)
-    db.migrate(conn)
+    db.migrate(conn, now=COUNTED_SINCE_AT)
     received = "2026-10-08T16:30:00+00:00"
     for si, site in enumerate(SITES):
         cell = wgs84_to_cell(site.lat, site.lon)

@@ -8,16 +8,65 @@ times (`created_at`, `received_at`, …) are ISO-8601 UTC strings.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
 from . import aggregate as agg
+from .config import (
+    MAP_CATEGORIES,
+    MAP_CATEGORY_SET,
+    MAX_SPEECH_MUSIC_SHARE,
+    MIN_EVENT_DURATION_S,
+    MIN_EVENT_LAFMAX_DB,
+    MIN_EVENT_THRESHOLD_DB,
+    SPEECH_MUSIC_CATEGORIES,
+)
 from .schemas import EventIn, MinuteIn, ReportIn
 
-MIGRATIONS: list[str] = [
+log = logging.getLogger("stadtlaerm")
+
+
+def _v5_purge_other_categories(conn: sqlite3.Connection, now: datetime) -> None:
+    """5: only machine and motor noise is kept (DESIGN.md §5, owner's decision of 2026-10-16).
+
+    Events stored with a category outside MAP_CATEGORIES (voices, music, unclassified, wind, an
+    unknown id) — kept but ignored since 77e47ef — are deleted. Hourly rows of the retention job
+    keep their levels and hours; their per-category counts lose every other key. New table `meta`
+    holds `counted_since`: the local date this step ran (the deploy date of the rule), published
+    with the map (§6). Minutes (their `category_shares`) and reports are not touched."""
+    marks = ",".join("?" * len(MAP_CATEGORIES))
+    deleted = conn.execute(f"DELETE FROM events WHERE category NOT IN ({marks})", MAP_CATEGORIES).rowcount
+    trimmed = 0
+    for device_id, hour_utc, cell, events in conn.execute(
+        "SELECT device_id, hour_utc, cell, events FROM hourly"
+    ).fetchall():
+        counts = json.loads(events)
+        kept = {k: v for k, v in counts.items() if k in MAP_CATEGORY_SET}
+        if kept != counts:
+            conn.execute(
+                "UPDATE hourly SET events = ? WHERE device_id = ? AND hour_utc = ? AND cell = ?",
+                (json.dumps(kept, separators=(",", ":")), device_id, hour_utc, cell),
+            )
+            trimmed += 1
+    conn.execute("CREATE TABLE meta (name TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID")
+    since = agg.today(now).isoformat()
+    conn.execute("INSERT INTO meta (name, value) VALUES ('counted_since', ?)", (since,))
+    # One line, counts only, no device id (like the intake's `dropped_by_category` line).
+    log.info(
+        "migration v5: deleted %d stored events of other categories, trimmed %d hourly rows; counted_since=%s",
+        deleted, trimmed, since,
+    )  # fmt: skip
+
+
+# The version whose step deletes the events of other categories; crossing it calls for a full
+# rebuild of the published files (app.create_app, __main__).
+PURGE_VERSION = 5
+
+MIGRATIONS: list[str | Callable[[sqlite3.Connection, datetime], None]] = [
     # 1: the tables of DESIGN.md §5, plus `hourly` for the retention job.
     """
     CREATE TABLE devices (
@@ -156,6 +205,66 @@ MIGRATIONS: list[str] = [
     ALTER TABLE sites ADD COLUMN point_n INTEGER;
     ALTER TABLE sites ADD COLUMN sigma_m INTEGER;
     """,
+    # 5: events of other categories deleted, `meta.counted_since` (a Python step, see above).
+    _v5_purge_other_categories,
+    # 6: the optional direction of travel of a report (§4.7, app 0.6.7): bearing in whole degrees,
+    # 'true' | 'magnetic' north, the compass accuracy class. Existing reports keep NULL (none given).
+    """
+    ALTER TABLE reports ADD COLUMN direction_deg INTEGER;
+    ALTER TABLE reports ADD COLUMN direction_north TEXT;
+    ALTER TABLE reports ADD COLUMN direction_accuracy TEXT;
+    """,
+    # 7: e-mail addresses left on the website for notices of new app versions (§4.8). Only the
+    # address (trimmed, lowercased) and when it was first left; no IP, no user agent, no device.
+    # Not linked to any other table.
+    """
+    CREATE TABLE newsletter (
+        email TEXT PRIMARY KEY,
+        created_at TEXT
+    ) WITHOUT ROWID;
+    """,
+    # 8: the optional level of a report (§4.7, app 0.8.5): peak LAFmax and LAeq (dB, 0.1) of the
+    # seconds the report dialog was open, those seconds, calibrated or not. Existing reports keep NULL.
+    """
+    ALTER TABLE reports ADD COLUMN level_lafmax_db REAL;
+    ALTER TABLE reports ADD COLUMN level_laeq_db REAL;
+    ALTER TABLE reports ADD COLUMN level_seconds INTEGER;
+    ALTER TABLE reports ADD COLUMN level_calibrated INTEGER;
+    """,
+    # 9: everything of a report optional but its place and time (§4.7, Labor·Karte 0.9.4.5): `category`
+    # may be NULL («not said»), and `count` (1–9) says how many vehicles passed; existing reports get 1.
+    # SQLite cannot drop a NOT NULL with ALTER TABLE, so the table is rebuilt (as v3 did for `hourly`):
+    # same columns in the same order, `count` appended, every row copied; the index is made again.
+    """
+    CREATE TABLE reports_v9 (
+        device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+        time_utc INTEGER NOT NULL,
+        time_iso TEXT NOT NULL,
+        lat REAL NOT NULL,
+        lon REAL NOT NULL,
+        accuracy_m REAL NOT NULL,
+        category TEXT,
+        received_at TEXT NOT NULL,
+        direction_deg INTEGER,
+        direction_north TEXT,
+        direction_accuracy TEXT,
+        level_lafmax_db REAL,
+        level_laeq_db REAL,
+        level_seconds INTEGER,
+        level_calibrated INTEGER,
+        count INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (device_id, time_utc)
+    ) WITHOUT ROWID;
+    INSERT INTO reports_v9 (device_id, time_utc, time_iso, lat, lon, accuracy_m, category, received_at,
+                            direction_deg, direction_north, direction_accuracy,
+                            level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, count)
+        SELECT device_id, time_utc, time_iso, lat, lon, accuracy_m, category, received_at,
+               direction_deg, direction_north, direction_accuracy,
+               level_lafmax_db, level_laeq_db, level_seconds, level_calibrated, 1 FROM reports;
+    DROP TABLE reports;
+    ALTER TABLE reports_v9 RENAME TO reports;
+    CREATE INDEX reports_time ON reports(time_utc);
+    """,
 ]
 
 MINUTE_COLUMNS = (
@@ -170,7 +279,11 @@ EVENT_COLUMNS = (
     "background_db", "threshold_db", "min_level_db", "category", "category_score",
     "calibration_id", "calibrated", "received_at", "cell", "point_e", "point_n", "sigma_m",
 )  # fmt: skip
-REPORT_COLUMNS = ("device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at")
+REPORT_COLUMNS = (
+    "device_id", "time_utc", "time_iso", "lat", "lon", "accuracy_m", "category", "received_at",
+    "direction_deg", "direction_north", "direction_accuracy",
+    "level_lafmax_db", "level_laeq_db", "level_seconds", "level_calibrated", "count",
+)  # fmt: skip
 # Reports: 5 decimals of a degree ≈ 1.1 m north–south, 0.75 m east–west in Switzerland.
 REPORT_DECIMALS = 5
 
@@ -191,8 +304,18 @@ def connect(path: Path | str) -> sqlite3.Connection:
     return conn
 
 
-def migrate(conn: sqlite3.Connection) -> int:
-    """Applies every migration newer than the stored version; returns the new version."""
+def schema_version(conn: sqlite3.Connection) -> int:
+    """The stored schema version; 0 for a new database."""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'").fetchone() is None:
+        return 0
+    row = conn.execute("SELECT version FROM schema_version").fetchone()
+    return row[0] if row else 0
+
+
+def migrate(conn: sqlite3.Connection, now: datetime | None = None) -> int:
+    """Applies every migration newer than the stored version; returns the new version.
+
+    `now` is the time a Python step records (v5: `counted_since`); default the wall clock."""
     conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")
     row = conn.execute("SELECT version FROM schema_version").fetchone()
     if row is None:
@@ -201,11 +324,31 @@ def migrate(conn: sqlite3.Connection) -> int:
         version = 0
     else:
         version = row[0]
-    for i, script in enumerate(MIGRATIONS[version:], start=version + 1):
-        # executescript commits first; wrap each step so a failure leaves the old version.
-        conn.executescript(f"BEGIN;\n{script}\nUPDATE schema_version SET version = {i};\nCOMMIT;")
+    for i, step in enumerate(MIGRATIONS[version:], start=version + 1):
+        if isinstance(step, str):
+            # executescript commits first; wrap each step so a failure leaves the old version.
+            conn.executescript(f"BEGIN;\n{step}\nUPDATE schema_version SET version = {i};\nCOMMIT;")
+        else:
+            conn.commit()
+            conn.execute("BEGIN")
+            try:
+                step(conn, now or datetime.now(UTC))
+                conn.execute("UPDATE schema_version SET version = ?", (i,))
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
         version = i
     return version
+
+
+def counted_since(conn: sqlite3.Connection) -> str | None:
+    """The local date (ISO) since which only machine and motor noise is kept (migration v5)."""
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE name = 'counted_since'").fetchone()
+    except sqlite3.OperationalError:  # a database before v5
+        return None
+    return row[0] if row else None
 
 
 @contextmanager
@@ -254,6 +397,16 @@ def upsert_rows(
     return accepted, duplicates
 
 
+def delete_rows(conn: sqlite3.Connection, table: str, device_id: str, starts: Sequence[int]) -> int:
+    """Deletes the device's rows with these `start_utc`; returns how many there were."""
+    n = 0
+    for i in range(0, len(starts), 900):
+        chunk = starts[i : i + 900]
+        q = f"DELETE FROM {table} WHERE device_id = ? AND start_utc IN ({','.join('?' * len(chunk))})"
+        n += conn.execute(q, [device_id, *chunk]).rowcount
+    return n
+
+
 def delete_device_rows(conn: sqlite3.Connection, device_id: str) -> bool:
     """Deletes every row of the device; the caller holds the transaction. True if a device row existed."""
     for table in ("minutes", "events", "hourly", "reports", "sites"):
@@ -278,6 +431,33 @@ def delete_device(conn: sqlite3.Connection, device_id: str) -> None:
             bump_counter(conn, "devices_deleted")
 
 
+# ---- e-mail addresses for update notices (§4.8) ---------------------------------------------
+
+
+def add_newsletter(conn: sqlite3.Connection, email: str) -> bool:
+    """Stores the (already normalised) address; True if it was new. A repeat keeps the first time."""
+    with conn:
+        return (
+            conn.execute(
+                "INSERT INTO newsletter (email, created_at) VALUES (?, ?) ON CONFLICT (email) DO NOTHING",
+                (email, utc_now_iso()),
+            ).rowcount
+            > 0
+        )
+
+
+def remove_newsletter(conn: sqlite3.Connection, email: str) -> bool:
+    """Deletes the address; True if it was stored."""
+    with conn:
+        return conn.execute("DELETE FROM newsletter WHERE email = ?", (email,)).rowcount > 0
+
+
+def newsletter_addresses(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(email, created_at) of every stored address, oldest first."""
+    q = "SELECT email, created_at FROM newsletter ORDER BY created_at, email"
+    return [tuple(r) for r in conn.execute(q)]
+
+
 # ---- reads for aggregation ---------------------------------------------------------------
 
 
@@ -289,6 +469,21 @@ def _utc_hours(utc_hours: Collection[int] | None) -> tuple[str, list[int]]:
     return f" AND (start_utc / {agg.HOUR_MS}) % 24 IN ({','.join('?' * len(hours))})", hours
 
 
+# What aggregation reads (DESIGN.md §6): the SQL twins of aggregate.minute_counts_levels and
+# aggregate.event_counts (tests/test_categories.py checks they agree). Built from config constants
+# only, never from input, so the f-strings carry no user data.
+MINUTE_COUNTS_LEVELS_SQL = (
+    "(" + " + ".join(f"COALESCE(json_extract(category_shares, '$.{c}'), 0)" for c in SPEECH_MUSIC_CATEGORIES)
+    + f") < {MAX_SPEECH_MUSIC_SHARE!r}"
+)  # fmt: skip
+EVENT_COUNTS_SQL = (
+    f"category IN ({', '.join(repr(c) for c in MAP_CATEGORIES)})"
+    f" AND duration_s >= {MIN_EVENT_DURATION_S!r}"
+    f" AND lafmax_db >= MAX(COALESCE(min_level_db, {MIN_EVENT_LAFMAX_DB!r}), {MIN_EVENT_LAFMAX_DB!r})"
+    f" AND (threshold_db IS NULL OR threshold_db >= {MIN_EVENT_THRESHOLD_DB!r})"
+)
+
+
 def load_minutes(
     conn: sqlite3.Connection,
     device_id: str,
@@ -298,14 +493,15 @@ def load_minutes(
     utc_hours: Collection[int] | None = None,
 ) -> list[agg.Minute]:
     """`cell` is the record's own hectare, else `default_cell` (the publisher passes the site cell).
-    With `utc_hours`, only the minutes that start in those UTC clock hours (0–23)."""
+    With `utc_hours`, only the minutes that start in those UTC clock hours (0–23). `counts_levels`
+    is False for a minute that is mostly voices or music (MINUTE_COUNTS_LEVELS_SQL)."""
     where, hours = _utc_hours(utc_hours)
     # Plain tuples straight into the NamedTuple (no sqlite3.Row): this runs once per stored minute.
     cur = conn.cursor()
     cur.row_factory = None
     cur.execute(
-        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated <> 0, COALESCE(cell, ?) "
-        f"FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        "SELECT start_utc, valid_s, coverage, laeq_db, l10_db, l90_db, calibrated <> 0, COALESCE(cell, ?), "
+        f"{MINUTE_COUNTS_LEVELS_SQL} FROM minutes WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
         (default_cell, device_id, start_ms, end_ms, *hours),
     )
     return list(map(agg.Minute._make, cur))
@@ -319,12 +515,15 @@ def load_events(
     default_cell: str | None = None,
     utc_hours: Collection[int] | None = None,
 ) -> list[agg.Event]:
+    """Only the events that count on the map (EVENT_COUNTS_SQL): a machine or motor category and
+    the quality gates. Rows stored before the server filtered (voices, music, …) or that fail a
+    gate stay in the table but are never read for the map, the profile or the hourly rows."""
     where, hours = _utc_hours(utc_hours)
     cur = conn.cursor()
     cur.row_factory = None
     cur.execute(
-        "SELECT start_utc, lafmax_db, category, COALESCE(cell, ?) FROM events "
-        f"WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} ORDER BY start_utc",
+        "SELECT start_utc, lafmax_db, category, COALESCE(cell, ?), calibrated <> 0 FROM events "
+        f"WHERE device_id = ? AND start_utc >= ? AND start_utc < ?{where} AND {EVENT_COUNTS_SQL} ORDER BY start_utc",
         (default_cell, device_id, start_ms, end_ms, *hours),
     )
     return list(map(agg.Event._make, cur))
@@ -377,6 +576,14 @@ def report_row(device_id: str, r: ReportIn, received_at: str) -> dict:
         "accuracy_m": round(r.accuracy_m, 1),
         "category": r.category,
         "received_at": received_at,
+        "direction_deg": r.direction.bearing_deg if r.direction else None,
+        "direction_north": r.direction.north if r.direction else None,
+        "direction_accuracy": r.direction.accuracy if r.direction else None,
+        "level_lafmax_db": round(r.level.lafmax_db, 1) if r.level else None,
+        "level_laeq_db": round(r.level.laeq_db, 1) if r.level else None,
+        "level_seconds": r.level.seconds if r.level else None,
+        "level_calibrated": int(r.level.calibrated) if r.level else None,
+        "count": r.count or 1,
     }
 
 

@@ -20,21 +20,27 @@ class EditionTextTest {
     fun aboutAudioMatchesTheEdition() {
         val text = EditionUi.ABOUT_AUDIO
         if (BuildConfig.FLAVOR == "labor") {
-            // Labor can store clips and hour files locally; it has no internet permission.
+            // Labor can store clips and hour files locally; it has no internet permission. It must not make the public
+            // promise «nie Audio gespeichert»; 0.9.4.6: it says plainly that audio is stored only with «Audio speichern»
+            // and never sent (true: no network at all).
             assertTrue(text.contains("Weniger Lärm Labor"), text)
             assertTrue(text.contains("keine Internet-Berechtigung"), text)
-            assertFalse(text.contains("nie Audio"), text)
-            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
+            assertFalse(text.contains("nie Audio gespeichert"), text)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio gespeichert"), EditionUi.MIC_LINE)
+            assertTrue(text.contains("«Audio speichern»") && EditionUi.MIC_LINE.contains("«Audio speichern»"), EditionUi.MIC_LINE)
+            assertTrue(EditionUi.MIC_LINE.contains("nie Audio gesendet"), EditionUi.MIC_LINE)
         } else if (BuildConfig.FLAVOR == "laborKarte") {
             // Labor with «Messwerte teilen»: must not claim «no internet», must say audio is never sent.
+            // 0.9.4.6: names the one switch «Audio speichern».
             assertEquals(
-                "Weniger Lärm Labor: Audio kann – nur wenn du es einschaltest – als Clips und Stundendateien auf diesem Telefon " +
-                    "gespeichert werden, dazu ein Protokoll der Erkennung. " +
-                    "Nichts davon wird gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
+                "Weniger Lärm Labor: speichert Audio nur, wenn «Audio speichern» an ist – als Clips und Stundendateien auf diesem " +
+                    "Telefon, dazu ein Protokoll der Erkennung. " +
+                    "Es wird nie Audio gesendet: «Teilen» sendet nur Kennwerte, nie Audio, Clips oder Protokolle.",
                 text,
             )
             assertFalse(text.contains("keine Internet-Berechtigung"), text)
-            assertFalse(EditionUi.MIC_LINE.contains("nie Audio"), EditionUi.MIC_LINE)
+            assertFalse(EditionUi.MIC_LINE.contains("nie Audio gespeichert"), EditionUi.MIC_LINE)
+            assertEquals("Labor: speichert Audio nur, wenn «Audio speichern» an ist. Es wird nie Audio gesendet.", EditionUi.MIC_LINE)
         } else {
             // Public editions: the one plain audio promise, in Datenschutz and at the microphone line on «Messen».
             assertEquals("Es wird nie Audio gespeichert oder gesendet.", text)
@@ -66,7 +72,7 @@ class EditionTextTest {
                 assertEquals(EditionInfo.LABOR_KARTE, BuildConfig.EDITION)
                 assertTrue(BuildConfig.UPLOAD_AVAILABLE)
                 assertEquals("ch.lessnoise.labor", BuildConfig.APPLICATION_ID)
-                assertEquals("0.6.3-labor-karte", BuildConfig.VERSION_NAME)
+                assertEquals("0.9.6-labor-karte", BuildConfig.VERSION_NAME)
             }
             else -> error("unknown flavour ${BuildConfig.FLAVOR}")
         }
@@ -75,6 +81,21 @@ class EditionTextTest {
         if (BuildConfig.FLAVOR == "labor") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor"))
         else if (BuildConfig.FLAVOR == "laborKarte") assertTrue(BuildConfig.VERSION_NAME.endsWith("-labor-karte"))
         else assertFalse(BuildConfig.VERSION_NAME.contains('-'), BuildConfig.VERSION_NAME)
+        // 0.9.4.1 (versionCode 46; Labor only, branch labor-0.9.1): one version for all four flavours; the
+        // owner's new rule: a Labor-only fix gets a fourth component (update.html, stats.py cope with it).
+        // 0.9.4.2 (versionCode 47; Labor·Karte first, branch labor-0.9.1): the report dialog.
+        // 0.9.4.3 (versionCode 48; Labor·Karte first, branch labor-0.9.1): a short video instead of the photo.
+        // 0.9.4.4 (versionCode 49; Labor·Karte first, branch labor-0.9.1): «Laut! Melden» as the main surface in both
+        // states, «Melden» in the measurement notification.
+        // 0.9.4.5 (versionCode 50; Labor·Karte first, branch labor-0.9.1): only the place is required, direction can be
+        // switched off, «Anzahl», Hupen · Baustelle · Gartengeräte · Bahn.
+        // 0.9.4.6 (versionCode 51; Labor·Karte first, branch labor-0.9.1): three ways to use the app («Unterwegs messen»);
+        // Labor = Online-Version + «Audio speichern».
+        // 0.9.5 (versionCode 52; published: Offline-Version and Online-Version): the code of 0.9.4.6.
+        // 0.9.5.1 (versionCode 53; Labor·Karte first, branch labor-0.9.5): calibration shows the deviation from the standard.
+        // 0.9.6 (versionCode 54; published: Offline-Version and Online-Version): 0.9.5.1 and the calibration banner on «Messen».
+        assertEquals(54, BuildConfig.VERSION_CODE)
+        assertEquals(if (BuildConfig.FLAVOR == "labor") "0.9.6-labor" else if (BuildConfig.FLAVOR == "laborKarte") "0.9.6-labor-karte" else "0.9.6", BuildConfig.VERSION_NAME)
     }
 
     @Test

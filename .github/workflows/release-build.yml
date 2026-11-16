@@ -1,0 +1,141 @@
+# Signed PUBLISHED builds («Offline-Version» lessnoise.apk, «Online-Version» lessnoise-karte.apk)
+# on GitHub Actions (0.8.0).
+#
+# Why a sibling of labor-build.yml and not a mode of it: this job must never build a Labor flavour,
+# and labor-build.yml runs on every push to labor-* with a flavour input; keeping the two apart
+# means no input or trigger can mix them. The signing steps and secrets are the same
+# (LABOR_KEYSTORE_B64, LABOR_KEYSTORE_PASSWORD, LABOR_KEY_ALIAS, LABOR_KEY_PASSWORD: the one release
+# key of every published and Labor APK since 0.4.0).
+#
+# What it does: JVM tests of the two published flavours, assembleOfflineRelease and
+# assemblePublicRelease signed with the release key, then for each APK the checks of
+# android/README.md → «Release checklist» that can run here (android/tools/check_release_apk.py:
+# signer certificate, package and version = app/build.gradle.kts, permissions exactly as
+# PRIVACY.md → «How to verify», no Labor classes, no map / WebView / alert / motion classes in the
+# offline one and all of them in the public one), renames them, writes SHA256SUMS and SIZES and
+# uploads them as a workflow artifact. It has read-only access to the repository: it never
+# changes docs/ or anything else. Copying the APKs into docs/download/ is a separate, reviewed
+# commit (Release checklist step 4).
+#
+# Runs by hand (`gh workflow run release-build.yml --ref <branch>`) and on a push to a branch named
+# release-* (changes only under docs/ or to WORKLOG.md do not trigger it). The push trigger exists
+# because GitHub dispatches a workflow by hand only once it knows the file, i.e. once it is on the
+# default branch or has run from a push.
+
+name: Release build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["release-*"]
+    paths-ignore:
+      - "docs/**"
+      - "WORKLOG.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # SHA-256 of the signer certificate of every published APK since 0.4.0 (docs/anleitung.html#pruefsummen).
+      EXPECTED_CERT_SHA256: a3d5d10e69b383846ead4d1aac9ea5df9bc32845237506dcd233f097743142be
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Version from app/build.gradle.kts
+        working-directory: android
+        run: |
+          set -eu
+          ver=$(sed -n 's/^ *versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)
+          code=$(sed -n 's/^ *versionCode = \([0-9]*\).*/\1/p' app/build.gradle.kts | head -1)
+          test -n "$ver" && test -n "$code"
+          echo "version $ver, versionCode $code"
+          echo "APP_VERSION=$ver" >> "$GITHUB_ENV"
+          echo "APP_CODE=$code" >> "$GITHUB_ENV"
+
+      - name: JVM tests of the published flavours (never the Labor ones)
+        working-directory: android
+        run: ./gradlew --no-daemon :dsp:test :app:testOfflineDebugUnitTest :app:testPublicDebugUnitTest
+
+      - name: Check that the signing secrets exist
+        env:
+          KS: ${{ secrets.LABOR_KEYSTORE_B64 }}
+          SP: ${{ secrets.LABOR_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.LABOR_KEY_ALIAS }}
+          KP: ${{ secrets.LABOR_KEY_PASSWORD }}
+        run: |
+          for v in KS SP KA KP; do
+            if [ -z "${!v}" ]; then echo "::error::signing secret $v is empty"; exit 1; fi
+          done
+
+      - name: Write keystore and keystore.properties (outside the checkout)
+        env:
+          KS: ${{ secrets.LABOR_KEYSTORE_B64 }}
+          SP: ${{ secrets.LABOR_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.LABOR_KEY_ALIAS }}
+          KP: ${{ secrets.LABOR_KEY_PASSWORD }}
+        run: |
+          set -eu
+          umask 077
+          printf '%s' "$KS" | tr -d '\n\r ' | base64 -d > "$RUNNER_TEMP/release.jks"
+          cat > "$RUNNER_TEMP/keystore.properties" <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$SP
+          keyAlias=$KA
+          keyPassword=$KP
+          EOF
+          echo "keystore: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes"
+
+      - name: Build the two signed release APKs (offline, public)
+        working-directory: android
+        run: |
+          ./gradlew --no-daemon assembleOfflineRelease assemblePublicRelease \
+            -Pstadtlaerm.keystoreProperties="$RUNNER_TEMP/keystore.properties"
+
+      - name: Remove the keystore from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/keystore.properties"
+
+      - name: Release checks, names, SHA256SUMS, SIZES
+        working-directory: android
+        run: |
+          set -eu
+          bt=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $bt"
+          off=app/build/outputs/apk/offline/release/app-offline-release.apk
+          pub=app/build/outputs/apk/public/release/app-public-release.apk
+          test -f "$off" && test -f "$pub"
+          "$bt/apksigner" verify --verbose --print-certs "$off"
+          "$bt/apksigner" verify --verbose --print-certs "$pub"
+          python3 tools/check_release_apk.py offline "$off" --version "$APP_VERSION" --code "$APP_CODE" \
+            --build-tools "$bt" --cert-sha256 "$EXPECTED_CERT_SHA256"
+          python3 tools/check_release_apk.py public "$pub" --version "$APP_VERSION" --code "$APP_CODE" \
+            --build-tools "$bt" --cert-sha256 "$EXPECTED_CERT_SHA256"
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
+          cp "$off" "$out/lessnoise.apk"
+          cp "$pub" "$out/lessnoise-karte.apk"
+          ( cd "$out" && sha256sum lessnoise.apk lessnoise-karte.apk | tee SHA256SUMS \
+            && stat -c '%n %s' lessnoise.apk lessnoise-karte.apk | tee SIZES )
+          echo "APK_DIR=$out" >> "$GITHUB_ENV"
+          echo "ARTIFACT=lessnoise-release-$APP_VERSION-$APP_CODE" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT }}
+          path: ${{ env.APK_DIR }}
+          retention-days: 14
+          if-no-files-found: error

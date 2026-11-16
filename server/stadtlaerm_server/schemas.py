@@ -7,21 +7,47 @@ lists, so nothing else (e.g. raw AudioSet labels) can be stored by accident.
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationInfo, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationInfo, field_validator, model_validator
 
 from .lv95 import cell_in_switzerland, lv95_cell, lv95_point_in_switzerland, point_in_switzerland
 
 DB_MIN, DB_MAX = 0.0, 140.0
 CELL_PATTERN = r"^h\d{5}_\d{5}$"
 CATEGORY_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
-# Categories of a manual report (§4.7), as the app offers them.
-REPORT_CATEGORIES = ("motorrad", "auto", "lastwagen", "poser", "andere")
-MAX_REPORT_ACCURACY_M = 200.0
+# Categories of a manual report (§4.7), as the app offers them. Schema v9 (Labor·Karte 0.9.4.5): `hupen`,
+# `baustelle`, `garten` (motorised garden tools), `bahn` (trains and trams) appended; the order is the app's
+# enum order (its test compares the two). The category itself is optional since v9 (ReportIn.category).
+REPORT_CATEGORIES = (
+    "motorrad", "auto", "lastwagen", "flugzeug", "poser", "andere", "hupen", "baustelle", "garten", "bahn",
+)  # fmt: skip
+# Since app 0.7.0 a report is sent at whatever accuracy the phone's fix has (owner, 2026-10-17);
+# this bound only rejects nonsense, it is no quality gate. Until then it was 200 m.
+MAX_REPORT_ACCURACY_M = 10_000.0
+# Direction of travel of a report (§4.7, app 0.6.7): the compass's accuracy class as Android
+# reports it, and whether the bearing is referred to true or to magnetic north.
+DIRECTION_ACCURACIES = ("high", "medium", "low", "unreliable")
+DIRECTION_NORTHS = ("true", "magnetic")
+# Several vehicles in one report (§4.7, schema v9, Labor·Karte 0.9.4.5): `count` 1–9; absent = 1.
+MAX_REPORT_COUNT = 9
+# Level of a report (§4.7, app 0.8.5): how long the report dialog was open, at most (seconds).
+MAX_REPORT_LEVEL_SECONDS = 600
 # The app's setting «Standort verschieben» (§2 rule 2, §4.3): σ of the location noise in metres.
 POINT_SIGMAS_M = (25, 50, 100, 200)
+# A minute's audio source (§4.3): the Android source, and since app 0.7.2 for a microphone other than
+# the phone's built-in one «+<kind>» (the kind only: usb, bluetooth, wired, other). The plain value
+# means the built-in microphone, as every app up to 0.7.1 measured.
+AUDIO_SOURCE_BASES = ("UNPROCESSED", "VOICE_RECOGNITION")
+MIC_KINDS = ("usb", "bluetooth", "wired", "other")
+AUDIO_SOURCES = (
+    "UNPROCESSED", "VOICE_RECOGNITION",
+    "UNPROCESSED+usb", "UNPROCESSED+bluetooth", "UNPROCESSED+wired", "UNPROCESSED+other",
+    "VOICE_RECOGNITION+usb", "VOICE_RECOGNITION+bluetooth", "VOICE_RECOGNITION+wired", "VOICE_RECOGNITION+other",
+)
+assert set(AUDIO_SOURCES) == set(AUDIO_SOURCE_BASES) | {f"{b}+{k}" for b in AUDIO_SOURCE_BASES for k in MIC_KINDS}
 
 Level = Annotated[float, Field(ge=DB_MIN, le=DB_MAX, allow_inf_nan=False)]
 Share = Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
@@ -97,7 +123,7 @@ class SiteIn(Strict):
     floor: Annotated[int, Field(ge=-3, le=100)] | None = None
     street_facing: bool | None = None
     device_model: ShortText | None = None
-    audio_source: Literal["UNPROCESSED", "VOICE_RECOGNITION"]
+    audio_source: Literal[AUDIO_SOURCES]  # type: ignore[valid-type]
     calibrated: bool
     calibration_offset_db: CalibrationOffset | None = None
     note: Annotated[str, Field(max_length=200)] | None = None
@@ -175,7 +201,7 @@ class MinuteIn(_Timed):
     calibration_id: ShortText | None = None
     calibration_offset_db: CalibrationOffset | None = None
     calibrated: bool
-    audio_source: Literal["UNPROCESSED", "VOICE_RECOGNITION"] | None = None
+    audio_source: Literal[AUDIO_SOURCES] | None = None  # type: ignore[valid-type]
     clock_corrections: Annotated[int, Field(ge=0, le=1000)] = 0
 
     @model_validator(mode="after")
@@ -200,14 +226,42 @@ class EventIn(_Timed):
     calibrated: bool
 
 
+class DirectionIn(Strict):
+    """Where the reported vehicle drove (§4.7, app 0.6.7, optional): the compass bearing the phone
+    pointed at when the reporter tapped «Senden» in the report dialog (app 0.8.2+; 0.8.1 the category,
+    until 0.7.8 «Richtung übernehmen»), in whole degrees clockwise from north.
+    Never a sensor stream, only this one value and how far to trust it."""
+
+    bearing_deg: Annotated[StrictInt, Field(ge=0, le=359)]
+    north: Literal[DIRECTION_NORTHS]  # type: ignore[valid-type]
+    accuracy: Literal[DIRECTION_ACCURACIES]  # type: ignore[valid-type]
+
+
+class LevelIn(Strict):
+    """The sound level while the report dialog was open (§4.7, app 0.8.5, optional): the peak LAFmax
+    and the LAeq of those seconds, measured on the phone by the same level meter as a measurement,
+    how many seconds that was, and whether the phone is calibrated. Numbers only, never audio."""
+
+    lafmax_db: Level
+    laeq_db: Level
+    seconds: Annotated[StrictInt, Field(ge=1, le=MAX_REPORT_LEVEL_SECONDS)]
+    calibrated: StrictBool
+
+
 class ReportIn(Strict):
-    """A manual report (§4.7): «here and now something loud passed», with its category."""
+    """A manual report (§4.7): «here and now something loud passed», with its category and,
+    since app 0.6.7, optionally the direction it drove; since app 0.8.5 optionally the level.
+    Schema v9 (Labor·Karte 0.9.4.5): only the place and the time are required — the category may be
+    absent or null («not said»), and `count` (1–9, absent or null = 1) says how many passed."""
 
     time: Annotated[str, Field(max_length=40)]
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
     lon: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     accuracy_m: Annotated[float, Field(ge=0, le=MAX_REPORT_ACCURACY_M, allow_inf_nan=False)]
-    category: Literal[REPORT_CATEGORIES]  # type: ignore[valid-type]
+    category: Literal[REPORT_CATEGORIES] | None = None  # type: ignore[valid-type]
+    count: Annotated[StrictInt, Field(ge=1, le=MAX_REPORT_COUNT)] | None = None
+    direction: DirectionIn | None = None
+    level: LevelIn | None = None
 
     @field_validator("time")
     @classmethod
@@ -234,8 +288,45 @@ class UploadResult(BaseModel):
     accepted: int
     duplicates: int
     rejected: list[dict] = Field(default_factory=list)
+    # Events only (§4.4): valid records of a category that is not on the map, not stored.
+    dropped_by_category: int = 0
 
 
 MAX_MINUTES = 1440
 MAX_EVENTS = 2000
 MAX_REPORTS = 50
+
+
+# ---- e-mail addresses for update notices (DESIGN.md §4.8, website form) -----------------------
+
+MAX_EMAIL_LENGTH = 254  # RFC 5321 path limit minus the angle brackets
+MAX_EMAIL_LOCAL_LENGTH = 64
+# A deliberately simple check (no quoted local parts, no IP literals, ASCII domains): a dot-atom
+# local part, then a domain of at least two labels of letters, digits and inner hyphens, ending
+# in a label of letters (or an xn-- label).
+_EMAIL_LOCAL = r"[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*"
+_EMAIL_LABEL = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+EMAIL_PATTERN = re.compile(rf"^{_EMAIL_LOCAL}@(?:{_EMAIL_LABEL}\.)+(?:[a-z]{{2,63}}|xn--[a-z0-9-]{{1,59}})$")
+
+
+def normalize_email(value: str) -> str:
+    """Trimmed and lowercased; raises ValueError if it does not look like an address."""
+    email = value.strip().lower()
+    if not email:
+        raise ValueError("email is empty")
+    if len(email) > MAX_EMAIL_LENGTH:
+        raise ValueError(f"email is longer than {MAX_EMAIL_LENGTH} characters")
+    if not EMAIL_PATTERN.match(email) or len(email.partition("@")[0]) > MAX_EMAIL_LOCAL_LENGTH:
+        raise ValueError("email is not a valid address")
+    return email
+
+
+class NewsletterIn(Strict):
+    """`POST` / `DELETE /v1/newsletter`: exactly one field, the address; nothing else is accepted."""
+
+    email: Annotated[str, Field(max_length=1000)]
+
+    @field_validator("email")
+    @classmethod
+    def _email(cls, v: str) -> str:
+        return normalize_email(v)

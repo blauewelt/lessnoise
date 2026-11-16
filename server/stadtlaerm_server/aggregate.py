@@ -5,15 +5,23 @@ No time of day is special: a measurement may run at any hour, for minutes or for
 * A **day** is a calendar day in local time, Europe/Zurich: 00:00 to 00:00, so 24 h, or 23 h /
   25 h on the days the clocks change. A record belongs to the day its *start* falls in; a
   measurement that runs over midnight counts for both days, each with its own minutes.
-* A minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq (the app's rule).
-* Day LAeq = energy mean of the valid minutes' LAeq, weighted by their valid seconds.
-* Events per hour = events of the day / hours of valid measurement (valid seconds of the
-  valid minutes). Every event is counted, wherever it starts in the day.
-* Loud events = events with LAFmax ≥ LOUD_EVENT_DB (default 75 dB(A)); per hour likewise.
-* Dynamics = median over the valid minutes of (L10 − L90); an even count takes the mean of
+* Only machine and motor noise counts (config.MAP_CATEGORIES): events of any other category
+  are never counted, and the database already leaves out events that fail the quality gates
+  (db.load_events, [event_counts]).
+* A minute is *valid* if its coverage is ≥ 0.5 and it has an LAeq (the app's rule). Every valid
+  minute counts as measured time; its levels count only if voices + music make up less than
+  half of it ([minute_counts_levels]; a minute without shares counts).
+* Day LAeq = energy mean of the level minutes' LAeq (valid, levels counted), weighted by their
+  valid seconds; None if the day has valid minutes but no level minute.
+* Events per hour = counted events of the day / hours of valid measurement (valid seconds of
+  the valid minutes). Every counted event is counted, wherever it starts in the day.
+* Loud events = counted events with LAFmax ≥ LOUD_EVENT_DB (default 75 dB(A)); per hour likewise.
+* Dynamics = median over the level minutes of (L10 − L90); an even count takes the mean of
   the middle two.
-* Day L10 / L90 = median over the valid minutes of the minute L10 / L90.
+* Day L10 / L90 = median over the level minutes of the minute L10 / L90.
 * Measured hours = valid seconds / 3600.
+* Calibrated = every valid minute and every counted event is calibrated. Calibration is not a
+  gate: uncalibrated data is counted, the block just says `calibrated: false`.
 
 Several devices in one cell (§6.1): levels are the energy mean of the device values, rates and
 counts the arithmetic mean over the devices, dynamics the median of the device medians, the
@@ -33,6 +41,16 @@ from functools import lru_cache
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
+from .config import (
+    MAP_CATEGORIES,
+    MAP_CATEGORY_SET,
+    MAX_SPEECH_MUSIC_SHARE,
+    MIN_EVENT_DURATION_S,
+    MIN_EVENT_LAFMAX_DB,
+    MIN_EVENT_THRESHOLD_DB,
+    SPEECH_MUSIC_CATEGORIES,
+)
+
 ZONE = ZoneInfo("Europe/Zurich")
 MIN_MINUTE_COVERAGE = 0.5
 # An hour of the 24-hour profile (and of the retention job's hourly rows when published) needs
@@ -41,18 +59,35 @@ MIN_VALID_MINUTES_PER_HOUR = 30
 HOUR_MS = 3_600_000
 DEFAULT_LOUD_EVENT_DB = 75.0
 
-# The app's source categories (android/README.md, «Source categories»). Published blocks
-# always carry all of them, so the website can rely on the keys; unknown ids are added.
-CATEGORIES: tuple[str, ...] = (
-    "loud_vehicle",
-    "road_traffic",
-    "rail_tram",
-    "aircraft",
-    "construction",
-    "voices",
-    "music",
-    "unclassified",
-)
+# The categories on the map: the app's machine and motor categories (android/README.md,
+# «Source categories»). Published blocks always carry exactly these keys, in this order —
+# never voices, music, unclassified, wind or an unknown id.
+CATEGORIES: tuple[str, ...] = MAP_CATEGORIES
+
+
+def event_counts(
+    category: str,
+    duration_s: float,
+    lafmax_db: float,
+    threshold_db: float | None = None,
+    min_level_db: float | None = None,
+) -> bool:
+    """Whether a stored event counts on the map: a map category and the quality gates (DESIGN.md
+    §6). The same rule as the SQL filter of db.load_events (tested to agree)."""
+    return (
+        category in MAP_CATEGORY_SET
+        and duration_s >= MIN_EVENT_DURATION_S
+        and lafmax_db >= max(min_level_db if min_level_db is not None else MIN_EVENT_LAFMAX_DB, MIN_EVENT_LAFMAX_DB)
+        and (threshold_db is None or threshold_db >= MIN_EVENT_THRESHOLD_DB)
+    )
+
+
+def minute_counts_levels(category_shares: Mapping[str, float] | None) -> bool:
+    """False when voices + music make up at least half of the minute (its levels are then left
+    out of the aggregates; it still counts as measured time). No shares: True."""
+    if not category_shares:
+        return True
+    return sum(category_shares.get(c, 0.0) for c in SPEECH_MUSIC_CATEGORIES) < MAX_SPEECH_MUSIC_SHARE
 
 
 # ---- input records ------------------------------------------------------------------------
@@ -69,10 +104,16 @@ class Minute(NamedTuple):
     l90_db: float | None
     calibrated: bool
     cell: str | None = None  # the record's own hectare (§4.3); None = the device's site cell
+    counts_levels: bool = True  # [minute_counts_levels] of its category shares
 
     @property
     def valid(self) -> bool:
         return self.coverage >= MIN_MINUTE_COVERAGE and self.laeq_db is not None and self.valid_s > 0
+
+    @property
+    def level(self) -> bool:
+        """Valid, and its levels count (not mostly voices or music)."""
+        return self.counts_levels and self.valid
 
 
 class Event(NamedTuple):
@@ -80,6 +121,7 @@ class Event(NamedTuple):
     lafmax_db: float
     category: str
     cell: str | None = None
+    calibrated: bool = True
 
 
 # ---- small maths --------------------------------------------------------------------------
@@ -166,10 +208,17 @@ def today(now: datetime, zone: ZoneInfo = ZONE) -> date:
 # ---- one device -----------------------------------------------------------------------------
 
 
+def _counted(events: Iterable[Event]) -> list[Event]:
+    """The events of a map category (the database already applied the quality gates)."""
+    return [e for e in events if e.category in MAP_CATEGORY_SET]
+
+
 def _counts(events: Iterable[Event]) -> dict[str, int]:
+    """Per map category; events of any other category are not counted."""
     counts = {c: 0 for c in CATEGORIES}
     for e in events:
-        counts[e.category] = counts.get(e.category, 0) + 1
+        if e.category in counts:
+            counts[e.category] += 1
     return counts
 
 
@@ -177,7 +226,7 @@ def _counts(events: Iterable[Event]) -> dict[str, int]:
 class DeviceDay:
     """One device's figures for one day in one cell. Only built when there is ≥ 1 valid minute."""
 
-    laeq_db: float
+    laeq_db: float | None  # None: valid minutes, but none whose levels count
     l90_db: float | None
     l10_db: float | None
     dynamics_db: float | None
@@ -208,19 +257,19 @@ def summarize_device_day(
     """The day summary for one device (records outside the day are ignored)."""
     a, b = day_bounds(day, zone)
     ms = [m for m in minutes if a <= m.start_ms < b and m.valid]
-    evs = [e for e in events if a <= e.start_ms < b]
+    evs = _counted(e for e in events if a <= e.start_ms < b)
     if not ms:
         return None
     valid_s = sum(m.valid_s for m in ms)
     hours = valid_s / 3600
-    laeq = energy_mean([m.laeq_db for m in ms], [m.valid_s for m in ms])  # type: ignore[misc]
-    assert laeq is not None
-    spreads = [m.l10_db - m.l90_db for m in ms if m.l10_db is not None and m.l90_db is not None]
+    lv = [m for m in ms if m.counts_levels]
+    laeq = energy_mean([m.laeq_db for m in lv], [m.valid_s for m in lv])  # type: ignore[misc]
+    spreads = [m.l10_db - m.l90_db for m in lv if m.l10_db is not None and m.l90_db is not None]
     loud = sum(1 for e in evs if e.lafmax_db >= loud_db)
     return DeviceDay(
         laeq_db=laeq,
-        l90_db=median(m.l90_db for m in ms if m.l90_db is not None),
-        l10_db=median(m.l10_db for m in ms if m.l10_db is not None),
+        l90_db=median(m.l90_db for m in lv if m.l90_db is not None),
+        l10_db=median(m.l10_db for m in lv if m.l10_db is not None),
         dynamics_db=median(spreads),
         events_per_h=len(evs) / hours,
         events_per_h_by_category={k: v / hours for k, v in _counts(evs).items()},
@@ -228,7 +277,7 @@ def summarize_device_day(
         loud_events_per_h=loud / hours,
         loudest_event_db=max((e.lafmax_db for e in evs), default=None),
         valid_s=valid_s,
-        calibrated=all(m.calibrated for m in ms),
+        calibrated=all(m.calibrated for m in ms) and all(e.calibrated for e in evs),
         event_count=len(evs),
     )
 
@@ -253,18 +302,19 @@ class DeviceHour:
 
 def summarize_hour(hour_ms: int, minutes: Iterable[Minute], events: Iterable[Event]) -> DeviceHour:
     ms = [m for m in minutes if hour_ms <= m.start_ms < hour_ms + HOUR_MS and m.valid]
-    evs = [e for e in events if hour_ms <= e.start_ms < hour_ms + HOUR_MS]
+    lv = [m for m in ms if m.counts_levels]
+    evs = _counted(e for e in events if hour_ms <= e.start_ms < hour_ms + HOUR_MS)
     return DeviceHour(
         hour_ms=hour_ms,
         valid_s=sum(m.valid_s for m in ms),
         valid_minutes=len(ms),
-        laeq_db=energy_mean([m.laeq_db for m in ms], [m.valid_s for m in ms]),  # type: ignore[misc]
-        l90_db=median(m.l90_db for m in ms if m.l90_db is not None),
-        l10_db=median(m.l10_db for m in ms if m.l10_db is not None),
-        dynamics_db=median(m.l10_db - m.l90_db for m in ms if m.l10_db is not None and m.l90_db is not None),
+        laeq_db=energy_mean([m.laeq_db for m in lv], [m.valid_s for m in lv]),  # type: ignore[misc]
+        l90_db=median(m.l90_db for m in lv if m.l90_db is not None),
+        l10_db=median(m.l10_db for m in lv if m.l10_db is not None),
+        dynamics_db=median(m.l10_db - m.l90_db for m in lv if m.l10_db is not None and m.l90_db is not None),
         events=_counts(evs),
         loudest_db=max((e.lafmax_db for e in evs), default=None),
-        calibrated=all(m.calibrated for m in ms),
+        calibrated=all(m.calibrated for m in ms) and all(e.calibrated for e in evs),
     )
 
 
@@ -281,7 +331,7 @@ BLOCK_KEYS = (
 class CellDay:
     device_ids: frozenset[str]  # never published; for distinct device counts over windows
     calibrated: bool
-    laeq_db: float
+    laeq_db: float | None
     l90_db: float | None
     l10_db: float | None
     dynamics_db: float | None
@@ -316,10 +366,8 @@ class CellDay:
 
 
 def _categories(maps: Iterable[Mapping[str, float]]) -> list[str]:
-    cats: list[str] = list(CATEGORIES)
-    for m in maps:
-        cats += [k for k in m if k not in cats]
-    return cats
+    """The published category keys: exactly the map categories, whatever the inputs hold."""
+    return list(CATEGORIES)
 
 
 def combine_cell_day(device_days: Mapping[str, DeviceDay]) -> CellDay | None:
@@ -329,8 +377,7 @@ def combine_cell_day(device_days: Mapping[str, DeviceDay]) -> CellDay | None:
     days = list(device_days.values())
     n = len(days)
     cats = _categories(d.events_per_h_by_category for d in days)
-    laeq = energy_mean([d.laeq_db for d in days])
-    assert laeq is not None
+    laeq = energy_mean([d.laeq_db for d in days if d.laeq_db is not None])
     return CellDay(
         device_ids=frozenset(device_days),
         calibrated=all(d.calibrated for d in days),
@@ -360,7 +407,7 @@ def window_block(days: Sequence[CellDay | None]) -> dict:
         }
     cats = _categories(d.events_per_h_by_category for d in have)
     return {
-        "laeq_db": r1(energy_mean([d.laeq_db for d in have])),
+        "laeq_db": r1(energy_mean([d.laeq_db for d in have if d.laeq_db is not None])),
         "l90_db": r1(energy_mean([d.l90_db for d in have if d.l90_db is not None])),
         "l10_db": r1(energy_mean([d.l10_db for d in have if d.l10_db is not None])),
         "dynamics_db": r1(median(d.dynamics_db for d in have if d.dynamics_db is not None)),
@@ -403,16 +450,14 @@ class DayIndex:
 
 @dataclass
 class _ProfileHour:
-    levels: list[float] = field(default_factory=list)
+    levels: list[float] = field(default_factory=list)  # of the level minutes
     weights: list[float] = field(default_factory=list)
     l90s: list[float] = field(default_factory=list)
     l10s: list[float] = field(default_factory=list)
     events: dict[str, int] = field(default_factory=dict)
     loud: int = 0
-
-    @property
-    def valid_s(self) -> float:
-        return sum(self.weights)
+    valid_s: float = 0.0  # of every valid minute, level minute or not
+    valid_minutes: int = 0
 
 
 @dataclass(frozen=True)
@@ -444,13 +489,17 @@ def device_profile(
     for m in minutes:
         if m.valid:
             h = acc[hour_of_day(m.start_ms, zone)]
+            h.valid_s += m.valid_s
+            h.valid_minutes += 1
+            if not m.counts_levels:
+                continue
             h.levels.append(m.laeq_db)  # type: ignore[arg-type]
             h.weights.append(m.valid_s)
             if m.l90_db is not None:
                 h.l90s.append(m.l90_db)
             if m.l10_db is not None:
                 h.l10s.append(m.l10_db)
-    for e in events:
+    for e in _counted(events):
         h = acc[hour_of_day(e.start_ms, zone)]
         h.events[e.category] = h.events.get(e.category, 0) + 1
         h.loud += e.lafmax_db >= loud_db
@@ -461,7 +510,7 @@ def device_profile(
         out.append(
             DeviceProfileHour(
                 valid_s=h.valid_s,
-                valid_minutes=len(h.levels),
+                valid_minutes=h.valid_minutes,
                 laeq_db=energy_mean(h.levels, h.weights),
                 l90_db=median(h.l90s),
                 l10_db=median(h.l10s),
@@ -486,7 +535,7 @@ def combine_profile(per_device: Sequence[Sequence[DeviceProfileHour]], min_devic
         cats = _categories(h.events_per_h_by_category for h in hs)
         row.update(
             {
-                "laeq_db": r1(energy_mean([h.laeq_db for h in hs])) if shown else None,  # type: ignore[misc]
+                "laeq_db": r1(energy_mean([h.laeq_db for h in hs if h.laeq_db is not None])) if shown else None,
                 "l90_db": r1(energy_mean([h.l90_db for h in hs if h.l90_db is not None])) if shown else None,
                 "l10_db": r1(energy_mean([h.l10_db for h in hs if h.l10_db is not None])) if shown else None,
                 "events_per_h": r1(mean(h.events_per_h for h in hs)) if shown else None,  # type: ignore[misc]

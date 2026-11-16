@@ -9,4 +9,26 @@
     <!-- No location either: the fix at «Start» and «Laut! Melden» exist only where «Messwerte teilen» does. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <!-- 0.9.4.1: the export service (below). Labor editions only; tools/check_release_apk.py fails if a
+         published edition has it. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <application>
+        <!-- 0.9.4.1 (Labor editions only): «In Ordner exportieren» and «Als ZIP teilen» run in this
+             foreground service of type dataSync (FOREGROUND_SERVICE_DATA_SYNC above), with a
+             notification showing the progress and «Abbrechen», so that a big export goes on when the
+             app is left or the screen turns off. It copies only files on the phone (into the folder the
+             owner picked or a ZIP in the app's cache); it opens no network connection.
+             LaborShareActivity: the invisible tap target of «Export fertig» that opens the share sheet. -->
+        <service
+            android:name=".labor.LaborExportService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <activity
+            android:name=".labor.LaborShareActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
 </manifest>

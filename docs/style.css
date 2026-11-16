@@ -10,6 +10,10 @@
   --blue: #0b5cad;          /* Zürich blue: links, button */
   --on-blue: #ffffff;
   --amber: #b86e00;         /* sodium street light: loud events */
+  --warn-bg: #fff4dc;       /* the «Vorabversion» box: amber tint */
+  --warn-border: #b86e00;
+  --warn-ink: #4a2d00;
+  --error: #a3261b;
   --trace: #17202e;
   --trace-fill: rgba(23, 32, 46, 0.07);
   --grid: #c9d1dc;
@@ -28,6 +32,10 @@
     --blue: #8ab8f0;
     --on-blue: #0d1626;
     --amber: #f2b33d;
+    --warn-bg: #2c2210;
+    --warn-border: #f2b33d;
+    --warn-ink: #fbe3b0;
+    --error: #ff9b8f;
     --trace: #c9d5e6;
     --trace-fill: rgba(201, 213, 230, 0.08);
     --grid: #2a3a55;
@@ -69,6 +77,12 @@ h2 {
   font-weight: 750;
   letter-spacing: -0.01em;
   margin-bottom: 0.75rem;
+}
+
+h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 1.75rem 0 0.6rem;
 }
 
 p, ul, ol, dl { margin: 0 0 1rem; }
@@ -160,6 +174,66 @@ section {
   margin: 1.25rem 0;
 }
 .note p:last-child { margin-bottom: 0; }
+
+/* «Vorabversion»: the alpha warning under the hero (index.html) and above «Welche Version?»
+   (anleitung.html, smaller). Same base as .note, but a full amber frame on an amber tint. */
+.alpha {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border: 2px solid var(--warn-border);
+  border-left-width: 6px;
+  border-radius: 0.5rem;
+  padding: 0.9rem 1.1rem;
+  margin: 1.25rem 0 0;
+  max-width: 36rem;
+}
+.alpha strong { font-weight: 750; }
+.alpha a { color: inherit; text-decoration-thickness: 1px; }
+.alpha a:hover { text-decoration-thickness: 2px; }
+.alpha-small {
+  font-size: 0.9375rem;
+  padding: 0.65rem 0.9rem;
+  margin: 1.5rem 0;
+  border-width: 1px;
+  border-left-width: 4px;
+}
+
+/* E-mail for update notices (#download, docs/js/newsletter.js). Hidden until the script shows it:
+   without the script the form could not be sent (form-action 'none'). */
+.newsletter {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 0 0 1.5rem;
+}
+.newsletter[hidden] { display: none; }
+.newsletter p { margin-bottom: 0.6rem; }
+.newsletter-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch; }
+.newsletter-row[hidden] { display: none; }
+.newsletter input[type="email"] {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--muted);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+}
+.newsletter .button { margin-top: 0; border: 0; cursor: pointer; font-family: inherit; }
+.newsletter .button:disabled { opacity: 0.6; cursor: progress; }
+.newsletter-status:empty { display: none; }
+.newsletter-status { margin: 0.6rem 0 0; }
+.newsletter-status.is-error { color: var(--error); }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 
 .facts {
   display: grid;

@@ -21,6 +21,7 @@ import ch.lessnoise.app.data.CalibrationRepository
 import ch.lessnoise.app.data.EventEntity
 import ch.lessnoise.app.data.MeasurementEntity
 import ch.lessnoise.app.data.MinuteEntity
+import ch.lessnoise.app.data.MovingSpanEntity
 import ch.lessnoise.app.data.Recalibrator
 import ch.lessnoise.app.service.LiveState
 import kotlinx.coroutines.CoroutineScope
@@ -136,7 +137,7 @@ class LiveUploadPlan(pointAtMs: Long) {
 
     private fun fullInterval(): Long = MINUTES_EVERY_MS shl level
 
-    /** A shared (not wind) event ended at [endMs]. */
+    /** A map event ([triggers]) ended at [endMs]. */
     fun onEvent(endMs: Long) {
         if (endMs <= 0 || level > 0) return // backed off: the next full run sends it
         val due = maxOf(endMs + EVENT_DELAY_MS, lastRunAtMs + MIN_GAP_MS)
@@ -179,6 +180,13 @@ class LiveUploadPlan(pointAtMs: Long) {
     }
 
     companion object {
+        /**
+         * Whether a just-detected event starts an events run: exactly the events the upload sends
+         * ([Payloads.isMapEvent], 0.6.4). Voices, music, unclassified, wind or a failed quality
+         * gate never cause a request.
+         */
+        fun triggers(e: ch.lessnoise.app.service.LiveEvent?): Boolean = e != null && Payloads.isMapEvent(e)
+
         /** First full run this long after the running measurement got its point. */
         const val FIRST_AFTER_POINT_MS = 30_000L
 
@@ -207,6 +215,7 @@ private class RoomUploadSource(
     override suspend fun minutesAfter(afterMs: Long, limit: Int): List<MinuteEntity> = db.measurements().minutesAfter(afterMs, limit)
     override suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity> = db.measurements().eventsAfter(afterMs, limit)
     override suspend fun measurements(): List<MeasurementEntity> = db.measurements().allMeasurements()
+    override suspend fun movingSpans(): List<MovingSpanEntity> = db.measurements().allMovingSpans()
 
     override suspend fun siteExtras(): SiteExtras {
         val source = AudioSourceSelector.select(context)
@@ -225,6 +234,11 @@ class UploadModule(
     context: Context,
     db: AppDatabase,
     calibrations: CalibrationRepository,
+    /**
+     * 0.6.7: how long records wait after their end before they may be sent ([Uploader.MOTION_HOLD_MS]
+     * while a «Messen» measurement runs in an edition with the motion detector, else 0); AppContainer.
+     */
+    motionHoldMs: () -> Long = { 0L },
 ) {
     private val appContext = context.applicationContext
     val store: UploadState = UploadState(appContext)
@@ -238,6 +252,7 @@ class UploadModule(
         reports = reports,
         appVersion = BuildConfig.VERSION_NAME,
         appBuild = BuildConfig.VERSION_CODE,
+        holdMs = motionHoldMs,
     )
     private val minutes = db.measurements()
 
@@ -323,8 +338,12 @@ class UploadModule(
         val wake = Channel<Unit>(Channel.CONFLATED)
         launch {
             live.map { it.lastEvent }.distinctUntilChanged().collect { e ->
-                if (e != null && !e.wind) {
-                    synchronized(lock) { plan.onEvent(e.endEpochMs) }
+                // Only an event that may leave the phone at all starts an events run (0.6.4); not
+                // one while the phone is being carried (0.6.7: it is not sent).
+                if (e != null && LiveUploadPlan.triggers(e) && !live.value.moving) {
+                    // 0.6.7: not before the upload's motion hold has passed (else the run finds nothing to send).
+                    val wait = maxOf(0L, uploader.holdNowMs() - LiveUploadPlan.EVENT_DELAY_MS)
+                    synchronized(lock) { plan.onEvent(e.endEpochMs + wait) }
                     wake.trySend(Unit)
                 }
             }
@@ -390,15 +409,18 @@ class UploadModule(
         applySchedule(replace = false)
         scope.launch {
             var wasRunning = live.value.running
+            var wasUnterwegs = live.value.running && live.value.unterwegs
             live.collect { st ->
-                if (wasRunning && !st.running) uploadSoon(UploadCadence.AFTER_STOP_MS / 1000)
+                // 0.6.4: stopping an «Unterwegs» measurement (never shared) causes no request.
+                if (wasRunning && !st.running && !wasUnterwegs) uploadSoon(UploadCadence.AFTER_STOP_MS / 1000)
                 wasRunning = st.running
+                if (st.running) wasUnterwegs = st.unterwegs
             }
         }
         scope.launch {
             // The start of the running shared measurement, or null; a new value restarts the loop.
             combine(live, store.state) { l, s ->
-                if (l.running && l.sharedPoint != null && s.enabled && !s.authFailed) l.measurementStartMs else null
+                if (l.running && !l.unterwegs && l.sharedPoint != null && s.enabled && !s.authFailed) l.measurementStartMs else null
             }.distinctUntilChanged().collectLatest { start ->
                 // The WorkManager job of the first 0.6.3 builds (every 10 minutes) is gone.
                 runCatching { work.cancelUniqueWork(UploadWorker.WORK_LIVE) }

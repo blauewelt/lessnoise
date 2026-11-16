@@ -1,0 +1,20 @@
+You are labelling a short audio clip recorded by a smartphone microphone. The audio has been amplified so that its loudest point is near full scale; do not infer loudness from that (the measured level is given in the context below). Describe only what you actually hear; do not guess a plausible source from context. Answer every question independently: a clip often contains several sources at once.
+
+{context}
+Return JSON only:
+{
+  "label": a free-text label for the dominant event in the clip, 1 to 4 words, lower case, in your own words (examples of the style, not a fixed list: "car pass-by", "distant traffic swell", "cough", "door", "bird", "footsteps", "fabric rustle", "phone handled", "click", "revving motorbike", "car accelerating hard", "nothing distinct"),
+  "all_sources": [every sound source you can hear, most prominent first, short free text],
+  "distinct_event": true if something clearly rises above the steady background, false if the clip is essentially steady background,
+  "phone_or_body": one of "yes", "likely", "unlikely", "no" — whether the dominant sound is produced by the phone itself or by the person carrying it: footsteps or running, the carrier's breathing, sniffing or coughing, fabric rustle, the phone being touched, handled, picked up, put down, bumped, or moving in a pocket or bag (signs: close-up broadband thuds or scrapes, rhythmic thumps, breath right at the microphone, sudden level jumps with no distance cue),
+  "phone_or_body_reason": one short sentence,
+  "road_vehicle": "yes" or "no" — whether any road vehicle (car, motorbike, scooter, truck, bus) is audible anywhere in the clip, near or distant, including a distant traffic swell,
+  "rain": "yes" or "no" — whether rain is falling in the clip: a steady fine hiss or patter of many droplets hitting surfaces. Tyre swish on a wet road alone is not rain; report that in "wet_road",
+  "wet_road": "yes" or "no" — whether vehicle tyres sound like they are rolling on a wet road (swishing, splashing),
+  "rail": "yes" or "no" — whether a train or tram is audible,
+  "aircraft": "yes" or "no" — whether an aircraft (jet, propeller plane, helicopter) is audible,
+  "voices": "yes" or "no" — whether human voices (speech, shouting, laughter, announcements) are audible,
+  "wind_on_mic": "yes" or "no" — whether wind is blowing on the microphone (low rumbling buffeting or gusts),
+  "vehicle_type": if a road vehicle is audible: one of "car", "motorbike", "truck_or_bus", "scooter", "several", "unknown"; otherwise null,
+  "description": one sentence describing what happens acoustically (what rises, how it rises and falls, how close it sounds)
+}

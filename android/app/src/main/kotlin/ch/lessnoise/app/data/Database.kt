@@ -12,6 +12,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.dsp.EventFeatures
 import ch.lessnoise.dsp.EventLevels
 import ch.lessnoise.dsp.MinuteLevels
@@ -76,6 +77,12 @@ data class MinuteEntity(
     // v5 (v0.4.0, detector v2): median local floor of the minute; events flagged as wind (not in eventCount).
     @ColumnInfo(name = "local_floor_db") val localFloorDb: Double? = null,
     @ColumnInfo(name = "wind_event_count", defaultValue = "0") val windEventCount: Int = 0,
+    /**
+     * v10 (app 0.7.2): the microphone the minute was measured with (MicChoice.key: «builtin», or
+     * «usb:…», «bluetooth:…», «wired:…» for a chosen one). Rows from before are «builtin». Only its
+     * kind is sent (MicChoice.wireAudioSource).
+     */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
 )
 
 @Entity(tableName = "events", indices = [Index("startEpochMs")])
@@ -117,6 +124,8 @@ data class EventEntity(
     @ColumnInfo(name = "lf_flutter_db") val lfFlutterDb: Double? = null,
     @ColumnInfo(name = "wind", defaultValue = "0") val wind: Boolean = false,
     @ColumnInfo(name = "shape") val shape: String? = null,
+    /** v10 (app 0.7.2): the microphone, as in [MinuteEntity.mic]. Not sent (events carry no audio source). */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
 )
 
 /**
@@ -145,11 +154,32 @@ data class MeasurementEntity(
     @ColumnInfo(name = "point_e") val pointE: Int? = null,
     @ColumnInfo(name = "point_n") val pointN: Int? = null,
     @ColumnInfo(name = "sigma_m") val sigmaM: Int? = null,
+    /**
+     * v8 (app 0.6.4): started as «Unterwegs» — it measures and may show the «Sehr laut» notification,
+     * but it is never shared: it gets no point ([MeasurementDao.attachPoint] refuses it) and
+     * [sharedPoint] is null even if a point were present, so none of its minutes and events is sent.
+     */
+    @ColumnInfo(name = "unterwegs", defaultValue = "0") val unterwegs: Boolean = false,
 )
 
-/** The shifted point of a shared measurement (v7), or null if it is not shared. */
+/** The shifted point of a shared measurement (v7), or null if it is not shared (no point, or «Unterwegs», v8). */
 fun MeasurementEntity.sharedPoint(): LocationNoise.Point? =
-    if (pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
+    if (!unterwegs && pointE != null && pointN != null && sigmaM != null) LocationNoise.Point(pointE, pointN, sigmaM) else null
+
+/**
+ * v9 (app 0.6.7, editions with the map): a time span in which the phone was being carried during a
+ * measurement started with «Messen» («Unterwegs erkannt», the motion detector in src/karte/.../motion/).
+ * Only its start and end (wall-clock ms) are stored — no sensor value. Minutes and events that
+ * overlap a span are never sent ([PlaceIndex][ch.lessnoise.app.upload.PlaceIndex]): the
+ * measurement's shared point is wrong while the phone is carried. [endMs] null: still moving (or the
+ * app was killed; [MeasurementRepository.beginMeasurement] closes it at the next start).
+ */
+@Entity(tableName = "moving_spans", indices = [Index("start_ms")])
+data class MovingSpanEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "start_ms") val startMs: Long,
+    @ColumnInfo(name = "end_ms") val endMs: Long? = null,
+)
 
 @Entity(tableName = "calibrations", indices = [Index(value = ["deviceModel", "audioSource"])])
 data class CalibrationEntity(
@@ -170,6 +200,13 @@ data class CalibrationEntity(
     val toneFrequencyHz: Double? = null,
     val tonality: Double? = null,
     val warnings: String = "",
+    /**
+     * v10 (app 0.7.2): the microphone this calibration belongs to (MicChoice.key). Calibrations from
+     * before are «builtin»: until 0.7.1 the app measured only with the built-in microphone.
+     */
+    @ColumnInfo(name = "mic", defaultValue = "builtin") val mic: String = MicChoice.BUILTIN,
+    /** v10: the microphone's name when it was calibrated, e.g. «USB-Mikrofon (Rode NT-USB)»; null for the built-in one. */
+    @ColumnInfo(name = "mic_label") val micLabel: String? = null,
 ) {
     val isCalibrated: Boolean get() = method != METHOD_RESET
 
@@ -229,16 +266,16 @@ interface MeasurementDao {
     // ---- Re-evaluation with a later calibration (v0.3.2) -------------------------------------
 
     @Query("SELECT COUNT(*) FROM minutes WHERE " + RecalibrationSql.SCOPE)
-    fun minutesToRecalibrate(source: String, calibrationId: Long): Flow<Int>
+    fun minutesToRecalibrate(source: String, mic: String, calibrationId: Long): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM events WHERE " + RecalibrationSql.SCOPE)
-    fun eventsToRecalibrate(source: String, calibrationId: Long): Flow<Int>
+    fun eventsToRecalibrate(source: String, mic: String, calibrationId: Long): Flow<Int>
 
     @Query("SELECT * FROM minutes WHERE " + RecalibrationSql.SCOPE + " ORDER BY id")
-    suspend fun minutesInScope(source: String, calibrationId: Long): List<MinuteEntity>
+    suspend fun minutesInScope(source: String, mic: String, calibrationId: Long): List<MinuteEntity>
 
     @Query("SELECT * FROM events WHERE " + RecalibrationSql.SCOPE + " ORDER BY id")
-    suspend fun eventsInScope(source: String, calibrationId: Long): List<EventEntity>
+    suspend fun eventsInScope(source: String, mic: String, calibrationId: Long): List<EventEntity>
 
     @Update suspend fun updateMinutes(m: List<MinuteEntity>)
     @Update suspend fun updateEvents(e: List<EventEntity>)
@@ -251,10 +288,14 @@ interface MeasurementDao {
     @Query("SELECT * FROM events WHERE startEpochMs > :afterMs ORDER BY startEpochMs ASC, id ASC LIMIT :limit")
     suspend fun eventsAfter(afterMs: Long, limit: Int): List<EventEntity>
 
-    /** Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent. */
+    /**
+     * Minutes after the marker that belong to a shared measurement (a point), i.e. that will be sent;
+     * since 0.6.7 without those overlapping a moving span.
+     */
     @Query(
         "SELECT COUNT(*) FROM minutes AS m WHERE m.startEpochMs > :afterMs AND " +
-            "(SELECT point_e FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL"
+            "(SELECT CASE WHEN unterwegs = 0 THEN point_e END FROM measurements WHERE start_ms <= m.startEpochMs + 5000 ORDER BY start_ms DESC LIMIT 1) IS NOT NULL" +
+            " AND " + MovingSql.MINUTE_NOT_MOVING
     )
     fun sharedMinuteCountAfter(afterMs: Long): Flow<Int>
 
@@ -278,16 +319,16 @@ interface MeasurementDao {
      * 0.6.3: gives the RUNNING measurement that started at [startMs] its shifted point (the fix
      * arrives after «Starten», or sharing was switched on during the measurement). Only a row that
      * is still open and has no point yet: a measurement that already ended unshared stays unshared.
-     * Returns the number of rows changed (0 or 1).
+     * Never a measurement started as «Unterwegs» (v8, 0.6.4). Returns the number of rows changed (0 or 1).
      */
     @Query(
         "UPDATE measurements SET cell = :cell, point_e = :e, point_n = :n, sigma_m = :sigmaM " +
-            "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL"
+            "WHERE start_ms = :startMs AND end_ms IS NULL AND point_e IS NULL AND unterwegs = 0"
     )
     suspend fun attachPoint(startMs: Long, cell: String, e: Int, n: Int, sigmaM: Int): Int
 
     /** The newest measurement with a shifted point (the «Karte» tab opens there), or null. */
-    @Query("SELECT * FROM measurements WHERE point_e IS NOT NULL ORDER BY start_ms DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM measurements WHERE point_e IS NOT NULL AND unterwegs = 0 ORDER BY start_ms DESC, id DESC LIMIT 1")
     suspend fun latestSharedMeasurement(): MeasurementEntity?
 
     /** End (ms) of the last minute starting in [fromMs, toMs), or null. */
@@ -295,17 +336,41 @@ interface MeasurementDao {
     suspend fun lastMinuteEnd(fromMs: Long, toMs: Long): Long?
 
     @Query("DELETE FROM measurements") suspend fun clearMeasurements()
+
+    // ---- Moving spans («Unterwegs erkannt», v9, app 0.6.7) ----------------------------------------
+
+    @Insert suspend fun insertMovingSpan(s: MovingSpanEntity): Long
+
+    /** Closes every open span at [endMs] (an open span cannot end before it started). */
+    @Query("UPDATE moving_spans SET end_ms = MAX(:endMs, start_ms) WHERE end_ms IS NULL")
+    suspend fun endMovingSpans(endMs: Long): Int
+
+    @Query("SELECT * FROM moving_spans ORDER BY start_ms ASC, id ASC")
+    suspend fun allMovingSpans(): List<MovingSpanEntity>
+
+    @Query("DELETE FROM moving_spans") suspend fun clearMovingSpans()
+
+    // ---- The phone's noise floor («Messgrenze», 0.6.5; dsp NoiseFloor.kt, data/NoiseFloorStore.kt) -------
+
+    /** Valid minutes with an L90 of [source]: the n of the estimate. */
+    @Query(NoiseFloorSql.COUNT)
+    suspend fun noiseFloorMinuteCount(source: String): Int
+
+    /** rawL90 (L90 − the minute's offset) at 0-based rank [offset] in ascending order, or null. */
+    @Query(NoiseFloorSql.RAW_L90_AT)
+    suspend fun noiseFloorRawL90At(source: String, offset: Int): Double?
 }
 
 @Dao
 interface CalibrationDao {
     @Insert suspend fun insert(c: CalibrationEntity): Long
 
-    @Query("SELECT * FROM calibrations WHERE deviceModel = :model AND audioSource = :source ORDER BY createdEpochMs DESC, id DESC LIMIT 1")
-    suspend fun latest(model: String, source: String): CalibrationEntity?
+    /** 0.7.2: per microphone too ([CalibrationEntity.mic]); the built-in microphone's are those of 0.7.1. */
+    @Query("SELECT * FROM calibrations WHERE " + CalibrationSql.LATEST)
+    suspend fun latest(model: String, source: String, mic: String): CalibrationEntity?
 
-    @Query("SELECT * FROM calibrations WHERE deviceModel = :model AND audioSource = :source ORDER BY createdEpochMs DESC, id DESC LIMIT 1")
-    fun latestFlow(model: String, source: String): Flow<CalibrationEntity?>
+    @Query("SELECT * FROM calibrations WHERE " + CalibrationSql.LATEST)
+    fun latestFlow(model: String, source: String, mic: String): Flow<CalibrationEntity?>
 
     @Query("SELECT * FROM calibrations ORDER BY createdEpochMs DESC, id DESC")
     fun historyFlow(): Flow<List<CalibrationEntity>>
@@ -318,8 +383,8 @@ interface CalibrationDao {
 }
 
 @Database(
-    entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class],
-    version = 7, exportSchema = false,
+    entities = [MinuteEntity::class, EventEntity::class, CalibrationEntity::class, MeasurementEntity::class, MovingSpanEntity::class],
+    version = 10, exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun measurements(): MeasurementDao
@@ -328,7 +393,7 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "lessnoise.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build()
     }
 }

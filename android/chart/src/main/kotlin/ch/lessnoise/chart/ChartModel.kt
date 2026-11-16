@@ -13,8 +13,32 @@ import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 
+/** 0.6.5: the line under the summary tiles when «Grundrauschen» is at the phone's noise floor. */
+const val AT_FLOOR_NOTE = "Leiser als das Telefon messen kann."
+
+/** 0.6.5: label of the chart band up to the phone's noise floor + 3 dB. */
+const val FLOOR_BAND_LABEL = "Messgrenze"
+
 /** Note for data re-evaluated with a calibration made after the measurement. */
 const val RECALIBRATED = "nachträglich kalibriert"
+
+/** 0.9.2: the «Grundrauschen» tile before a valid minute (until 0.9.1 «– dB(A)»). */
+const val NO_VALUE_YET = "noch kein Wert"
+
+/** 0.9.2: the «Lärmspitzen» tile before any valid time (until 0.9.1 «–»). */
+const val NONE_YET_TILE = "noch keine"
+
+/** 0.9.2: the «Lauteste» tile of a window without a Lärmspitze (until 0.9.1 «–»). */
+const val NO_PEAK = "keine"
+
+/** 0.9.2: the legend of the band from L90 to L10 (until 0.9.1 «Schwankung», which did not say what varies). */
+const val BAND_LEGEND = "leise bis laut"
+
+/** 0.9.2: the note under the «Grundrauschen» tile, what the word means. */
+const val HUM_NOTE = "ohne Spitzen"
+
+/** 0.9.2: the label in front of the category chips: a tap colours that kind of Lärmspitze in the chart. */
+const val HIGHLIGHT_LABEL = "Hervorheben:"
 
 /** Raw data of one window as loaded from the database. */
 data class ChartData(
@@ -107,14 +131,28 @@ data class WindowSummary(
     val humDb: Double = Double.NaN,
     /** Events (after the floor) flagged as wind on the microphone: in none of the counts above. */
     val windCount: Int = 0,
+    /**
+     * 0.6.5: the phone's noise floor + 3 dB if [humDb] is at it (same rule as the measurement list,
+     * [ch.lessnoise.dsp.NoiseFloor.Limit.mostlyAtFloor]): the tile shows «≤ …» and the note
+     * [AT_FLOOR_NOTE]. Null otherwise or without a floor.
+     */
+    val humLimitDb: Double? = null,
 ) {
-    /** «Lärmspitzen pro Stunde» tile: «12», «4,5», «–» without valid time. */
+    /**
+     * The «Grundrauschen» tile: «41,2 dB(A)», or «≤ 34,0 dB(A)» at the phone's noise floor; 0.9.2:
+     * [NO_VALUE_YET] without a valid minute (until 0.9.1 «– dB(A)»).
+     */
+    val humText: String
+        get() = humLimitDb?.let { "≤ ${ChartFmt.db(it)} dB(A)" } ?: if (humDb.isNaN()) NO_VALUE_YET else "${ChartFmt.db(humDb)} dB(A)"
+
+    /** «Lärmspitzen pro Stunde» tile: «12», «4,5»; 0.9.2: [NONE_YET_TILE] without valid time (until 0.9.1 «–»). */
     val eventsPerHourText: String
-        get() = if (eventsPerHour.isNaN()) "–" else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
+        get() = if (eventsPerHour.isNaN()) NONE_YET_TILE else ChartFmt.comma(eventsPerHour, if (eventsPerHour < 10) 1 else 0)
 
     /**
-     * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 Töff & Poser · 76 % gemessen» ([highlightName]
-     * null: without the highlighted category). The gaps are drawn in the chart, not listed (0.6.1);
+     * «Mittel 45,2 dB(A) · 48 Lärmspitzen, davon 5 laute Fahrzeuge · 76 % gemessen» ([highlightName]
+     * null: without the highlighted category; the caller passes [ChartCategories.countName]). The
+     * gaps are drawn in the chart, not listed (0.6.1);
      * [gapTexts] and [dynamicsDb] stay for the tests and the CSV.
      */
     fun line(highlightName: String? = null): String {
@@ -159,6 +197,12 @@ class ChartModel(
     val windEvents: List<NoiseEvent> = emptyList(),
     /** Tooltips name weekday and date (the measurement spans more than one calendar date). */
     val withDates: Boolean = false,
+    /**
+     * 0.6.5: top of the light band «Messgrenze» (the phone's noise floor + 3 dB, drawn from the
+     * bottom of the plot up to here), or null: no floor, or the band lies below the y range.
+     * Clamped to the top of the y range.
+     */
+    val floorBandTopDb: Double? = null,
 ) {
     /** The event's clip reference, or null (always null in the public app). */
     fun clipRefOf(e: NoiseEvent): String? = if (clipRefs.isEmpty()) null else clipRefs[e.startEpochMs]
@@ -200,7 +244,33 @@ class ChartModel(
 
         fun isValid(m: MinuteRecord): Boolean = m.coverage >= MIN_COVERAGE && !m.laeqDb.isNaN()
 
-        fun build(data: ChartData, zone: ZoneId, highlight: String, eventFloorDb: Double, showWind: Boolean = true): ChartModel {
+        /**
+         * [noiseFloor] (0.6.5): the phone's noise floor, for the «Messgrenze» band and the «≤» of
+         * the «Grundrauschen» tile; null: neither.
+         */
+        fun build(
+            data: ChartData, zone: ZoneId, highlight: String, eventFloorDb: Double, showWind: Boolean = true,
+            noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null,
+        ): ChartModel {
+            val m = buildWithoutFloor(data, zone, highlight, eventFloorDb, showWind)
+            if (noiseFloor == null) return m
+            val minutes = data.minutes.filter { it.startEpochMs in data.window }
+            val atFloor = noiseFloor.mostlyAtFloor(minutes)
+            return ChartModel(
+                window = m.window, nowMs = m.nowMs, hourly = m.hourly, points = m.points, segments = m.segments, gaps = m.gaps,
+                gridTicks = m.gridTicks, axisLabels = m.axisLabels, yRange = m.yRange, otherEvents = m.otherEvents,
+                highlightedEvents = m.highlightedEvents, eventsCapped = m.eventsCapped, highlight = m.highlight,
+                summary = if (atFloor) m.summary.copy(humLimitDb = noiseFloor.limitDb) else m.summary,
+                zone = m.zone, clipRefs = m.clipRefs, windEvents = m.windEvents, withDates = m.withDates,
+                floorBandTopDb = floorBandTop(noiseFloor.limitDb, m.yRange),
+            )
+        }
+
+        /** The band's top in dB, or null if it lies at or below the bottom of [y] (then nothing is drawn). */
+        fun floorBandTop(limitDb: Double, y: YRange): Double? =
+            if (limitDb.isNaN() || limitDb <= y.lo) null else minOf(limitDb, y.hi)
+
+        private fun buildWithoutFloor(data: ChartData, zone: ZoneId, highlight: String, eventFloorDb: Double, showWind: Boolean): ChartModel {
             val w = data.window
             val windows = Windows(zone)
             val minutes = data.minutes.filter { it.startEpochMs in w }.sortedBy { it.startEpochMs }
@@ -521,7 +591,8 @@ object ChartCategories {
     const val DEFAULT_HIGHLIGHT = "loud_vehicle"
     val all: List<Pair<String, String>> = listOf(
         "road_traffic" to "Strassenverkehr",
-        "loud_vehicle" to "Töff & Poser",
+        // 0.9.3: renamed to «Lautes Fahrzeug» (a loud vehicle; the id stays).
+        "loud_vehicle" to "Lautes Fahrzeug",
         "rail_tram" to "Tram & Bahn",
         "aircraft" to "Flugzeug",
         "voices" to "Stimmen",
@@ -534,5 +605,20 @@ object ChartCategories {
         null -> "–"
         WindRule.CATEGORY -> WindRule.NAME_DE // the detector's wind flag, not a chip
         else -> all.firstOrNull { it.first == id }?.second ?: id
+    }
+
+    /**
+     * 0.9.3: the name after a count in the summary line, «davon 0 laute Fahrzeuge» / «davon 1 lautes
+     * Fahrzeug»; the other categories keep their chip name.
+     */
+    fun countName(id: String?, count: Int): String = when (id) {
+        "loud_vehicle" -> if (count == 1) "lautes Fahrzeug" else "laute Fahrzeuge"
+        else -> name(id)
+    }
+
+    /** 0.9.3: the legend entry of the highlighted dots, «Laute Fahrzeuge»; the others keep their chip name. */
+    fun legendName(id: String?): String = when (id) {
+        "loud_vehicle" -> "Laute Fahrzeuge"
+        else -> name(id)
     }
 }

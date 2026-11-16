@@ -1,4 +1,4 @@
-# Weniger Lärm — citizen noise measurement (Android; v0.6.0 published)
+# Weniger Lärm — citizen noise measurement (Android; v0.9.0 published)
 
 Weniger Lärm («Less Noise»; until v0.5.1 «Stadtlärm») turns an Android phone into a noise logger.
 It measures A-weighted sound levels the way a sound level meter does (IEC 61672-1 A-weighting,
@@ -152,7 +152,7 @@ No time of day is special.
 
 The **Messungen** tab lists all measurements, newest first: start and end («Sa 10.10. 22:14 – So
 11.10. 06:30», or «läuft seit …»), **Dauer**, **Mittel** (LAeq), **Grundrauschen** (the hum, median
-of the valid minutes' L90) and **Lärmspitzen pro Stunde** (bursts per hour of valid measurement,
+of the valid minutes' L90; «≤ …» at the phone's noise floor since 0.6.5, see «Noise floor») and **Lärmspitzen pro Stunde** (bursts per hour of valid measurement,
 without wind), and «geteilt» for a shared measurement. Above the list is the chart of the selected
 measurement (tap a card to select it; the newest one is shown first), drawn by the app (Compose
 `Canvas`, no chart library):
@@ -163,10 +163,10 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
   the median of their L90 and L10; an hour needs 10 valid minutes), events at their clock time.
   ‹ › or a sideways swipe on the chart (≥ 15 % of its width, or a fling) move to the older/newer
   measurement.
-- **Marks:** a band from L90 to L10 (legend «Schwankung»), the LAeq line per minute (legend «Mittel
+- **Marks:** a band from L90 to L10 (legend «leise bis laut»; «Schwankung» until 0.9.1), the LAeq line per minute (legend «Mittel
   pro Minute»), and every event as a dot at (start, LAFmax) (legend «andere Spitzen»); wind events
   are not drawn (since 0.6.1). One category is highlighted in orange and drawn on top (default
-  Töff & Poser; chosen with the scrolling row of chips under the chart and remembered; the
+  «Lautes Fahrzeug», id `loud_vehicle`, since 0.9.3; legend «Laute Fahrzeuge»; chosen with the scrolling row of chips under the chart and remembered; the
   selected chip carries the same orange dot), all others as smaller grey dots. The y axis runs from the lowest L90 − 5 dB to the loudest shown event or
   LAeq + 5 dB (rounded to 5 dB, at least 30 dB).
 - **Gaps:** the line and band are never drawn across a missing minute or one with < 50 % valid
@@ -184,7 +184,7 @@ measurement (tap a card to select it; the newest one is shown first), drawn by t
   Tapping the tooltip (or outside the plot) closes it.
 - **Summary:** three tiles — **«Grundrauschen»**, the hum, **«Lärmspitzen» … «pro Stunde»**, bursts
   per hour of valid measurement without wind, and **«Lauteste»**, the loudest burst — and one line
-  «Mittel 53,6 dB(A) · 67 Lärmspitzen, davon 9 Töff & Poser · 100 % gemessen». Since 0.6.1 the line
+  «Mittel 53,6 dB(A) · 67 Lärmspitzen, davon 9 laute Fahrzeuge · 100 % gemessen» (0.9.3: plural after a count, `ChartCategories.countName`). Since 0.6.1 the line
   no longer lists the dynamics (median L10 − L90) and the interruptions (the chart draws the gaps);
   both are still computed (`WindowSummary.dynamicsDb`, `gapTexts`). No «unkalibriert» badge (said
   once under Einstellungen › Datenschutz: «Ohne Kalibrierung sind die Werte Richtwerte (± 5 dB).»).
@@ -226,12 +226,12 @@ score = max of its members. The dominant category is (a) the category of the **t
 that label is mapped and scores ≥ `top1_threshold` (0.10), else (b) the highest category score if
 ≥ `category_threshold` (0.20), else (c) "unclassified". Rule (a) exists because quiet, distant
 sources score low even when the best label is clearly right (a highway pass-by: «Vehicle» at
-0.1–0.3). Ties are broken by list order, so **Töff & Poser beats Strassenverkehr**. Stored events
+0.1–0.3). Ties are broken by list order, so **Lautes Fahrzeug beats Strassenverkehr**. Stored events
 keep the category they were given when measured:
 
 | id | UI name | AudioSet classes |
 |---|---|---|
-| `loud_vehicle` | Töff & Poser | Motorcycle; Accelerating, revving, vroom; Race car, auto racing; Engine starting |
+| `loud_vehicle` | Lautes Fahrzeug (since 0.9.3) | Motorcycle; Accelerating, revving, vroom; Race car, auto racing; Engine starting |
 | `road_traffic` | Strassenverkehr | Vehicle; Car; Car passing by; Motor vehicle (road); Traffic noise, roadway noise; Truck; Bus; Engine; Idling; Heavy/Medium/Light engine; Tire squeal; Skidding; Vehicle horn, car horn, honking; Air brake |
 | `rail_tram` | Tram & Bahn | Rail transport; Train; Railroad car, train wagon; Train wheels squealing; Subway, metro, underground; Train horn; Train whistle |
 | `aircraft` | Flugzeug | Aircraft; Aircraft engine; Jet engine; Fixed-wing aircraft, airplane; Propeller, airscrew; Helicopter |
@@ -254,14 +254,17 @@ so a better model can be swapped in without touching the measurement code.
 | Gradle flavour | `public` | `offline` (default variant) | `labor` | `laborKarte` |
 | `BuildConfig.EDITION` | `"karte"` | `"offline"` | `"labor"` | `"labor-karte"` |
 | App id (since 0.6.0; before `ch.stadtlaerm.*`) | `ch.lessnoise.app` | `ch.lessnoise.app` | `ch.lessnoise.labor` | `ch.lessnoise.labor` |
-| Version name | `0.6.3` | `0.6.3` | `0.6.3-labor` | `0.6.3-labor-karte` |
+| Version name | `0.6.7` | `0.6.7` | `0.6.7-labor` | `0.6.7-labor-karte` |
 | Launcher label | «Weniger Lärm» | «Weniger Lärm» | «Weniger Lärm Labor» | «Weniger Lärm Labor» |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | yes, for «Messwerte teilen», «Laut! Melden» and (0.6.3) the tab «Karte» only | no | no | yes, the same |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | yes, for the fix right after «Starten» of a shared measurement and «Laut! Melden» only | no (removed) | no (removed) | yes, the same |
 | Tab «Karte» (0.6.3, WebView, `src/karte/`) | yes | no (`src/nomap/`) | no (`src/nomap/`) | yes |
+| «Unterwegs messen», «Sehr laut» notification (`src/karte/…/alert/`) | yes since 0.9.4.6 (released with 0.9.5; 0.6.3–0.8.3 yes, 0.8.4–0.9.4.5 no: `src/nounterwegs/` stand-in, removed) | no (`src/nomap/`) | no (`src/nomap/`) | yes, the same code (0.8.4–0.9.4.5 its own copy in `src/laborKarte/`, button «Unterwegs aufnehmen») |
+| «Audio speichern» (`src/labor/`, the one Labor switch, 0.9.4.6) | no | no | yes | yes |
+| Shortcut and widget «Laut! Melden» (0.8.4, `src/karte/…/report/`) | yes | no | no | yes |
 | `ACCESS_BACKGROUND_LOCATION` | no | no | no | no (removed in `src/main`) |
 | `BuildConfig.UPLOAD_AVAILABLE` | true | false | false | true |
-| Sources | `src/main` + `src/public` | `src/main` + `src/public/kotlin` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/laborKarte/AndroidManifest.xml` |
+| Sources | `src/main` + `src/public` + `src/karte` + `src/noposition` | `src/main` + `src/public/kotlin` + `src/nomap` + `src/offline/AndroidManifest.xml` | `src/main` + `src/labor` + `src/nomap` | `src/main` + `src/labor/kotlin` + `src/labor/res` + `src/karte` + `src/noposition` + `src/laborKarte/AndroidManifest.xml` and `res/xml/shortcuts.xml` |
 | Published as | `docs/download/lessnoise-karte.apk` on wenigerlaerm.ch | `docs/download/lessnoise.apk` on wenigerlaerm.ch | never | never (not on the website, in a release or on `test-builds`) |
 
 The two published editions share the app id and the release key, so installing one over the other
@@ -339,20 +342,54 @@ Instead:
    indoor level (typically 25–35 dB lower).
 2. Optionally connect the charger. Measurement does not depend on charging; the charger only
    saves battery (see below).
-3. **Messen → Starten.** In the «Online-Version» the first «Starten» asks once «Auf die
+3. **Messen → Starten** (since 0.8.3, Labor·Karte first: **«Messung starten»**; 0.8.3 had a mode switch
+   **«Am Fenster» | «Unterwegs»** at the top, removed in 0.8.4: a measurement is always the one at the
+   window, and in the editions with the map «Laut! Melden» is the first button while nothing runs, below). In the
+   «Online-Version» the first «Starten» asks once «Auf die
    Lärmkarte?» («Ja, auf die Karte» / «Nur auf dem Telefon»). The measurement starts at once; with
    sharing on the phone takes one location fix for the measurement's place in parallel, moved at
    random on the phone, and a status line below «Läuft seit …» says how sharing stands («Standort
    wird bestimmt …», «Wird geteilt – erste Werte in etwa einer Minute», «Auf der Karte · zuletzt
-   gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»). While measuring, a persistent notification
+   gesendet …», «Kein Standort – tippen»: «Nochmals», settings, «Koordinaten einfügen»; since 0.8.3 a
+   status chip with an icon and shorter words: «Standort wird gesucht …», «Wird geteilt · erste Werte
+   in etwa 1 Minute», «Auf der Karte · 18:42», «Kein Standort für die Karte» › — «Kein Standort» until 0.9.1). While measuring, a persistent notification
    «Mikrofon aktiv – Messung läuft» with «Letzte Minute: … dB(A)» (the running 1-min LAeq) and a
    «Stopp» button is shown (its icon stays in the status bar); you can turn the screen off. The
    screen shows «Jetzt» (LAF), «Grundrauschen» (the 5-min L90), «Klingt nach» (the current
    category), «Läuft seit …» and the «Letzte Lärmspitzen». Before the start it shows one placement
    hint and one microphone line («Die App braucht das Mikrofon. Es wird nie Audio gespeichert oder
-   gesendet.») instead.
+   gesendet.») instead. Since 0.8.3 (Labor·Karte first): one line under the button (0.8.4: «Zum Messen:
+   Telefon ans offene Fenster, am Ladegerät.», without «Zum Messen:» in the Offline and Labor builds;
+   while measuring «Läuft seit 18:30 · Bildschirm darf aus sein.»), the
+   placement and microphone lines folded under «Mehr dazu ⌄»; the level card holds the bar (Material
+   `LinearProgressIndicator`, primary < 60 dB, tertiary 60–75, error ≥ 75), «Grundrauschen» and
+   «Klingt nach» as a chip; the Lärmspitzen are list items (`ui/MeasureScreen.kt`, `ui/MeasureTexts.kt`,
+   until 0.8.3 `ui/MeasureMode.kt`).
 4. When you are done — after an hour, a night or several days: **Stoppen** (or «Stopp» in
    the notification), then look at **Messungen**.
+
+**Microphone (0.7.2).** By default the app measures with the phone's built-in microphone and never
+switches to headphones or a headset by itself. **Einstellungen → Erweitert → Mikrofon** lists the
+microphones connected now (`AudioManager.getDevices(GET_DEVICES_INPUTS)`, kept current by an
+`AudioDeviceCallback`), the built-in one first, marked «Standard», each labelled by type and product
+name («USB-Mikrofon (Rode NT-USB)»). The choice is remembered per microphone — an identity of type,
+product name and address, stored as kind + hash (`audio/MicChoice.kt`), never Android's volatile
+device id. Once another microphone is chosen, the app uses it whenever it is connected: at the start
+of a measurement, and during one when it is plugged in or unplugged (the measurement continues; the
+running minute is closed and a new one starts with that microphone's calibration). While it is not
+connected the app measures with the built-in microphone and shows «Mikrofon: eingebaut (gewähltes
+nicht verbunden)» under «Läuft seit …». Classic Bluetooth headsets (HFP, `TYPE_BLUETOOTH_SCO`) are
+listed as «nicht nutzbar»: their microphone only works over a SCO link, i.e. call routing
+(`startBluetoothSco` / `setCommunicationDevice`), which the app never uses; LE Audio
+(`TYPE_BLE_HEADSET`), USB and wired microphones are pinned with `setPreferredDevice`. After
+`startRecording()` the routed device is checked (`getRoutedDevice()`, API 29+ also the active
+recording configuration); if Android routes another input the AudioRecord is built and started once
+more, and if it still does the start fails with «Android nimmt ein anderes Mikrofon als das gewählte.
+Bitte nochmals starten.»; during a measurement a foreign route reopens the capture (at most 3 times a
+minute, then the measurement stops with that line). No permission is needed for any of this. Each
+minute and event stores the microphone (DB v10, `mic`; rows from before are «builtin»); a minute of
+another microphone sends `audio_source` «UNPROCESSED+usb» (kind only; server/DESIGN.md §4.3).
+0.6.6–0.7.1 measured only with the built-in microphone and refused any other route.
 
 **Closing the app.** The measurement keeps running as a background service when the app is swiped
 away from the recent apps; the notification shows it and has the «Stopp» button. (Until 0.6.0 the
@@ -377,9 +414,27 @@ sleep") may need an extra exemption in the maker's own battery settings.
 ## Calibration (step by step)
 
 Phones differ by several dB, so for data you want to show to anyone, calibrate (since 0.6.1 under
-**Einstellungen → Erweitert → Kalibrieren**; the screen calls the offset «Korrektur»). Calibrations are
-stored per **device model and audio source** with a full history; every minute record carries the
-id of the calibration that was active.
+**Einstellungen → Erweitert → Kalibrieren**). Since 0.9.5.1 the screen shows a calibration as its
+**deviation from the standard** («Abweichung vom Standard +3,4 dB» = offset − 112.35 dB, one decimal);
+until 0.9.5 it showed the offset itself as «Korrektur» («132,42 dB»), which read like an error of
+that size. The stored value, the JSON export and the upload keep the offset. Calibrations are
+stored per **device model, audio source and microphone** (the microphone since 0.7.2: the built-in
+one, or one chosen under «Mikrofon», see «Measuring» → «Microphone») with a full history; every
+minute record carries the id of the calibration that was active. «Kalibrieren» calibrates the
+microphone a measurement would use now and names it in the row «Mikrofon»; a minute measured with
+a microphone that was never calibrated is uncalibrated. «Alte Messungen anpassen» re-evaluates only
+the minutes of the calibration's microphone, and the noise floor («Messgrenze») is that of the
+built-in microphone.
+
+**Calibration banner (0.9.6, every edition):** «Messen» shows right under its title, idle and while
+measuring, whether the phone is calibrated for the microphone in use — green «Telefon kalibriert:
+−2,3 dB · 01.11.2026» (the deviation from the standard as on «Kalibrieren», and the date of the active
+calibration) or red «Telefon nicht kalibriert – Werte sind Richtwerte (± 5 dB). Kalibrieren ›» (never
+calibrated, or «Zurücksetzen»). A tap opens Einstellungen → Erweitert at «Kalibrieren». While a
+measurement runs the banner describes the calibration that measurement uses (a calibration saved
+meanwhile counts from the next measurement); otherwise the active one of the microphone a measurement
+would use now. The same banner, without the pointer, heads «Kalibrieren» itself. It reads the phone's
+own calibration table only; nothing is sent.
 
 ### Method 1 — compare with a sound level meter (recommended)
 
@@ -394,11 +449,14 @@ environmental offices and universities lend them).
 4. Under «Mit Messgerät vergleichen» tap **Messen (30 s)** (fixed at 30 s since 0.6.1; 60 s is no
    longer offered), and at the same moment start an LAeq measurement of the same length on the meter.
 5. When the countdown ends, type the meter's LAeq into «Wert am Messgerät». The app shows the
-   phone's level and the new «Korrektur» (`reference − measured`).
+   phone's level and the new «Abweichung vom Standard» (`reference − measured − 112.35 dB`).
 6. Check the warnings: «Zu unruhig» (standard deviation of the 1 s levels > 2 dB: the noise was not
    steady enough); «Zu leise (unter 50 dB(A))» (too close to the phone's own noise floor). Repeat
    if warned.
-7. Tap **Übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB.
+7. Tap **Übernehmen**. Repeat once or twice; the results should agree within ~0.5 dB. Above 20 dB
+   deviation (warning «Abweichung vom Standard über 20 dB – vermutlich ein Fehler.») the app asks
+   «Wirklich speichern?» first (since 0.9.5.1; the same for the calibrator and «Korrektur von
+   Hand»); within 20 dB it saves at once.
 
 ### Method 2 — acoustic calibrator
 
@@ -411,15 +469,53 @@ environmental offices and universities lend them).
 
 ### Method 3 — manual offset
 
-«Korrektur von Hand»: enter an offset determined elsewhere (e.g. another phone of the same model
-calibrated with method 1). Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
+«Korrektur von Hand»: enter the deviation from the standard determined elsewhere (e.g. another
+phone of the same model calibrated with method 1), e.g. «+3,4» or «−2,0»; the app stores
+112.35 dB + deviation. Since 0.9.5.1 the field takes the deviation (until 0.9.5 the offset itself)
+and is prefilled with the active calibration's deviation. Use **Zurücksetzen** (until 0.6.0 «Auf Standard») to return to the
 uncalibrated CDD default.
 
-### Noise floor
+### Noise floor («Messgrenze», estimated per phone since 0.6.5)
 
-Levels within ~5 dB of the phone's own noise are not meaningful; many phones bottom out somewhere
-around 30–40 dB(A) (to be confirmed per model). The in-app check «Eigenrauschen messen» was removed
-in 0.6.1 (the website explains the limit); the code path (`CalMode.NOISE_FLOOR`) is still there.
+A phone microphone has its own self-noise: levels close to it are the phone, not the room. Since
+0.6.5 the app estimates this floor from the minutes it has already stored, per phone and per audio
+source, with no setting and no extra measurement (`dsp/.../NoiseFloor.kt`, arithmetic and tests;
+`app/.../data/NoiseFloorStore.kt`, the query and the in-memory cache):
+
+- **Raw levels.** Stored levels are `raw + calibration offset`. The estimate works on
+  `rawL90 = L90 − calibration_offset_db` of each minute (L90 is the level exceeded 90 % of the
+  minute, the quiet part), so it survives every calibration and the re-evaluation of old
+  measurements (level and offset move together).
+- **Minutes used:** the valid minutes of the audio source the app measures with (at least 50 % valid
+  audio and a LAeq — the equivalent continuous A-weighted level —, the rule of the list and the
+  chart) that have an L90.
+- **Floor:** the 2nd percentile of their rawL90, by nearest rank (0-based index ⌈0.02 · n⌉ − 1 of the
+  values sorted ascending), over **all** stored minutes of that source. Only from **60** such minutes
+  on; before that there is no floor and nothing about it is shown. From 60 minutes on the rank is at
+  least the second-lowest value, so a single glitch minute far below never sets it.
+- **Shown floor** = raw floor + the **active** calibration offset, so it moves with every new
+  calibration (also with **Zurücksetzen**).
+- **At the limit («an der Messgrenze»):** a minute whose rawL90 ≤ raw floor + **3 dB**. The value
+  shown for such levels is the shown floor + 3 dB, as «≤ 34,0 dB(A)».
+- **Computed** with two SQL queries (the count, then the one value at the rank via `ORDER BY … LIMIT 1
+  OFFSET`), once per app start, after every finished measurement and after «Alle löschen»; cached in
+  memory. Never during a measurement.
+
+Where it shows: **«Grundrauschen»** in the measurement list and the chart's summary tile reads
+«≤ 34,0 dB(A)» when at least half of the measurement's valid minutes are at the limit (i.e. the
+median minute is), with the line «Leiser als das Telefon messen kann.» under the tiles; the
+**chart** draws a light band from the bottom up to the shown floor + 3 dB, labelled «Messgrenze»
+at the right (only when a floor exists and the band reaches into the y range); the live
+**«Messen»** screen shows «≤ …» for «Grundrauschen» when the current 5-minute L90 is at the limit;
+**Erweitert › Kalibrieren** shows «Messgrenze dieses Telefons: ca. 34 dB(A) (aus N Minuten
+geschätzt)» (floor + 3 dB, whole dB); the minutes **CSV** gets the column `at_floor` (0/1). Events
+are unchanged (they already need 6.5 dB over the local floor and the absolute event floor).
+Nothing of it is sent: the upload's bodies (`upload/Payloads.kt`) are unchanged.
+
+What it is not: an estimate, not a measurement of the microphone's self-noise. On a phone that has
+only ever measured loud places the 2nd percentile is a quiet room level, not the phone's floor, and
+the band then sits too high; it can only fall as quieter minutes come in. The old in-app check
+«Eigenrauschen messen» was removed in 0.6.1; its code path (`CalMode.NOISE_FLOOR`) is still there.
 
 The calibration history can be exported as JSON (Erweitert → Verlauf → Exportieren).
 
@@ -495,29 +591,194 @@ for data that was never re-evaluated. Since v0.4.0 (appended after those): minut
 `wind_event_count`; events `local_floor_db`, `excess_db`, `rise_s`, `decay_s`, `jaggedness`,
 `mid_band_rise_db`, `lf_share`, `lf_flutter_db`, `wind`, `shape` (empty, `wind = false`, for events
 recorded before). The export is per minute and per event; it has no night or measurement
-aggregation (v0.6.0 changed no CSV column). The files are named `wenigerlaerm-minuten-<stamp>.csv`
+aggregation (v0.6.0 changed no CSV column). Since v0.6.5 the minutes file ends with `at_floor`
+(1 = the minute is at the phone's estimated noise floor, see «Noise floor»; 0 otherwise or while
+there is no estimate). The files are named `wenigerlaerm-minuten-<stamp>.csv`
 and `wenigerlaerm-ereignisse-<stamp>.csv` (before v0.6.0 `stadtlaerm-…`).
 
-## «Unterwegs» and the «Sehr laut» notification (0.6.3)
+## «Messen» without a mode switch; «Laut! Melden» from the home screen (0.8.4, Labor·Karte first; published in 0.9.0)
 
-Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/alert/`, the facade
-`ui/LoudAlerts.kt`; the Offline and Labor builds get the stand-in `src/nomap/…/ui/LoudAlerts.kt`).
-A switch **«Unterwegs»** under «Starten» (and under «Stoppen» while measuring), off by default,
-remembered (SharedPreferences `loud_alert`). Turning it on asks for `POST_NOTIFICATIONS` on Android
-13+ (already declared for the measurement's notification). While it is on and a measurement runs,
-`LoudAlertWatcher` (process scope) watches `LiveState.lastEvent`: an event that is not wind, with
-LAFmax ≥ 75 dB(A) (`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's
-«Sehr laut»; the level as shown — calibrated if the phone is, else with the default offset) and
-category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Töff & Poser, 84 dB» / «Antippen zum
-Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default sound and
-vibration), at most one every 2 minutes, one id (it replaces itself), auto-cancel. The tap opens
-`MainActivity` with the event's start time and category (`LoudAlertIntent`); «Laut! Melden» opens on
-«Messen» — also during a measurement, while the button stays hidden then — with that time as the
-report's time and the fitting categories filled and first (`loud_vehicle` → Töff, Poser;
-`road_traffic` → Auto, Lastwagen; nothing is picked). Then as always: consent if sharing is off, one
-precise fix with the app open, confirmation with the rule-10 line, «Senden». Swiping it away does
-nothing. Tests: `src/testKarte/…/LoudAlertTest.kt` (public and laborKarte), `LoudAlertIsolationTest`
-(every flavour), renders `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`.
+The owner's decision for 0.8.4: two clean situations and **no mode switch**. A running measurement
+means the phone lies at a window; no running measurement means the person holds the phone and is on
+the road. 0.8.3's segmented switch «Am Fenster» | «Unterwegs», its stored choice (preference file
+`measure`, key `mode`; no longer read, left on a phone that had it) and the floating «Laut! Melden»
+are gone (`ui/MeasureMode.kt` → `ui/MeasureTexts.kt`, texts only; `MeasureTextsTest`).
+
+- **Idle, editions with the map:** a primary `Button` **«Laut! Melden»** (56 dp, megaphone) on top
+  with the line «Unterwegs: lauten Verkehr sofort melden.», then a `FilledTonalButton`
+  **«Langzeitmessung starten»** (until 0.8.7 «Messung starten») with «Für Stunden am offenen Fenster,
+  am Ladegerät.», «Mehr dazu». Since 0.8.8 the status chip shows on the idle screen only when there is
+  something to do (`showOnIdle` in `ui/ShareStatus.kt`: a problem, e.g. «Unterbrochen»); «Teilen»
+  always shows it. **Offline and Labor builds** (no reports): «Langzeitmessung starten» stays the
+  primary button, with the same line.
+- **Running:** the level card, «Stoppen», «Läuft seit …», the status chip, «Letzte Lärmspitzen» — as
+  0.8.3, and **no «Laut! Melden»** on the screen (the phone lies at the window). The report dialog
+  still opens over it from the shortcut, the widget and (Labor·Karte) the notification's «Melden».
+- **Online-Version: no measurement on the road.** «Messung starten» is the window measurement
+  (shared if sharing is on). There is no `EXTRA_UNTERWEGS` start from the UI, no `LoudAlertWatcher`,
+  no `loud_alert` channel, no «Antippen zum Melden» / «Melden» on the measurement notification: the
+  real `ui/LoudAlerts.kt` and `alert/` moved to `src/laborKarte/kotlin` (compiled into `laborKarte`
+  only), and `public` compiles the stand-in `src/nounterwegs/…/ui/LoudAlerts.kt` (`AVAILABLE = false`;
+  its `presetFrom` only knows the shortcut's and the widget's intent). The release dex check now
+  forbids `ch/lessnoise/app/alert/*` and the string `loud_alert` in the public APK as in the offline
+  one (`tools/check_release_apk.py`). The motion detector stays (`src/karte/…/motion/`): a window run
+  that is carried pauses sharing and the chip says «Unterwegs erkannt · nichts auf die Karte» — its
+  only visible sign. The measurement's own `POST_NOTIFICATIONS` (Android 13+) is still asked together
+  with the microphone at the first «Messung starten» (`rememberMicPermissionLauncher`, `ui/Common.kt`).
+- **Labor·Karte keeps the road recording:** a third, outlined button **«Unterwegs aufnehmen»** under
+  «Messung starten» (line «Labor: nimmt Audio auf, teilt nichts.») starts the «Unterwegs» measurement
+  exactly as before (`ShareController.start(unterwegs = true)`, the Labor recorder, the «Sehr laut»
+  notification, the «Melden» button on the measurement notification, the notification-permission
+  ask), so the prompt can be compared with manual reports. Tests: `LoudAlertTest`, `ReportTapTest`,
+  `MotionAlertTest` in `src/testLaborKarte` (they moved there with the code).
+- **App shortcut** (`res/xml/shortcuts.xml` of `src/public` and `src/laborKarte` — one each, because
+  `targetPackage` must be the literal app id; `<meta-data android:name="android.app.shortcuts">` on
+  `MainActivity` in those two manifests): «Laut! Melden» with the megaphone of `icons/AppIcons.kt` as
+  an adaptive drawable (`src/karte/res/drawable/ic_shortcut_report.xml`), intent action
+  `ch.lessnoise.app.action.REPORT_NOW` (`report/ReportNow.kt`).
+- **Widget** (`report/ReportWidget.kt`, an `AppWidgetProvider` with plain `RemoteViews`, no Glance;
+  `src/karte/res/layout/report_widget.xml`, `xml/report_widget_info.xml`: 2×1 cells minimum,
+  `home_screen`, `updatePeriodMillis` 0): one button «Laut! Melden» in the app's primary colour
+  (dark mode: the dark scheme's), whose `PendingIntent` (request code 4, immutable) opens the same
+  intent. Registered (`android:exported="false"`) in the manifests of `public` and `laborKarte` only.
+- Both open `MainActivity`, which takes the action in `onCreate` (cold start; a static shortcut's launch
+  clears the task) and `onNewIntent` (app open, single-top) through `LoudAlerts.presetFrom`: the report
+  dialog on «Messen» with the time of the tap and nothing preselected. Neither sends anything by
+  itself. Tests: `ShortcutAndWidgetTest` (src/testKarte). Not verified on a phone yet (launcher,
+  widget picker, cold start).
+
+## Three ways to use the app; «Unterwegs messen» (0.9.4.6, Labor·Karte first; the Online-Version with 0.9.5)
+
+Owner (2026-10-31): «It is still not easy enough to use.» «Messen» in both editions with the map now offers,
+top to bottom: the big **«Laut! Melden»** («Lauten Verkehr sofort melden.»: on the road with the microphone
+off), the tonal **«Langzeitmessung starten»** («Für Stunden am offenen Fenster, am Ladegerät.»: overnight at the
+window, unchanged), and the outlined **«Unterwegs messen»** with the walk icon («Mikrofon an. Mitteilung, wenn ein
+Fahrzeug sehr laut ist.»: the minor way, so it stays below the other two), then «Mehr dazu», whose sheet names the
+three ways in three short sentences (`THREE_WAYS`). «Unterwegs messen» starts an «unterwegs» run
+(`MeasurementService.EXTRA_UNTERWEGS`, `LiveState.unterwegs`): never shared (no location, no point), the «Sehr
+laut» alert below, and on Android 13+ the notification permission is asked first
+(`LoudAlerts.rememberUnterwegsPermission`). Running, it looks like a window run (compact level card, big «Laut!
+Melden», «Stoppen», «Letzte Lärmspitzen»), with the line «Unterwegs seit 18:30 · Mitteilung bei sehr lauten
+Fahrzeugen.» (`unterwegsLine`) and the chip «Unterwegs · nichts auf die Karte»; the notification's title is
+«Mikrofon aktiv – unterwegs» (`MeasurementNotification.title`). The alert code is in `src/karte` again
+(`alert/`, the real `ui/LoudAlerts.kt`), compiled into `public` and `laborKarte` alike; the flag
+`LABOR_UNTERWEGS` is gone. The notification's «Melden» button is there in every run of both editions; a tap on the
+notification itself opens «Laut! Melden» while the run is «unterwegs» (started so, or «Unterwegs erkannt»),
+otherwise «Messen» (`alert/ReportTap.forState`). The alert rule is unchanged (below). Tests:
+`src/testKarte/…/alert/LoudAlertTest.kt` (incl. 76 dB alerts, 74 dB not, a still window run never),
+`ReportTapTest`, `motion/MotionAlertTest`, `LoudAlertIsolationTest`, `MeasureTextsTest`; renders
+`src/testKarte/…/ui/MessenMainScreenshots.kt` (folder `0.9.4.6-messen`).
+
+## «Unterwegs» and the «Sehr laut» notification (0.6.3; a start mode since 0.6.4; Labor·Karte only 0.8.4–0.9.4.5; both editions with the map again since 0.9.4.6, above)
+
+*The rest of this section is the history up to 0.9.4.5; the rule itself (75 dB(A), the categories, the 2-minute
+gap, one notification for 30 s) is still the one in force.*
+
+Since 0.8.4 **laborKarte only** (`app/src/laborKarte/kotlin/ch/lessnoise/app/alert/`, the facade
+`ui/LoudAlerts.kt` next to it; started with the Labor button «Unterwegs aufnehmen», above). The
+Online-Version gets the stand-in `src/nounterwegs/…/ui/LoudAlerts.kt`, the Offline and Labor builds
+`src/nomap/…/ui/LoudAlerts.kt`. 0.6.3–0.8.3 the Online-Version had it too (in `src/karte`); the
+history below is kept as it was.
+
+Since 0.6.4 «Unterwegs» is a **start mode**, not a switch: «Messen» showed two buttons, **«Messen»**
+and **«Unterwegs»**, and one line under them («Unterwegs: Mitteilung bei sehr lautem Verkehr (ab
+75 dB), nichts auf die Karte.»). **Since 0.8.3** (Labor·Karte first) the mode is chosen with a
+Material segmented switch at the top of «Messen», **«Am Fenster» | «Unterwegs»** (remembered in the
+private preference file `measure`, key `mode`, default «Am Fenster»; disabled while a measurement
+runs — a tap on it then says «Zum Wechseln zuerst stoppen»), and the one button **«Messung
+starten»** starts in that mode: «Am Fenster» exactly as the old «Messen», «Unterwegs» exactly as the
+old «Unterwegs» button (same `ShareController.start(unterwegs = true)` path, same notification-permission
+ask). One line under the button per mode (`WINDOW_HINT`, `UNTERWEGS_HINT` in `ui/MeasureMode.kt`).
+While a measurement runs the switch shows the run's mode (`shownMode`), and «Unterwegs erkannt» while
+the motion detector says the phone is carried in an «Am Fenster» run (below; the stored choice is not
+changed). «Am Fenster» (the old «Messen») starts a measurement that is shared as before if sharing is on.
+«Unterwegs» starts one that **shares nothing**: no question «Auf die Lärmkarte?», no location fix, no
+point (`ShareController.start(unterwegs = true)` → `MeasurementService.start(…, unterwegs = true)`;
+the row gets `MeasurementEntity.unterwegs = true`, database v7 → v8; `MeasurementDao.attachPoint`
+refuses such a row and `sharedPoint()` is null for it, so `PlaceIndex` makes no field from it and
+none of its minutes and events is sent; the live uploads do not run for it). The status line and the
+map banner say «Unterwegs – diese Messung kommt nicht auf die Karte» (0.8.3: the chip «Unterwegs ·
+nichts auf die Karte»). While it runs, «Laut! Melden»
+is shown under «Stoppen» too (0.8.3: in the «Unterwegs» mode, idle or running, and during «Unterwegs
+erkannt» it is a floating button above the bottom bar; at the window an outlined button under
+«Messung starten» while idle). Tapping «Unterwegs» (0.8.3: «Messung starten» in the «Unterwegs» mode) asks for `POST_NOTIFICATIONS` on Android 13+ if
+missing (already declared for the measurement's notification); the measurement starts either way.
+The 0.6.3 preference `loud_alert` is no longer read.
+
+While an «Unterwegs» measurement runs (`LiveState.unterwegs`), `LoudAlertWatcher` (process scope)
+watches `LiveState.lastEvent`: an event that is not wind, with LAFmax ≥ 75 dB(A)
+(`LoudAlertRule.THRESHOLD_DB` = the server's `DEFAULT_LOUD_EVENT_DB`, the map's «Sehr laut»; the
+level as shown — calibrated if the phone is, else with the default offset; uncalibrated phones
+alert too) and category `loud_vehicle` or `road_traffic`, shows «Sehr laut: Lautes Fahrzeug, 84 dB» /
+«Antippen zum Melden» on the channel `loud_alert` «Sehr laut» (IMPORTANCE_HIGH: heads-up, default
+sound and vibration), at most one every 2 minutes. Since 0.7.6 this is **one notification**: the
+alert replaces the content of the measurement's own notification (id 1) for 30 s instead of a
+second notification (id 7501, auto-cancel, until 0.7.5). `LoudAlertNotifier.show` sends
+`MeasurementService.ACTION_LOUD_ALERT` (title, channel, tap) with `startService`; the service posts
+id 1 once on the `loud_alert` channel (not silent, not only-once: this post makes the heads-up),
+with the tap as content intent and a «Melden» action next to «Stopp»; for
+`LOUD_ALERT_WINDOW_MS` (30 s) neither the 2-s level posts nor the report-tap watcher overwrite it
+(`NotificationCadence.alertUntil`/`alertOpen`; `levelDue` false), and the first post after the
+window restores the normal notification on the silent `measurement_active` channel. Without a
+running measurement, or with the «Sehr laut» channel switched off, the action does nothing. A
+measurement started with «Messen» never alerts. The tap opens `MainActivity` with the event's start
+time and category (`LoudAlertIntent`); «Laut! Melden» opens on «Messen» with that time as the
+report's time and the fitting categories first, each marked with a small «erkannt» after its label
+(since 0.7.7; until 0.7.6 filled buttons; all buttons are outlined alike) (`loud_vehicle` → Töff, Auto — until 0.9.0 Töff, Poser;
+`road_traffic` → Auto, Lastwagen; `aircraft` would suggest Flugzeug, since 0.9.4.5 `construction` Baustelle and
+`rail_tram` Bahn, but the alert does not fire for them; nothing is picked). Then as always: consent if sharing is off, one
+fix with the app open, the rule-10 line, and only a tap (on «Senden» until 0.7.8, on the category
+since 0.8.1) sends. Swiping it away does
+nothing. Tests: `src/testLaborKarte/…/LoudAlertTest.kt` (until 0.8.3 `src/testKarte`, public and laborKarte), `LoudAlertIsolationTest`
+(every flavour), `ShareStatusTest`/`MapBannerTest` (the «Unterwegs» line), `UploadTest`
+(`anUnterwegsMeasurementSharesNothingNotEvenWithAPointInItsRow`), `MeasurementsDbTest` (migration
+7 → 8); renders (until 0.8.3) `messen-unterwegs-idle.png`, `messen-unterwegs-running.png`; since
+0.8.4 `messen-idle-labor-karte.png` (the button «Unterwegs aufnehmen»).
+
+## «Unterwegs erkannt»: the motion detector (0.6.7)
+
+Online-Version and laborKarte only (`app/src/karte/kotlin/ch/lessnoise/app/motion/`; the Offline and
+Labor builds get the stand-in `src/nomap/…/motion/MotionWatch.kt`: no detector, no sensor listener,
+checked by `LoudAlertIsolationTest` and the release dex check). While a measurement started with
+**«Messen»** runs, `MeasurementService` starts `MotionWatch`: `Sensor.TYPE_ACCELEROMETER` at 20 Hz
+(`SAMPLING_PERIOD_US` 50 000) with `maxReportLatency` 5 s, on its own `HandlerThread`. No permission
+(below 200 Hz none is needed), no location, nothing stored but span times.
+
+`MotionDetector` (pure, `MotionDetectorTest` in `src/testKarte`): per second the standard deviation
+of |a| (gravity drops out; independent of how the phone lies). A second is *active* from 0.25 m/s²
+(phone at rest ≈ 0.01–0.03, walking ≈ 1–3, cycling 0.5–2). STILL → MOVING when 20 of the last 25
+seconds were active (the span starts at the first active second of that window); MOVING → STILL when
+the last 180 seconds hold at most 10 active ones. A second with fewer than 5 samples is not active;
+a periodic tick moves time on, so a silent sensor ends MOVING.
+
+While MOVING: `LiveState.moving` = true (never in an «Unterwegs» measurement); in Labor·Karte (since
+0.8.4 only there) `LoudAlertWatcher` treats the measurement as «Unterwegs» (`LoudAlertRule.unterwegsNow`,
+`MotionAlertTest` in `src/testLaborKarte`); until 0.8.3 «Laut! Melden» showed under «Stoppen» (0.8.3: the
+floating button), since 0.8.4 not; the status line and the map banner say `STATUS_MOVING`. The span goes to the table
+`moving_spans` (database v8 → v9, start/end only; `beginMovingSpan`, `endMovingSpans`, closed at
+«Stop» and, after a kill, at the next start). The upload never sends a minute or event that overlaps a
+span (`PlaceIndex.pointAt(t, duration)`; the SQL count of minutes to send uses
+`MovingSql.MINUTE_NOT_MOVING`); since the detector decides up to 25 s + 1 s + 5 s batching after the
+motion began, while a «Messen» measurement runs records that ended less than
+`Uploader.MOTION_HOLD_MS` (35 s) ago are held back, and the live events run waits for that hold.
+Tests: `MovingSpanUploadTest` (every flavour). Labor·Karte: each transition is a `motion` line in
+`manifest.jsonl` (`ManifestLines.motion`, via `EditionDiagnostics`), «Bewegung» in Einstellungen › Labor.
+
+## «Antippen zum Melden» on the measurement notification (0.6.8)
+
+Since 0.8.4 laborKarte only (`src/laborKarte/…/alert/ReportTap.kt`, built by `ui/LoudAlerts.reportTap`;
+the stand-ins in `src/nounterwegs` and `src/nomap` return null; 0.6.8–0.8.3 also the Online-Version).
+The action `ch.lessnoise.app.action.REPORT_NOW` itself is now `report/ReportNow.ACTION` (src/karte),
+shared with the shortcut and the widget. While the run is «unterwegs» (`LiveState.unterwegs`, or
+`LiveState.moving` in a «Messen» run), `MeasurementService` re-posts its notification once with the text
+«Antippen zum Melden» and a `PendingIntent` (request code 3, action `ch.lessnoise.app.action.REPORT_NOW`,
+no extras) that opens `MainActivity` (single-top). `NotificationCadence` (`service/ServicePolicy.kt`)
+suppresses the 2-s level text meanwhile and re-posts the level text and the usual tap at once when the
+state ends; nothing is posted per second in report mode. `MainActivity` takes the intent in
+`onCreate`/`onNewIntent` with `System.currentTimeMillis()` as the report's time (`ReportTap.preset`: no
+category suggested), then «Laut! Melden» runs as always. The «Sehr laut» notification (request code 2,
+`REPORT_LOUD`) is unchanged. Tests: `ReportTapTest` (src/testLaborKarte since 0.8.4), `ServicePolicyTest`,
+`LoudAlertIsolationTest`.
 
 ## The tab «Karte» (0.6.3)
 
@@ -548,9 +809,17 @@ fragment: no reload, no history entry; after `onPageFinished` if the page is sti
 not visible yet (`mapBanner`: «Noch kein Standort – Werte erscheinen danach», «Erste Werte werden
 gesendet – auf der Karte in etwa einer Minute», «Gesendet HH:MM – die Karte aktualisiert sich
 laufend» for 2 minutes, «Du teilst nicht – tippen zum Teilen»; a tap does what the status line
-on «Messen» does). The WebView's history is never used: the system back gesture is an undo stack of the
+on «Messen» does; since 0.8.3 the same status chip as on «Messen», «·» instead of «–», and «Du teilst
+nicht» opens «Teilen» instead of asking «Auf die Lärmkarte?» there). The WebView's history is never used: the system back gesture is an undo stack of the
 tabs opened (`TabHistory`: every switch, tapped or opened from a status line or banner, pushes the
-tab left; back pops; with nothing left back leaves the app; at most 30 entries). No permission is
+tab left; back pops; with nothing left back leaves the app; at most 30 entries). Since 0.8.2
+(Labor·Karte first) the page is dark when the app is (`isSystemInDarkTheme()`, the same signal as
+the app's colours): the Activity theme is light (`Theme.Material.Light.NoActionBar`), so the WebView
+is created with a dark platform theme (`MapDark.context`, `isLightTheme = false`), which makes the
+page's `prefers-color-scheme` dark and applies its own dark CSS (docs/style.css, docs/map/karte.css,
+including the CSS filter on the swisstopo tiles); the WebView's algorithmic darkening stays off
+(`androidx.webkit` `setAlgorithmicDarkeningAllowed(false)`; on old WebViews force dark with
+«web theme darkening only»; `MapDark.settings`, `MapLinksTest`). No permission is
 added. Privacy: [PRIVACY.md](../PRIVACY.md), «The tab «Karte»».
 
 ## «Messwerte teilen» (opt-in upload)
@@ -559,7 +828,12 @@ Phones whose owners opt in send the minute and event records of their **shared m
 the project's server for the shared noise map ([../server/DESIGN.md](../server/DESIGN.md): §2
 privacy rules, §4 the exact request bodies, §9 the app changes), and «Laut! Melden» reports. Only in
 the «Online-Version» (and the internal Labor build with the map). Since 0.6.1 the tab **«Teilen»**
-(screen title «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen):
+(screen title «Teilen», 0.6.1–0.8.7 «Auf die Lärmkarte»; until 0.6.0 Einstellungen → Messwerte teilen).
+Since 0.8.8 it has two sections, one per kind of data: **«Messungen am Fenster»** (the long
+measurement, shared as levels per 100 m square with a moved point) and **«Meldungen unterwegs»**
+(«Laut! Melden», exact place, only when sent). Both go through the one switch «Auf die Karte senden»
+(`UploadSnapshot.enabled`; the report consent switches it on, and an upload run sends nothing, reports
+included, while it is off):
 
 Since 0.6.3 the opt-in is **one question**, «Auf die Lärmkarte?», at the first «Starten» (or when
 the switch below is turned on before that; `ui/ShareFlow.kt`, texts in `ui/ShareTexts.kt`): three
@@ -570,20 +844,45 @@ location, to our server in Switzerland), what never (audio, name, the exact loca
 dialog. «Ja, auf die Karte» switches sharing on and starts the measurement; «Nur auf dem Telefon»
 starts it unshared; back starts nothing. The answer (`UploadSnapshot.shareDecision`: undecided /
 yes / no) is asked once; the switch changes it later. On the update from 0.6.2 a phone with sharing
-on counts as «yes», all others are asked once, and «Nur über WLAN» is reset once to off. The tab:
+on counts as «yes», all others are asked once, and «Nur über WLAN» is reset once to off.
 
-1. **The switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
+**Only map events leave the phone (0.6.4).** One rule, `Payloads.isMapEvent`, decides both which
+events an upload includes (`Uploader`, the events `include` filter) and which just-detected event
+starts an events-only live upload (`LiveUploadPlan.triggers`, `UploadModule`): category one of
+`loud_vehicle`, `road_traffic`, `rail_tram`, `aircraft`, `construction` (`Payloads.MAP_CATEGORIES`,
+the same list as the server's `config.MAP_CATEGORIES`), not wind, the excess setting in force
+(`threshold_db`) ≥ 6.5 dB, LAFmax ≥ max(the event's floor setting `min_level_db`, 30 dB(A)) and
+duration ≥ 0.5 s — the server's gates (DESIGN.md §4.4, §6). Voices, music, unclassified and wind
+never leave the phone; the event marker moves past them, so they are never fetched again. No field
+was added to the bodies; the detector-v2 features stay on the phone. Not a setting (the project's
+definition of the map). Before 0.6.4 the app sent every category except wind and the server dropped
+the others on arrival. A measurement started as «Unterwegs» shares nothing (above). The tab:
+
+1. **«Messungen am Fenster»** (window icon): **the switch** «Auf die Karte senden» (off by default; no «Weiter» gate since 0.6.3) with the
    **status line** (the same as on «Messen»: «Nicht auf der Karte – tippen zum Teilen», «Standort
    wird bestimmt …», «Kein Standort – tippen», «Wird geteilt – erste Werte in etwa einer Minute»,
    «Auf der Karte · zuletzt gesendet HH:MM» (tap: the tab «Karte»), «Kein Internet – wird
    nachgeholt», «Nicht gesendet: … – wird nachgeholt», «Unterbrochen – tippen für «Neu starten»»;
-   `ui/ShareStatus.kt`, pure and JVM-tested), the count of records the server refused for good;
-   under «Weitere Angaben ▸» «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
-   most about 3 MB a day measuring round the clock), «Noch zu senden: n Minuten» and (since 0.6.2) **«Standort verschieben»** — σ of the location
+   `ui/ShareStatus.kt`, pure and JVM-tested; since 0.8.3 a chip with an icon — `StatusIcon`: cloud_done,
+   cloud_upload, cloud_off, my_location with a spinner, location_off, directions_walk — and shorter
+   words, e.g. «Nicht auf der Karte ›» (tap: «Teilen»), «Kein Standort für die Karte ›» (0.9.2; «Kein Standort ›» until 0.9.1), «Auf der Karte · HH:MM ›»),
+   the count of records the server refused for good;
+   then, always visible since 0.8.8 (until 0.8.7 under «Weitere Angaben ▸») and drawn disabled while
+   sharing is off, «Nur über WLAN» (default off since 0.6.3: mobile data allowed, at
+   most about 3 MB a day measuring round the clock), «Noch nicht gesendet: n Minuten» (until 0.9.1 «Noch zu senden») and (since 0.6.2) **«Standort verschieben»** — σ of the location
    noise, 25 / 50 (default) / 100 / 200 m, with one line «Mehr verbirgt deine genaue Adresse besser,
-   macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice.
-2. **«Was gesendet wird ▸»** (folded): what is sent
-   (Lärmwerte pro Minute and Lärmspitzen with their category; a randomly shifted point instead of
+   macht die Karte aber ungenauer; gilt ab der nächsten Messung.» There is no «exact» choice; and
+   **«Wo liegt das Telefon? (freiwillig) ▾»** (folded): «Das Telefon liegt» am offenen Fenster / auf
+   dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
+   «Weitere Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all
+   optional, remembered for the next measurements.
+2. **«Meldungen unterwegs»** (megaphone): «Gesendet n» (and «Noch nicht gesendet» while reports wait; «Noch zu senden» until 0.9.1), the
+   last five sent reports (category icon, time, kind, dB, photo thumbnail; photos stay on the phone),
+   and the line «Eine Meldung schaltet «Auf die Karte senden» ein – das gilt dann auch für Messungen
+   am Fenster.»
+3. **«Was gesendet wird ▾»** (folded, for both kinds): what is sent
+   (Lärmwerte pro Minute and, since 0.6.4, only Lärmspitzen of engines and machines, «Stimmen und
+   Musik nie»; a randomly shifted point instead of
    the location, and the placement answers; reports with time, exact place and kind; phone model,
    audio source, calibration and a random id), the location rule (one fix right after «Starten»
    while the app is open, moved at once by about σ; the same shift at the same place; usually (86 of
@@ -596,12 +895,7 @@ on counts as «yes», all others are asked once, and «Nur über WLAN» is reset
    30 s after it ended and the minutes every 2 minutes while measuring, at once after «Stoppen»,
    otherwise hourly; Wi-Fi or mobile data), how to delete
    (switching off, «Vom Server löschen», 60 days), and a link to wenigerlaerm.ch/datenschutz.html.
-3. **«Wo liegt das Telefon? (freiwillig) ▸»** (folded): «Das Telefon liegt» am offenen Fenster / auf
-   dem Balkon / hinter Glas / anderswo, «Richtung» Strassenseite / Hofseite / weiss nicht, and under
-   «Weitere Angaben ▸» the floor and an optional note (≤ 200 characters, never published); all
-   optional, remembered for the next measurements. A «Meldungen» card lists the reports waiting and
-   the last sent ones (category, time).
-4. **«Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
+4. **«Deine Daten auf dem Server»: «Vom Server löschen»** (confirms «Daten auf dem Server löschen?», waits for the server's answer,
    then switches sharing off and drops unsent reports) and, only when the server no longer knows
    the phone, **«Neu starten»** (until 0.6.0 «Neue Kennung», always shown: deletes the server data,
    then sends under a fresh id).
@@ -628,7 +922,7 @@ rule 2). The secret is 32 random bytes made at the first shared «Starten» (`up
 stored encrypted next to the upload token, never sent) and dropped by «Neu starten» and «Vom
 Server löschen». The point is accepted only with «Genauer Standort» and accuracy ≤ 75 m
 (`location/LocationPolicy.kt`, pure Kotlin). If it fails there is no dialog: the status line says
-«Kein Standort – tippen», and the tap says why in one sentence and offers «Nochmals», the app or
+«Kein Standort – tippen» (0.8.3: the chip «Kein Standort ›»; 0.9.2: «Kein Standort für die Karte ›»), and the tap says why in one sentence and offers «Nochmals», the app or
 location settings where they help, and «Koordinaten einfügen» (WGS84 decimal degrees `47.3769, 8.5417`,
 LV95 `2'683'304, 1'247'925`, LV03 or a cell id — its centre —, `upload/CellInput.kt`; moved the same
 way). The shifted point, its σ and its display cell are then **attached to the running
@@ -642,20 +936,202 @@ and the offset live only in local variables. With sharing off no
 location is read and the measurement has no point; a measurement without a point is never sent
 (also not a row of 0.6.0 or 0.6.1, which has only a cell).
 
-**«Laut! Melden» (v0.6.0).** On **Messen**, while no measurement runs, a secondary button «Laut!
-Melden»: «Was war laut?» (Töff, Auto, Lastwagen, Poser, anderes → ids `motorrad`, `auto`,
-`lastwagen`, `poser`, `andere`) → one precise fix (`LocationFetcher.locateForReport`, accuracy
-≤ 50 m, else the reason and «Nochmals») → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» and, on
-every report since 0.6.3, «Wer oft vom gleichen Ort meldet, macht ihn auf der Karte sichtbar.»
-(DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`) («Senden» / «Abbrechen»). «Senden» queues the report (`upload/Reports.kt`: time of the tap to the
-second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and schedules
-an upload (same constraints as the other uploads; registers the device first if needed). If
-sharing is off, the first «Melden» shows a short consent first and switches sharing on only with
-«Ja, einschalten». The queue is a private SharedPreferences file (`reports`, written with
-`commit()`); once the server has answered for a report its coordinates are deleted and only
-category, time and cell stay in the list of sent reports. Switching sharing off, deleting the
-server data, or the offline edition taking over also drops unsent reports. While a measurement
-runs there is no «Melden» button: its loud events are uploaded with the measurement's cell anyway.
+**«Laut! Melden» (v0.6.0; one dialog since 0.8.1).** On **Messen**, while no measurement runs, a
+secondary button «Laut! Melden». If sharing is off, the first «Melden» shows a short consent first
+and switches sharing on only with «Ja, einschalten». Then **one dialog «Laut! Melden»** (0.8.1,
+Labor·Karte first, branch `labor-one-tap`; `ui/LocationFlows.kt`; 94 % of the screen wide, its
+content in a vertically scrollable column, a tap outside does nothing). It starts the one fix at once
+(`LocationFetcher.locateForReport`, the location permission asked first if needed; since 0.6.7 at
+any accuracy, used as the phone has it, until 0.6.6 ≤ 50 m) and shows, top to bottom — **since 0.9.4.2
+(Labor·Karte first; owner: «this kind of vehicle went that way», and the whole dialog on one screen)**:
+the title row (megaphone left of «Laut! Melden»); **«Was war es?»** («Erkannt um 11:14» at its right when it
+comes from the «Sehr laut» notification) with **one row of three 56 dp segment buttons, icon left of the
+label: Töff · Auto · «Andere ▾»** — «Andere» slides open a second row **Lastwagen · Flugzeug** (trucks and
+aircraft are rare); a choice there selects it and «Andere» then shows it («Lastwagen ▴», drawn selected), so
+it stays visible with the row shut; Töff or Auto shut the row; a Lastwagen or Flugzeug suggested by the
+notification opens the row at the start, with «erkannt» there (`reportCategoryButtons`,
+`reportMoreOpenAtStart`, `reportMoreOpenAfter`; «Andere» is not a category, nothing is sent as «Andere»);
+**Since 0.9.4.5 (Labor·Karte first; owner: only the place is required)** «Anzahl − 1 +» (1–9, 40 dp targets,
+`ReportCountStepper`; sent as `count` only above 1) sits at the right of «Was war es?» («Erkannt um …» moves
+under the heading); no category is needed for «Senden», and a tap on the chosen one deselects it
+(`reportSelectAfter`; none chosen = no `category` sent); «Andere» folds out **six** choices in two rows of three
+(Lastwagen · Flugzeug · Bahn / Baustelle · Gartengeräte · Hupen; 40 dp high, 4 dp apart, and the groups move
+to 6 dp apart while open, so that it fits 360 × 740 dp with the disc at 140 dp); the disc's «×» (40 dp,
+«Richtung weglassen») switches the direction off: the disc is drawn faint without the arrow, the heading
+says «Ohne Richtung», the hint «Es wird keine Fahrtrichtung gesendet.», and «Richtung angeben» turns it back
+on (the map under the dot can still be dragged). **«Wohin fuhr es?»** with the live «Nord · 358°» at its right, the hint line(s) and the compass disc
+(editions with the map and a compass, below), its side from the height left, 140–220 dp
+(`reportDiscDp`: the dialog measures its content once without the disc, `ReportFitDisc`); one **status
+line**: a microphone icon (for «Mikrofon läuft»), «68,9 dB(A) · Spitze 75,8» and the button «Foto» at its
+right, under it the place «Standort wird gesucht …» / «Standort ± 12 m · Karte verschiebbar»
+(`reportFixLine`; «Zurück zum Standort» at its end once the map was moved); with a photo taken, its row
+under the status. On a 412 × 915 dp phone and on 360 × 740 dp at font 1.0 nothing scrolls; on 360 × 640 dp at
+font 1.3 the middle scrolls, the category row is at its top. Until 0.9.4.1 the order was disc · level card ·
+location row · «Foto» (full width) · the categories as outlined buttons in two columns
+— since 0.9.1 four, a 2 × 2 grid (Töff / Auto, Lastwagen / Flugzeug → ids `motorrad`, `auto`, `lastwagen`,
+`flugzeug`; `ReportCategory.OFFERED`, `reportCategoryOrder`, `reportCategoryRows`, both gone in 0.9.4.2); until 0.9.0 six, with Poser / anderes Fahrzeug
+(until 0.6.3 «anderes») → `poser`, `andere`, which stay in the enum so that queued and listed reports of older
+versions still parse and the server still accepts them (DESIGN.md §4.7); «Flugzeug» since 0.7.7. Then, in every order, on every report since 0.6.3, «Wer oft vom
+gleichen Ort meldet, macht ihn auf der Karte sichtbar.» (since 0.9.4.4 «Die Meldung erscheint genau an diesem Ort auf der
+Karte.»; DESIGN.md §2 rule 10; `REPORT_SPOT_WARNING`);
+«Abbrechen» and «Senden». Since 0.9.1 the groups above the line scroll on a short screen while the line,
+«Senden» (full width, 56 dp, the send icon; while it waits for the fix a small progress circle and «Standort wird
+gesucht …») and «Abbrechen» (a text button centred under it) stay on screen (`BasicAlertDialog` + `ReportDialogLayout`;
+until 0.9.0 an `AlertDialog` with «Abbrechen» / «Senden» in its action row). **Since 0.8.2 a tap on a category selects it** (exactly one, drawn filled,
+the others outlined, «erkannt» kept) and **«Senden» sends the report**: that category, the compass
+reading and the level of the «Senden» tap, the photo, the time, the fix (in 0.8.1 the category tap itself sent, with
+«Antippen sendet die Meldung.» under the grid). «Senden» is enabled with a category and a fix present
+or still searched (`reportSendEnabled`); tapped before the fix is in, everything is disabled under a
+progress bar and «Standort wird gesucht …», and the report goes out the moment the fix arrives, with
+the category, photo, reading and level of the «Senden» tap (`reportNext`: CHOOSE / READY / WAIT / SEND /
+FAILED). From the «Sehr laut» notification a single suggested category is preselected
+(`reportPreselected`), so «Senden» is the one tap; with two suggestions nothing is. **Moving the
+map under the dot** (0.8.1 in Labor·Karte, since 0.9.0 also in the Online-Version — wherever the streets are drawn): a one-finger drag on the disc
+moves the map, the dot stays at the centre and marks the place to report (when the car drove on or
+the fix is off). The drag is turned back by the disc's rotation, so up the screen moves along the
+direction the phone points (`ReportMapTiles.screenDragToMapOffset`, `offsetToLatLon`); while the
+finger is down the disc does not follow the compass; the map stops 2 km from the fix
+(`ReportMapTiles.clampOffset`, and `reportMovedPlace` refuses a place beyond 2 km or outside
+Switzerland). Under the disc «Standort von Hand gesetzt» then replaces «Standort ± n m», with
+«Zurück zum Standort» to return to the fix. A tap sends the place under the dot with
+`MANUAL_ACCURACY_M` = 15 m and its own 100 m cell (`reportPlace`); not moved, the fix as it is. When
+the finger lifts (300 ms later, `TILE_DEBOUNCE_MS`) the tiles touching the 150 m circle around the
+new centre are requested, those already in memory not again (at most 64 kept, the farthest dropped);
+same host and caps as below. No fix →
+«Kein genauer Standort» with the reason and «Nochmals» (back to the dialog, a category already
+tapped kept, the fix tried again). Until 0.7.8 this was three dialogs: «Was war laut?» → «Wohin fuhr
+es?» → «Meldung: Töff, 16:05, Standort ± 12 m – senden?» («Senden» / «Abbrechen»); the confirmation is
+gone by the owner's decision (0.8.1). The report is queued (`upload/Reports.kt`: time of the tap to
+the second with the phone's offset, latitude/longitude, accuracy, category, and its cell) and an
+upload is scheduled (same constraints as the other uploads; registers the device first if needed).
+The queue is a private SharedPreferences file (`reports`, written with `commit()`); once the server
+has answered for a report its coordinates are deleted and only category, time and cell stay in the
+list of sent reports — plus the licence plate of a report made with 0.7.6–0.8.4, when one was typed
+into the field «Kontrollschild (optional)» (still read and listed; nothing writes one since 0.8.5), and
+since 0.8.5 the report's level and its photo. **«Foto» instead of the typed plate (0.8.5, Labor·Karte
+first; the owner finds a photo faster than typing; `ui/ReportPhotos.kt`).** In place of the text
+field a row: an `OutlinedButton` «Foto» with the camera icon (`res/drawable/ic_photo_camera.xml`,
+full width while there is no photo); once one is taken, its 64 dp thumbnail with an «×» (removes it)
+and the button «Neues Foto». The button opens the phone's camera app with
+`ActivityResultContracts.TakePicture()` (no camera permission: the camera app takes the photo) into
+`cache/camera/` (FileProvider path «camera»; until 0.8.4 «plate»). Off the main thread the app
+re-encodes it (`ReportPhotos.downscale`: `BitmapFactory` with `inSampleSize` to at least 1600 px on the
+long side, then scaled to at most 1600 px, turned upright from its EXIF orientation, JPEG 85 — about
+300 kB for a 12 MP photo, not measured on a phone) into `cache/report-draft/` and deletes the camera's
+original in `finally`. **EXIF:** a camera app writes the file we hand it and may put its own EXIF into
+it, GPS included when location tagging is on in the camera app (that the system camera leaves it out
+for an `EXTRA_OUTPUT` URI could not be verified without a phone); `Bitmap.compress` writes no EXIF at
+all, so the kept JPEG has none — no position, no time, no device. At «Senden» `ReportPhotos.queue`
+moves the draft to the app's private `files/reports/<epochMs>.jpg` and queues the report with that
+name, both under `ReportPhotos.lock`; «Abbrechen», «×» or a new photo delete the draft; leftovers of a
+killed app are deleted at the next start (`clearLeftovers`, also the old `cache/plate/`). The name
+travels with the report (`PendingReport.photo`, `SentReport.photo`, `"photo"` in the queue's JSON) and
+is **never sent** (`Payloads.report` does not read it; the upload package uses no file API and names
+no photo path, `UploadSourceIsolationTest`; `ReportsTest.thePlateAndThePhotoAreNeverSent`). Deletion
+follows the report: on every change of the queue `ReportPhotos.sweep` deletes each file of
+`files/reports/` that no pending or sent report names (`ReportQueue.photos`) — so a report dropped by
+«Vom Server löschen» or by switching sharing off, a report the server refused, and a sent entry that
+leaves the last `SENT_KEEP` (500) take their photo with them. In «Teilen» › «Meldungen» a sent report
+with a photo shows a 40 dp thumbnail; a tap shows it full-screen (`ReportPhotoViewer`) with
+«Foto löschen» (0.9.2; «Löschen» until 0.9.1; the photo alone: `ReportQueue.dropSentPhoto`, then the file) and «Schliessen». The 0.8.2
+text recognition plan is dropped with the field: `PlateCamera.kt`, `PlateOcr.kt` and `PlateOcrTest`
+are deleted (no ML Kit, no Google Play services, `ReportPhotoTest` keeps that check). It is shown in
+«Teilen» › «Meldungen». Labor·Karte also writes a `report` line (time, category, `photo` true/false —
+since 0.8.5 instead of the plate; since 0.9.4.3 `media` «video»/«photo»/null —, direction, no coordinates) to its local `manifest.jsonl`. Switching sharing off, deleting the server data, or the
+offline edition taking over also drops unsent reports. While a measurement runs there is no «Melden»
+button: its loud events are uploaded with the measurement's cell anyway. Tests: `ReportFlowTest`
+(grid, the send-or-wait decision with «Senden», the preselected single suggestion, the moved place with 15 m and the 2 km limit, texts, the flow's shape), `ReportPhotoTest` (sizes, EXIF turn, the move, the sweep, no camera permission), `ReportMapTilesTest` (the drag maths), `ReportsTest`, `ShareTextsTest`.
+
+**A short video instead of the photo (0.9.4.3, Labor·Karte only; `ui/ReportVideos.kt`).** Owner: evidence a
+police report could use — a photo shows which car, a short video with sound also that it was loud. In the
+Labor·Karte dialog the compact button is **«Video»** (videocam icon, `AppIcons.Videocam`; TalkBack «Kurzes Video
+vom Fahrzeug (optional)»), in the same place as «Foto». It launches the system camera with
+`ActivityResultContracts.CaptureVideo` (subclass `CaptureShortVideo` adding `MediaStore.EXTRA_DURATION_LIMIT` = 10 s
+and `EXTRA_VIDEO_QUALITY` = 1) into a FileProvider URI in `cache/camera/` (the photo's path; no new provider path).
+Still **no CAMERA permission**: the camera app records picture and sound; the dialog's own level meter is closed
+while the camera app is on screen (`ReportLevelEffect` runs only while the activity is `STARTED`). On return,
+off the main thread («Video wird gespeichert …»), `ReportVideos.prepare` applies the pure policy `verdict`: up to
+30 s and 60 MiB kept as it is (never cut), longer or larger refused with «Video zu lang – bitte höchstens 10 s»
+and deleted. Then `EditionReportVideo.strip` copies the first video and the first audio track
+(`tracksToCopy`) sample by sample with `MediaExtractor` → `MediaMuxer` into `cache/report-draft/draft-<ms>.mp4`
+— no re-encode, no `setLocation`, the orientation from the source track's rotation (`orientationHint`) — so no
+`udta`/`meta` box (GPS position, maker, model) and no extra track of the camera's file survives; the camera's
+file is deleted in `finally`, a failed copy keeps nothing. **Only in the Labor editions:** the copy lives in
+`src/labor/kotlin/…/edition/ReportVideoEdition.kt`; `src/public` has a stand-in (`AVAILABLE = false`), because
+`tools/check_release_apk.py` fails a published APK whose dex names `MediaMuxer` (its «no audio encoding» rule) —
+the Online-Version keeps the photo. From there on the video is a report file like the photo: `ReportPhotos.queue`
+moves it to `files/reports/<epochMs>.mp4` at «Senden», the name travels as `media` (renamed from `photo`; the
+queue's JSON still reads the old `photo` key and never writes it again), `ReportPhotos.sweep` deletes what no
+report names (`.mp4` and old `.jpg` alike), «Abbrechen» and «×» delete the draft. The thumbnail
+(`ReportMediaThumbnail`, by the file's extension) is the first frame (`MediaMetadataRetriever.getFrameAtTime(0)`)
+with a play mark and the length «0:07»; a tap — in the dialog and in «Meldungen» — opens `ReportVideoViewer`, the
+platform's `VideoView` in a full-screen dialog (no player library; plays once, a tap pauses/plays, muted while a
+measurement runs) with «Video löschen» (the video alone, `ReportQueue.dropSentMedia`) and «Schliessen»; while the
+draft plays, the dialog's microphone is closed. Never sent: `ReportsTest.theVideoIsNeverSent`,
+`UploadSourceIsolationTest` (no video class, no `.mp4` literal in the upload package). Tests: `ReportVideoTest`
+(policy, length text, track choice, rotation, flags, files, edition, source facts); renders
+`VideoDeviceScreenshots` (412 × 915 and 360 × 740 dp: dialog without and with a video, «Meldungen», the viewer).
+Not verified on a phone: the camera apps' handling of the limit, the copy of a real file, the first frame, playback.
+
+**The level while «Laut! Melden» is open (0.8.5, Labor·Karte first; `ui/ReportLevel.kt`).** Since 0.9.4.2
+the first line of the status (`ReportStatusLine`: microphone icon, «68,9 dB(A) · Spitze 75,8», semibold
+tabular value; a line breaks only after a «·», never inside a value; 0.8.6–0.9.4.1 a card with two large
+figures and «Mikrofon läuft»). In 0.8.5 under the disc one line: the level now in `titleMedium` with a small «jetzt», and the peak since the dialog
+opened, «Spitze 81,4 dB(A)» (reset at every opening; decimal comma, `Fmt.db`). While no measurement
+runs the dialog runs its own short-lived `MeasurementEngine` (the dsp engine of a measurement, no
+classifier, no category mapper, no event head, **no audio tap**) on an `AudioCapture` of the microphone
+and the calibration a measurement would use now (`AudioSourceSelector.select`,
+`Microphones.resolveNow`, `CalibrationRepository.active`), so the number means what «Messen» shows; it
+is opened off the main thread when the dialog shows and closed when it closes (`DisposableEffect`,
+`ReportLevelMic`). Not while the calibration screen holds the microphone. While a measurement runs
+the dialog opens no second microphone and takes the measurement's own 125 ms steps from
+`container.live` (`lafDb`, and since 0.8.5 `lafMaxTickDb`, `leqTickDb`, `tickEpochMs`). The
+microphone permission is asked together with the location when the dialog opens if it is missing
+(`reportPermissions`); without it the dialog works as before, without the line and without a level.
+At «Senden» `ReportLevelMeter.level()` gives the report's `level`: the highest LAFmax of a valid step
+and the LAeq over the valid steps, one decimal, the open time in whole seconds (1–600) and whether the
+microphone is calibrated; null without a valid step. Stored in the queue (`"lvl"`), sent as `level`
+(server/DESIGN.md §4.7), kept as LAeq/LAFmax in the list of sent reports, which shows «· 81 dB». A
+server before schema v8 refuses the field: the report goes out again without it in the same run
+(`Uploader.onlyOptional`, `ReportQueue.dropLevel`). Tests: `ReportLevelTest` (meter, the engine on a
+1 kHz tone, payload, queue, old servers, and a source scan that the engine has no tap and no `ui/`
+class reaches the Labor recorder).
+
+**The compass of «Laut! Melden» (0.6.7 as the step «Wohin fuhr es?»; since 0.8.1 the top of the one
+dialog; editions with the map).** The reporter points the phone where the vehicle went; the reading
+at the moment «Senden» is tapped (0.8.1: a category) goes into the report (until 0.7.8 a separate step after «Was war
+laut?» with «Richtung übernehmen» / «Überspringen»). `src/karte/.../ui/ReportDirectionUi.kt`:
+`rememberReading()` (the `Compass` of `src/karte/.../compass/` while the dialog is composed, the
+screen's orientation locked meanwhile, the sensors only while the app is in front; null on a phone
+without a compass, which then gets no disc and sends no direction) and `Panel` (the drawing); the
+Offline and Labor builds have the stand-in in `src/nomap` with the same API and no sensors. A 200 dp
+disc (240 dp in 0.7.8's own dialog; since 0.9.4.2 140–220 dp, the size the dialog passes, `discSize`; the
+dialog's measuring pass calls the Panel with `measureOnly`, which composes only its lines — no canvas, no tile
+request, no effect): the arrow stays fixed pointing up the screen; around it the compass rose (ring,
+16 ticks, upright N/O/S/W) turns by the live magnetic reading (0.7.6), the label «Nordost · 47°»
+below (since 0.9.4.2 at the right of the heading). Above the disc (0.9.2) the heading «Wohin fuhr es?» (since 0.9.4.2 drawn by the Panel) and, always, «Telefon in die Fahrtrichtung
+halten»; while the compass is unreliable the figure-eight hint «Kompass ungenau: …» is an additional red
+line under it (until 0.9.1 it replaced the line under the label, and the arrow was left unexplained).
+While the streets are drawn the location row reads «Standort ± n m · Karte verschiebbar» (0.9.2; the
+only sign of the drag), and the level card says «Mikrofon läuft» in its top-right corner. **Streets under the arrow** (0.7.8 in Labor·Karte; **since 0.8.0 also in the
+Online-Version**, i.e. in both editions with the map — `src/karte` is not compiled into Offline or Labor;
+no edition flag): once the fix is there
+(`LocationFlows` passes it as `fix`; null while locating), the real streets around it are drawn under the arrow — swisstopo's grey
+map (`wmts.geo.admin.ch`, the website map's tiles, one URL constant in `ui/ReportMapTiles.kt`) at
+zoom 18, every tile that touches the 150 m disc around the fix (9–16 tiles; a zoom-18 tile is only
+≈ 103 m in Switzerland, so a plain 3 × 3 block would leave the edge of a 300 m view empty), scaled so
+that the disc is 300 m across whatever the screen density, turned by the true heading (magnetic +
+declination at the fix), the fix at the centre as a small dot, at 60 % opacity, fading in, inverted
+in the dark theme like the website's map, «© swisstopo» under the disc. Downloads:
+`HttpURLConnection` on `Dispatchers.IO`, at most 4 at a time, nearest tile first, GET, 5 s
+timeouts, no redirects, no cache, User-Agent «LessNoise», ≤ 512 kB per tile, decoded with
+`BitmapFactory`, kept in a `remember`ed map only for the life of the dialog, open connections closed
+when the dialog goes away; a tile that fails is simply not drawn. Nothing for a fix outside
+Switzerland's bounding box. Privacy: swisstopo sees tile requests for the area around the
+reporter's **true** position, with the phone's IP address (PRIVACY.md, «Laut! Melden» and «What it
+loads»; docs/datenschutz.html says so since 0.8.0, when the Online-Version got the tiles). The 0.7.6 decorative
+street lines are gone in every edition. Pure maths and its tests: `ReportMapTiles`,
+`src/testKarte/.../ui/ReportMapTilesTest.kt` (Zürich main station fixture computed in Python).
 
 **What happens in the background.** At the first opt-in the shared measurements of the last 7 days
 are included; afterwards nothing measured while sharing is off is ever sent (except the measurement
@@ -687,7 +1163,8 @@ token (401) stops uploads until «Neu starten». The local database stays the so
 nothing is deleted on the phone except the coordinates of sent reports.
 
 **Code.** Everything network is in `app/src/main/kotlin/ch/lessnoise/app/upload/`:
-`UploadClient.kt` (the only class that opens connections: `HttpURLConnection`, one host from
+`UploadClient.kt` (the only class of the upload that opens connections — the others in the app are the
+map tab's WebView and, since 0.8.0 in the Online-Version too, the tiles under the compass of «Laut! Melden», `ui/ReportMapTiles.kt` (wmts.geo.admin.ch only): `HttpURLConnection`, one host from
 `BuildConfig.API_BASE`, HTTPS only, no redirects), `Payloads.kt` (the request bodies),
 `Uploader.kt` (batching, markers, cells per record, reports, `rejected`, delete; pure JVM),
 `Reports.kt` (the report queue), `UploadState.kt` (settings, id, markers, the share decision and the
@@ -706,8 +1183,8 @@ window, rate limit / 4xx / no network, coordinate entry. `ReportsTest.kt` checks
 categories and body, ≤ 50 per request, that coordinates are gone after sending (and after switching
 off or deleting), and the 404/4xx handling. `app/src/test/.../data/MeasurementsDbTest.kt` checks the
 migration 5 → 6 on SQLite and how rows become measurements. `app/src/test/.../location/LocationPolicyTest.kt`
-checks lat/lon → cell (Zürich points from `lv95.js`), the accuracy/«Ungefähr»/last-known rules, the
-≤ 50 m rule of reports and the texts; `LocationIsolationTest.kt` checks the manifests (location only in `public`/`laborKarte`,
+checks lat/lon → cell (Zürich points from `lv95.js`), the accuracy/«Ungefähr»/last-known rules, that a
+report takes a fix at any accuracy (0.6.7) and the texts; `LocationIsolationTest.kt` checks the manifests (location only in `public`/`laborKarte`,
 removed in `offline`/`labor`, no background location) and that the location code logs, stores and
 sends nothing. `dsp/src/test/.../geo/Lv95Test.kt` checks
 the conversion against the five reference points of DESIGN.md §3 and against values computed with
@@ -721,6 +1198,12 @@ the website's `lv95.js`.
 - **Audio source.** The app uses Android's `UNPROCESSED` source when the phone declares support
   for it, otherwise `VOICE_RECOGNITION`, and switches off AGC/noise suppression/echo
   cancellation where Android allows it. Some phones still apply processing; calibrate per source.
+- **Microphone choice (0.7.2), untested on devices.** The routing of a chosen USB, wired or LE Audio
+  microphone with `setPreferredDevice` is verified only on the JVM (pure rules in `MicChoiceTest`,
+  source checks in `BuiltInMicTest`); phones may route LE Audio input only as a communication
+  device, in which case the route check stops the measurement instead of measuring with the wrong
+  microphone. A chosen microphone's calibration is that of this one microphone; the noise floor
+  («Messgrenze») is estimated only for the built-in one. Details in «Measuring» → «Microphone».
 - **Wind** causes large false low-frequency levels. Shield the phone; don't measure in strong
   wind. Since v0.4.0 events that look like wind are flagged and not counted, but the levels (LAeq,
   L90 …) still contain the wind. The wind rule was derived from one night at one window and is
@@ -759,7 +1242,59 @@ the website's `lv95.js`.
 
 ## Status of v0.6.x, v0.5.x and v0.4.0
 
-v0.6.3 (versionCode 16) is **published (2026-10-15)**, the current version: one question «Auf die
+v0.9.0 (versionCode 41, published 2026-10-25) is the current public version, signed APKs in
+`../docs/download/`, built and signed by `.github/workflows/release-build.yml`: the Labor·Karte builds
+0.8.1–0.8.8 for the published editions (CHANGELOG 0.9.0) — in the Online-Version «Laut! Melden» as one
+dialog with «Senden», the map moved under the dot (15 m, ≤ 2 km), the level of the open dialog sent
+with the report (server schema v8), the photo of the vehicle on the phone only instead of the typed
+plate, app shortcut and widget, the dark «Karte» tab, no «Unterwegs» measurement and no «Sehr laut»
+notification; in both editions the new «Messen», «Teilen» and Material look. The tiles of the
+report dialog stay on in the Online-Version as in 0.8.0 (no edition flag). Verified on the JVM and on
+the signed APKs (`apksigner`, `aapt2`, `dexdump`, in the workflow and again locally); not run on a
+device.
+
+v0.8.0 (versionCode 32, published 2026-10-24) was the public version before 0.9.0: in the Online-Version
+one notification for «Sehr laut», the compass rose with swisstopo's streets under the arrow of
+«Wohin fuhr es?» (tile requests for the area around the true position, see PRIVACY.md), the
+«Kontrollschild» field (on the phone only), the category «Flugzeug» and the «erkannt» marker
+(CHANGELOG 0.8.0). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`, `dexdump`, in
+the workflow and again locally); not run on a device.
+
+v0.7.2 (versionCode 25, published 2026-10-20) was the public version before 0.8.0, signed APKs then in
+`../docs/download/`: the manual microphone choice (see «Measuring» → «Microphone»): built-in by
+default, another microphone only if chosen and connected, calibration per microphone, the
+microphone's kind in a minute's `audio_source` (server change: needs a redeploy before such minutes
+are accepted). Verified on the JVM and on the signed APKs (`apksigner`, `aapt2`, `dexdump`); not run
+on a device, in particular the routing with real USB, wired or LE Audio microphones is untested.
+
+v0.7.1 (versionCode 24, published 2026-10-20) was the public version before 0.7.2: v0.7.0 below,
+in both public editions, plus the owner's wording for the built-in-microphone refusal (removed in
+0.7.2) and «Mikrofon: eingebaut» next to «Audioquelle».
+
+v0.7.0 (versionCode 23, 2026-10-17) was built for the owner's phone as Labor · Karte only; it brings
+together three lines of work that were built as 0.6.7–0.6.9 on separate branches: «Unterwegs
+erkannt» with «Antippen zum Melden» and the Labor-only «Melden» button and position signal
+(auto-unterwegs, 0.6.7–0.6.9), «Laut! Melden» at any location accuracy (report-any-accuracy, its
+0.6.7/20 never published), and the optional direction of travel in «Laut! Melden». The server code
+accepts `accuracy_m` up to 10 000 m and the optional `direction` (schema v6); both need a redeploy.
+The public editions on the website stayed at 0.6.6 until 0.7.1.
+
+v0.6.6 (versionCode 19, published 2026-10-17) was the public version before 0.7.1, signed APKs in
+`../docs/download/`: v0.6.5 (the estimated per-phone noise floor «Messgrenze», versionCode 18, only
+sent to the owner's phone, never on the website) plus measuring with the phone's built-in
+microphone only (see «Known limitations» → «Built-in microphone only»). Verified on the JVM (unit
+tests of all flavours, dsp, chart; website Playwright) and on the signed APKs (`apksigner`,
+`aapt2`, `dexdump`); not run on a device, in particular not with a Bluetooth or LE Audio headset.
+
+v0.6.4 (versionCode 17, published 2026-10-16) was the version before, signed APKs in `../docs/download/`:
+only map events leave the phone (`Payloads.isMapEvent`: the five machine and motor categories, not
+wind, the server's quality gates; also the live-upload trigger); «Unterwegs» is a start mode next to
+«Messen» that shares nothing (database v7 → v8); «Laut! Melden» says «anderes Fahrzeug». Verified on
+the JVM (unit tests of all flavours, dsp, chart; `RealServerTest` against a local server at 77e47ef)
+and on the signed APKs (`apksigner`, `aapt2`, `dexdump`); not run on a device; the website's
+Playwright tests were updated but not run.
+
+v0.6.3 (versionCode 16) was **published (2026-10-15)**: one question «Auf die
 Lärmkarte?» at the first «Starten»; the measurement starts at once and gets its shifted point when
 the fix arrives; the live map (loud moments about 30 s after they end, minutes every 2 minutes,
 needs the 30-second map server); the tab «Karte» and the «Unterwegs» notification in the
@@ -850,8 +1385,10 @@ classifier with real sound — e.g. why highway passes of cars and motorbikes (3
 a quiet background) are not recognised: each clip comes with the classifier's per-second results
 (top-5 labels and scores, category decision, the input gain applied to the model, LAF), so you can
 listen to what the model heard and see what it scored. It is installed next to the public app (own app id, own data, red
-icon, a red banner «WENIGER LÄRM LABOR – kann Audio aufzeichnen» on every screen) and is signed with
-the release key so that it can be updated. It is **never published**: not in `docs/`, not linked
+icon and logo, the name «Weniger Lärm Labor»; until 0.9.4.5 also a red banner «WENIGER LÄRM LABOR – kann Audio
+aufzeichnen» on every screen) and is signed with the release key so that it can be updated. Since 0.9.4.6 (owner:
+«like the production version … plus this one thing you can turn on where the audio gets saved») it looks like the
+Offline-Version plus one card «Labor» in «Einstellungen» (below). It is **never published**: not in `docs/`, not linked
 from the website. The public app contains none of its code (how to check: PRIVACY.md →
 «Labor-Build»).
 
@@ -869,8 +1406,12 @@ for reports, the Online-Version's upload code; audio is never sent, checked by
 `src/labor/res` but not `src/labor/AndroidManifest.xml`; its own manifest is
 `src/laborKarte/AndroidManifest.xml`. Same app id as Labor, so it installs over a Labor install and
 keeps measurements and recordings; installing the plain Labor build over it switches sharing off.
-Banner «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen». Use the plain Labor build for any phone
-that measures in someone else's home.
+Since 0.9.4.6 it compiles the Online-Version's sources (`src/karte`, `src/noposition`) besides `src/labor`, so it
+behaves like the Online-Version (three ways on «Messen», «Unterwegs messen», the photo in «Laut! Melden», the
+Online motion thresholds, no position signal and no `FOREGROUND_SERVICE_LOCATION`), plus the «Labor» card;
+until 0.9.4.5 it had the banner «WENIGER LÄRM LABOR · KARTE – kann Audio aufzeichnen», «Unterwegs aufnehmen», a
+short video instead of the photo, Labor motion thresholds, the position as a second «unterwegs» signal and the
+line «Bewegung …» on «Messen». Use the plain Labor build for any phone that measures in someone else's home.
 
 ```sh
 ./gradlew testLaborKarteDebugUnitTest assembleLaborKarteDebug
@@ -878,8 +1419,17 @@ that measures in someone else's home.
 # APK: app/build/outputs/apk/laborKarte/release/app-laborKarte-release.apk (android/dist/, git-ignored)
 ```
 
-**Settings → Labor.** «Audio während der Messung aufzeichnen» (off by default; switching it on
-asks once), and below it:
+**Settings → Labor (0.9.4.6: one switch).** **«Audio speichern»** (off by default; switching it on asks once:
+«Audio speichern? Speichert Audio auf diesem Telefon, auch Stimmen in der Nähe. Es bleibt dort, bis du es
+löschst.»; the same stored preference `record_audio` as the earlier «Audio während der Messung aufzeichnen», so an
+updated phone keeps recording). Only while it is on, or while clips, hour files or classifier logs exist
+(`LaborCardTexts.showsFiles`), the card also shows «1,2 GB von 5 GB belegt», the storage lines (while recording),
+«Clips anhören», the export block («Export» scope, «Ohne Stundendateien», the size line, «In Ordner exportieren»,
+«Als ZIP teilen», «Ordner wählen», the progress panel) and «Exportierte Aufnahmen löschen» / «Alle Aufnahmen
+löschen» (`labor/LaborCardUi.kt`, stateless; rendered by `LaborCardScreenshots`). While audio is stored, the
+running «Messen» shows «Audio wird gespeichert» and the notification text ends with « · Audio wird gespeichert»
+(`RecordingNote`, `LaborRecorder.notificationNote`). The settings below are **no longer shown** (0.9.4.6); the
+recorder keeps using what is stored — on a new install clips on, continuous on, every clip, 5 GB:
 
 - «Ereignis-Clips (±5 s, WAV 16 kHz)» (on): for every event, 5 s before its start to 5 s after its
   end, at most 60 s (longer events: the first 60 s, flagged `truncated`). A 6 s ring buffer of the
@@ -889,15 +1439,120 @@ asks once), and below it:
   hour and at every start of a measurement. A file is finalised when the hour ends or the
   measurement stops; if the app is killed, at most the current hour's file is lost.
 - «Clip-Rate»: a clip for every event, every 2nd or every 5th (the 1st is always kept).
-- «Maximaler Speicher» (default 2 GB): when the audio folder would exceed it, recording stops
-  and the banner says so; **measuring continues**.
+- «Maximaler Speicher» (default 5 GB since 0.7.5; 0.5/1/2/5/10 GB; a stored choice is kept): an
+  **audio** budget. When the audio folder would exceed it, clips and hour files stop and the «Labor» card says
+  «Speicher voll: …» (until 0.9.4.5 the banner); **measuring and logging continue** — `event` and `clock` lines and the classifier log go
+  on up to 200 MB beyond the cap (`StorageBudget.LOG_MARGIN_BYTES`; then a `logs_full` line and
+  only session lines). `storage_full` is written once when it happens and once per session start
+  while still full; `session_stop` counts `clipsSkipped` (events without a clip because of the
+  cap) and `linesDropped`. Below max(10 % of the cap, 200 MB) free, a red line «Speicher fast voll
+  …» shows on «Messen» and in this section; at the cap, with recording on, «Messen» does not start
+  until «Audio speichern» is switched off or the files are exported and deleted (0.9.4.5: or the limit raised)
+  (`StoragePolicy` in `labor/Policies.kt`, tested in `PoliciesAndManifestTest`). Before 0.7.5 a full
+  cap also stopped the manifest.
 
 In addition, while recording is on, every classifier run (once per second) is logged to
 `classifier/<yyyyMMdd_HH>.jsonl`, also where no clip exists, so missed events stay visible.
 
-Settings apply from the next start of a measurement; switching recording off stops it at once.
-The section also shows the space used and the number of clips and hour files, and has
-«Ordner anzeigen», «Als ZIP teilen» and «Alle Aufnahmen löschen».
+Settings apply from the next start of a measurement («Gilt ab der nächsten Messung.» under the switch when it is
+switched on during a run); switching recording off stops it at once. Until 0.9.4.5 the section also showed the
+number of clips, hour files and classifier logs, the microphone and (Labor·Karte) «Bewegung», and «Wo sind die
+Dateien?» next to «Ordner wählen».
+
+**Folder export (branch labor-export, Labor editions only).** «In Ordner exportieren» copies the
+recording folder into a folder the owner picks once through Android's folder picker (the Storage
+Access Framework, `ACTION_OPEN_DOCUMENT_TREE`): Downloads, a USB stick, or the Google Drive app,
+which the picker offers as a destination. The grant is persisted (`takePersistableUriPermission`,
+read + write) and the tree URI kept in the Labor SharedPreferences (`export_tree_uri`); later
+presses export without asking, «Ordner wählen» picks a new folder (which starts with an empty
+ledger). The copy is incremental: `labor/LaborExport.kt` lists `manifest.jsonl`, `clips/*.wav`,
+`classifier/*.jsonl` and `continuous/*.m4a` (the hour file being written, `Labor.openContinuousFile`,
+is left out until the measurement stops), compares each against a ledger of relative path + size +
+lastModified (`filesDir/labor-export-ledger.tsv`, one line per file, rewritten after every copied
+file so an interrupted export resumes) and copies only what is new or changed — the manifest
+always, because it grows. Sub-folders are created in the tree with `DocumentsContract`
+(`LaborExportSaf.kt`), an existing file of the same name is replaced, the copy runs in 1 MB chunks
+on `Dispatchers.IO` (since 0.9.4.1 in the export service, see below) with «Export: n von m Dateien, x MB von y MB»
+(since 0.9.4.1 «Export · n von m Dateien · x von y MB») in the section and ends with
+«Exportiert: n Dateien, x MB nach ‹Ordner›». A failed file is reported in the message line and
+copied again next time; a lost grant (`SecurityException`, e.g. after the folder was deleted)
+forgets the folder and asks for it again. «Alle Aufnahmen löschen» also clears the ledger. «Als ZIP
+teilen» no longer refuses when the hour files exceed 500 MB: the ZIP then simply leaves them out
+and says so (the folder export covers them). Tests: `IncrementalExportTest` (ledger round trip,
+sources and the open hour file, incremental second run, failed file retried, lost permission,
+cancel) with an in-memory sink.
+
+**Export scope (0.9.4, Labor editions only).** A phone that has recorded for weeks holds gigabytes
+(the owner's: 3,37 GB, 6108 clips, 31 hour files, 29 classifier logs); handing over one night
+should not mean a 3,5 GB ZIP. Above the two export buttons a segmented row «Export» chooses what
+both take — «Alles» · «Seit letztem Export» · «Letzte 24 h» (default «Letzte 24 h») — and a switch
+«Ohne Stundendateien» (one switch for both buttons, default on) leaves out `continuous/*.m4a`. Both
+are kept in the Labor SharedPreferences (`export_scope`, `export_without_hour_files`). Below them a
+size line computed from the file list, e.g. «Letzte 24 h ohne Stundendateien: 412 Dateien, 165 MB»,
+plus «Davon neu für den Export-Ordner: …» when the folder export would copy less (it skips what is
+already there).
+
+- **«Alles»:** the folder export as before (everything new or changed against the ledger); the ZIP
+  everything.
+- **«Seit letztem Export»:** only files that are not in the ledger with the same size and
+  lastModified. The ZIP uses **the same ledger** as the folder export and, once the share menu has
+  opened, records its files in it, so «exportiert» means «copied to the folder or packed into a
+  ZIP». With an empty ledger the size line says «Noch nie exportiert – nimmt alles» and it behaves
+  like «Alles».
+- **«Letzte 24 h»:** files whose name falls in the 24 hours before the press — clips by the event
+  start in `ev_<id>_<yyyyMMdd_HHmmss>.wav`, classifier logs and hour files by their hour
+  `<yyyyMMdd_HH>` (an hour that overlaps the window counts); a name that does not parse falls back
+  to lastModified. The ZIP takes them all, the folder export those not yet there. The manifest is
+  replaced by a **filtered copy** `manifest.jsonl` (written to the app's cache, never over the
+  phone's own): every line whose `time` lies in the window, plus, for each session that has such a
+  line, the lines before the window it depends on — its `session_start` (calibration offset and
+  settings; `:dsp:replayBatch --offset manifest` reads it), its last `clock` line, the
+  `continuous_open` of an hour file still open at the window start, and its last `storage_full` /
+  `logs_full`. Keeping whole sessions instead would keep a measurement running for days in full. In
+  the export folder the filtered copy replaces a full manifest copied earlier until the next
+  «Alles» or «Seit letztem Export» export copies the full one again.
+
+The ZIP is named after the scope: `lessnoise-labor-<yyyyMMdd>-24h.zip`, `-seit-export.zip`,
+`-alles.zip`. Hour files still go into a ZIP only if they total less than 500 MB.
+
+**«Exportierte Aufnahmen löschen»** (0.9.4) frees the phone without losing unexported data: it
+deletes only files the ledger has with the same size and lastModified (re-checked at the moment of
+deleting), never the manifest, and removes them from the ledger; the confirm dialog states the count
+and size. Like «Alle Aufnahmen löschen» it is disabled while recording. The app cannot know whether
+a shared ZIP arrived — the dialog says so. «Ordner wählen» starts an empty ledger, which also forgets
+what went into ZIPs (deletes less, never more). Logic in `labor/LaborExportScope.kt`
+(`ExportScopes`, `ManifestWindow`), tests in `ExportScopeTest` (names and mtimes, the 24 h window,
+the ledger per target, the size line, the ZIP name and contents, the manifest window, the deletion
+selection); the controls are rendered by `ExportScopeScreenshots` (testLaborKarte, Paparazzi).
+
+**Export in the background (0.9.4.1, Labor editions only).** Both buttons hand their job to a
+foreground service, `labor/LaborExportService.kt`, of type `dataSync` (`FOREGROUND_SERVICE_DATA_SYNC`,
+declared only in `src/labor/AndroidManifest.xml` and `src/laborKarte/AndroidManifest.xml`;
+`tools/check_release_apk.py` fails if a published edition has it). Until 0.9.4 the copy ran in the
+settings screen's coroutine scope, so a 2,8 GB ZIP was lost when the owner left the app. Now the
+export goes on when the app is left or the screen turns off: a notification «Export · 412 von 1830
+Dateien · 165 von 820 MB» with a progress bar (by bytes) and «Abbrechen», and the same bar and line
+in the Labor section (`ExportJobPanel`, live from `LaborExportJobs.state`, a `StateFlow`) with an
+«Abbrechen» button. A partial wake lock is held only while files are copied. One export at a time:
+pressing a button while one runs answers «Es läuft schon ein Export – warten oder «Abbrechen».»;
+deleting is disabled meanwhile. At the end «Export fertig»; for a ZIP the share menu opens by itself
+if the section is on screen, else by tapping the notification (an invisible `LaborShareActivity`) or
+«ZIP teilen».
+
+The ZIP stores the audio (`.wav`, `.m4a`) without compression and deflates only the text logs
+(`.jsonl`): deflate gained little on audio and cost most of the time (synthetic 220 MB set: 10–11 s
+all deflated, 0,3–0,4 s like this; WORKLOG 0.9.4.1). It is written in 1 MB chunks to
+`.<name>.part` in the share folder and renamed when complete; «Abbrechen», an error or a killed
+process leave no half ZIP (deleted at once, or before the next ZIP). Its files count as exported
+only when the ZIP is complete **and** its share menu has opened (the list waits in
+`cache/labor_zip_pending/` until then). Before writing, the free space is checked: the ZIP needs
+about its size in the cache partition (plus 20 MB); if that is missing the app says «Zu wenig
+Speicher für ZIP: n MB nötig, m MB frei – Ordner-Export nutzen» and offers «In Ordner exportieren»,
+which needs no copy on the phone. «Abbrechen» of a folder export keeps what was completely copied
+(in the ledger, so the next export resumes) and deletes the half-copied file from the folder. Tests:
+`ExportJobTest` (progress line and fraction, STORED/DEFLATE, chunk size, temp file on cancel and
+failure, ledger only after a completed and shared ZIP, free space, one job at a time) and
+`IncrementalExportTest` (cancel inside a file); renders in `ExportScopeScreenshots`.
 
 **Where the files are:** `Android/data/ch.lessnoise.labor/files/audio/` on the phone's shared
 storage (`getExternalFilesDir(null)/audio`):
@@ -910,7 +1565,8 @@ audio/continuous/<yyyyMMdd_HH>.m4a         (_2, _3 … if the hour already has a
 ```
 
 The folder is visible over USB (file transfer). Many file managers on the phone may no longer
-open `Android/data` since Android 11; then use «Als ZIP teilen» or USB.
+open `Android/data` since Android 11; then use «In Ordner exportieren» (see above), «Als ZIP
+teilen» or USB.
 
 **Storage per 8 h of measurement:** continuous ≈ 29 MB/h (64 kbit/s) ≈ 230 MB; clips ≈ 32 kB per second
 of clip, typically 0.3–0.5 MB each (at most 1.9 MB), e.g. 100 events ≈ 40 MB; classifier log
@@ -928,7 +1584,7 @@ if the window was ignored because it touched silenced/invalid audio, then `ignor
 decision on the *average* of the windows overlapping it (as in the public app).
 
 **Manifest lines** (`type`): `session_start` (device model, Android version, app version, audio
-source, encoding, effects, calibration id/offset, the detector settings — since 0.4.0 `detector:
+source, encoding, effects, since 0.6.6 `inputDevice` (the microphone that delivered the audio), calibration id/offset, the detector settings — since 0.4.0 `detector:
 "v2"`, `eventExcessDb`, `localFloorWindowS`, `eventFloorDb`, `windLfShareMin`, `windFlutterMinDb`
 (before: `eventThresholdDb`) —, classifier settings, recording settings), `clock` (the engine's sample clock:
 input sample *s* at 48 kHz, counted from the start of the measurement, was recorded at
@@ -939,7 +1595,10 @@ category, top-3 labels, file, `offsetOfEventStartInClipMs`, `truncated`, sample 
 `features`, see below), `event` (since 0.4.0, every event — also without a clip — when it is
 complete: start/end time and input samples and `features` = `localFloorDb`, `excessDb`, `riseS`,
 `decayS`, `jaggedness`, `midBandRiseDb`, `lfShare`, `lfFlutterDb`, `wind`, `shape`, as defined in
-[Event detection](#event-detection-detector-v2); match to `clip` lines by `eventStartSample`),
+[Event detection](#event-detection-detector-v2); match to `clip` lines by `eventStartSample`;
+in Labor builds with the event head (not released yet, see `dsp/EVENT_HEAD.md`) `event` and `clip`
+lines also carry `head` = `model`, per-class `scores`, `decision`, and on `event` lines the
+model `inputs` — logging only, the `category` stays YAMNet's),
 `continuous_open` / `continuous_close` (file, start time, `startInputSample`, codec, sample rate;
 16 kHz sample *j* of the file = input sample `startInputSample + 3·j + 2`), `gap` (blocks the
 encoder could not keep up with, filled with silence so the mapping holds), `storage_full`, and
@@ -968,8 +1627,10 @@ while measuring works, but the speaker is then measured too (use headphones). A 
 file shows «Clip nicht gefunden».
 
 **Sending data for analysis:** «Als ZIP teilen» zips the clips, the manifest and the classifier
-logs (and the hour files only if they total < 500 MB) and opens the share menu; it shows the size
-first. Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
+logs of the chosen «Export» scope (and the hour files unless «Ohne Stundendateien» is on, and only if
+they total < 500 MB) and opens the share menu; it shows the count and size first (0.9.4, see
+«Export scope» above); since 0.9.4.1 it is built in the background with progress («Export in the
+background» above). Hour files are best copied over USB (`Android/data/ch.lessnoise.labor/files/audio/continuous/`).
 
 **Performance.** The capture thread only copies (ring buffer, one block copy into a bounded
 queue) and never waits; resampling, WAV writing, logging and AAC encoding run on two
@@ -1035,6 +1696,42 @@ for A in app/build/outputs/apk/offline/release/app-offline-release.apk \
 done
 ```
 
+### Signed Labor builds on GitHub Actions (0.7.4)
+
+Labor and Labor·Karte APKs are signed by the workflow `.github/workflows/labor-build.yml`, so no
+session or machine needs the keystore. The keystore and its passwords are repository secrets
+(`LABOR_KEYSTORE_B64` = the `.jks` as base64, `LABOR_KEYSTORE_PASSWORD`, `LABOR_KEY_ALIAS`,
+`LABOR_KEY_PASSWORD`; write-only, set once in Settings › Secrets and variables › Actions). The
+workflow runs on every push to a branch named `labor-*` and by hand (`gh workflow run
+labor-build.yml --ref <branch> -f flavour=laborKarte`). It builds `assembleLaborKarteRelease`,
+checks the signer certificate against the pinned SHA-256 `a3d5d10e…3142be` (fails otherwise),
+and uploads `lessnoise-labor-karte-<version>.apk` plus `SHA256SUMS` as a workflow artifact kept
+for 3 days (`gh run download <run-id>`). The artifact is the only place the Labor APK exists;
+it is never copied into `docs/` or a release. To get a build onto the owner's phone: bump
+`versionCode`/`versionName`, push the `labor-*` branch, wait for the green run, download the
+artifact, and hand over the APK (its SHA-256 is in `SHA256SUMS`).
+
+### Signed published builds on GitHub Actions (0.8.0)
+
+The two published APKs are built the same way by `.github/workflows/release-build.yml` (same
+secrets, same key; a separate file so that it can never build a Labor flavour): `gh workflow run
+release-build.yml --ref <branch>` (also on every push to a `release-*` branch, except changes
+only under `docs/` or to `WORKLOG.md`). It runs `:dsp:test`, `:app:testOfflineDebugUnitTest`,
+`:app:testPublicDebugUnitTest`, builds `assembleOfflineRelease assemblePublicRelease` signed, runs
+`tools/check_release_apk.py` on each APK (signer certificate `a3d5d10e…3142be`; `aapt2` package
+`ch.lessnoise.app` and the version of `app/build.gradle.kts`; `aapt2 dump permissions` exactly
+the PRIVACY.md set per edition — so no `CAMERA`, no `FOREGROUND_SERVICE_LOCATION`; the manifest's
+widget receiver and app shortcut in the public one only; `dexdump`: no Labor classes or strings and
+no ML Kit / Play services / Firebase classes in either, no `alert/*` and no `loud_alert` in either
+(since 0.9.0), and in the offline one no `MapScreen*`, `ReportMapTiles*`/`ReportTileFetcher*`,
+`report/*`, `MotionDetector*` and no `ch/lessnoise` class referring to `WebView` or `SensorManager`,
+all present in the public one — checklist step 2; 0.9.0 merged the 0.8.0 script with the 0.8.4
+Labor·Karte one, which also checks `labor`/`laborKarte` APKs), and uploads `lessnoise.apk`, `lessnoise-karte.apk`, `SHA256SUMS` and `SIZES`
+as the artifact `lessnoise-release-<version>-<code>` (14 days). It has read-only access and never
+touches `docs/`: copying the APKs into `docs/download/` and filling in the website (checklist
+steps 4–7) is a separate commit. The same script runs locally on any release APK
+(`python3 tools/check_release_apk.py offline <apk> --version … --code … --build-tools …`).
+
 To publish, follow the release checklist below. The release key cannot be replaced without
 forcing every user to uninstall and reinstall, so keep the keystore and its password backed up.
 
@@ -1055,7 +1752,16 @@ Two published APKs per version, both in `../docs/download/`. Never a Labor APK.
    `ch/lessnoise/` that refers to `Landroid/webkit/WebView;` (`dexdump -d`; the only reference in it
    is androidx.core's `LinkifyCompat`, a library class in every edition); the public one has them;
    (0.6.3) the offline dex contains no class `ch/lessnoise/app/alert/*` (the «Sehr laut» notification)
-   and no string `loud_alert`; the public one has them.
+   and no string `loud_alert`; **from 0.9.5 (0.9.4.6 in `laborKarte`) the public one has them again** («Unterwegs
+   messen»; 0.9.0–0.9.4 it had none); since 0.9.4.6 no edition has `FOREGROUND_SERVICE_LOCATION`;
+   (0.8.4) the public dex has the shortcut and widget classes `ch/lessnoise/app/report/*` and its manifest
+   the widget receiver and `android.app.shortcuts`; the offline one has neither.
+   (0.6.7) the offline dex contains no class `ch/lessnoise/app/motion/MotionDetector*` and no class
+   of `ch/lessnoise/` that refers to `Landroid/hardware/SensorManager;`; the public one has them.
+   All of step 2's permission and dex rules in one command (0.8.4; one script since 0.9.0):
+   `python3 tools/check_release_apk.py --version X.Y.Z --code N --cert-sha256 a3d5… offline=app/build/outputs/apk/offline/release/app-offline-release.apk public=app/build/outputs/apk/public/release/app-public-release.apk`
+   (needs `apksigner`, `aapt2` and `dexdump` from the build-tools; exit code 1 if a rule fails; the
+   workflow calls it as `check_release_apk.py offline <apk> --version … --code …`).
 3. Name the files: `app-offline-release.apk` → **`lessnoise.apk`** («Offline-Version»),
    `app-public-release.apk` → **`lessnoise-karte.apk`** («Online-Version»). Note size (bytes) and
    SHA-256 of each.
@@ -1107,16 +1813,24 @@ app/   Android: AudioRecord capture, foreground service, LiteRT YAMNet, Room, Co
                 location/: the one-fix location code; data/: Room incl. the measurements table)
   src/public/   the published editions: kotlin/ (AudioTapProvider → NoAudioTap, no extra UI), compiled
                 into both `offline` and `public`; AndroidManifest.xml (INTERNET) for `public` only
-  src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code), compiled
-                into `public` and `laborKarte` only
+  src/karte/    (0.6.3) the tab «Karte»: MapScreen.kt, the WebView (the only other network code besides
+                ReportMapTiles.kt, 0.7.8: the tiles under the compass of «Laut! Melden», downloading since 0.8.0 in `public` too), compiled
+                into `public` and `laborKarte` only; also the motion detector, the compass, and (0.8.4)
+                report/: the shortcut's intent and the widget «Laut! Melden», res/: the widget and the icons;
+                (0.9.4.6) alert/ + ui/LoudAlerts.kt: «Unterwegs messen» and the «Sehr laut» notification
+                (0.8.4–0.9.4.5 in src/laborKarte, with the stand-in src/nounterwegs for `public`, both removed)
+  src/noposition/ (0.6.9) PositionWatch stand-in (reads nothing), compiled into `public` and (0.9.4.6) `laborKarte`
   src/nomap/    (0.6.3) MapTab.kt stand-in without map and WebView, compiled into `offline` and `labor`
   src/offline/  AndroidManifest.xml only: removes INTERNET, ACCESS_NETWORK_STATE and location («Offline-Version»)
   src/labor/    Labor edition only: audio recorder, WAV/AAC writers, manifest, clip player, Labor UI, red icon
                 (kotlin/ and res/ also compiled into the internal `laborKarte`, its manifest not)
-  src/laborKarte/ AndroidManifest.xml only: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»
+  src/laborKarte/ AndroidManifest.xml: INTERNET + ACCESS_NETWORK_STATE + location for «Messwerte teilen»;
+                res/xml/shortcuts.xml (0.9.4.6: no Kotlin of its own any more; until 0.9.4.5 the position signal,
+                0.6.9, and alert/ + ui/LoudAlerts.kt, 0.8.4)
   src/testLabor/ JVM tests of the Labor recorder and clip-player parts (run for `labor` and `laborKarte`)
 tools/verify_yamnet.py    model I/O + Kotlin-vs-Python preprocessing check
 tools/csp_hash.py         CSP script hashes for the website's inline script (docs/update.html)
+tools/check_release_apk.py (0.8.4) permission, manifest and dex rules of an APK per edition (0.9.4.6: alert/* in public and laborKarte)
 ```
 
 ## Roadmap

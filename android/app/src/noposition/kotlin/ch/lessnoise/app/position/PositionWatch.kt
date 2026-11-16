@@ -1,0 +1,30 @@
+package ch.lessnoise.app.position
+
+import android.content.Context
+import android.os.Handler
+
+/**
+ * Both editions with the map (the Online-Version and, since 0.9.4.6, Labor·Karte): no position signal for
+ * «unterwegs». 0.6.9–0.9.4.5 Labor·Karte had one (src/laborKarte/kotlin/…/position/, about one fix a minute
+ * while a window run went, with FOREGROUND_SERVICE_LOCATION); removed in 0.9.4.6 so that Labor·Karte behaves
+ * like the Online-Version. This stand-in is all they contain of it: it reads nothing and adds no
+ * foreground-service type.
+ */
+object PositionWatch {
+    const val AVAILABLE = false
+
+    interface Handle {
+        val distanceM: Double?
+        val moving: Boolean
+        fun holdMs(nowMs: Long): Long
+        fun stop(): Long?
+    }
+
+    /** A change of the signal (never produced here). */
+    class Transition(val atMs: Long, val moving: Boolean, val spanStartMs: Long, val distanceM: Double, val thresholdM: Double)
+
+    fun foregroundType(context: Context): Int? = null
+
+    @Suppress("UNUSED_PARAMETER")
+    fun start(context: Context, handler: Handler, lastMovementMs: () -> Long?, onChange: (Transition) -> Unit): Handle? = null
+}

@@ -98,6 +98,13 @@
     return a.d + ".–" + end;
   }
 
+  /** "2026-10-16" -> "16.10.2026" (the date `counted_since` of the map files); "" if not a date. */
+  function dateNumeric(dateStr) {
+    if (!isDate(dateStr)) return "";
+    var p = parts(dateStr);
+    return (p.d < 10 ? "0" : "") + p.d + "." + (p.m < 9 ? "0" : "") + (p.m + 1) + "." + p.y;
+  }
+
   /** "2026-10-08T06:40:00+02:00" -> "8. Okt. 2026, 06:40" — read from the text, which the
    *  server writes in Zürich local time, so the viewer's own time zone does not matter. */
   function stampLabel(iso) {
@@ -156,14 +163,14 @@
     },
     events: {
       id: "events", label: "Ereignisse/h", unit: "pro Stunde",
-      title: "Laute Einzelereignisse pro Stunde Messzeit, alle Quellen",
+      title: "Laute Einzelereignisse pro Stunde Messzeit, Maschinen- und Motorenlärm (alle fünf Quellen)",
       breaks: [2, 5, 10, 15, 20, 30], colours: RATE_COLOURS,
       ticks: [2, 5, 10, 15, 20, 30],
       get: blockGet("events_per_h"),
     },
     loud: {
-      id: "loud", label: "Töff & Poser/h", unit: "pro Stunde",
-      title: "Ereignisse «Töff & Poser» (Motorräder, Hochdrehen) pro Stunde Messzeit",
+      id: "loud", label: "Laute Fahrzeuge/h", unit: "pro Stunde",
+      title: "Ereignisse «Lautes Fahrzeug» (Motorräder, Hochdrehen) pro Stunde Messzeit",
       breaks: [0.5, 1, 2, 3, 5, 8], colours: RATE_COLOURS,
       ticks: [0.5, 1, 2, 3, 5, 8],
       get: function (b) {
@@ -173,7 +180,7 @@
     peaks: {
       id: "peaks", label: "Sehr laut/h", unit: "pro Stunde",
       // the threshold comes from the file (loud_event_db); karte.js fills it in
-      title: "Ereignisse ab {db} dB(A) pro Stunde Messzeit, alle Quellen",
+      title: "Ereignisse ab {db} dB(A) pro Stunde Messzeit, Maschinen- und Motorenlärm",
       breaks: [0.2, 0.5, 1, 2, 3, 5], colours: RATE_COLOURS,
       ticks: [0.2, 0.5, 1, 2, 3, 5],
       get: blockGet("loud_events_per_h"),
@@ -194,9 +201,103 @@
     return i;
   }
 
+  /* ---------- one layer per source (the five map categories, server/DESIGN.md §6) ---------- */
+
+  // The five categories the server counts (config.MAP_CATEGORIES), in the server's order. Each
+  // has its own hue (light / dark mode; validated for colour-vision deficiency as a set), used
+  // only for its own layer: one hue per view, never several categories coloured at once. Each
+  // ramp is that hue in 5 steps of OKLCH lightness (light mode 0.76 → 0.36, light -> dark = few
+  // -> many; dark mode 0.52 → 0.91, dark -> light, so many stays the most visible on the dark
+  // map, as LEVEL_COLOURS_DARK); every ramp passes the ordinal checks of the dataviz validator
+  // (monotone lightness, steps ≥ 0.06 apart, end step ≥ 2:1 against the surface).
+  var SOURCES = [
+    // 0.9.3: «Lautes Fahrzeug» (the app's name of the detector class; plural where a count follows)
+    { id: "loud_vehicle", name: "Lautes Fahrzeug", plural: "Laute Fahrzeuge", colour: "#EB6834", colourDark: "#D95926",
+      ramp: ["#f7936e", "#e46838", "#c24609", "#963300", "#6a2202"],
+      rampDark: ["#ac4319", "#d55c2d", "#fc7848", "#fead91", "#fed8ca"] },
+    { id: "road_traffic", name: "Strassenverkehr", colour: "#2A78D6", colourDark: "#3987E5",
+      ramp: ["#7bb4fd", "#4b93ee", "#2573d1", "#0055ab", "#023b79"],
+      rampDark: ["#2969b5", "#3e87e0", "#61a7ff", "#9cc7ff", "#cfe3fe"] },
+    { id: "rail_tram", name: "Tram & Bahn", colour: "#1BAF7A", colourDark: "#199E70",
+      ramp: ["#6ec69d", "#27ab79", "#078a5e", "#066947", "#014930"],
+      rampDark: ["#0c7c57", "#279d71", "#46bd8d", "#71ddae", "#a5f6cf"] },
+    { id: "aircraft", name: "Flugzeug", colour: "#4A3AA7", colourDark: "#9085E9",
+      ramp: ["#a7a6fe", "#8882ef", "#6b61d1", "#5144ac", "#382a83"],
+      rampDark: ["#655bac", "#8177d4", "#9f95fa", "#bfbbfe", "#deddff"] },
+    { id: "construction", name: "Baustelle", colour: "#EDA100", colourDark: "#C98500",
+      ramp: ["#dea551", "#c28410", "#9b690a", "#774f00", "#543602"],
+      rampDark: ["#8f5d00", "#b57802", "#da9525", "#f9b556", "#fedbae"] },
+  ];
+  // One scale for all five, so that the same step means the same rate whichever source is shown.
+  var SOURCE_BREAKS = [0.5, 1, 2, 5];
+  var ALL_SOURCES = "alle";
+
+  function source(id) {
+    for (var i = 0; i < SOURCES.length; i++) if (SOURCES[i].id === id) return SOURCES[i];
+    return null;
+  }
+
+  /** The colour scale of one source's events per hour (a metric like those of METRICS). */
+  function sourceMetric(id) {
+    var s = source(id);
+    if (!s) return null;
+    return {
+      id: "source:" + s.id, source: s.id, label: (s.plural || s.name) + "/h", unit: "pro Stunde",
+      title: "Ereignisse «" + s.name + "» pro Stunde Messzeit",
+      breaks: SOURCE_BREAKS, colours: s.ramp, coloursDark: s.rampDark, ticks: SOURCE_BREAKS,
+      get: function (b) {
+        var c = b && b.events_per_h_by_category;
+        return c && c[s.id] !== undefined ? c[s.id] : null;
+      },
+    };
+  }
+
+  /** The metric the map colours by: one source's events/h when «Ereignisse/h» is chosen with a
+   *  source other than «Alle»; otherwise the metric itself. */
+  function metricFor(metricId, sourceId) {
+    if (metricId === "events" && sourceId && sourceId !== ALL_SOURCES) {
+      var sm = sourceMetric(sourceId);
+      if (sm) return sm;
+    }
+    return METRICS[metricId];
+  }
+
+  function metricOf(m) { return typeof m === "string" ? METRICS[m] : m; }
+
+  /* ---------- the source in the fragment: karte.html#quelle=<id>, also with a view ---------- */
+
+  function hashParts(hash) {
+    var h = typeof hash === "string" ? (hash.charAt(0) === "#" ? hash.slice(1) : hash) : "";
+    return h ? h.split("&") : [];
+  }
+
+  /** The source in a location hash ("quelle=road_traffic"), or null if absent or unknown. */
+  function parseSource(hash) {
+    var found = null;
+    hashParts(hash).forEach(function (p) {
+      var kv = p.split("=");
+      if (kv.length === 2 && kv[0] === "quelle" && (kv[1] === ALL_SOURCES || source(kv[1]))) found = kv[1];
+    });
+    return found;
+  }
+
+  /** The hash without its `quelle=` part (what parseView reads). */
+  function hashWithoutSource(hash) {
+    return hashParts(hash).filter(function (p) { return p.split("=")[0] !== "quelle"; }).join("&");
+  }
+
+  /** The hash for a chosen source: the view part of `hash` (if it is a valid view, else nothing)
+   *  plus `quelle=<id>`; «Alle» (the default) adds nothing. Returns "" or "#…". */
+  function hashFor(hash, sourceId, bounds, minZoom, maxZoom) {
+    var rest = hashWithoutSource(hash);
+    var parts = rest && parseView(rest, bounds, minZoom, maxZoom) ? [rest] : [];
+    if (sourceId && sourceId !== ALL_SOURCES && source(sourceId)) parts.push("quelle=" + sourceId);
+    return parts.length ? "#" + parts.join("&") : "";
+  }
+
   /** Fill colour of a cell for a metric, or null when the block has no value. */
   function colourFor(metricId, block, dark) {
-    var m = METRICS[metricId];
+    var m = metricOf(metricId);
     var v = m.get(block);
     if (v === null || v === undefined || !isFinite(v)) return null;
     var colours = dark && m.coloursDark ? m.coloursDark : m.colours;
@@ -205,34 +306,181 @@
 
   /** Legend-bar position (0..1) of a class edge: classes are drawn with equal width. */
   function tickPosition(metricId, value) {
-    var m = METRICS[metricId];
+    var m = metricOf(metricId);
     var i = m.breaks.indexOf(value);
-    if (i < 0) throw new Error("not a class edge of " + metricId + ": " + value);
+    if (i < 0) throw new Error("not a class edge of " + m.id + ": " + value);
     return (i + 1) / (m.breaks.length + 1);
   }
 
   /* ---------- sources and reports -------------------------------------------------------- */
 
   var CATEGORY_NAMES = {
-    loud_vehicle: "Töff & Poser", road_traffic: "Strassenverkehr", rail_tram: "Tram & Bahn",
+    loud_vehicle: "Lautes Fahrzeug", road_traffic: "Strassenverkehr", rail_tram: "Tram & Bahn",
     aircraft: "Flugzeug", construction: "Baustelle", voices: "Stimmen", music: "Musik",
     unclassified: "Sonstiges",
   };
   var HIGHLIGHT = "loud_vehicle";   // the app's default highlight
 
   // Manual reports (server: reports.json). The letter is the marker's identity; the colour
-  // only helps (three hues that pass the all-pairs colour-vision checks, two neutral).
+  // only helps (three hues that pass the all-pairs colour-vision checks, three neutral; since 0.9.4.5
+  // four more, each also told apart by its letter, see karte.css).
   var REPORT_CATEGORIES = [
     { id: "motorrad", name: "Motorrad", letter: "M" },
     { id: "poser", name: "Poser", letter: "P" },
     { id: "lastwagen", name: "Lastwagen", letter: "L" },
+    { id: "flugzeug", name: "Flugzeug", letter: "F" },   // app 0.7.7
     { id: "auto", name: "Auto", letter: "A" },
+    { id: "bahn", name: "Bahn", letter: "Z" },            // 0.9.4.5: Z for «Zug» (B is Baustelle)
+    { id: "baustelle", name: "Baustelle", letter: "B" }, // 0.9.4.5
+    { id: "garten", name: "Gartengeräte", letter: "G" }, // 0.9.4.5: leaf blowers, mowers, trimmers
+    { id: "hupen", name: "Hupen", letter: "H" },         // 0.9.4.5
     { id: "andere", name: "Andere", letter: "+" },
   ];
+  // 0.9.4.5 (Labor·Karte first): a report without a category (reports.json `category: null`): a plain grey
+  // point with a small dot instead of a letter — not «Andere» («+», an id the app sent until 0.9.0).
+  var REPORT_NONE = { id: "none", name: "Ohne Angabe", letter: "" };
 
+  /** The category of a report's id: null or absent -> REPORT_NONE; an id this page does not know
+   *  (a newer server) -> «Andere». */
   function reportCategory(id) {
+    if (id === null || id === undefined) return REPORT_NONE;
     for (var i = 0; i < REPORT_CATEGORIES.length; i++) if (REPORT_CATEGORIES[i].id === id) return REPORT_CATEGORIES[i];
     return REPORT_CATEGORIES[REPORT_CATEGORIES.length - 1];
+  }
+
+  /** How many vehicles a report counts (reports.json `count`, 0.9.4.5): a whole number 1–9; 1 when
+   *  absent (older files) or out of range. */
+  function reportCount(r) {
+    var n = r ? r.count : null;
+    return typeof n === "number" && isFinite(n) && n >= 1 && n <= 9 && Math.round(n) === n ? n : 1;
+  }
+
+  // A convoy (0.9.4.5): the reported marker at the front, the others behind it, against the direction of
+  // travel, in screen pixels (so the spacing is the same at every zoom): the first one 13 px behind the
+  // front's centre (front 18 px, followers 14 px across), then every 11 px.
+  var CONVOY_FIRST_PX = 13;
+  var CONVOY_STEP_PX = 11;
+
+  /** The screen offsets (x right, y down, px) of the n − 1 markers behind the front one of a report of
+   *  `n` vehicles driving towards `deg` (0 = north, clockwise). Empty for n ≤ 1. */
+  function convoyOffsets(deg, n) {
+    var out = [];
+    var a = (deg * Math.PI) / 180;
+    for (var k = 1; k < n; k++) {
+      var d = CONVOY_FIRST_PX + (k - 1) * CONVOY_STEP_PX;
+      // Travel points (sin a, −cos a) on the screen; behind is the opposite.
+      out.push({ x: Math.round(-Math.sin(a) * d * 10) / 10 + 0, y: Math.round(Math.cos(a) * d * 10) / 10 + 0 });
+    }
+    return out;
+  }
+
+  /** A report's direction of travel (reports.json `direction`, app 0.6.7): whole degrees 0–359
+   *  clockwise from north, or null when none was reported (older reports, older apps). */
+  function reportDirection(r) {
+    var d = r ? r.direction : null;
+    return typeof d === "number" && isFinite(d) && d >= 0 && d < 360 ? Math.round(d) % 360 : null;
+  }
+
+  /** The CSS rotation of a report marker's teardrop shape so that its pointed corner (south-west,
+   *  225°, in the unrotated shape) points at the direction of travel `deg` (0 = north, clockwise). */
+  function headingShapeRotation(deg) {
+    return (((deg - 225) % 360) + 360) % 360;
+  }
+
+  /** A report's peak level while the app's report dialog was open (reports.json `lafmax_db`, app
+   *  0.8.5): whole dB, or null when none was measured (older reports, older apps, no microphone). */
+  function reportLevel(r) {
+    var v = r ? r.lafmax_db : null;
+    return typeof v === "number" && isFinite(v) && v >= 0 && v <= 140 ? Math.round(v) : null;
+  }
+
+  /** The text of a report's tooltip: «Töff · 14–15 Uhr · Richtung Ost · 84 dB» (the parts it has);
+   *  0.9.4.5: «Auto · 3 Fahrzeuge · …» for a `count` above 1 (1 is never shown). */
+  function reportText(categoryName, hour, deg, level, count) {
+    return categoryName + (count > 1 ? " · " + count + " Fahrzeuge" : "") + " · " + hour +
+      (deg === null ? "" : " · " + directionLabel(deg)) + (level === null ? "" : " · " + level + " dB");
+  }
+
+  /* The marker of a report, built with the page's `el(tag, attrs, children)` (karte.js; a stand-in in the
+   * unit tests), so that the page, the render harness and the tests share one composition. */
+
+  /** The letter of a category, or for a report without one (0.9.4.5) a small dot. */
+  function reportMark(cat, el) {
+    return cat.letter ? el("b", { text: cat.letter }) : el("i", { class: "report-dot", "aria-hidden": "true" });
+  }
+
+  /** 0.9.4.5: the n − 1 smaller markers behind the front one of a convoy driving towards `dir`, each a
+   *  teardrop turned like the front one, with its letter (or dot), translated by convoyOffsets; the
+   *  farthest first, so that the front one is drawn on top. */
+  function reportConvoy(cat, dir, n, el) {
+    return convoyOffsets(dir, n).reverse().map(function (o) {
+      var tail = el("i", { class: "report-tail-shape" });
+      tail.style.transform = "rotate(" + headingShapeRotation(dir) + "deg)";
+      var t = el("i", { class: "report-tail", "aria-hidden": "true" }, [tail, reportMark(cat, el)]);
+      t.style.transform = "translate(" + o.x + "px, " + o.y + "px)";
+      return t;
+    });
+  }
+
+  /** A report's marker: { className, html, text } for an 18 × 18 px Leaflet divIcon anchored at its centre.
+   *  App 0.6.7: with a direction the round marker gets one pointed corner (a teardrop; the corner of the
+   *  unrotated shape points south-west, see headingShapeRotation). 0.9.4.5: a report of several vehicles
+   *  with a direction is a convoy (reportConvoy); without one it carries a badge «×n». */
+  function reportMarker(r, el) {
+    var cat = reportCategory(r.category);
+    var dir = reportDirection(r);
+    var n = reportCount(r);
+    var text = reportText(cat.name, hourLabel(r.time), dir, reportLevel(r), n);
+    var parts = n > 1 && dir !== null ? reportConvoy(cat, dir, n, el) : [];
+    if (dir !== null) {
+      var shape = el("i", { class: "report-shape", "aria-hidden": "true", "data-direction": String(dir) });
+      shape.style.transform = "rotate(" + headingShapeRotation(dir) + "deg)";
+      parts.push(shape);
+    }
+    parts.push(reportMark(cat, el));
+    if (n > 1 && dir === null) parts.push(el("i", { class: "report-count", "aria-hidden": "true", text: "×" + n }));
+    return {
+      className: "report report-" + cat.id + (dir !== null ? " report-heading" : "") + (n > 1 ? " report-many" : ""),
+      html: el("span", { "aria-label": text, "data-category": cat.id, "data-count": String(n) }, parts),
+      text: text,
+    };
+  }
+
+  /** The report entries of the map's legend, as `li` elements: each category with its marker, then
+   *  «Ohne Angabe» (0.9.4.5), the pointed corner (app 0.6.7) and several vehicles (0.9.4.5: a convoy
+   *  driving east and the badge of one without a direction). */
+  function reportLegendItems(el) {
+    var items = REPORT_CATEGORIES.concat([REPORT_NONE]).map(function (c) {
+      return el("li", null, [
+        el("span", { class: "report report-" + c.id, "aria-hidden": "true" }, [el("span", null, [reportMark(c, el)])]),
+        c.name,
+      ]);
+    });
+    var sample = el("i", { class: "report-shape" });
+    sample.style.transform = "rotate(" + headingShapeRotation(90) + "deg)";
+    items.push(el("li", { class: "legend-heading" }, [
+      el("span", { class: "report report-heading", "aria-hidden": "true" }, [sample]),
+      "Spitze = Fahrtrichtung",
+    ]));
+    var lead = el("i", { class: "report-shape" });
+    lead.style.transform = "rotate(" + headingShapeRotation(90) + "deg)";
+    items.push(el("li", { class: "legend-many" }, [
+      el("span", { class: "report report-none report-heading report-many", "aria-hidden": "true" },
+        [el("span", null, reportConvoy(REPORT_NONE, 90, 3, el).concat([lead, reportMark(REPORT_NONE, el)]))]),
+      el("span", { class: "report report-none report-many", "aria-hidden": "true" },
+        [el("span", null, [reportMark(REPORT_NONE, el), el("i", { class: "report-count", text: "×3" })])]),
+      "= 3 Fahrzeuge",
+    ]));
+    return items;
+  }
+
+  var COMPASS_8 = ["Nord", "Nordost", "Ost", "Südost", "Süd", "Südwest", "West", "Nordwest"];
+
+  /** 87 -> "Richtung Ost"; null -> "". Eight sectors of 45°, centred on the compass points. */
+  function directionLabel(deg) {
+    if (typeof deg !== "number" || !isFinite(deg)) return "";
+    var i = Math.round((((deg % 360) + 360) % 360) / 45) % 8;
+    return "Richtung " + COMPASS_8[i];
   }
 
   /** Reports whose local date lies in the `n` days ending with `lastDay`. */
@@ -295,8 +543,11 @@
   /** Data -> drawing model of the 24-hour chart. `hours` are the 24 rows of
    *  cells/{cell}.json `profile.hours` (hour 0–23). x positions are fractions 0..1 of the day.
    *  `runs` are maximal stretches of consecutive hours with levels: band and line are drawn per
-   *  run, so nothing is drawn across an hour without enough data (a `gap`). */
-  function chartModel(hours) {
+   *  run, so nothing is drawn across an hour without enough data (a `gap`). The bars under the
+   *  plot (`highlighted`) are the events per hour of `highlight`: a source id, "alle" for all five
+   *  together (`events_per_h`), or by default HIGHLIGHT (Lautes Fahrzeug). */
+  function chartModel(hours, highlight) {
+    var hlKey = highlight === undefined || highlight === null ? HIGHLIGHT : highlight;
     if (!hours || !hours.length) return null;
     var byHour = {};
     hours.forEach(function (h) { byHour[h.hour] = h; });
@@ -307,7 +558,8 @@
       slots.push({
         hour: hr, x0: hr / 24, x1: (hr + 1) / 24, valid: hasLevels(h),
         laeq: h.laeq_db, l90: h.l90_db, l10: h.l10_db,
-        highlighted: cats[HIGHLIGHT] === undefined ? null : cats[HIGHLIGHT],
+        highlighted: hlKey === ALL_SOURCES ? (h.events_per_h === undefined ? null : h.events_per_h)
+          : cats[hlKey] === undefined ? null : cats[hlKey],
         eventsPerH: h.events_per_h === undefined ? null : h.events_per_h,
         measuredHours: h.measured_hours,
       });
@@ -374,11 +626,16 @@
     fmt1: fmt1, fmtPct: fmtPct, fmtHours: fmtHours,
     isDate: isDate, addDays: addDays, daysBetween: daysBetween,
     dayLabel: dayLabel, dayShort: dayShort, spanLabel: spanLabel, periodLabel: periodLabel,
-    stampLabel: stampLabel, hourLabel: hourLabel, localDate: localDate,
+    stampLabel: stampLabel, hourLabel: hourLabel, localDate: localDate, dateNumeric: dateNumeric,
     METRICS: METRICS, METRIC_ORDER: METRIC_ORDER, PERIODS: PERIODS, LSV_BANDS: LSV_BANDS,
     classIndex: classIndex, colourFor: colourFor, tickPosition: tickPosition,
     CATEGORY_NAMES: CATEGORY_NAMES, HIGHLIGHT: HIGHLIGHT,
-    REPORT_CATEGORIES: REPORT_CATEGORIES, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    SOURCES: SOURCES, SOURCE_BREAKS: SOURCE_BREAKS, ALL_SOURCES: ALL_SOURCES, source: source,
+    sourceMetric: sourceMetric, metricFor: metricFor,
+    parseSource: parseSource, hashWithoutSource: hashWithoutSource, hashFor: hashFor,
+    REPORT_CATEGORIES: REPORT_CATEGORIES, REPORT_NONE: REPORT_NONE, reportCategory: reportCategory, reportsInPeriod: reportsInPeriod,
+    reportCount: reportCount, convoyOffsets: convoyOffsets, reportMark: reportMark, reportConvoy: reportConvoy, reportMarker: reportMarker, reportLegendItems: reportLegendItems, CONVOY_FIRST_PX: CONVOY_FIRST_PX, CONVOY_STEP_PX: CONVOY_STEP_PX,
+    reportDirection: reportDirection, headingShapeRotation: headingShapeRotation, directionLabel: directionLabel, reportLevel: reportLevel, reportText: reportText,
     yRange: yRange, gridlines: gridlines, lsvSegments: lsvSegments, chartModel: chartModel, stepPoints: stepPoints,
   };
 });

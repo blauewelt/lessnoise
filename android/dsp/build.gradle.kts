@@ -25,6 +25,8 @@ tasks.test {
     systemProperty("stadtlaerm.assets", rootProject.file("app/src/main/assets").absolutePath)
     // Replay fixtures (16 kHz WAVs and their expected outputs); regenerated only on request.
     systemProperty("stadtlaerm.replayDir", file("src/test/resources/replay").absolutePath)
+    // Event-head golden fixtures (synthetic 16 kHz WAVs + Python reference values, android/tools/event_head_golden.py).
+    systemProperty("stadtlaerm.eventHeadDir", file("src/test/resources/eventhead").absolutePath)
     System.getenv("STADTLAERM_WRITE_FIXTURES")?.let { systemProperty("stadtlaerm.writeFixtures", it) }
     // Golden fixtures for the iOS port (ch.lessnoise.dsp.golden): written to build/ios-golden/ on
     // every run, or to this directory (ios/LessNoiseCore/regenerate-fixtures.sh sets it).

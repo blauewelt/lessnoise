@@ -48,6 +48,73 @@ class ChartModelTest {
     private fun build(ms: List<MinuteRecord>, evs: List<NoiseEvent> = emptyList(), w: TimeWindow = night, highlight: String = "loud_vehicle", floor: Double = 45.0, now: Long = after) =
         ChartModel.build(ChartData(w, ms, evs, now), zone, highlight, floor)
 
+    // ---- The phone's noise floor («Messgrenze», 0.6.5) -----------------------------------------
+
+    /** floorRaw such that the shown floor (offset 112.35, the minutes' offset) is [shownFloor]. */
+    private fun floorLimit(shownFloor: Double, activeOffset: Double = 112.35) = ch.lessnoise.dsp.NoiseFloor.Limit(
+        ch.lessnoise.dsp.NoiseFloor.Estimate("UNPROCESSED", shownFloor - 112.35, 500), activeOffset,
+    )
+
+    @Test
+    fun noFloorMeansNoBandAndNoLimit() {
+        val m = build(minutes(22, 0, 30) { 35.0 })
+        assertEquals(null, m.floorBandTopDb)
+        assertEquals(null, m.summary.humLimitDb)
+        assertEquals("32,0 dB(A)", m.summary.humText)
+    }
+
+    @Test
+    fun humAtTheFloorShowsLessOrEqualAndTheBand() {
+        // L90 = 32 everywhere; shown floor 30 → limit 33: every minute is at the floor.
+        val ms = minutes(22, 0, 30) { 35.0 }
+        val m = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(30.0))
+        assertEquals(33.0, m.summary.humLimitDb!!, 1e-9)
+        assertEquals("≤ 33,0 dB(A)", m.summary.humText)
+        // y range: floor5(32 − 5) = 25 → the band 25…33 is inside.
+        assertEquals(25.0, m.yRange.lo)
+        assertEquals(33.0, m.floorBandTopDb!!, 1e-9)
+        // Same y range and data as without a floor.
+        val plain = build(ms)
+        assertEquals(plain.yRange, m.yRange)
+        assertEquals(plain.points, m.points)
+    }
+
+    @Test
+    fun loudMeasurementKeepsItsHumButMayShowTheBand() {
+        // L90 = 47; limit 33 is below the y range's bottom (40): no band, no «≤».
+        val ms = minutes(22, 0, 30) { 50.0 }
+        val m = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(30.0))
+        assertEquals(null, m.summary.humLimitDb)
+        assertEquals("47,0 dB(A)", m.summary.humText)
+        assertEquals(40.0, m.yRange.lo)
+        assertEquals(null, m.floorBandTopDb)
+        // Limit above the bottom but the hum above the limit: band yes, «≤» no.
+        val m2 = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = floorLimit(40.0))
+        assertEquals(43.0, m2.floorBandTopDb!!, 1e-9)
+        assertEquals(null, m2.summary.humLimitDb)
+    }
+
+    @Test
+    fun floorBandTopIsClampedAndNeedsToBeAboveTheBottom() {
+        assertEquals(null, ChartModel.floorBandTop(30.0, YRange(30.0, 60.0)))
+        assertEquals(30.5, ChartModel.floorBandTop(30.5, YRange(30.0, 60.0)))
+        assertEquals(60.0, ChartModel.floorBandTop(70.0, YRange(30.0, 60.0)))
+        assertEquals(null, ChartModel.floorBandTop(Double.NaN, YRange(30.0, 60.0)))
+    }
+
+    @Test
+    fun calibrationMovesTheBandWithTheShownFloor() {
+        // Minutes stored with offset 112.35; the active calibration is now 9.6 dB higher (not re-evaluated):
+        // the shown floor moves up by 9.6, the flags (raw comparison) stay.
+        val ms = minutes(22, 0, 30) { 35.0 }
+        val before = floorLimit(30.0)
+        val after9 = floorLimit(30.0, activeOffset = 112.35 + 9.6)
+        val a = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = before)
+        val b = ChartModel.build(ChartData(night, ms, emptyList(), after), zone, "loud_vehicle", 45.0, noiseFloor = after9)
+        assertEquals(a.summary.humLimitDb!! + 9.6, b.summary.humLimitDb!!, 1e-9)
+        assertTrue(ms.all { before.atFloor(it) == after9.atFloor(it) })
+    }
+
     // ---- y range ---------------------------------------------------------------------------
 
     @Test
@@ -299,7 +366,7 @@ class ChartModelTest {
         val e = d.events.maxBy { it.lafMaxDb }
         val lines = tooltipLines(Selection.Event(e, true), m)
         // Over midnight: weekday and date first.
-        assertEquals("Fr 9.10. 23:40:30 · Töff & Poser", lines[0])
+        assertEquals("Fr 9.10. 23:40:30 · Lautes Fahrzeug", lines[0])
         // Two lines: time and source, then peak and duration (0.6.1).
         assertEquals(2, lines.size, lines.toString())
         assertTrue(lines[1].startsWith("85,0 dB(A) · "), lines.toString())
@@ -312,7 +379,7 @@ class ChartModelTest {
         assertEquals(listOf("Sa 10.10. 03:20", "keine Messung"), tooltipLines(Selection.NoData(SyntheticData.ms(LocalDateTime.of(2026, 10, 10, 3, 20))), m))
         // Within one date: the time is enough.
         val evening = ChartModel.build(d.copy(window = TimeWindow.span(SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 22, 0)), SyntheticData.ms(LocalDateTime.of(2026, 10, 9, 23, 59)))), zone, "loud_vehicle", 45.0)
-        assertEquals("23:40:30 · Töff & Poser", tooltipLines(Selection.Event(e, true), evening)[0])
+        assertEquals("23:40:30 · Lautes Fahrzeug", tooltipLines(Selection.Event(e, true), evening)[0])
         val weekModel = ChartModel.build(SyntheticData.weekData(), zone, "loud_vehicle", 45.0)
         val p = weekModel.points.first { it.valid }
         assertEquals("Mo 5.10. 00:00–01:00", tooltipLines(Selection.Point(p), weekModel)[0])
@@ -331,7 +398,14 @@ class ChartModelTest {
         // Measurement 22–06 with data only 22–23: coverage 12.5 %. The gaps and the dynamics are no
         // longer in the line (0.6.1), but still computed.
         assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen · 13 % gemessen", m.summary.line())
-        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen, davon 0 Töff & Poser · 13 % gemessen", m.summary.line(highlightName = "Töff & Poser"))
+        // 0.9.3: «Lautes Fahrzeug» (renamed; the id stays); after a count the plural / singular.
+        assertEquals("Mittel 40,0 dB(A) · 48 Lärmspitzen, davon 0 laute Fahrzeuge · 13 % gemessen", m.summary.line(highlightName = ChartCategories.countName("loud_vehicle", m.summary.highlightCount)))
+        assertEquals("laute Fahrzeuge", ChartCategories.countName("loud_vehicle", 5))
+        assertEquals("lautes Fahrzeug", ChartCategories.countName("loud_vehicle", 1))
+        assertEquals("Strassenverkehr", ChartCategories.countName("road_traffic", 5))
+        assertEquals("Lautes Fahrzeug", ChartCategories.name("loud_vehicle"))
+        assertEquals("Laute Fahrzeuge", ChartCategories.legendName("loud_vehicle"))
+        assertEquals("Tram & Bahn", ChartCategories.legendName("rail_tram"))
         assertEquals(listOf("Messung bis Fr 23:00"), m.summary.gapTexts)
         assertEquals("48", m.summary.eventsPerHourText)
         val few = build(ms, evs.take(5), floor = 30.0)
@@ -425,7 +499,7 @@ class ChartModelTest {
         assertTrue(prof.hourly)
         assertEquals(listOf("0", "3", "6", "9", "12", "15", "18", "21", "24"), prof.axisLabels.map { it.text })
         assertEquals((14 * 60 + 10) * 60_000L, prof.highlightedEvents.single().startEpochMs)
-        assertEquals("14:10:00 · Töff & Poser", tooltipLines(Selection.Event(prof.highlightedEvents.single(), true), prof)[0])
+        assertEquals("14:10:00 · Lautes Fahrzeug", tooltipLines(Selection.Event(prof.highlightedEvents.single(), true), prof)[0])
         assertEquals("14:00–15:00", tooltipLines(Selection.Point(prof.points[14]), prof)[0])
         assertEquals(span.summary, prof.summary)
     }

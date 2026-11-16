@@ -22,8 +22,11 @@ import kotlin.test.fail
  * 2. No flavour source set (src/labor, src/laborKarte, src/public, src/offline) contains classes
  *    of the upload package: every edition uploads with exactly this code.
  * 3. The Labor code (app/src/labor/) does not touch the upload or any network API.
- * 4. Network code exists in exactly two files of the app: upload/UploadClient.kt and (0.6.3) the
- *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.).
+ * 4. Network code exists in exactly three files of the app: upload/UploadClient.kt, (0.6.3) the
+ *    WebView of the tab «Karte», src/karte/.../ui/MapScreen.kt, which is locked down (5.), and
+ *    (0.7.8) the tile download of «Wohin fuhr es?», src/karte/.../ui/ReportMapTiles.kt: swisstopo's
+ *    tiles only, GET, no redirects, no cache; since 0.8.0 in both editions with the map (Online-Version
+ *    and Labor·Karte; src/karte is compiled into neither the Offline nor the Labor build).
  *
  * It reads the source files, so it runs the same in every flavour (testOfflineDebugUnitTest …
  * testLaborKarteDebugUnitTest). Comments are ignored; string literals are checked.
@@ -50,25 +53,35 @@ class UploadSourceIsolationTest {
         "ContentResolver / input streams" to Regex("""\b(ContentResolver|contentResolver|openInputStream|openFileDescriptor|openAssetFileDescriptor|openTypedAssetFileDescriptor)\b"""),
         "assets" to Regex("""\b(AssetManager|assets)\b"""),
         "shared storage" to Regex("""\b(MediaStore|Environment|FileProvider|DocumentsContract|DocumentFile|StorageManager)\b"""),
+        // 0.8.5: the «Laut! Melden» photos (ui/ReportPhotos.kt, files/reports/) are never opened here.
+        "report photos" to Regex("""\b(ReportPhotos|ReportPhotoResult|ReportMediaResult|Bitmap\w*|ExifInterface|ImageDecoder)\b"""),
+        // 0.9.4.3: nor the «Laut! Melden» videos (ui/ReportVideos.kt, the Labor editions' EditionReportVideo).
+        "report videos" to Regex("""\b(ReportVideos|ReportVideoThumb|EditionReportVideo|MediaMetadataRetriever|VideoView|MediaPlayer)\b"""),
     )
 
     /** String literals in the upload package must not name a Labor recording folder or file type. */
     private val recordingPathLiteral =
         Regex("""(^|/)(audio|clips|continuous|classifier|labor_share|external-fallback)(/|$)|manifest\.jsonl|\.(wav|m4a|aac|jsonl|zip)\b""")
 
+    /** 0.8.5: nor a folder or file type of the report photos (files/reports/, cache/camera/, cache/report-draft/); 0.9.4.3: nor of the videos. */
+    private val photoPathLiteral = Regex("""(^|/)(reports|camera|report-draft|plate)/|\.(jpe?g|png|webp|heic|mp4|3gp|mov|webm|mkv)\b""", RegexOption.IGNORE_CASE)
+
     /** Project classes the upload package may import. */
     private val allowedProjectImports = setOf(
         "ch.lessnoise.app.BuildConfig",
         "ch.lessnoise.app.container",
         "ch.lessnoise.app.audio.AudioSourceSelector", // name of the capture source (AudioManager property), no audio
+        "ch.lessnoise.app.audio.MicChoice", // 0.7.2: pure string rule (audio_source + microphone kind), reads nothing
         "ch.lessnoise.app.data.AppDatabase",
         "ch.lessnoise.app.data.CalibrationRepository",
         "ch.lessnoise.app.data.EventEntity",
         "ch.lessnoise.app.data.MeasurementEntity", // start, end and shifted point of a measurement (Room row), no audio
         "ch.lessnoise.app.data.sharedPoint", // MeasurementEntity → its shifted point, pure
         "ch.lessnoise.app.data.MinuteEntity",
+        "ch.lessnoise.app.data.MovingSpanEntity", // 0.6.7: start and end of a span in which the phone was carried (Room row), no sensor value
         "ch.lessnoise.app.data.Recalibrator",
         "ch.lessnoise.app.service.LiveState",
+        "ch.lessnoise.app.service.LiveEvent", // 0.6.4: a just-detected event (levels, category, wind, settings) for Payloads.isMapEvent, no audio
         "ch.lessnoise.dsp.geo.Lv95",
         "ch.lessnoise.dsp.geo.LocationNoise", // pure math of the location noise (shifted point, secret), no I/O
         "ch.lessnoise.dsp.MeasurementSplitter", // pure function: which measurement a record belongs to
@@ -95,6 +108,7 @@ class UploadSourceIsolationTest {
             }
             for (lit in src.literals) {
                 if (recordingPathLiteral.containsMatchIn(lit)) problems += "${f.name}: string literal names a recording path: \"$lit\""
+                if (photoPathLiteral.containsMatchIn(lit)) problems += "${f.name}: string literal names a report photo path: \"$lit\""
             }
             for (imp in src.imports) {
                 when {
@@ -144,9 +158,13 @@ class UploadSourceIsolationTest {
     }
 
     /**
-     * Network code exists in exactly two files: the upload's UploadClient.kt (one host, opt-in) and,
-     * since 0.6.3, the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
-     * which shows the website's map page once the tab is opened.
+     * Network code exists in exactly three files: the upload's UploadClient.kt (one host, opt-in),
+     * since 0.6.3 the tab «Karte», a WebView in src/karte/ (compiled only into public and laborKarte),
+     * which shows the website's map page once the tab is opened, and since 0.7.8 the tile download
+     * of the direction step, src/karte/.../ui/ReportMapTiles.kt (checked below: one address
+     * template on swisstopo's host, started only by the direction step with a fix inside
+     * Switzerland; 0.7.8 Labor·Karte only, since 0.8.0 also the Online-Version — src/karte is
+     * compiled into public and laborKarte only).
      */
     @Test
     fun networkCodeOnlyInUploadClientAndTheMapTab() {
@@ -155,9 +173,57 @@ class UploadSourceIsolationTest {
         assertTrue(files.size > 30, "sources not found under $roots")
         val hits = files.filter { f -> networkCode.containsMatchIn(KotlinSource.parse(f.readText()).code) }.map { it.relativeTo(appDir.parentFile).path }
         assertEquals(
-            listOf("app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt", "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt"),
+            listOf(
+                "app/src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt",
+                // 0.7.8: swisstopo's tiles under the arrow of «Wohin fuhr es?» (0.8.0: Online-Version too; see below).
+                "app/src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt",
+                "app/src/main/kotlin/ch/lessnoise/app/upload/UploadClient.kt",
+            ),
             hits, "network code in: $hits",
         )
+        // 0.7.8: the tile download builds every address from its one template on wmts.geo.admin.ch
+        // (the map page's tile host), opens connections only in ReportTileFetcher.fetch, and
+        // follows no redirect, uses no cache and sends no cookie (no CookieHandler in the app).
+        // 0.8.0: the Labor·Karte-only flag (BuildConfig.LABOR_UNTERWEGS) is gone, the download runs
+        // in the Online-Version too. What still bounds it: the file is in src/karte (compiled only
+        // into public and laborKarte, pinned below), the fetcher is created and called only by the
+        // direction step, and that step requests nothing without a fix or outside Switzerland.
+        val tiles = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/ReportMapTiles.kt").readText())
+        assertEquals(
+            listOf("https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-grau/default/current/3857/{z}/{x}/{y}.jpeg"),
+            tiles.literals.filter { "://" in it || it.startsWith("http") || it.startsWith("ws") },
+            "ReportMapTiles.kt names one address",
+        )
+        assertEquals(1, Regex("""\.openConnection\(\)""").findAll(tiles.code).count())
+        assertTrue(tiles.code.contains("URI(ReportMapTiles.url(tile)).toURL().openConnection()"), "connections only to tile addresses")
+        assertTrue(tiles.code.contains("if (closed) return null"), "a closed fetcher requests nothing")
+        assertTrue(!Regex("""\bLABOR_UNTERWEGS\b|\bENABLED\b""").containsMatchIn(tiles.code), "0.8.0: no edition flag left in ReportMapTiles.kt")
+        // Only the direction step creates a fetcher and calls fetch, and only with a fix in Switzerland.
+        val creators = files.filter { Regex("""\bReportTileFetcher\(""").containsMatchIn(KotlinSource.parse(it.readText()).code) }
+            .map { it.relativeTo(appDir.parentFile).path }
+        assertEquals(listOf("app/src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt"), creators, "ReportTileFetcher created in: $creators")
+        val step = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/ReportDirectionUi.kt").readText()).code
+        assertEquals(1, Regex("""\.fetch\(""").findAll(step).count(), "one fetch call in the direction step")
+        // 0.8.1 (Labor·Karte; Online-Version since 0.9.0): the tiles follow the place moved under the
+        // dot (centre c), never while the finger is down (c == null), never for a centre outside
+        // Switzerland, and the map stops 2 km from the fix (clampOffset, ReportMapTilesTest).
+        assertTrue(
+            step.contains("if (f == null || c == null || !ReportMapTiles.inSwitzerland(c.first, c.second)) return@LaunchedEffect"),
+            "the step requests nothing without a fix, while dragging, or for a centre outside Switzerland",
+        )
+        assertTrue(step.contains("rememberStreetTiles(fix, centre.takeUnless { dragging })"), "no tile request while the finger is down")
+        assertTrue(step.contains("ReportMapTiles.clampOffset("), "the drag is clamped to 2 km")
+        assertTrue(!Regex("""\bLABOR_UNTERWEGS\b|\bENABLED\b""").containsMatchIn(step), "0.9.0: no edition flag left in ReportDirectionUi.kt")
+        // The file is compiled only into the two editions with the map (public, laborKarte).
+        val gradle = File(appDir, "build.gradle.kts").readText()
+        assertEquals(2, Regex("""kotlin\.srcDir\("src/karte/kotlin"\)""").findAll(gradle).count(), "src/karte in public and laborKarte only")
+        for (r in listOf("conn.instanceFollowRedirects = false", "conn.useCaches = false", "conn.requestMethod = \"GET\"")) {
+            assertTrue(tiles.code.contains(r), "ReportMapTiles.kt lacks «$r»")
+        }
+        val tileForbidden = Regex("""\b(doOutput|outputStream|setDoOutput|Cookie\w*|HttpResponseCache|LocationFetcher|LocationManager|UploadClient|Socket|WebView)\b""")
+        assertEquals(null, tileForbidden.find(tiles.code)?.value, "ReportMapTiles.kt sends nothing but GET")
+        val allCode = files.joinToString("\n") { KotlinSource.parse(it.readText()).code }
+        assertTrue(!Regex("""\b(CookieHandler|HttpResponseCache)\b""").containsMatchIn(allCode), "no app-wide cookie store or HTTP cache")
         // The WebView's address comes from MapLinks (Links.MAP + fragment) only, and the map tab
         // uses no other network API than the WebView.
         val map = KotlinSource.parse(File(appDir, "src/karte/kotlin/ch/lessnoise/app/ui/MapScreen.kt").readText())

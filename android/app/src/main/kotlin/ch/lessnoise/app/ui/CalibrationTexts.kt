@@ -22,4 +22,13 @@ object CalibrationTexts {
         "${minutes(minutes)} ${if (minutes == 1) "wird" else "werden"} mit der neuen Kalibrierung umgerechnet. Die Originalwerte bleiben."
 
     fun recalDone(minutes: Int): String = "${minutes(minutes)} angepasst."
+
+    /** 0.7.2: one sentence in «Kalibrieren» (the same as on the website). */
+    const val PER_MICROPHONE = "Jedes Mikrofon wird für sich kalibriert: hier das unten genannte."
+
+    /**
+     * The row «Mikrofon» in «Kalibrieren» from a status line «Mikrofon: …» (MicChoice.Resolution.status):
+     * «eingebaut», «eingebaut (gewähltes nicht verbunden)», «USB-Mikrofon (Rode NT-USB)».
+     */
+    fun microphoneLine(status: String): String = status.removePrefix("Mikrofon: ")
 }

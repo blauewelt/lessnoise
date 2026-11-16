@@ -9,9 +9,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Slider
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import kotlinx.coroutines.flow.flowOf
 import ch.lessnoise.app.data.AppSettings
 import ch.lessnoise.dsp.calibration.EventFloor
@@ -59,7 +66,8 @@ fun warningText(w: CalibrationWarning): String = when (w) {
     CalibrationWarning.TOO_QUIET -> "Zu leise (unter 50 dB(A)). Nimm ein lauteres Geräusch."
     CalibrationWarning.FREQUENCY_OFF -> "Kein 1-kHz-Ton. Sitzt der Kalibrator richtig?"
     CalibrationWarning.NOT_TONAL -> "Signal ist kein sauberer Ton (Ankopplung prüfen, Umgebung leiser)."
-    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Korrektur über 20 dB – vermutlich ein Fehler."
+    // 0.9.5.1: the deviation from the standard, as everywhere on the screen (until 0.9.5 «Korrektur über 20 dB …»).
+    CalibrationWarning.IMPLAUSIBLE_OFFSET -> "Abweichung vom Standard über 20 dB – vermutlich ein Fehler."
     CalibrationWarning.CLIPPING -> "Zu laut für das Telefon. Nimm 94 statt 114 dB."
 }
 
@@ -76,7 +84,13 @@ fun methodName(m: String): String = when (m) {
  * «Kalibrieren» (formerly its own tab), including «Alte Messungen anpassen» (formerly under «Daten»).
  */
 @Composable
-fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: CalibrationViewModel = viewModel()) {
+fun AdvancedScreen(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** 0.9.6: opened by the calibration banner on «Messen»: the list starts at «Kalibrieren» ([CALIBRATE_ITEM]). */
+    atCalibration: Boolean = false,
+    vm: CalibrationViewModel = viewModel(),
+) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val c = context.container
@@ -86,8 +100,13 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
     val history by vm.history.collectAsStateWithLifecycle()
     val recal by vm.recalibration.collectAsStateWithLifecycle()
     val live by c.live.collectAsStateWithLifecycle()
+    val noiseFloor by c.noiseFloor.limit.collectAsStateWithLifecycle()
+    val mic by vm.microphone.collectAsStateWithLifecycle()
+    val banner by vm.bannerStatus.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var pendingMode by remember { mutableStateOf<CalMode?>(null) }
+    // 0.9.5.1: «Wirklich speichern?» before a save more than 20 dB from the standard.
+    val confirmation = remember { SaveConfirmation() }
     val requestPermission = rememberMicPermissionLauncher { granted -> if (granted) pendingMode?.let { vm.start(it) } }
     val startMode: (CalMode) -> Unit = { mode ->
         if (hasMicPermission(context)) vm.start(mode) else { pendingMode = mode; requestPermission() }
@@ -102,13 +121,18 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LazyColumn(modifier.fillMaxWidth()) {
+    // 0.9.6: from the banner on «Messen» the list starts at the heading «Kalibrieren» (the items before it: the title,
+    // «Lärmspitzen», «Mikrofon»; CalibrationBannerTest counts them).
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = if (atCalibration) CALIBRATE_ITEM else 0)
+    LazyColumn(modifier.fillMaxWidth(), state = list) {
         item {
-            TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) { Text("‹ Einstellungen") }
-            Text(
-                "Erweitert", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
-            )
+            // 0.8.6: the back arrow instead of «‹», the shared screen title.
+            TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 8.dp), contentPadding = ButtonDefaults.TextButtonWithIconContentPadding) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
+                Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                Text("Einstellungen")
+            }
+            ScreenTitle("Erweitert", Modifier.offset(y = (-12).dp))
             if (live.running) {
                 Text(
                     "Gilt ab der nächsten Messung.",
@@ -120,49 +144,39 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
 
         // Lärmspitzen: the two detector options left (hidden here since 0.6.1). ---------------
         item {
-            SectionCard("Lärmspitzen") {
-                StatRow("Lärmspitze ab … über Grundrauschen", "${Fmt.db(settings.eventExcessDb, 1)} dB")
-                Slider(
-                    value = settings.eventExcessDb.toFloat(),
-                    valueRange = AppSettings.EVENT_EXCESS_MIN.toFloat()..AppSettings.EVENT_EXCESS_MAX.toFloat(),
-                    steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
-                    onValueChange = { v -> c.settings.update { it.copy(eventExcessDb = EventFloor.roundToHalf(v.toDouble())) } },
-                )
-                Text("Kleiner = mehr Spitzen. Standard 6,5 dB.", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(8.dp))
-                StatRow("Lärmspitzen erst ab", "${Fmt.db(settings.eventMinLevelDb, 1)} dB(A)")
-                Slider(
-                    value = settings.eventMinLevelDb.toFloat(),
-                    valueRange = AppSettings.EVENT_MIN_LEVEL_MIN.toFloat()..AppSettings.EVENT_MIN_LEVEL_MAX.toFloat(),
-                    // 0.5 dB steps: the floor follows calibrations in 0.5 dB steps.
-                    steps = ((AppSettings.EVENT_MIN_LEVEL_MAX - AppSettings.EVENT_MIN_LEVEL_MIN) * 2).toInt() - 1,
-                    onValueChange = { v -> c.settings.update { it.copy(eventMinLevelDb = EventFloor.roundToHalf(v.toDouble())) } },
-                )
-                Text("Filtert Geräusche am Telefon selbst (Tippen, Atmen). Standard 30 dB(A).", style = MaterialTheme.typography.bodySmall)
-            }
+            EventSettingsCard(
+                excessDb = settings.eventExcessDb, minLevelDb = settings.eventMinLevelDb,
+                onExcess = { v -> c.settings.update { it.copy(eventExcessDb = v) } },
+                onMinLevel = { v -> c.settings.update { it.copy(eventMinLevelDb = v) } },
+            )
         }
 
+        // Mikrofon (0.7.2): the manual choice ---------------------------------------------------
+        item { MicrophoneCard() }
+
         // Kalibrieren ---------------------------------------------------------------------------
-        item {
-            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-                Text("Kalibrieren", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "Nur nötig, wenn du ein Messgerät hast. Ohne Kalibrierung sind die Werte Richtwerte.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                MoreLink(Links.CALIBRATE)
-            }
-        }
+        item { CalibrateIntro() }
+        // 0.9.6: the banner of «Messen» at the top of «Kalibrieren» (where its tap lands), without the pointer: green with the
+        // deviation and the date, or red «Telefon nicht kalibriert – …». The card below keeps the detail (time, method).
+        banner?.let { status -> item { CalibrationBanner(status, Modifier.padding(top = 12.dp, bottom = 2.dp)) } }
         item {
             SectionCard {
                 val a = active
+                // 0.9.5.1: the deviation from the standard (until 0.9.5 offsetDb itself, «132,42 dB»).
                 Text(
-                    if (a == null || !a.isCalibrated) "Nicht kalibriert (Standardwert ${Fmt.db(Acoustics.DEFAULT_CALIBRATION_OFFSET_DB, 2)} dB)."
-                    else "Kalibriert am ${Fmt.dateTime(a.createdEpochMs)}: ${Fmt.db(a.offsetDb, 2)} dB (${methodName(a.method)})",
+                    if (a == null) CalibrationDeviation.NOT_CALIBRATED
+                    else CalibrationDeviation.activeLine(a.isCalibrated, a.createdEpochMs, a.method, a.offsetDb),
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                // 0.6.5: the phone's noise floor, estimated from the stored minutes (nothing without one);
+                // 0.7.2: it is that of the built-in microphone.
+                noiseFloor?.takeIf { it.audioSource == vm.source && mic.builtIn }?.let { nf ->
+                    Text(floorLine(nf), style = MaterialTheme.typography.bodyMedium)
+                }
                 StatRow("Gerät", vm.deviceModel)
                 StatRow("Audioquelle", AudioSourceSelector.labelDe(vm.source))
+                // 0.7.2: the microphone this screen calibrates now (a running measurement's while one runs).
+                StatRow("Mikrofon", CalibrationTexts.microphoneLine(if (live.running) live.microphone ?: mic.status else mic.status))
             }
         }
         state.message?.let { msg ->
@@ -179,7 +193,8 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
             item {
                 val a = active?.takeIf { it.isCalibrated }
                 val target = a?.let { Recalibration.Target(it.id, it.offsetDb, vm.source) }
-                val counts by remember(target) { target?.let { c.recalibrator.counts(it) } ?: flowOf(0 to 0) }
+                val targetMic = a?.mic ?: ch.lessnoise.app.audio.MicChoice.BUILTIN
+                val counts by remember(target, targetMic) { target?.let { c.recalibrator.counts(it, targetMic) } ?: flowOf(0 to 0) }
                     .collectAsStateWithLifecycle(0 to 0)
                 val (n, m) = counts
                 val runningRecal = recal is Recalibrator.State.Running
@@ -203,7 +218,7 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                 if (confirm && target != null) {
                     RecalibrationDialog(
                         minutes = n, measuring = measuring,
-                        onConfirm = { confirm = false; c.recalibrator.start(target) },
+                        onConfirm = { confirm = false; c.recalibrator.start(target, targetMic) },
                         onDismiss = { confirm = false },
                     )
                 }
@@ -225,30 +240,24 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         item {
             var reading by remember { mutableStateOf("") }
             var notes by remember { mutableStateOf("") }
-            SectionCard("Mit Messgerät vergleichen") {
-                Text(
-                    "Telefon neben das Messgerät halten, beide gleichzeitig ${state.referenceWindowSeconds} s messen, Wert unten eintragen.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Button(onClick = { startMode(CalMode.REFERENCE) }, enabled = !busy) { Text("Messen (${state.referenceWindowSeconds} s)") }
-                state.referenceResult?.let { r ->
-                    HorizontalDivider()
-                    StatRow("Telefon", "${Fmt.db(r.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB))} dB(A)")
-                    OutlinedTextField(
-                        value = reading, onValueChange = { reading = it },
-                        label = { Text("Wert am Messgerät (dB(A))") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                    val ref = parseDb(reading)
-                    if (ref != null) {
-                        StatRow("Korrektur", "${Fmt.db(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), 2)} dB")
+            val r = state.referenceResult
+            val ref = parseDb(reading)
+            ReferenceCard(
+                windowSeconds = state.referenceWindowSeconds, busy = busy,
+                phoneDb = r?.let { it.rawLaeqDb + (active?.offsetDb ?: Acoustics.DEFAULT_CALIBRATION_OFFSET_DB) },
+                reading = reading, onReading = { reading = it }, notes = notes, onNotes = { notes = it },
+                offsetDb = if (r != null && ref != null) CalibrationMath.referenceOffset(ref, r.rawLaeqDb) else null,
+                warnings = vm.referenceWarnings(ref),
+                onMeasure = { startMode(CalMode.REFERENCE) },
+                onSave = {
+                    if (r != null && ref != null) {
+                        val n = notes
+                        confirmation.request(CalibrationMath.referenceOffset(ref, r.rawLaeqDb), CalibrationEntity.METHOD_REFERENCE) {
+                            vm.saveReference(ref, n); reading = ""; notes = ""
+                        }
                     }
-                    vm.referenceWarnings(ref).forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(onClick = { ref?.let { vm.saveReference(it, notes); reading = ""; notes = "" } }, enabled = ref != null) { Text("Übernehmen") }
-                }
-            }
+                },
+            )
         }
 
         // 2. Acoustic calibrator -------------------------------------------------------------
@@ -265,33 +274,32 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
                 state.calibratorResult?.let { r ->
                     HorizontalDivider()
                     StatRow("Frequenz", "${Fmt.db(r.toneFrequencyHz, 0)} Hz")
-                    StatRow("Korrektur", "${Fmt.db(CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb), 2)} dB")
+                    val offset = CalibrationMath.calibratorOffset(state.calibratorNominalDb, r.rawLaeqDb)
+                    StatRow(CalibrationDeviation.LABEL, CalibrationDeviation.ofOffset(offset))
                     val warnings = vm.calibratorWarnings()
                     warnings.forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     val blocking = CalibrationWarning.FREQUENCY_OFF in warnings || CalibrationWarning.NOT_TONAL in warnings
                     OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { vm.saveCalibrator(notes); notes = "" }, enabled = !blocking) { Text("Übernehmen") }
+                    Button(onClick = {
+                        val n = notes
+                        confirmation.request(offset, CalibrationEntity.METHOD_CALIBRATOR) { vm.saveCalibrator(n); notes = "" }
+                    }, enabled = !blocking) { Text("Übernehmen") }
                 }
             }
         }
 
-        // 3. Manual -----------------------------------------------------------------------------
+        // 3. Manual (0.9.5.1: the person types the deviation from the standard) ----------------
         item {
-            var offset by remember { mutableStateOf("") }
+            val a = active
+            var deviation by remember(a?.id) { mutableStateOf(CalibrationDeviation.manualPrefill(a?.isCalibrated == true, a?.offsetDb)) }
             var notes by remember { mutableStateOf("") }
-            SectionCard("Korrektur von Hand") {
-                OutlinedTextField(
-                    value = offset, onValueChange = { offset = it }, label = { Text("Korrektur (dB)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
-                val v = parseDb(offset)
-                if (v != null && CalibrationMath.implausible(v)) {
-                    Text("⚠ " + warningText(CalibrationWarning.IMPLAUSIBLE_OFFSET), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                Button(onClick = { v?.let { vm.saveManual(it, notes); offset = ""; notes = "" } }, enabled = v != null && !busy) { Text("Speichern") }
-            }
+            ManualCard(
+                deviation = deviation, onDeviation = { deviation = it }, notes = notes, onNotes = { notes = it }, busy = busy,
+                onSave = { offset ->
+                    val n = notes
+                    confirmation.request(offset, CalibrationEntity.METHOD_MANUAL) { vm.saveManual(offset, n); notes = "" }
+                },
+            )
         }
 
         // History --------------------------------------------------------------------------------
@@ -309,8 +317,9 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         items(history, key = { it.id }) { h ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                 Text(
-                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${Fmt.db(h.offsetDb, 2)} dB · " +
-                        AudioSourceSelector.labelDe(h.audioSource) + (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
+                    "#${h.id} · ${Fmt.dateTime(h.createdEpochMs)} · ${methodName(h.method)} · ${CalibrationDeviation.historyPart(h.offsetDb)} · " +
+                        AudioSourceSelector.labelDe(h.audioSource) + (h.micLabel?.let { " · $it" } ?: "") +
+                        (if (h.notes.isNotBlank()) " · ${h.notes}" else ""),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -318,6 +327,9 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         item { Spacer(Modifier.height(24.dp)) }
     }
 
+    confirmation.pending?.let { p ->
+        SaveConfirmDialog(p, onConfirm = { confirmation.confirm() }, onDismiss = { confirmation.cancel() })
+    }
     state.recalOffer?.let { offer ->
         RecalibrationDialog(
             minutes = offer.minutes, measuring = measuring,
@@ -325,3 +337,118 @@ fun AdvancedScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Calibr
         )
     }
 }
+
+/**
+ * «Mit Messgerät vergleichen» (pure since 0.9.5.1, so the JVM renders draw it). [phoneDb]: the phone's level
+ * of the last 30 s with the active calibration, null before a measurement; [offsetDb]: the calibration the
+ * typed reading gives, shown as its deviation from the standard (until 0.9.5 «Korrektur 124,62 dB»).
+ */
+@Composable
+fun ReferenceCard(
+    windowSeconds: Int, busy: Boolean, phoneDb: Double?,
+    reading: String, onReading: (String) -> Unit, notes: String, onNotes: (String) -> Unit,
+    offsetDb: Double?, warnings: List<CalibrationWarning>, onMeasure: () -> Unit, onSave: () -> Unit,
+) {
+    SectionCard("Mit Messgerät vergleichen") {
+        Text(
+            "Telefon neben das Messgerät halten, beide gleichzeitig $windowSeconds s messen, Wert unten eintragen.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Button(onClick = onMeasure, enabled = !busy) { Text("Messen ($windowSeconds s)") }
+        if (phoneDb != null) {
+            HorizontalDivider()
+            StatRow("Telefon", "${Fmt.db(phoneDb)} dB(A)")
+            OutlinedTextField(
+                value = reading, onValueChange = onReading,
+                label = { Text("Wert am Messgerät (dB(A))") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(value = notes, onValueChange = onNotes, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
+            if (offsetDb != null) StatRow(CalibrationDeviation.LABEL, CalibrationDeviation.ofOffset(offsetDb))
+            warnings.forEach { Text("⚠ " + warningText(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            Button(onClick = onSave, enabled = offsetDb != null) { Text("Übernehmen") }
+        }
+    }
+}
+
+/**
+ * «Korrektur von Hand» (pure since 0.9.5.1): the person types the deviation from the standard («+3,0»);
+ * [onSave] gets the offsetDb to store ([CalibrationDeviation.manualOffset]). Until 0.9.5 the field took
+ * offsetDb itself («Korrektur (dB)»).
+ */
+@Composable
+fun ManualCard(
+    deviation: String, onDeviation: (String) -> Unit, notes: String, onNotes: (String) -> Unit, busy: Boolean,
+    onSave: (Double) -> Unit,
+) {
+    SectionCard("Korrektur von Hand") {
+        OutlinedTextField(
+            value = deviation, onValueChange = onDeviation, label = { Text("${CalibrationDeviation.LABEL} (dB)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(value = notes, onValueChange = onNotes, label = { Text("Notiz (freiwillig)") }, modifier = Modifier.fillMaxWidth())
+        val offset = CalibrationDeviation.manualOffset(deviation)
+        if (offset != null && CalibrationMath.implausible(offset)) {
+            Text("⚠ " + warningText(CalibrationWarning.IMPLAUSIBLE_OFFSET), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Button(onClick = { offset?.let(onSave) }, enabled = offset != null && !busy) { Text("Speichern") }
+    }
+}
+
+/** «Messgrenze dieses Telefons: ca. 34 dB(A) (aus 1234 Minuten geschätzt)» (0.6.5; floor + 3 dB, whole dB). */
+fun floorLine(nf: ch.lessnoise.dsp.NoiseFloor.Limit): String =
+    "Messgrenze dieses Telefons: ca. ${Fmt.db(nf.limitDb, 0)} dB(A) (aus ${nf.estimate.minutes} Minuten geschätzt)"
+
+/**
+ * Erweitert › «Lärmspitzen» (pure since 0.9.2, so the JVM renders draw it): when a sound counts as a
+ * Lärmspitze. 0.9.2: one line under the title saying so (until 0.9.1 the title alone).
+ */
+@Composable
+fun EventSettingsCard(excessDb: Double, minLevelDb: Double, onExcess: (Double) -> Unit, onMinLevel: (Double) -> Unit) {
+    SectionCard("Lärmspitzen") {
+        Text(EVENT_SETTINGS_SUBTITLE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        StatRow("Lärmspitze ab … über Grundrauschen", "${Fmt.db(excessDb, 1)} dB")
+        Slider(
+            value = excessDb.toFloat(),
+            valueRange = AppSettings.EVENT_EXCESS_MIN.toFloat()..AppSettings.EVENT_EXCESS_MAX.toFloat(),
+            steps = ((AppSettings.EVENT_EXCESS_MAX - AppSettings.EVENT_EXCESS_MIN) * 2).toInt() - 1, // 0.5 dB steps
+            onValueChange = { v -> onExcess(EventFloor.roundToHalf(v.toDouble())) },
+        )
+        Text("Kleiner = mehr Spitzen. Standard 6,5 dB.", style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(8.dp))
+        StatRow("Lärmspitzen erst ab", "${Fmt.db(minLevelDb, 1)} dB(A)")
+        Slider(
+            value = minLevelDb.toFloat(),
+            valueRange = AppSettings.EVENT_MIN_LEVEL_MIN.toFloat()..AppSettings.EVENT_MIN_LEVEL_MAX.toFloat(),
+            // 0.5 dB steps: the floor follows calibrations in 0.5 dB steps.
+            steps = ((AppSettings.EVENT_MIN_LEVEL_MAX - AppSettings.EVENT_MIN_LEVEL_MIN) * 2).toInt() - 1,
+            onValueChange = { v -> onMinLevel(EventFloor.roundToHalf(v.toDouble())) },
+        )
+        Text("Filtert Geräusche am Telefon selbst (Tippen, Atmen). Standard 30 dB(A).", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** 0.9.2: the line under «Lärmspitzen» in «Erweitert». */
+const val EVENT_SETTINGS_SUBTITLE = "Wann ein Geräusch als Lärmspitze zählt."
+
+/**
+ * The heading of «Kalibrieren» in «Erweitert» (pure since 0.9.2). 0.9.2: the first line says what
+ * calibrating does (until 0.9.1 only when it is needed).
+ */
+@Composable
+fun CalibrateIntro() {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Text("Kalibrieren", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(CALIBRATE_INTRO, style = MaterialTheme.typography.bodyMedium)
+        Text(CalibrationTexts.PER_MICROPHONE, style = MaterialTheme.typography.bodyMedium)
+        MoreLink(Links.CALIBRATE)
+    }
+}
+
+/** 0.9.6: the index of «Kalibrieren» ([CalibrateIntro]) in [AdvancedScreen]'s list, where the banner's tap lands. */
+const val CALIBRATE_ITEM = 3
+
+/** 0.9.2: what calibrating does, then when it is needed (until 0.9.1 «Nur nötig, wenn du ein Messgerät hast. …»). */
+const val CALIBRATE_INTRO = "Gleicht die Werte an ein Messgerät an. Nur nötig, wenn du eins hast; sonst sind die Werte Richtwerte."

@@ -1,0 +1,21 @@
+You are judging one short audio clip recorded by a smartphone microphone, in which a road vehicle may be audible. The audio has been amplified so that its loudest point is near full scale; do not infer loudness from that (the measured level is given in the context below). Describe only what you actually hear.
+
+{context}
+Listen to the whole clip: the seconds before the detected event are the background, the event is the rise in level that follows. Answer four questions.
+
+1. Before the rise. What is audible in the seconds before the event starts? "traffic_hum" = a steady hum, rush or swell of road traffic, near or distant; "quiet" = nothing distinct, a very quiet background; "other" = something else dominates (for example voices, footsteps, the phone being handled, wind on the microphone, rain, an aircraft, music).
+
+2. During the event, which vehicle sound dominates? Tyre and road noise is a broadband rushing or hissing without a clear pitch; it grows with the vehicle's speed. Engine and exhaust noise is a tonal hum, drone, roar, rasp or rattle with a pitch, often low, which may rise and fall with the engine speed. Above a certain speed, hearing the tyres means a normal vehicle; hearing the engine above the tyres means a loud vehicle. A vehicle that is slow or standing may be heard by its engine alone; then judge whether that engine sounds louder than ordinary traffic. A loud vehicle can also be far away: an engine heard above the tyres and above the background counts even when it is faint. How much the level rises does not decide it; the balance between engine and tyre sound does.
+
+3. A loud vehicle score from 0 to 10: 0 = no road vehicle in the event (the rise is something else); 1 = an ordinary pass-by dominated by tyre noise, engine barely audible; 3 = engine clearly audible but below the tyre noise; 5 = engine about as prominent as the tyres; 7 = engine or exhaust clearly above the tyre noise; 10 = engine or exhaust dominates the event and stands far above ordinary traffic (roaring, rasping, revving). Use the whole range.
+
+4. Class change. Does the kind of sound change during the rise, that is, is the rise caused by something that is not road traffic, such as a click, a door, a voice, a footstep, the phone being handled, an aircraft, a train, a bird or a gust of wind? If the rise is road traffic from start to end, there is no class change.
+
+Return JSON only:
+{
+  "before": one of "traffic_hum", "quiet", "other",
+  "dominant": one of "tyres", "engine", "both", "unclear" — the vehicle sound that dominates during the event ("unclear" also when no road vehicle is audible in the event),
+  "loud_score": an integer from 0 to 10 as defined above,
+  "class_change": "no" if the rise is road traffic throughout; otherwise the sound that causes the rise, 1 to 3 words, lower case (for example "door", "voice", "aircraft", "phone handled"),
+  "reason": one sentence explaining the score from what you hear
+}

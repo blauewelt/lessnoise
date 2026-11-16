@@ -3,6 +3,7 @@ package ch.lessnoise.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import ch.lessnoise.app.audio.MicChoice
 import ch.lessnoise.app.data.Mappers.toEntity
 import ch.lessnoise.app.data.Mappers.toEvent
 import ch.lessnoise.app.data.Mappers.toRecord
@@ -133,7 +134,7 @@ class SettingsStore(context: Context) {
     }
 }
 
-/** Calibration offsets per (device model, audio source), with full history. */
+/** Calibration offsets per (device model, audio source, microphone — 0.7.2), with full history. */
 class CalibrationRepository(private val dao: CalibrationDao) {
     companion object {
         val deviceModel: String = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
@@ -145,8 +146,11 @@ class CalibrationRepository(private val dao: CalibrationDao) {
         val id: Long? get() = entity?.id
     }
 
-    suspend fun active(source: String): Active = Active(dao.latest(deviceModel, source))
-    fun activeFlow(source: String): Flow<CalibrationEntity?> = dao.latestFlow(deviceModel, source)
+    /** The active calibration of [source] and the microphone [mic] (MicChoice.key; default: the built-in one). */
+    suspend fun active(source: String, mic: String = MicChoice.BUILTIN): Active = Active(dao.latest(deviceModel, source, mic))
+    fun activeFlow(source: String, mic: String = MicChoice.BUILTIN): Flow<CalibrationEntity?> = dao.latestFlow(deviceModel, source, mic)
+    /** 0.9.6: one calibration (the running measurement's, LiveState.calibrationId), for the banner on «Messen». */
+    suspend fun byId(id: Long): CalibrationEntity? = dao.byId(id)
     fun history(): Flow<List<CalibrationEntity>> = dao.historyFlow()
 
     suspend fun save(
@@ -154,6 +158,7 @@ class CalibrationRepository(private val dao: CalibrationDao) {
         referenceDb: Double? = null, measuredRawDb: Double? = null, stdDevDb: Double? = null,
         durationSeconds: Double? = null, calibratorNominalDb: Double? = null,
         toneFrequencyHz: Double? = null, tonality: Double? = null, warnings: List<String> = emptyList(),
+        mic: String = MicChoice.BUILTIN, micLabel: String? = null,
     ): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
@@ -163,6 +168,7 @@ class CalibrationRepository(private val dao: CalibrationDao) {
                 referenceDb = referenceDb, measuredRawDb = measuredRawDb, stdDevDb = stdDevDb,
                 durationSeconds = durationSeconds, calibratorNominalDb = calibratorNominalDb,
                 toneFrequencyHz = toneFrequencyHz, tonality = tonality, warnings = warnings.joinToString(","),
+                mic = mic, micLabel = micLabel.takeUnless { MicChoice.isBuiltIn(mic) },
             )
         )
     }
@@ -179,6 +185,8 @@ class CalibrationRepository(private val dao: CalibrationDao) {
                         put("id", c.id)
                         put("device_model", c.deviceModel)
                         put("audio_source", c.audioSource)
+                        // 0.7.2: the microphone's kind only (no name, no hash).
+                        put("microphone", MicChoice.kindId(c.mic))
                         put("offset_db", c.offsetDb)
                         put("method", c.method)
                         put("created", c.createdIso)
@@ -200,8 +208,9 @@ class CalibrationRepository(private val dao: CalibrationDao) {
 
 /** Stored aggregates (minutes, events) and their export. */
 class MeasurementRepository(private val dao: MeasurementDao) {
-    suspend fun insert(m: MinuteRecord) = dao.insertMinute(m.toEntity())
-    suspend fun insert(e: NoiseEvent) = dao.insertEvent(e.toEntity())
+    /** [mic]: the microphone it was measured with (MicChoice.key, 0.7.2). */
+    suspend fun insert(m: MinuteRecord, mic: String = MicChoice.BUILTIN) = dao.insertMinute(m.toEntity().copy(mic = mic))
+    suspend fun insert(e: NoiseEvent, mic: String = MicChoice.BUILTIN) = dao.insertEvent(e.toEntity().copy(mic = mic))
 
     fun recentEvents(limit: Int = 30): Flow<List<EventEntity>> = dao.recentEvents(limit)
     fun minutesFlow() = dao.minutesFlow()
@@ -217,25 +226,41 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     suspend fun allEvents(): List<NoiseEvent> = dao.allEvents().map { it.toEvent() }
 
     suspend fun clear() {
-        dao.clearMinutes(); dao.clearEvents(); dao.clearMeasurements()
+        dao.clearMinutes(); dao.clearEvents(); dao.clearMeasurements(); dao.clearMovingSpans()
     }
 
     fun measurementsFlow() = dao.measurementsFlow()
 
     /**
-     * «Start»: records a new measurement with its shifted [point] (null = not shared). Open rows left by a
+     * «Start»: records a new measurement with its shifted [point] (null = not shared). [unterwegs] (0.6.4):
+     * started as «Unterwegs», never shared — no point is stored, now or later. Open rows left by a
      * measurement the system killed before «Stop» are closed first, at the end of their last minute.
      */
-    suspend fun beginMeasurement(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point?): Long {
+    suspend fun beginMeasurement(startMs: Long, point: ch.lessnoise.dsp.geo.LocationNoise.Point?, unterwegs: Boolean = false): Long {
         val open = dao.openMeasurements().sortedBy { it.startMs }
         for ((i, m) in open.withIndex()) {
             val next = open.getOrNull(i + 1)?.startMs ?: startMs
             dao.endMeasurement(m.id, dao.lastMinuteEnd(m.startMs - ch.lessnoise.dsp.MeasurementSplitter.START_TOLERANCE_MS, next) ?: m.startMs)
         }
+        // A moving span left open by a measurement the system killed (0.6.7) ends here at the latest.
+        dao.endMovingSpans(startMs)
+        val p = point.takeUnless { unterwegs }
         return dao.insertMeasurement(
-            MeasurementEntity(startMs = startMs, cell = point?.cell, pointE = point?.e, pointN = point?.n, sigmaM = point?.sigmaM)
+            MeasurementEntity(startMs = startMs, cell = p?.cell, pointE = p?.e, pointN = p?.n, sigmaM = p?.sigmaM, unterwegs = unterwegs)
         )
     }
+
+    /**
+     * «Unterwegs erkannt» (0.6.7, editions with the map): the phone is being carried since [startMs].
+     * Any span still open is closed first, so at most one is open.
+     */
+    suspend fun beginMovingSpan(startMs: Long): Long {
+        dao.endMovingSpans(startMs)
+        return dao.insertMovingSpan(MovingSpanEntity(startMs = startMs))
+    }
+
+    /** The phone lies still again (or the measurement stopped) at [endMs]: closes the open span. */
+    suspend fun endMovingSpans(endMs: Long) = dao.endMovingSpans(endMs)
 
     /** «Stop». */
     suspend fun endMeasurement(id: Long, endMs: Long) = dao.endMeasurement(id, endMs)
@@ -250,12 +275,15 @@ class MeasurementRepository(private val dao: MeasurementDao) {
     /** The shifted point of the newest shared measurement, or null (opens the «Karte» tab there). */
     suspend fun latestSharedPoint(): ch.lessnoise.dsp.geo.LocationNoise.Point? = dao.latestSharedMeasurement()?.sharedPoint()
 
-    /** Writes CSV exports into cache/exports (served via FileProvider). */
-    suspend fun exportCsv(dir: File, bucketIds: List<String>): List<File> {
+    /**
+     * Writes CSV exports into cache/exports (served via FileProvider). [noiseFloor]: the phone's
+     * noise floor (0.6.5) for the minutes' `at_floor` column (0 everywhere without one).
+     */
+    suspend fun exportCsv(dir: File, bucketIds: List<String>, noiseFloor: ch.lessnoise.dsp.NoiseFloor.Limit? = null): List<File> {
         dir.mkdirs()
         dir.listFiles()?.forEach { it.delete() }
         val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT).format(java.util.Date())
-        val minutes = File(dir, "wenigerlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds)) }
+        val minutes = File(dir, "wenigerlaerm-minuten-$stamp.csv").apply { writeText(Csv.minutes(allMinutes(), bucketIds, noiseFloor)) }
         val events = File(dir, "wenigerlaerm-ereignisse-$stamp.csv").apply { writeText(Csv.events(allEvents())) }
         return listOf(minutes, events)
     }

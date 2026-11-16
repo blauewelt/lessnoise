@@ -16,7 +16,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from .aggregate import ZONE, Event, Minute
+from .aggregate import ZONE, Event, Minute, event_counts, minute_counts_levels
 
 TOP_CATEGORY_DURATION = {"aircraft": 25.0, "rail_tram": 9.0}
 
@@ -145,7 +145,8 @@ def event_records(
 
 
 def to_agg(minute_records: Sequence[dict], event_records_: Sequence[dict] = ()) -> tuple[list[Minute], list[Event]]:
-    """Upload-format dicts → the aggregation module's records (what the database returns)."""
+    """Upload-format dicts → the aggregation module's records (what the database returns: only
+    the events that count on the map, minutes flagged by their voices + music share)."""
 
     def ms(s: str) -> int:
         return math.floor(datetime.fromisoformat(s).timestamp() * 1000 + 0.5)
@@ -153,11 +154,15 @@ def to_agg(minute_records: Sequence[dict], event_records_: Sequence[dict] = ()) 
     mins = [
         Minute(
             ms(m["start"]), m["valid_s"], m["coverage"], m["laeq_db"], m["l10_db"], m["l90_db"], m["calibrated"],
-            m.get("cell"),
+            m.get("cell"), minute_counts_levels(m.get("category_shares")),
         )
         for m in minute_records
     ]  # fmt: skip
-    evs = [Event(ms(e["start"]), e["lafmax_db"], e["category"], e.get("cell")) for e in event_records_]
+    evs = [
+        Event(ms(e["start"]), e["lafmax_db"], e["category"], e.get("cell"), e["calibrated"])
+        for e in event_records_
+        if event_counts(e["category"], e["duration_s"], e["lafmax_db"], e.get("threshold_db"), e.get("min_level_db"))
+    ]
     return mins, evs
 
 
@@ -253,6 +258,25 @@ def random_events(
     return sorted(out, key=lambda e: e.at)
 
 
-def report_record(at: datetime, lat: float, lon: float, category: str, accuracy_m: float = 8.0) -> dict:
-    """A manual report in the upload format of §4.7 (`at` naive local)."""
-    return {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m, "category": category}
+def report_record(
+    at: datetime,
+    lat: float,
+    lon: float,
+    category: str | None,
+    accuracy_m: float = 8.0,
+    direction: dict | None = None,
+    level: dict | None = None,
+    count: int | None = None,
+) -> dict:
+    """A manual report in the upload format of §4.7 (`at` naive local); `direction` (app 0.6.7),
+    `level` (app 0.8.5) and `count` (v9) only if given; no `category` key when it is None (v9)."""
+    r = {"time": iso(at), "lat": lat, "lon": lon, "accuracy_m": accuracy_m}
+    if category is not None:
+        r["category"] = category
+    if count is not None:
+        r["count"] = count
+    if direction is not None:
+        r["direction"] = direction
+    if level is not None:
+        r["level"] = level
+    return r

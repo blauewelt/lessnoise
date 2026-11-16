@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Labor editions: the red of the launcher background (drawable/ic_launcher_background.xml), also
+         the circle behind the logo on the idle «Messen» screen (0.8.7). -->
+    <color name="logo_background">#FFB3261E</color>
+</resources>
