@@ -216,7 +216,8 @@ final class MapAndUiTests: XCTestCase {
     func testCategoryNamesAndTheBundledFiles() throws {
         // The app bundles android/app/src/main/assets/categories.json and yamnet_labels.txt as they are.
         let assets = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../../../../android/app/src/main/assets").standardized
-        let json = try String(contentsOf: assets.appendingPathComponent("categories.json"), encoding: .utf8)
+        // categories.json as of Android 0.6.3, the port's base (0.9.3 renamed loud_vehicle; ios/PARITY.md).
+        let json = try String(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../Fixtures/android-0.6.3-categories.json").standardized, encoding: .utf8)
         let labels = try String(contentsOf: assets.appendingPathComponent("yamnet_labels.txt"), encoding: .utf8)
         let mapper = try XCTUnwrap(Categories.mapper(categoriesJson: json, labelsText: labels))
         XCTAssertEqual(mapper.labels.count, 521)

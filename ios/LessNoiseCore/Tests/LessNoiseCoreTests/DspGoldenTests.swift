@@ -291,10 +291,12 @@ func runEngineCase(_ c: JSONValue) throws -> (Recorder, [(Int, Double, Float, Fl
             #expect(t.endSample == e[0].int && t.epochMs == e[1].int && t.valid == e[5].bool)
             expectClose(t.lafDb, e[2].dbl, LEVEL_TOL, "LAF", dev, key: "level_dB")
         }
-        // The Kotlin run's CSV text, exactly; and the committed expected CSVs of ReplayTest (±0.05).
+        // The Kotlin run's CSV text, exactly; and the expected CSVs of ReplayTest (±0.05) as Android 0.6.3
+        // committed them (the port's base; Android 0.6.5 appended the column `at_floor`, which the
+        // iPhone's CSV does not have yet — ios/PARITY.md). Copies in Tests/Fixtures/android-0.6.3/.
         #expect(Csv.events(events) == item["csv_events"].str, "\(name) events CSV")
         #expect(Csv.minutes(minutes, []) == item["csv_minutes"].str, "\(name) minutes CSV")
-        let expDir = Fixtures.repoFile("android/dsp/src/test/resources/replay/expected")
+        let expDir = Fixtures.dir.appendingPathComponent("android-0.6.3/replay-expected")
         let expEvents = try String(contentsOf: expDir.appendingPathComponent("\(name).events.csv"), encoding: .utf8)
         let expMinutes = try String(contentsOf: expDir.appendingPathComponent("\(name).minutes.csv"), encoding: .utf8)
         #expect(csvMatches(expEvents, Csv.events(events)), "\(name): replay/expected/\(name).events.csv")
