@@ -47,12 +47,12 @@ The packages resolve GRDB (MIT, the app's one dependency) and, for the Linux tes
 swift-crypto from github.com. The category files are the Android app's
 (`android/app/src/main/assets/categories.json`, `yamnet_labels.txt`), referenced, not copied.
 
-**CI:** every push to the branch `ios-app` that touches `ios/**` runs the workflow «iOS» on GitHub's
+**CI:** every push to the branches `ios-app` and `ios-testflight*` that touches `ios/**` runs the workflow «iOS» on GitHub's
 macOS runner: both packages' `swift test`, `xcodegen`, `xcodebuild build-for-testing` and the
 simulator tests without signing; the test summary is in the run's summary, logs and the
 `.xcresult` are an artifact.
 
-## Signing with a personal team
+## Signing with a personal team (on a Mac; without a Mac see «TestFlight» below)
 
 1. Xcode → Settings → Accounts: add the Apple ID of the developer account (individual).
 2. In `project.yml` set `DEVELOPMENT_TEAM` to the Team ID (developer.apple.com → Membership), run
@@ -75,20 +75,57 @@ order and thresholds as `android/app/src/main/assets/categories.json`). To see A
 in the run's artifact; a copy is in `LessNoiseKit/Tests/Fixtures/apple-sound-labels.txt`). Categories
 can differ from Android's for the same sound — DESIGN.md §9 «Categories differ by platform».
 
-## TestFlight (owner)
+## TestFlight (GitHub Actions, no Mac)
 
-1. App Store Connect → My Apps → «+» → New App: platform iOS, name «Weniger Lärm», primary
-   language German, bundle id `ch.lessnoise.app`, SKU e.g. `wenigerlaerm-ios`.
-2. Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every upload (and `MARKETING_VERSION` for
-   a new version), `xcodegen`.
-3. Xcode → Product → Archive (scheme «WenigerLaerm», device «Any iOS Device») → Organizer →
-   Distribute App → App Store Connect → Upload. Export compliance: the app uses only Apple's TLS
-   and CryptoKit (`ITSAppUsesNonExemptEncryption = NO` is set).
-4. TestFlight → Internal Testing: add yourself; the build installs through the TestFlight app (no
-   review). External testers need the beta review: fill in «Test Information» (what to test,
-   contact) and the review notes of DESIGN.md §3 (why the app records in the background).
-5. Before external testing and before the App Store: the privacy label and texts of
-   DESIGN.md «Before an iOS release», and the server must accept the audio source `IOS`.
+TestFlight is Apple's beta-testing service: builds uploaded to App Store Connect (Apple's portal for
+apps) install on invited iPhones through Apple's «TestFlight» app. The signed build and the upload
+are made by the workflow «iOS TestFlight» (`.github/workflows/ios-testflight.yml`) on GitHub's macOS
+runner, the same idea as `labor-build.yml` for Android: the signing key lives only in the
+repository's Actions secrets, never in a chat session or on a laptop.
+
+The workflow has two jobs. **archive-unsigned** always runs: `xcodegen`, then a Release archive for
+a real iPhone (`generic/platform=iOS`) without signing; it proves the device build compiles and
+links, and its summary shows version, build number and the size of the app. **testflight** runs
+only when all four secrets below are set (otherwise it ends green with «Signing secrets not set —
+skipped»): it writes the API key to the runner's temp folder, archives with automatic signing
+(Xcode creates the distribution certificate and the provisioning profile itself with the API key,
+`-allowProvisioningUpdates`), exports with `ios/ExportOptions.plist` (method `app-store-connect`,
+destination `upload`) — which uploads to App Store Connect — and deletes the key.
+
+**Once (owner, on Apple's websites, from any browser):**
+
+1. Apple Developer Program membership (individual first, DESIGN.md §14); note the **Team ID**.
+2. App Store Connect: a new app record — platform iOS, name «Weniger Lärm», primary language
+   German, bundle id `ch.lessnoise.app` (register the bundle id first if the form asks for it),
+   SKU e.g. `wenigerlaerm-ios`.
+3. App Store Connect: an **API key** of type *Team* with the role **Admin** (Admin is needed so that
+   Xcode may create the signing certificate and the provisioning profile). Download the `.p8` file (Apple offers it only once); note the key id and the
+   issuer id shown with the keys.
+4. GitHub → this repository → Settings → Secrets and variables → Actions → four repository
+   secrets:
+   - `APPLE_TEAM_ID` — the Team ID
+   - `ASC_KEY_ID` — the API key's id
+   - `ASC_ISSUER_ID` — the issuer id
+   - `ASC_KEY_P8` — the whole text of the `.p8` file, including the `BEGIN`/`END PRIVATE KEY` lines
+5. TestFlight → Internal Testing: a group with yourself (and other team members) as testers.
+
+**Per build (a session or the owner):**
+
+1. Push a branch named `ios-testflight*` that touches `ios/**`, or run the workflow by hand:
+   `gh workflow run ios-testflight.yml --ref <branch>` (input `build_number` overrides the build
+   number). Without the input the build number is the run number + 1, so it rises with every run;
+   `MARKETING_VERSION` (the visible version, `project.yml`) is raised by a commit for a new version.
+2. Wait for the green run; its summary says «Version …, build … — uploaded to App Store Connect».
+3. App Store Connect processes the build (minutes to about half an hour) before it shows under
+   TestFlight. Export compliance is answered by the app itself (`ITSAppUsesNonExemptEncryption =
+   NO`: only Apple's TLS and CryptoKit).
+4. Internal testers install or update it through the TestFlight app (no review). External testers
+   need Apple's beta review: «Test Information» (what to test, contact) and the review notes of
+   DESIGN.md §3 (why the app records in the background).
+
+Before external testing and before the App Store: the privacy label and texts of DESIGN.md
+«Before an iOS release», and the server must accept the audio source `IOS` (`ios/PARITY.md`: today
+it refuses iPhone sites and minutes). What Android gained since the port: **[PARITY.md](PARITY.md)**.
 
 ## Device test checklist
 
